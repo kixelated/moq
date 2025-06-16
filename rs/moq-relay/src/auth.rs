@@ -98,7 +98,7 @@ impl Auth {
 		let auth = self.paths.get(prefix).unwrap_or(&self.key);
 
 		if let Some(token) = suffix.strip_suffix(".jwt") {
-			let auth = auth.as_ref().expect("no authentication configured");
+			let auth = auth.as_ref().context("no authentication configured")?;
 
 			// Verify the token and return the payload.
 			let mut token = auth.verify(token)?;
