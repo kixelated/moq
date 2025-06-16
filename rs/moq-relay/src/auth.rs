@@ -91,7 +91,7 @@ impl Auth {
 
 	// Parse/validate a user provided URL.
 	pub fn validate(&self, url: &Url) -> anyhow::Result<moq_token::Payload> {
-		tracing::trace!(path = url.path(), "validating URL");
+		tracing::debug!(path = url.path(), "validating URL");
 
 		let path = url.path().trim_start_matches('/');
 		let (prefix, suffix) = path.rsplit_once("/").unwrap_or(("", path));
