@@ -5,6 +5,7 @@ on:
     tags:
       - 'moq-relay-v*'
       - 'moq-clock-v*'
+      # NOTE: The -cli is automatically removed
       - 'hang-cli-v*'
 
 env:
@@ -27,7 +28,7 @@ jobs:
       - id: parse
         run: |
           ref=${GITHUB_REF#refs/tags/}
-          if [[ "$ref" =~ ^([a-z-]+)-v([0-9.]+)$ ]]; then
+          if [[ "$ref" =~ ^([a-z-]+)(?:-cli)?-v([0-9.]+)$ ]]; then
             target=${BASH_REMATCH[1]}
             version=${BASH_REMATCH[2]}
             echo "target=$target" >> $GITHUB_OUTPUT
