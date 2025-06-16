@@ -10,7 +10,7 @@ REGION=${REGION:-"now"}
 wget -nv "${URL}" -O "tmp.mp4"
 
 # Properly fragment the file
-ffmpeg -y -i tmp.mp4 \
+ffmpeg -y -loglevel error -i tmp.mp4 \
 	-c copy \
 	-f mp4 -movflags cmaf+separate_moof+delay_moov+skip_trailer+frag_every_frame \
 	"fragmented.mp4"
