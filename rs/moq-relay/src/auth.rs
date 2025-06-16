@@ -1,5 +1,6 @@
 use std::{collections::HashMap, sync::Arc};
 
+use anyhow::Context;
 use serde::{Deserialize, Serialize};
 use url::Url;
 
@@ -98,7 +99,9 @@ impl Auth {
 		let auth = self.paths.get(prefix).unwrap_or(&self.key);
 
 		if let Some(token) = suffix.strip_suffix(".jwt") {
-			let auth = auth.as_ref().context("no authentication configured")?;
+			let auth = auth
+				.as_ref()
+				.context(format!("no authentication configured for prefix: {}", prefix))?;
 
 			// Verify the token and return the payload.
 			let mut token = auth.verify(token)?;
