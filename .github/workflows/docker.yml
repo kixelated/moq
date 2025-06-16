@@ -5,7 +5,7 @@ on:
     tags:
       - 'moq-relay-v*'
       - 'moq-clock-v*'
-      - 'hang-v*'
+      - 'hang-cli-v*'
 
 env:
   REGISTRY: docker.io/kixelated
