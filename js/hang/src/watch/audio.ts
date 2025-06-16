@@ -2,6 +2,7 @@ import * as Moq from "@kixelated/moq";
 import { Memo, Signal, Signals, cleanup, signal } from "@kixelated/signals";
 import * as Catalog from "../catalog";
 import * as Container from "../container";
+import { Buffer } from "buffer";
 
 // An annoying hack, but there's stuttering that we need to fix.
 const LATENCY = 50;
