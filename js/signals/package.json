@@ -18,11 +18,19 @@
 		"dequal": "^2.0.3"
 	},
 	"peerDependencies": {
+		"@types/react": "^19.1.8",
 		"react": "^19.0.0",
 		"solid-js": "^1.9.7"
 	},
+	"peerDependenciesMeta": {
+		"react": {
+			"optional": true
+		},
+		"solid-js": {
+			"optional": true
+		}
+	},
 	"devDependencies": {
-		"@types/react": "^19.1.8",
 		"tsx": "^4.20.1",
 		"typescript": "^5.8.3"
 	}

@@ -46,10 +46,10 @@ importers:
   hang:
     dependencies:
       '@kixelated/moq':
-        specifier: workspace:^
+        specifier: file:../moq
         version: link:../moq
       '@kixelated/signals':
-        specifier: workspace:^
+        specifier: file:../signals
         version: link:../signals
       buffer:
         specifier: ^6.0.3
@@ -144,6 +144,9 @@ importers:
 
   signals:
     dependencies:
+      '@types/react':
+        specifier: ^19.1.8
+        version: 19.1.8
       dequal:
         specifier: ^2.0.3
         version: 2.0.3
@@ -154,9 +157,6 @@ importers:
         specifier: ^1.9.7
         version: 1.9.7
     devDependencies:
-      '@types/react':
-        specifier: ^19.1.8
-        version: 19.1.8
       tsx:
         specifier: ^4.20.1
         version: 4.20.1
