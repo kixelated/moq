@@ -1,5 +1,5 @@
 import * as Moq from "@kixelated/moq";
-import { Memo, Signal, Signals, cleanup, signal } from "@kixelated/signals";
+import { Computed, Root, Signal } from "@kixelated/signals";
 import * as Catalog from "../catalog";
 import * as Container from "../container";
 
@@ -25,36 +25,36 @@ export class Location {
 	#track = new Moq.TrackProducer("location.json", 0);
 	#producer = new Container.PositionProducer(this.#track);
 
-	catalog: Memo<Catalog.Location | undefined>;
+	catalog: Computed<Catalog.Location | undefined>;
 
-	#peers = signal<Record<string, Catalog.Track> | undefined>(undefined);
+	#peers = new Signal<Record<string, Catalog.Track> | undefined>(undefined);
 
-	#signals = new Signals();
+	#signals = new Root();
 
 	constructor(broadcast: Moq.BroadcastProducer, props?: LocationProps) {
 		this.broadcast = broadcast;
 
-		this.enabled = signal(props?.enabled ?? false);
-		this.current = signal(props?.current ?? undefined);
-		this.peering = signal(props?.peering ?? undefined);
+		this.enabled = new Signal(props?.enabled ?? false);
+		this.current = new Signal(props?.current ?? undefined);
+		this.peering = new Signal(props?.peering ?? undefined);
 
-		this.catalog = this.#signals.memo(() => {
-			const enabled = this.enabled.get();
+		this.catalog = this.#signals.computed<Catalog.Location | undefined>((effect) => {
+			const enabled = effect.get(this.enabled);
 			if (!enabled) return;
 
 			broadcast.insertTrack(this.#track.consume());
-			cleanup(() => broadcast.removeTrack(this.#track.name));
+			effect.cleanup(() => broadcast.removeTrack(this.#track.name));
 
 			return {
 				initial: this.current.peek(), // Doesn't trigger a re-render
 				updates: { name: this.#track.name, priority: this.#track.priority },
-				peering: this.peering.get(),
-				peers: this.#peers.get(),
+				peering: effect.get(this.peering),
+				peers: effect.get(this.#peers),
 			};
 		});
 
-		this.#signals.effect(() => {
-			const position = this.current.get();
+		this.#signals.effect((effect) => {
+			const position = effect.get(this.current);
 			if (!position) return;
 			this.#producer.update(position);
 		});
@@ -76,28 +76,28 @@ export class LocationPeer {
 	catalog: Signal<Record<string, Catalog.Track> | undefined>;
 	broadcast: Moq.BroadcastProducer;
 	//location: Signal<Catalog.Position | undefined>
-	producer: Memo<Container.PositionProducer | undefined>;
+	producer: Computed<Container.PositionProducer | undefined>;
 
-	#signals = new Signals();
+	#signals = new Root();
 
 	constructor(
 		broadcast: Moq.BroadcastProducer,
 		catalog: Signal<Record<string, Catalog.Track> | undefined>,
 		handle?: string,
 	) {
-		this.handle = signal(handle);
+		this.handle = new Signal(handle);
 		this.catalog = catalog;
 		this.broadcast = broadcast;
 
-		this.producer = this.#signals.memo(() => {
-			const handle = this.handle.get();
+		this.producer = this.#signals.computed((effect) => {
+			const handle = effect.get(this.handle);
 			if (!handle) return;
 
 			const track = new Moq.TrackProducer(`peer/${handle}/location.json`, 0);
-			cleanup(() => track.close());
+			effect.cleanup(() => track.close());
 
 			broadcast.insertTrack(track.consume());
-			cleanup(() => broadcast.removeTrack(track.name));
+			effect.cleanup(() => broadcast.removeTrack(track.name));
 
 			this.catalog.set((prev) => {
 				return {
@@ -109,7 +109,7 @@ export class LocationPeer {
 				};
 			});
 
-			cleanup(() => {
+			effect.cleanup(() => {
 				this.catalog.set((prev) => {
 					const { [handle]: _, ...rest } = prev ?? {};
 					return {
@@ -119,7 +119,7 @@ export class LocationPeer {
 			});
 
 			const producer = new Container.PositionProducer(track);
-			cleanup(() => producer.close());
+			effect.cleanup(() => producer.close());
 
 			return producer;
 		});

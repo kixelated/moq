@@ -1,6 +1,6 @@
 import { Buffer } from "buffer";
 import * as Moq from "@kixelated/moq";
-import { Signal, Signals, cleanup, signal } from "@kixelated/signals";
+import { Effect, Root, Signal } from "@kixelated/signals";
 import * as Catalog from "../catalog";
 import * as Container from "../container";
 
@@ -47,21 +47,21 @@ export class Video {
 	readonly media: Signal<VideoTrack | undefined>;
 	readonly constraints: Signal<VideoConstraints | undefined>;
 
-	#catalog = signal<Catalog.Video | undefined>(undefined);
+	#catalog = new Signal<Catalog.Video | undefined>(undefined);
 	readonly catalog = this.#catalog.readonly();
 
-	#track = signal<Moq.TrackProducer | undefined>(undefined);
+	#track = new Signal<Moq.TrackProducer | undefined>(undefined);
 
-	#active = signal(false);
+	#active = new Signal(false);
 	readonly active = this.#active.readonly();
 
-	#encoderConfig = signal<VideoEncoderConfig | undefined>(undefined);
-	#decoderConfig = signal<VideoDecoderConfig | undefined>(undefined);
+	#encoderConfig = new Signal<VideoEncoderConfig | undefined>(undefined);
+	#decoderConfig = new Signal<VideoDecoderConfig | undefined>(undefined);
 
 	#group?: Moq.GroupProducer;
 	#groupTimestamp = 0;
 
-	#signals = new Signals();
+	#signals = new Root();
 	#id = 0;
 
 	// Store the latest VideoFrame and when it was captured.
@@ -69,44 +69,44 @@ export class Video {
 
 	constructor(broadcast: Moq.BroadcastProducer, props?: VideoProps) {
 		this.broadcast = broadcast;
-		this.media = signal(props?.media);
-		this.enabled = signal(props?.enabled ?? false);
-		this.constraints = signal(props?.constraints);
+		this.media = new Signal(props?.media);
+		this.enabled = new Signal(props?.enabled ?? false);
+		this.constraints = new Signal(props?.constraints);
 
-		this.#signals.effect(() => this.#runTrack());
-		this.#signals.effect(() => this.#runEncoder());
-		this.#signals.effect(() => this.#runCatalog());
+		this.#signals.effect(this.#runTrack.bind(this));
+		this.#signals.effect(this.#runEncoder.bind(this));
+		this.#signals.effect(this.#runCatalog.bind(this));
 	}
 
-	#runTrack(): void {
-		if (!this.enabled.get()) return;
+	#runTrack(effect: Effect): void {
+		if (!effect.get(this.enabled)) return;
 
-		const media = this.media.get();
+		const media = effect.get(this.media);
 		if (!media) return;
 
 		const track = new Moq.TrackProducer(`video-${this.#id++}`, 1);
-		cleanup(() => track.close());
+		effect.cleanup(() => track.close());
 
 		this.broadcast.insertTrack(track.consume());
-		cleanup(() => this.broadcast.removeTrack(track.name));
+		effect.cleanup(() => this.broadcast.removeTrack(track.name));
 
 		this.#track.set(track);
-		cleanup(() => this.#track.set(undefined));
+		effect.cleanup(() => this.#track.set(undefined));
 	}
 
-	#runEncoder(): void {
-		if (!this.enabled.get()) return;
+	#runEncoder(effect: Effect): void {
+		if (!effect.get(this.enabled)) return;
 
-		const media = this.media.get();
+		const media = effect.get(this.media);
 		if (!media) return;
 
-		const track = this.#track.get();
+		const track = effect.get(this.#track);
 		if (!track) return;
 
 		const settings = media.getSettings() as VideoTrackSettings;
 		const processor = VideoTrackProcessor(media);
 		const reader = processor.getReader();
-		cleanup(() => reader.cancel());
+		effect.cleanup(() => reader.cancel());
 
 		const encoder = new VideoEncoder({
 			output: (frame: EncodedVideoChunk, metadata?: EncodedVideoChunkMetadata) => {
@@ -341,14 +341,14 @@ export class Video {
 	}
 
 	// Returns the catalog for the configured settings.
-	#runCatalog(): void {
-		const encoderConfig = this.#encoderConfig.get();
+	#runCatalog(effect: Effect): void {
+		const encoderConfig = effect.get(this.#encoderConfig);
 		if (!encoderConfig) return;
 
-		const decoderConfig = this.#decoderConfig.get();
+		const decoderConfig = effect.get(this.#decoderConfig);
 		if (!decoderConfig) return;
 
-		const track = this.#track.get();
+		const track = effect.get(this.#track);
 		if (!track) return;
 
 		const description = decoderConfig.description
@@ -369,7 +369,7 @@ export class Video {
 		};
 
 		this.#catalog.set(catalog);
-		cleanup(() => this.#catalog.set(undefined));
+		effect.cleanup(() => this.#catalog.set(undefined));
 	}
 
 	frame(now: DOMHighResTimeStamp): { frame: VideoFrame; lag: DOMHighResTimeStamp } | undefined {

@@ -1,6 +1,6 @@
 import { Buffer } from "buffer";
 import * as Moq from "@kixelated/moq";
-import { Memo, Signal, Signals, cleanup, signal } from "@kixelated/signals";
+import { Computed, Effect, Root, Signal } from "@kixelated/signals";
 import * as Catalog from "../catalog";
 import * as Container from "../container";
 
@@ -22,28 +22,32 @@ export class VideoRenderer {
 
 	#animate?: number;
 
-	#ctx!: Memo<CanvasRenderingContext2D | undefined>;
-	#signals = new Signals();
+	#ctx: Computed<CanvasRenderingContext2D | undefined>;
+	#signals = new Root();
 
 	constructor(source: Video, props?: VideoRendererProps) {
 		this.source = source;
-		this.canvas = signal(props?.canvas);
-		this.paused = signal(props?.paused ?? false);
+		this.canvas = new Signal(props?.canvas);
+		this.paused = new Signal(props?.paused ?? false);
 
-		this.#ctx = this.#signals.memo(
-			() => this.canvas.get()?.getContext("2d", { desynchronized: true }) ?? undefined,
-		);
-		this.#signals.effect(() => this.#schedule());
-		this.#signals.effect(() => this.#runEnabled());
+		this.#ctx = this.#signals.computed((effect: Effect) => {
+			const canvas = effect.get(this.canvas);
+			return canvas?.getContext("2d", { desynchronized: true }) ?? undefined;
+		});
+
+		this.#signals.effect(this.#schedule.bind(this));
+		this.#signals.effect(this.#runEnabled.bind(this));
 	}
 
 	// Detect when video should be downloaded.
-	#runEnabled() {
-		const canvas = this.canvas.get();
+	#runEnabled(effect: Effect): void {
+		const canvas = effect.get(this.canvas);
 		if (!canvas) return;
 
-		const paused = this.paused.get();
+		const paused = effect.get(this.paused);
 		if (paused) return;
+
+		this.#schedule();
 
 		// Detect when the canvas is not visible.
 		const observer = new IntersectionObserver(
@@ -58,14 +62,18 @@ export class VideoRenderer {
 			},
 		);
 
+		effect.cleanup(() => this.source.enabled.set(false));
+
 		observer.observe(canvas);
-		cleanup(() => observer.disconnect());
-		cleanup(() => this.source.enabled.set(false));
+		effect.cleanup(() => observer.disconnect());
 	}
 
 	// (re)schedule a render maybe.
 	#schedule() {
-		if (this.#ctx.get() && !this.paused.get()) {
+		const ctx = this.#ctx.peek();
+		const paused = this.paused.peek();
+
+		if (ctx && !paused) {
 			if (!this.#animate) {
 				this.#animate = requestAnimationFrame(this.#render.bind(this));
 			}
@@ -82,7 +90,7 @@ export class VideoRenderer {
 		this.#animate = undefined;
 		this.#schedule();
 
-		const ctx = this.#ctx.get();
+		const ctx = this.#ctx.peek();
 		if (!ctx) {
 			throw new Error("scheduled without a canvas");
 		}
@@ -143,8 +151,8 @@ export class Video {
 	broadcast: Signal<Moq.BroadcastConsumer | undefined>;
 	enabled: Signal<boolean>; // Don't download any longer
 	catalog: Signal<Catalog.Root | undefined>;
-	selected: Memo<Catalog.Video | undefined>;
-	active: Memo<boolean>;
+	selected: Computed<Catalog.Video | undefined>;
+	active: Computed<boolean>;
 
 	// Unfortunately, browsers don't let us hold on to multiple VideoFrames.
 	// TODO To support higher latencies, keep around the encoded data and decode on demand.
@@ -157,7 +165,7 @@ export class Video {
 	// This is used to calculate the jitter/lag.
 	#ref?: DOMHighResTimeStamp;
 
-	#signals = new Signals();
+	#signals = new Root();
 
 	constructor(
 		broadcast: Signal<Moq.BroadcastConsumer | undefined>,
@@ -166,27 +174,28 @@ export class Video {
 	) {
 		this.broadcast = broadcast;
 		this.catalog = catalog;
-		this.enabled = signal(props?.enabled ?? false);
+		this.enabled = new Signal(props?.enabled ?? false);
 
 		// TODO use isConfigSupported
-		this.selected = this.#signals.memo(() => this.catalog.get()?.video?.[0], { deepEquals: true });
-		this.active = this.#signals.memo(() => this.selected.get() !== undefined);
+		this.selected = this.#signals.computed((effect) => effect.get(this.catalog)?.video?.[0]);
+		this.active = this.#signals.computed((effect) => effect.get(this.selected) !== undefined);
 
-		this.#signals.effect(() => this.#init());
+		this.#signals.effect(this.#init.bind(this));
 	}
 
-	#init() {
-		const enabled = this.enabled.get();
+	#init(effect: Effect): void {
+		const enabled = effect.get(this.enabled);
 		if (!enabled) return;
 
-		const selected = this.selected.get();
+		const selected = effect.get(this.selected);
 		if (!selected) return;
 
-		const broadcast = this.broadcast.get();
+		const broadcast = effect.get(this.broadcast);
 		if (!broadcast) return;
 
 		// We don't clear previous frames so we can seamlessly switch tracks.
 		const sub = broadcast.subscribe(selected.track.name, selected.track.priority);
+		effect.cleanup(() => sub.close());
 
 		const decoder = new VideoDecoder({
 			output: (frame) => {
@@ -210,6 +219,7 @@ export class Video {
 				this.close();
 			},
 		});
+		effect.cleanup(() => decoder.close());
 
 		const config = selected.config;
 
@@ -219,33 +229,22 @@ export class Video {
 			optimizeForLatency: config.optimizeForLatency ?? true,
 		});
 
-		(async () => {
-			try {
-				for (;;) {
-					const next = await sub.nextFrame();
-					if (!next) break;
+		effect.spawn(async (cancel) => {
+			for (;;) {
+				const next = await Promise.race([sub.nextFrame(), cancel]);
+				if (!next) break;
 
-					const decoded = Container.decodeFrame(next.data);
+				const decoded = Container.decodeFrame(next.data);
 
-					const chunk = new EncodedVideoChunk({
-						type: next.frame === 0 ? "key" : "delta",
-						data: decoded.data,
-						timestamp: decoded.timestamp,
-					});
+				const chunk = new EncodedVideoChunk({
+					type: next.frame === 0 ? "key" : "delta",
+					data: decoded.data,
+					timestamp: decoded.timestamp,
+				});
 
-					decoder.decode(chunk);
-				}
-			} catch (error) {
-				console.warn("video decoder error", error);
-			} finally {
-				sub.close();
+				decoder.decode(chunk);
 			}
-		})();
-
-		return () => {
-			decoder.close();
-			sub.close();
-		};
+		});
 	}
 
 	// Returns the closest frame to the given timestamp and the lag.

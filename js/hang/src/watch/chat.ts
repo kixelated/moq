@@ -1,7 +1,7 @@
 import * as Moq from "@kixelated/moq";
 import * as Catalog from "../catalog";
 
-import { Memo, Signal, Signals, cleanup, signal } from "@kixelated/signals";
+import { Computed, Root, Signal } from "@kixelated/signals";
 import { Container } from "..";
 
 export interface ChatProps {
@@ -14,11 +14,11 @@ export class Chat {
 	broadcast: Signal<Moq.BroadcastConsumer | undefined>;
 
 	enabled: Signal<boolean>;
-	catalog: Memo<Catalog.Chat | undefined>;
-	track: Memo<Container.ChatConsumer | undefined>;
-	ttl: Memo<DOMHighResTimeStamp | undefined>;
+	catalog: Computed<Catalog.Chat | undefined>;
+	track: Computed<Container.ChatConsumer | undefined>;
+	ttl: Computed<DOMHighResTimeStamp | undefined>;
 
-	#signals = new Signals();
+	#signals = new Root();
 
 	constructor(
 		broadcast: Signal<Moq.BroadcastConsumer | undefined>,
@@ -26,33 +26,30 @@ export class Chat {
 		props?: ChatProps,
 	) {
 		this.broadcast = broadcast;
-		this.enabled = signal(props?.enabled ?? false);
+		this.enabled = new Signal(props?.enabled ?? false);
 
 		// Grab the chat section from the catalog (if it's changed).
-		this.catalog = this.#signals.memo(
-			() => {
-				if (!this.enabled.get()) return undefined;
-				return catalog.get()?.chat;
-			},
-			{ deepEquals: true },
-		);
-
-		// TODO enforce the TTL?
-		this.ttl = this.#signals.memo(() => {
-			return this.catalog.get()?.ttl;
+		this.catalog = this.#signals.unique((effect) => {
+			if (!effect.get(this.enabled)) return undefined;
+			return effect.get(catalog)?.chat;
 		});
 
-		this.track = this.#signals.memo(() => {
-			const catalog = this.catalog.get();
+		// TODO enforce the TTL?
+		this.ttl = this.#signals.computed((effect) => {
+			return effect.get(this.catalog)?.ttl;
+		});
+
+		this.track = this.#signals.computed((effect) => {
+			const catalog = effect.get(this.catalog);
 			if (!catalog) return undefined;
 
-			const broadcast = this.broadcast.get();
+			const broadcast = effect.get(this.broadcast);
 			if (!broadcast) return undefined;
 
 			const track = broadcast.subscribe(catalog.track.name, catalog.track.priority);
 			const consumer = new Container.ChatConsumer(track);
 
-			cleanup(() => consumer.close());
+			effect.cleanup(() => consumer.close());
 			return consumer;
 		});
 	}

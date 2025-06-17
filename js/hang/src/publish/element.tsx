@@ -1,4 +1,4 @@
-import { Signals, cleanup, signal } from "@kixelated/signals";
+import { Root, Signal } from "@kixelated/signals";
 import { Show } from "solid-js";
 import { render } from "solid-js/web";
 import { Connection } from "../connection";
@@ -8,12 +8,12 @@ import { Controls } from "./controls";
 export default class HangPublish extends HTMLElement {
 	static observedAttributes = ["url", "device", "audio", "video", "controls"];
 
-	#controls = signal(false);
+	#controls = new Signal(false);
 
 	connection: Connection;
 	broadcast: Broadcast;
 
-	#signals = new Signals();
+	#signals = new Root();
 
 	constructor() {
 		super();
@@ -24,18 +24,18 @@ export default class HangPublish extends HTMLElement {
 		this.broadcast = new Broadcast(this.connection);
 
 		// Only publish when we have media available.
-		this.#signals.effect(() => {
-			const audio = this.broadcast.audio.media.get();
-			const video = this.broadcast.video.media.get();
+		this.#signals.effect((effect) => {
+			const audio = effect.get(this.broadcast.audio.media);
+			const video = effect.get(this.broadcast.video.media);
 			this.broadcast.enabled.set(!!audio || !!video);
 		});
 
-		this.#signals.effect(() => {
-			const media = this.broadcast.video.media.get();
+		this.#signals.effect((effect) => {
+			const media = effect.get(this.broadcast.video.media);
 			if (!media || !preview) return;
 
 			preview.srcObject = new MediaStream([media]);
-			cleanup(() => {
+			effect.cleanup(() => {
 				preview.srcObject = null;
 			});
 		});
@@ -43,7 +43,7 @@ export default class HangPublish extends HTMLElement {
 		// Render the controls element.
 		render(
 			() => (
-				<Show when={this.#controls.get()}>
+				<Show when={this.#controls.solid()}>
 					<Controls broadcast={this.broadcast} />
 				</Show>
 			),

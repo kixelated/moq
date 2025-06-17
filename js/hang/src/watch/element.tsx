@@ -1,4 +1,4 @@
-import { Signals, signal } from "@kixelated/signals";
+import { Root, Signal } from "@kixelated/signals";
 import { Show } from "solid-js";
 import { render } from "solid-js/web";
 import { Connection } from "../connection";
@@ -11,7 +11,7 @@ import { VideoRenderer } from "./video";
 export default class HangWatch extends HTMLElement {
 	static observedAttributes = ["url", "paused", "volume", "muted", "controls"];
 
-	#controls = signal(false);
+	#controls = new Signal(false);
 
 	// You can construct these manually if you want to use the library without the web component.
 	// However be warned that the API is still in flux and may change.
@@ -20,7 +20,7 @@ export default class HangWatch extends HTMLElement {
 	video: VideoRenderer;
 	audio: AudioEmitter;
 
-	#signals = new Signals();
+	#signals = new Root();
 
 	constructor() {
 		super();
@@ -35,7 +35,7 @@ export default class HangWatch extends HTMLElement {
 		// Render the controls element.
 		render(
 			() => (
-				<Show when={this.#controls.get()}>
+				<Show when={this.#controls.solid()}>
 					<Controls broadcast={this.broadcast} video={this.video} audio={this.audio} root={this} />
 				</Show>
 			),
@@ -44,8 +44,8 @@ export default class HangWatch extends HTMLElement {
 
 		// Optionally update attributes to match the library state.
 		// This is kind of dangerous because it can create loops.
-		this.#signals.effect(() => {
-			const url = this.connection.url.get();
+		this.#signals.effect((effect) => {
+			const url = effect.get(this.connection.url);
 			if (url) {
 				this.setAttribute("url", url.toString());
 			} else {
@@ -53,8 +53,8 @@ export default class HangWatch extends HTMLElement {
 			}
 		});
 
-		this.#signals.effect(() => {
-			const muted = this.audio.muted.get();
+		this.#signals.effect((effect) => {
+			const muted = effect.get(this.audio.muted);
 			if (muted) {
 				this.setAttribute("muted", "");
 			} else {
@@ -62,8 +62,8 @@ export default class HangWatch extends HTMLElement {
 			}
 		});
 
-		this.#signals.effect(() => {
-			const paused = this.video.paused.get();
+		this.#signals.effect((effect) => {
+			const paused = effect.get(this.video.paused);
 			if (paused) {
 				this.setAttribute("paused", "true");
 			} else {
@@ -71,13 +71,13 @@ export default class HangWatch extends HTMLElement {
 			}
 		});
 
-		this.#signals.effect(() => {
-			const volume = this.audio.volume.get();
+		this.#signals.effect((effect) => {
+			const volume = effect.get(this.audio.volume);
 			this.setAttribute("volume", volume.toString());
 		});
 
-		this.#signals.effect(() => {
-			const controls = this.#controls.get();
+		this.#signals.effect((effect) => {
+			const controls = effect.get(this.#controls);
 			if (controls) {
 				this.setAttribute("controls", "");
 			} else {
@@ -85,9 +85,9 @@ export default class HangWatch extends HTMLElement {
 			}
 		});
 
-		this.#signals.effect(() => {
+		this.#signals.effect((effect) => {
 			// Don't download audio if we're muted or paused.
-			const paused = this.video.paused.get() || this.audio.muted.get();
+			const paused = effect.get(this.video.paused) || effect.get(this.audio.muted);
 			this.audio.paused.set(paused);
 		});
 	}

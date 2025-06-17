@@ -1,173 +1,290 @@
-// A wrapper around solid-js signals to provide a more ergonomic API.
-
-import {
-	Owner,
-	SignalOptions,
-	createEffect,
-	createRoot,
-	createSignal,
-	getOwner,
-	onCleanup,
-	runWithOwner,
-	untrack,
-} from "solid-js";
-
-export { batch } from "solid-js";
-
 import { dequal } from "dequal";
-
-export interface Signal<T> extends Memo<T> {
-	set(value: T | ((prev: T) => T)): void;
-	readonly(): Memo<T>;
-}
-
-// TODO: Require this is called using a Signals root.
-// TODO: Error on set if the root is closed, preventing potential errors.
-export function signal<T>(initial: T, options?: SignalOptions<T>): Signal<T> {
-	const [get, set] = createSignal(initial, options);
-	return {
-		get,
-		set,
-		peek: () => untrack(get),
-		subscribe(fn) {
-			const temp = new Signals();
-			temp.effect(() => {
-				fn(get());
-			});
-			return temp.close.bind(temp);
-		},
-		memo(fn) {
-			return memo(() => fn(get()));
-		},
-		readonly() {
-			return {
-				get: () => get(),
-				peek: () => untrack(get),
-				subscribe(fn) {
-					const temp = new Signals();
-					temp.effect(() => {
-						fn(get());
-					});
-					return temp.close.bind(temp);
-				},
-				memo(fn) {
-					return memo(() => fn(get()));
-				},
-			};
-		},
-	};
-}
-
-export function cleanup(fn: () => void) {
-	onCleanup(fn);
-}
+import type * as Solid from "solid-js";
+import { createSignal } from "solid-js";
 
 export type Dispose = () => void;
 
-export interface Memo<T> {
-	get(): T;
-	peek(): T;
-	subscribe(fn: (value: T) => void): Dispose;
-	memo<U>(fn: (value: T) => U): Memo<U>;
-}
+export class Signal<T> {
+	#value: T;
+	#subscribers: Set<(value: T) => void> = new Set();
 
-export type MemoOptions<T> = SignalOptions<T> & { deepEquals?: boolean };
-
-// Unlike solid-js, this doesn't support passing an initial value.
-// It calls the function immediately instead.
-export function memo<T>(fn: (prev?: T) => T, options?: MemoOptions<T>): Memo<T> {
-	if (options?.deepEquals) {
-		options.equals = dequal;
+	constructor(value: T) {
+		this.#value = value;
 	}
 
-	const sig = signal(fn(undefined), options);
-	effect(() => {
-		const next = fn(sig.peek());
-		sig.set(next);
-	});
+	// TODO rename to get once we've ported everything
+	peek(): T {
+		return this.#value;
+	}
 
-	return sig;
-}
-
-export function effect(fn: () => void) {
-	createEffect(() => {
-		const result = fn();
-		if (typeof result === "function") {
-			// Feels bad that Typescript can't enforce this.
-			console.warn("effect must return void; use cleanup() instead");
+	set(value: T | ((prev: T) => T)): void {
+		let newValue: T;
+		if (typeof value === "function") {
+			newValue = (value as (prev: T) => T)(this.#value);
+		} else {
+			newValue = value;
 		}
-	});
+
+		if (newValue === this.#value) return;
+		this.#value = newValue;
+
+		for (const fn of this.#subscribers) fn(newValue);
+	}
+
+	readonly(): Computed<T> {
+		return new Computed(this);
+	}
+
+	subscribe(fn: (value: T) => void): Dispose {
+		this.#subscribers.add(fn);
+		return () => this.#subscribers.delete(fn);
+	}
+
+	// A helper to create a solid-js signal.
+	solid(): Solid.Accessor<T> {
+		const [get, set] = createSignal(this.#value);
+		this.subscribe((value) => set(() => value));
+		return get;
+	}
 }
 
-export class Signals {
-	#dispose: Dispose;
-	#owner: Owner;
+// Same as Signal but without the `set` method.
+export class Computed<T> {
+	#signal: Signal<T>;
 
-	// @ts-expect-error no types
+	constructor(signal: Signal<T>) {
+		this.#signal = signal;
+	}
+
+	peek(): T {
+		return this.#signal.peek();
+	}
+
+	subscribe(fn: (value: T) => void): Dispose {
+		return this.#signal.subscribe(fn);
+	}
+
+	readonly(): Computed<T> {
+		return this;
+	}
+
+	solid(): Solid.Accessor<T> {
+		return this.#signal.solid();
+	}
+}
+
+export class Root {
+	// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+	// @ts-ignore depends on the bundler.
 	static dev = import.meta.env?.MODE !== "production";
 
 	// Sanity check to make sure roots are being disposed on dev.
 	static #finalizer = new FinalizationRegistry<string>((debugInfo) => {
-		console.warn(`Root was garbage collected without being closed:\n${debugInfo}`);
+		console.warn(`Signals was garbage collected without being closed:\n${debugInfo}`);
 	});
 
-	constructor(parent?: Owner) {
-		if (Signals.dev) {
+	#nested?: Effect[] = [];
+	#dispose?: Dispose[] = [];
+
+	constructor() {
+		if (Root.dev) {
 			const debug = new Error("created here:").stack ?? "No stack";
-			Signals.#finalizer.register(this, debug, this);
+			Root.#finalizer.register(this, debug, this);
 		}
-
-		[this.#dispose, this.#owner] = createRoot((dispose) => {
-			const owner = getOwner();
-			if (!owner) throw new Error("no owner");
-
-			return [dispose, owner];
-		}, parent);
 	}
 
-	effect(fn: () => void): void {
-		const res = runWithOwner(this.#owner, () => {
-			effect(fn);
-			return true;
+	// Create a nested signals instance.
+	effect(fn: (effect: Effect) => void) {
+		if (this.#nested === undefined) throw new Error("closed");
+		const signals = new Effect(fn);
+		this.#nested.push(signals);
+	}
+
+	// A helper to call a function when a signal changes.
+	subscribe<T>(signal: Signal<T> | Computed<T>, fn: (value: T) => void) {
+		this.effect((effect) => {
+			const value = effect.get(signal);
+			fn(value);
 		});
-		if (!res) {
-			throw new Error("root is closed");
-		}
 	}
 
-	memo<T>(fn: (prev?: T) => T, options?: MemoOptions<T>): Memo<T> {
-		const res = runWithOwner(this.#owner, () => memo(fn, options));
-		if (!res) {
-			throw new Error("root is closed");
-		}
+	// Create a signal that is derived from other signals.
+	computed<T>(fn: (effect: Effect) => T): Computed<T> {
+		let signal: Signal<T> | undefined;
 
-		return res;
-	}
-
-	cleanup(fn: () => void): void {
-		const ok = runWithOwner(this.#owner, () => {
-			onCleanup(fn);
-			return true;
+		this.effect((root) => {
+			const value = fn(root);
+			if (signal === undefined) {
+				signal = new Signal(value);
+			} else {
+				signal.set(value);
+			}
 		});
 
-		if (!ok) {
-			throw new Error("root is closed");
+		if (signal === undefined) {
+			throw new Error("impossible: effect didn't run immediately");
 		}
+
+		return new Computed(signal);
+	}
+
+	// Same as `computed` but performs a deep equality check on the value.
+	unique<T>(fn: (effect: Effect) => T): Computed<T> {
+		let signal: Signal<T> | undefined;
+
+		this.effect((root) => {
+			const value = fn(root);
+			if (signal === undefined) {
+				signal = new Signal(value);
+			} else if (!dequal(signal.peek(), value)) {
+				signal.set(value);
+			}
+		});
+
+		if (signal === undefined) {
+			throw new Error("impossible: effect didn't run immediately");
+		}
+
+		return new Computed(signal);
+	}
+
+	cleanup(fn: Dispose): void {
+		if (this.#dispose === undefined) throw new Error("closed");
+		this.#dispose.push(fn);
 	}
 
 	close(): void {
-		this.#dispose();
-
-		if (Signals.dev) {
-			Signals.#finalizer.unregister(this);
+		if (this.#dispose !== undefined) {
+			for (const fn of this.#dispose) fn();
+			this.#dispose = undefined;
 		}
-	}
 
-	nest(): Signals {
-		return new Signals(this.#owner);
+		if (this.#nested !== undefined) {
+			for (const nested of this.#nested) nested.close();
+			this.#nested = undefined;
+		}
+
+		this.#dispose = undefined;
+		this.#nested = undefined;
+
+		if (Root.dev) {
+			Root.#finalizer.unregister(this);
+		}
 	}
 }
 
-export function signals(): Signals {
-	return new Signals();
+export class Effect {
+	// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+	// @ts-ignore depends on the bundler.
+	static dev = import.meta.env?.MODE !== "production";
+
+	// Sanity check to make sure roots are being disposed on dev.
+	static #finalizer = new FinalizationRegistry<string>((debugInfo) => {
+		console.warn(`Signals was garbage collected without being closed:\n${debugInfo}`);
+	});
+
+	#fn: (effect: Effect) => void;
+	#dispose?: Dispose[] = [];
+	#unwatch: Dispose[] = [];
+	#async: Promise<void>[] = [];
+
+	#scheduled = false;
+
+	constructor(fn: (effect: Effect) => void) {
+		if (Effect.dev) {
+			const debug = new Error("created here:").stack ?? "No stack";
+			Effect.#finalizer.register(this, debug, this);
+		}
+
+		this.#fn = fn;
+		this.#fn(this);
+	}
+
+	#schedule(): void {
+		if (this.#scheduled) return;
+		this.#scheduled = true;
+		queueMicrotask(() => this.#run());
+	}
+
+	async #run(): Promise<void> {
+		if (this.#dispose === undefined) return; // closed, no error because this is a microtask
+
+		// Wait for all async effects to complete.
+		// There's a 1s timeout here to catch cleanup functions that don't exit.
+		const timeout = new Promise((reject) => setTimeout(() => reject(new Error("cleanup timeout")), 1000));
+		await Promise.race([timeout, Promise.all(this.#async)]);
+		this.#async.length = 0;
+
+		// Unsubscribe from all signals.
+		for (const unwatch of this.#unwatch) unwatch();
+		this.#unwatch.length = 0;
+
+		// Run the cleanup functions for the previous run.
+		for (const fn of this.#dispose) fn();
+		this.#dispose.length = 0;
+
+		this.#scheduled = false;
+		this.#fn(this);
+	}
+
+	// Get the current value of a signal, monitoring it for changes (via ===) and rerunning on change.
+	get<T>(signal: Signal<T> | Computed<T>): T {
+		if (this.#dispose === undefined) throw new Error("closed");
+
+		const value = signal.peek();
+		const dispose = signal.subscribe(() => this.#schedule());
+
+		this.#unwatch.push(dispose);
+		return value;
+	}
+
+	// Get the current value of a signal, monitoring it for changes (via dequal) and rerunning on change.
+	unique<T>(signal: Signal<T> | Computed<T>): T {
+		if (this.#dispose === undefined) throw new Error("closed");
+
+		const value = signal.peek();
+		const dispose = signal.subscribe((v) => {
+			if (dequal(v, value)) return;
+			this.#schedule();
+		});
+
+		this.#unwatch.push(dispose);
+		return value;
+	}
+
+	// TODO: Add effect for another layer of nesting
+
+	// Spawn an async effect that blocks the effect being rerun until it completes.
+	// The cancel promise is resolved when the effect should cleanup: on close or rerun.
+	spawn(fn: (cancel: Promise<void>) => Promise<void>) {
+		const cancel = new Promise<void>((resolve) => {
+			this.cleanup(() => resolve());
+		});
+
+		const promise = fn(cancel);
+		this.#async.push(promise);
+	}
+
+	// Register a cleanup function.
+	cleanup(fn: Dispose): void {
+		if (this.#dispose === undefined) {
+			fn();
+			return;
+		}
+
+		this.#dispose.push(fn);
+	}
+
+	close(): void {
+		if (this.#dispose === undefined) throw new Error("closed");
+		for (const fn of this.#dispose) fn();
+		this.#dispose = undefined;
+
+		for (const signal of this.#unwatch) signal();
+		this.#unwatch.length = 0;
+
+		if (Effect.dev) {
+			Effect.#finalizer.unregister(this);
+		}
+	}
 }

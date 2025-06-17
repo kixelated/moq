@@ -1,5 +1,5 @@
 import * as Moq from "@kixelated/moq";
-import { Memo, Signal, Signals, cleanup, signal } from "@kixelated/signals";
+import { Computed, Effect, Root, Signal } from "@kixelated/signals";
 import * as Catalog from "../catalog";
 import * as Container from "../container";
 
@@ -11,36 +11,34 @@ export class Location {
 	enabled: Signal<boolean>;
 
 	broadcast: Signal<Moq.BroadcastConsumer | undefined>;
-	catalog: Memo<Catalog.Location | undefined>;
-	peering: Memo<boolean | undefined>;
+	catalog: Computed<Catalog.Location | undefined>;
+	peering: Computed<boolean | undefined>;
 
-	#current = signal<Catalog.Position | undefined>(undefined);
+	#current = new Signal<Catalog.Position | undefined>(undefined);
 	readonly current = this.#current.readonly();
 
-	#updates: Memo<Catalog.Track | undefined>;
+	#updates: Computed<Catalog.Track | undefined>;
 
-	#signals = new Signals();
+	#signals = new Root();
 
 	constructor(
 		broadcast: Signal<Moq.BroadcastConsumer | undefined>,
 		catalog: Signal<Catalog.Root | undefined>,
 		props?: LocationProps,
 	) {
-		this.enabled = signal(props?.enabled ?? false);
+		this.enabled = new Signal(props?.enabled ?? false);
 		this.broadcast = broadcast;
 
 		// Grab the location section from the catalog (if it's changed).
-		this.catalog = this.#signals.memo(
-			() => {
-				if (!this.enabled.get()) return undefined;
-				return catalog.get()?.location;
-			},
-			{ deepEquals: true },
-		);
-		this.peering = this.#signals.memo(() => this.catalog.get()?.peering);
+		this.catalog = this.#signals.unique((effect) => {
+			if (!effect.get(this.enabled)) return undefined;
+			return effect.get(catalog)?.location;
+		});
+		this.peering = this.#signals.computed((effect) => effect.get(this.catalog)?.peering);
 
-		this.#signals.effect(() => {
-			const catalog = this.catalog.get();
+		// TODO This seems kinda wrong and racy
+		this.#signals.effect((effect) => {
+			const catalog = effect.get(this.catalog);
 			if (!catalog) return;
 
 			const initial = catalog.initial;
@@ -49,34 +47,31 @@ export class Location {
 			this.#current.set(initial);
 		});
 
-		this.#updates = this.#signals.memo(
-			() => {
-				const broadcast = this.broadcast.get();
-				if (!broadcast) return;
-
-				const catalog = this.catalog.get();
-				if (!catalog) return;
-
-				const updates = catalog.updates;
-				if (!updates) return;
-
-				return updates;
-			},
-			{ deepEquals: true },
-		);
-
-		this.#signals.effect(() => {
-			const broadcast = this.broadcast.get();
+		this.#updates = this.#signals.unique((effect) => {
+			const broadcast = effect.get(this.broadcast);
 			if (!broadcast) return;
 
-			const updates = this.#updates.get();
+			const catalog = effect.get(this.catalog);
+			if (!catalog) return;
+
+			const updates = catalog.updates;
+			if (!updates) return;
+
+			return updates;
+		});
+
+		this.#signals.effect((effect) => {
+			const broadcast = effect.get(this.broadcast);
+			if (!broadcast) return;
+
+			const updates = effect.get(this.#updates);
 			if (!updates) return;
 
 			const track = broadcast.subscribe(updates.name, updates.priority);
-			cleanup(() => track.close());
+			effect.cleanup(() => track.close());
 
 			const consumer = new Container.PositionConsumer(track);
-			cleanup(() => consumer.close());
+			effect.cleanup(() => consumer.close());
 
 			void runConsumer(consumer, this.#current);
 		});
@@ -114,48 +109,45 @@ export class LocationPeer {
 	location: Signal<Catalog.Position | undefined>;
 	broadcast: Signal<Moq.BroadcastConsumer | undefined>;
 
-	#track: Memo<Catalog.Track | undefined>;
-	#signals = new Signals();
+	#track: Computed<Catalog.Track | undefined>;
+	#signals = new Root();
 
 	constructor(
 		broadcast: Signal<Moq.BroadcastConsumer | undefined>,
-		catalog: Memo<Catalog.Location | undefined>,
+		catalog: Computed<Catalog.Location | undefined>,
 		handle?: string,
 	) {
-		this.handle = signal(handle);
-		this.location = signal<Catalog.Position | undefined>(undefined);
+		this.handle = new Signal(handle);
+		this.location = new Signal<Catalog.Position | undefined>(undefined);
 		this.broadcast = broadcast;
 
-		this.#track = this.#signals.memo(
-			() => {
-				const handle = this.handle.get();
-				if (!handle) return undefined;
+		this.#track = this.#signals.unique((effect) => {
+			const handle = effect.get(this.handle);
+			if (!handle) return undefined;
 
-				const root = catalog.get();
-				if (!root) return undefined;
+			const root = effect.get(catalog);
+			if (!root) return undefined;
 
-				const track = root.peers?.[handle];
-				if (!track) return undefined;
+			const track = root.peers?.[handle];
+			if (!track) return undefined;
 
-				return track;
-			},
-			{ deepEquals: true },
-		);
+			return track;
+		});
 
 		this.#signals.effect(this.#run.bind(this));
 	}
 
-	#run() {
-		cleanup(() => this.location.set(undefined));
+	#run(effect: Effect): void {
+		effect.cleanup(() => this.location.set(undefined));
 
-		const broadcast = this.broadcast.get();
+		const broadcast = effect.get(this.broadcast);
 		if (!broadcast) return;
 
-		const track = this.#track.get();
+		const track = effect.get(this.#track);
 		if (!track) return;
 
 		const sub = broadcast.subscribe(track.name, track.priority);
-		cleanup(() => sub.close());
+		effect.cleanup(() => sub.close());
 
 		const consumer = new Container.PositionConsumer(sub);
 		void runConsumer(consumer, this.location);

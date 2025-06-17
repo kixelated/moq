@@ -1,5 +1,5 @@
 import * as Moq from "@kixelated/moq";
-import { Signal, Signals, cleanup, signal } from "@kixelated/signals";
+import { Computed, Effect, Root, Signal } from "@kixelated/signals";
 import * as Catalog from "../catalog";
 import * as Container from "../container";
 
@@ -44,33 +44,36 @@ export class Audio {
 	readonly media: Signal<AudioTrack | undefined>;
 	readonly constraints: Signal<AudioConstraints | undefined>;
 
-	#catalog = signal<Catalog.Audio | undefined>(undefined);
+	#catalog = new Signal<Catalog.Audio | undefined>(undefined);
 	readonly catalog = this.#catalog.readonly();
 
-	// Expose the AudioContext and AudioNode for any audio renderer.
-	#root = signal<{ context: AudioContext; node: AudioWorkletNode } | undefined>(undefined);
-	readonly root = this.#root.readonly();
+	#worklet = new Signal<AudioWorkletNode | undefined>(undefined);
+
+	// Expose the root of the audio graph so we can use it for custom visualizations.
+	readonly root: Computed<AudioNode | undefined>;
 
 	#group?: Moq.GroupProducer;
 	#groupTimestamp = 0;
 
 	#id = 0;
-	#signals = new Signals();
+	#signals = new Root();
 
 	constructor(broadcast: Moq.BroadcastProducer, props?: AudioProps) {
 		this.broadcast = broadcast;
-		this.media = signal(props?.media);
-		this.enabled = signal(props?.enabled ?? false);
-		this.constraints = signal(props?.constraints);
+		this.media = new Signal(props?.media);
+		this.enabled = new Signal(props?.enabled ?? false);
+		this.constraints = new Signal(props?.constraints);
 
-		this.#signals.effect(() => this.#runWorklet());
-		this.#signals.effect(() => this.#runEncoder());
+		this.root = this.#signals.computed((effect) => effect.get(this.#worklet) as AudioNode | undefined);
+
+		this.#signals.effect(this.#initWorklet.bind(this));
+		this.#signals.effect(this.#runEncoder.bind(this));
 	}
 
-	#runWorklet(): void {
-		if (!this.enabled.get()) return;
+	#initWorklet(effect: Effect): void {
+		if (!effect.get(this.enabled)) return;
 
-		const media = this.media.get();
+		const media = effect.get(this.media);
 		if (!media) return;
 
 		const settings = media.getSettings();
@@ -78,45 +81,34 @@ export class Audio {
 			throw new Error("track has no settings");
 		}
 
-		const root = this.root.get();
-		if (!root) return;
-
 		const context = new AudioContext({
 			sampleRate: settings.sampleRate,
 		});
-		cleanup(() => context.close());
+		effect.cleanup(() => context.close());
 
 		// Async because we need to wait for the worklet to be registered.
 		// Annoying, I know
-		root.context.audioWorklet.addModule(`data:text/javascript,(${worklet.toString()})()`).then(() => {
-			const node = new AudioWorkletNode(root.context, "capture");
-			this.#root.set({ context, node });
-		});
-
-		cleanup(() => {
-			this.#root.set((p) => {
-				p?.node.disconnect();
-				return undefined;
-			});
+		context.audioWorklet.addModule(`data:text/javascript,(${worklet.toString()})()`).then(() => {
+			const node = new AudioWorkletNode(context, "capture");
+			this.#worklet.set(node);
+			effect.cleanup(() => node.disconnect());
 		});
 	}
 
-	#runEncoder(): void {
-		if (!this.enabled.get()) return;
+	#runEncoder(effect: Effect): void {
+		if (!effect.get(this.enabled)) return;
 
-		const root = this.root.get();
-		if (!root) return;
+		const worklet = effect.get(this.#worklet);
+		if (!worklet) return;
 
-		const media = this.media.get();
+		const media = effect.get(this.media);
 		if (!media) return;
-
-		const { context, node } = root;
 
 		const track = new Moq.TrackProducer(`audio-${this.#id++}`, 1);
 		this.broadcast.insertTrack(track.consume());
 
-		cleanup(() => track.close());
-		cleanup(() => this.broadcast.removeTrack(track.name));
+		effect.cleanup(() => track.close());
+		effect.cleanup(() => this.broadcast.removeTrack(track.name));
 
 		const settings = media.getSettings() as AudioTrackSettings;
 
@@ -146,7 +138,7 @@ export class Audio {
 		};
 
 		this.#catalog.set(catalog);
-		cleanup(() => this.#catalog.set(undefined));
+		effect.cleanup(() => this.#catalog.set(undefined));
 
 		const encoder = new AudioEncoder({
 			output: (frame) => {
@@ -170,7 +162,7 @@ export class Audio {
 				track.abort(err);
 			},
 		});
-		cleanup(() => encoder.close());
+		effect.cleanup(() => encoder.close());
 
 		const config = catalog.config;
 
@@ -181,7 +173,7 @@ export class Audio {
 			bitrate: config.bitrate,
 		});
 
-		node.port.addEventListener("message", ({ data: channels }: { data: Float32Array[] }) => {
+		worklet.port.addEventListener("message", ({ data: channels }: { data: Float32Array[] }) => {
 			const joinedLength = channels.reduce((a, b) => a + b.length, 0);
 			const joined = new Float32Array(joinedLength);
 
@@ -192,10 +184,10 @@ export class Audio {
 
 			const frame = new AudioData({
 				format: "f32-planar",
-				sampleRate: context.sampleRate,
+				sampleRate: worklet.context.sampleRate,
 				numberOfFrames: channels[0].length,
 				numberOfChannels: channels.length,
-				timestamp: (context.currentTime * 1e6) | 0,
+				timestamp: (worklet.context.currentTime * 1e6) | 0,
 				data: joined,
 				transfer: [joined.buffer],
 			});

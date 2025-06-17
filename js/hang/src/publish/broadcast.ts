@@ -1,5 +1,5 @@
 import * as Moq from "@kixelated/moq";
-import { Signal, Signals, cleanup, signal } from "@kixelated/signals";
+import { Effect, Root, Signal } from "@kixelated/signals";
 import * as Catalog from "../catalog";
 import { Connection } from "../connection";
 import { Audio, AudioProps, AudioTrack } from "./audio";
@@ -39,62 +39,61 @@ export class Broadcast {
 
 	#broadcast = new Moq.BroadcastProducer();
 	#catalog = new Moq.TrackProducer("catalog.json", 0);
-	signals = new Signals();
+	signals = new Root();
 
-	#published = signal(false);
+	#published = new Signal(false);
 	readonly published = this.#published.readonly();
 
 	constructor(connection: Connection, props?: BroadcastProps) {
 		this.connection = connection;
-		this.enabled = signal(props?.enabled ?? false);
-		this.path = signal(props?.path ?? "");
+		this.enabled = new Signal(props?.enabled ?? false);
+		this.path = new Signal(props?.path ?? "");
 
 		this.audio = new Audio(this.#broadcast, props?.audio);
 		this.video = new Video(this.#broadcast, props?.video);
 		this.location = new Location(this.#broadcast, props?.location);
 		this.chat = new Chat(this.#broadcast, props?.chat);
-		this.user = signal(props?.user);
+		this.user = new Signal(props?.user);
 
-		this.device = signal(props?.device);
+		this.device = new Signal(props?.device);
 
 		this.#broadcast.insertTrack(this.#catalog.consume());
 
-		this.signals.effect(() => {
-			if (!this.enabled.get()) return;
+		this.signals.effect((effect) => {
+			if (!effect.get(this.enabled)) return;
 
-			const connection = this.connection.established.get();
+			const connection = effect.get(this.connection.established);
 			if (!connection) return;
 
-			const path = this.path.get();
+			const path = effect.get(this.path);
 			if (path === undefined) return;
 
 			// Publish the broadcast to the connection.
 			const consume = this.#broadcast.consume();
 
 			// Unpublish the broadcast by closing the consumer but not the publisher.
-			cleanup(() => consume.close());
+			effect.cleanup(() => consume.close());
 			connection.publish(path, consume);
 
 			this.#published.set(true);
-			cleanup(() => this.#published.set(false));
+			effect.cleanup(() => this.#published.set(false));
 		});
 
 		// These are separate effects because the camera audio/video constraints can be independent.
 		// The screen constraints are needed at the same time.
-		this.signals.effect(() => this.#runCameraAudio());
-		this.signals.effect(() => this.#runCameraVideo());
-		this.signals.effect(() => this.#runScreen());
-
-		this.signals.effect(() => this.#runCatalog());
+		this.signals.effect(this.#runCameraAudio.bind(this));
+		this.signals.effect(this.#runCameraVideo.bind(this));
+		this.signals.effect(this.#runScreen.bind(this));
+		this.signals.effect(this.#runCatalog.bind(this));
 	}
 
-	#runCameraAudio() {
-		const device = this.device.get();
+	#runCameraAudio(effect: Effect): void {
+		const device = effect.get(this.device);
 		if (device !== "camera") return;
 
-		if (!this.audio.enabled.get()) return;
+		if (!effect.get(this.audio.enabled)) return;
 
-		const media = navigator.mediaDevices.getUserMedia({ audio: this.audio.constraints.get() ?? true });
+		const media = navigator.mediaDevices.getUserMedia({ audio: effect.get(this.audio.constraints) ?? true });
 
 		media
 			.then((media) => {
@@ -105,7 +104,7 @@ export class Broadcast {
 				console.error("failed to get media", err);
 			});
 
-		cleanup(() => {
+		effect.cleanup(() => {
 			this.audio.media.set((prev) => {
 				prev?.stop();
 				return undefined;
@@ -113,13 +112,13 @@ export class Broadcast {
 		});
 	}
 
-	#runCameraVideo() {
-		const device = this.device.get();
+	#runCameraVideo(effect: Effect): void {
+		const device = effect.get(this.device);
 		if (device !== "camera") return;
 
-		if (!this.video.enabled.get()) return;
+		if (!effect.get(this.video.enabled)) return;
 
-		const media = navigator.mediaDevices.getUserMedia({ video: this.video.constraints.get() ?? true });
+		const media = navigator.mediaDevices.getUserMedia({ video: effect.get(this.video.constraints) ?? true });
 
 		media
 			.then((media) => {
@@ -130,7 +129,7 @@ export class Broadcast {
 				console.error("failed to get media", err);
 			});
 
-		cleanup(() => {
+		effect.cleanup(() => {
 			this.video.media.set((prev) => {
 				prev?.stop();
 				return undefined;
@@ -138,11 +137,11 @@ export class Broadcast {
 		});
 	}
 
-	#runScreen() {
-		const device = this.device.get();
+	#runScreen(effect: Effect): void {
+		const device = effect.get(this.device);
 		if (device !== "screen") return;
 
-		if (!this.audio.enabled.get() && !this.video.enabled.get()) return;
+		if (!effect.get(this.audio.enabled) && !effect.get(this.video.enabled)) return;
 
 		// TODO Expose these to the application.
 		// @ts-expect-error Chrome only
@@ -155,8 +154,8 @@ export class Broadcast {
 		}
 
 		const media = navigator.mediaDevices.getDisplayMedia({
-			video: this.video.constraints.get() ?? true,
-			audio: this.audio.constraints.get() ?? true,
+			video: effect.get(this.video.constraints) ?? true,
+			audio: effect.get(this.audio.constraints) ?? true,
 			// @ts-expect-error Chrome only
 			controller,
 			preferCurrentTab: false,
@@ -177,7 +176,7 @@ export class Broadcast {
 				console.error("failed to get media", err);
 			});
 
-		cleanup(() => {
+		effect.cleanup(() => {
 			this.video.media.set((prev) => {
 				prev?.stop();
 				return undefined;
@@ -190,19 +189,19 @@ export class Broadcast {
 		});
 	}
 
-	#runCatalog() {
-		if (!this.enabled.get()) return;
+	#runCatalog(effect: Effect): void {
+		if (!effect.get(this.enabled)) return;
 
 		// Create the new catalog.
-		const audio = this.audio.catalog.get();
-		const video = this.video.catalog.get();
+		const audio = effect.get(this.audio.catalog);
+		const video = effect.get(this.video.catalog);
 
 		const catalog: Catalog.Root = {
 			video: video ? [video] : [],
 			audio: audio ? [audio] : [],
-			location: this.location.catalog.get(),
-			user: this.user.get(),
-			chat: this.chat.catalog.get(),
+			location: effect.get(this.location.catalog),
+			user: effect.get(this.user),
+			chat: effect.get(this.chat.catalog),
 		};
 
 		const encoded = Catalog.encode(catalog);

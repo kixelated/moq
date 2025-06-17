@@ -28,8 +28,10 @@
 		"@kixelated/moq": "workspace:^",
 		"@kixelated/signals": "workspace:^",
 		"buffer": "^6.0.3",
-		"solid-js": "^1.9.7",
 		"zod": "^3.25.62"
+	},
+	"peerDependencies": {
+		"solid-js": "^1.9.7"
 	},
 	"devDependencies": {
 		"@typescript/lib-dom": "npm:@types/web@^0.0.241",

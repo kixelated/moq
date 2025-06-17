@@ -1,5 +1,5 @@
 import * as Moq from "@kixelated/moq";
-import { Memo, Signal, Signals, cleanup, signal } from "@kixelated/signals";
+import { Computed, Effect, Root, Signal } from "@kixelated/signals";
 import * as Catalog from "../catalog";
 import { Connection } from "../connection";
 import { Audio, AudioProps } from "./audio";
@@ -31,63 +31,63 @@ export class Broadcast {
 
 	enabled: Signal<boolean>;
 	path: Signal<string>;
-	status = signal<"offline" | "loading" | "live">("offline");
-	user: Memo<Catalog.User | undefined>;
+	status = new Signal<"offline" | "loading" | "live">("offline");
+	user: Computed<Catalog.User | undefined>;
 
 	audio: Audio;
 	video: Video;
 	location: Location;
 	chat: Chat;
 
-	#broadcast = signal<Moq.BroadcastConsumer | undefined>(undefined);
+	#broadcast = new Signal<Moq.BroadcastConsumer | undefined>(undefined);
 
-	#catalog = signal<Catalog.Root | undefined>(undefined);
+	#catalog = new Signal<Catalog.Root | undefined>(undefined);
 	readonly catalog = this.#catalog.readonly();
 
 	// This signal is true when the broadcast has been announced, unless reloading is disabled.
-	#active = signal(false);
+	#active = new Signal(false);
 	readonly active = this.#active.readonly();
 
 	#reload: boolean;
-	signals = new Signals();
+	signals = new Root();
 
 	constructor(connection: Connection, props?: BroadcastProps) {
 		this.connection = connection;
-		this.path = signal(props?.path ?? "");
-		this.enabled = signal(props?.enabled ?? false);
+		this.path = new Signal(props?.path ?? "");
+		this.enabled = new Signal(props?.enabled ?? false);
 		this.audio = new Audio(this.#broadcast, this.#catalog, props?.audio);
 		this.video = new Video(this.#broadcast, this.#catalog, props?.video);
 		this.location = new Location(this.#broadcast, this.#catalog, props?.location);
 		this.chat = new Chat(this.#broadcast, this.#catalog, props?.chat);
 		this.#reload = props?.reload ?? true;
 
-		this.user = this.signals.memo(() => this.#catalog.get()?.user);
+		this.user = this.signals.computed((effect) => effect.get(this.#catalog)?.user);
 
-		this.signals.effect(() => this.#runActive());
-		this.signals.effect(() => this.#runBroadcast());
-		this.signals.effect(() => this.#runCatalog());
+		this.signals.effect(this.#runActive.bind(this));
+		this.signals.effect(this.#runBroadcast.bind(this));
+		this.signals.effect(this.#runCatalog.bind(this));
 	}
 
-	#runActive(): void {
-		if (!this.enabled.get()) return;
+	#runActive(effect: Effect): void {
+		if (!effect.get(this.enabled)) return;
 
 		if (!this.#reload) {
 			this.#active.set(true);
-			cleanup(() => this.#active.set(false));
+			effect.cleanup(() => this.#active.set(false));
 			return;
 		}
 
-		const conn = this.connection.established.get();
+		const conn = effect.get(this.connection.established);
 		if (!conn) return;
 
-		const path = this.path.get();
+		const path = effect.get(this.path);
 
 		const announced = conn.announced(path);
-		cleanup(() => announced.close());
+		effect.cleanup(() => announced.close());
 
-		(async () => {
+		effect.spawn(async (cancel) => {
 			for (;;) {
-				const update = await announced.next();
+				const update = await Promise.race([announced.next(), cancel]);
 
 				// We're donezo.
 				if (!update) break;
@@ -100,40 +100,40 @@ export class Broadcast {
 
 				this.#active.set(update.active);
 			}
-		})();
+		});
 	}
 
-	#runBroadcast(): void {
-		const conn = this.connection.established.get();
+	#runBroadcast(effect: Effect): void {
+		const conn = effect.get(this.connection.established);
 		if (!conn) return;
 
-		if (!this.enabled.get()) return;
+		if (!effect.get(this.enabled)) return;
 
-		const path = this.path.get();
-		if (!this.#active.get()) return;
+		const path = effect.get(this.path);
+		if (!effect.get(this.#active)) return;
 
 		const broadcast = conn.consume(path);
-		cleanup(() => broadcast.close());
+		effect.cleanup(() => broadcast.close());
 
 		this.#broadcast.set(broadcast);
-		cleanup(() => this.#broadcast.set(undefined));
+		effect.cleanup(() => this.#broadcast.set(undefined));
 	}
 
-	#runCatalog(): void {
-		if (!this.enabled.get()) return;
+	#runCatalog(effect: Effect): void {
+		if (!effect.get(this.enabled)) return;
 
-		const broadcast = this.#broadcast.get();
+		const broadcast = effect.get(this.#broadcast);
 		if (!broadcast) return;
 
 		this.status.set("loading");
 
 		const catalog = broadcast.subscribe("catalog.json", 0);
-		cleanup(() => catalog.close());
+		effect.cleanup(() => catalog.close());
 
-		(async () => {
+		effect.spawn(async (cancel) => {
 			try {
 				for (;;) {
-					const update = await Catalog.fetch(catalog);
+					const update = await Promise.race([Catalog.fetch(catalog), cancel]);
 					if (!update) break;
 
 					console.debug("received catalog", this.path.peek(), update);
@@ -147,7 +147,7 @@ export class Broadcast {
 				this.#catalog.set(undefined);
 				this.status.set("offline");
 			}
-		})();
+		});
 	}
 
 	close() {

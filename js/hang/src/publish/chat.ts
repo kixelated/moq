@@ -1,5 +1,5 @@
 import * as Moq from "@kixelated/moq";
-import { Memo, Signal, Signals, cleanup, signal } from "@kixelated/signals";
+import { Computed, Effect, Root, Signal } from "@kixelated/signals";
 import * as Catalog from "../catalog";
 import * as Container from "../container";
 
@@ -17,28 +17,28 @@ export class Chat {
 	// NOTE: Only applies to new messages.
 	ttl: Signal<DOMHighResTimeStamp | undefined>;
 
-	catalog: Memo<Catalog.Chat | undefined>;
+	catalog: Computed<Catalog.Chat | undefined>;
 
 	// Always create the track, even if we're not publishing it
 	#track = new Moq.TrackProducer("chat.md", 0);
 	#group?: Moq.GroupProducer;
 	#expires?: number;
 
-	#signals = new Signals();
+	#signals = new Root();
 
 	constructor(broadcast: Moq.BroadcastProducer, props?: ChatProps) {
 		this.broadcast = broadcast;
-		this.enabled = signal(props?.enabled ?? false);
-		this.ttl = signal(props?.ttl);
+		this.enabled = new Signal(props?.enabled ?? false);
+		this.ttl = new Signal(props?.ttl);
 
-		this.catalog = this.#signals.memo(() => {
-			const enabled = this.enabled.get();
+		this.catalog = this.#signals.computed<Catalog.Chat | undefined>((effect: Effect) => {
+			const enabled = effect.get(this.enabled);
 			if (!enabled) return;
 
 			broadcast.insertTrack(this.#track.consume());
-			cleanup(() => broadcast.removeTrack(this.#track.name));
+			effect.cleanup(() => broadcast.removeTrack(this.#track.name));
 
-			return { track: { name: this.#track.name, priority: this.#track.priority }, ttl: this.ttl.get() };
+			return { track: { name: this.#track.name, priority: this.#track.priority }, ttl: effect.get(this.ttl) };
 		});
 	}
 
@@ -59,7 +59,7 @@ export class Chat {
 		this.#group.writeFrame(buffer);
 
 		// Clear the group after the TTL.
-		const ttl = this.ttl.get();
+		const ttl = this.ttl.peek();
 		if (ttl) {
 			this.#expires = window.setTimeout(() => this.clear(), ttl);
 		}

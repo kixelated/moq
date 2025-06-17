@@ -1,5 +1,5 @@
 import * as Moq from "@kixelated/moq";
-import { Signal, Signals, cleanup, signal } from "@kixelated/signals";
+import { Effect, Root, Signal } from "@kixelated/signals";
 
 export type ConnectionProps = {
 	// The URL of the relay server.
@@ -22,21 +22,21 @@ export type ConnectionStatus = "connecting" | "connected" | "disconnected" | "un
 
 export class Connection {
 	url: Signal<URL | undefined>;
-	status = signal<ConnectionStatus>("disconnected");
-	established = signal<Moq.Connection | undefined>(undefined);
+	status = new Signal<ConnectionStatus>("disconnected");
+	established = new Signal<Moq.Connection | undefined>(undefined);
 
 	readonly reload: boolean;
 	readonly delay: number;
 	readonly maxDelay: number;
 
-	#signals = new Signals();
+	#signals = new Root();
 	#delay: number;
 
 	// Increased by 1 each time to trigger a reload.
-	#tick = signal(0);
+	#tick = new Signal(0);
 
 	constructor(props?: ConnectionProps) {
-		this.url = signal(props?.url);
+		this.url = new Signal(props?.url);
 		this.reload = props?.reload ?? true;
 		this.delay = props?.delay ?? 1000;
 		this.maxDelay = props?.maxDelay ?? 30000;
@@ -50,18 +50,18 @@ export class Connection {
 		}
 
 		// Create a reactive root so cleanup is easier.
-		this.#signals.effect(() => this.#connect());
+		this.#signals.effect(this.#connect.bind(this));
 	}
 
-	#connect(): void {
+	#connect(effect: Effect): void {
 		// Will retry when the tick changes.
-		this.#tick.get();
+		effect.get(this.#tick);
 
-		const url = this.url.get();
+		const url = effect.get(this.url);
 		if (!url) return;
 
 		this.status.set("connecting");
-		cleanup(() => this.status.set("disconnected"));
+		effect.cleanup(() => this.status.set("disconnected"));
 
 		(async () => {
 			try {
@@ -91,7 +91,7 @@ export class Connection {
 			}
 		})();
 
-		cleanup(() => {
+		effect.cleanup(() => {
 			this.established.set((prev) => {
 				prev?.close();
 				return undefined;

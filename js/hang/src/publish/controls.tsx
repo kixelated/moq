@@ -20,10 +20,10 @@ export function Controls(props: { broadcast: Broadcast }): JSX.Element {
 }
 
 function Status(props: { broadcast: Broadcast }): JSX.Element {
-	const url = props.broadcast.connection.url.get;
-	const status = props.broadcast.connection.status.get;
-	const audio = props.broadcast.audio.catalog.get;
-	const video = props.broadcast.video.catalog.get;
+	const url = props.broadcast.connection.url.solid();
+	const status = props.broadcast.connection.status.solid();
+	const audio = props.broadcast.audio.catalog.solid();
+	const video = props.broadcast.video.catalog.solid();
 
 	return (
 		<div>
@@ -46,7 +46,7 @@ function Select(props: { broadcast: Broadcast }): JSX.Element {
 		props.broadcast.device.set(device);
 	};
 
-	const selected = createSelector(props.broadcast.device.get);
+	const selected = createSelector(props.broadcast.device.solid());
 
 	const buttonStyle = (id: Device | undefined) => ({
 		cursor: "pointer",
