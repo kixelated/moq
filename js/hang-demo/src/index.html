@@ -82,35 +82,29 @@ watch.audio.muted.set(true);
 	</p>
 
 	<p>
-		All of the properties are reactive using <a href="https://solidjs.com/">SolidJS</a> signals.
-		That means if you use SolidJS (try it, it's better than React), you can do things like this:
+		All of the properties are reactive using a hand-rolled signals library: `@kixelated/signals`.
+		You could use it... or you can use the provided `solid` and `react` helpers:
 
 	<pre><code class="language-typescript">
-import { createMemo } from "solid-js";
 import { Watch } from "@kixelated/hang";
 
 function Volume(hang: Watch) {
-	// Compute the volume based on the watch's muted and volume signals.
-	const volume = createMemo(() => (hang.muted.get() ? 0 : hang.volume.get()));
+	// Switch to `react` if you're using React, duh.
+	const volume = hang.volume.solid();
 
 	// Return a div that displays the volume.
 	return &lt;div&gt;
-		Volume: {volume.get()}
+		Volume: {volume()}
 	&lt;/div&gt;
 }
 		</code></pre>
 	</p>
 	<p>
-		But of course you shouldn't migrate to SolidJS just for this crummy library.
-		Somebody should implement a React element, but until then, you can use the handy <code
-			class="language-typescript">subscribe()</code> method to trigger a callback on change:
+		Using something more niche? There's also a <code
+			class="language-typescript">subscribe()</code> method to trigger a callback on change.
 
 	<pre><code class="language-typescript">
-// There's also a `memo` method that is just a wrapper around SolidJS's `createMemo`.
-const volume = hang.muted.memo((muted) => (muted ? 0 : hang.volume.get()));
-
-const cleanup = volume.subscribe((volume) => {
-	// Update the volume display.
+const cleanup = hang.volume.subscribe((volume) => {
 	document.getElementById("volume-value").textContent = `${volume * 100}%`;
 });
 
