@@ -18,7 +18,7 @@ export class Deferred<T> {
 	}
 }
 
-// @ts-ignore depends on the bundler
+// @ts-expect-error ignore depends on the bundler
 const dev = import.meta.env?.MODE !== "production";
 
 export class WatchProducer<T> {

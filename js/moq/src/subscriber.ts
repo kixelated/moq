@@ -103,7 +103,7 @@ export class Subscriber {
 			this.#runSubscribe(path, track).finally(() => {
 				try {
 					producer.removeTrack(track.name);
-				} catch (err) {
+				} catch {
 					// Already closed.
 					console.warn("track already removed");
 				}

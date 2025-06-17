@@ -72,7 +72,9 @@ export class TrackProducer {
 			});
 
 			this.#latest.close();
-		} catch {}
+		} catch {
+			// Already closed.
+		}
 	}
 
 	closed(): Promise<void> {
@@ -96,13 +98,11 @@ export class TrackProducer {
 	 * @param reason - The error reason for aborting
 	 */
 	abort(reason: Error) {
-		try {
-			this.#latest.update((latest) => {
-				latest?.close();
-				return null;
-			});
-			this.#latest.abort(reason);
-		} catch {}
+		this.#latest.update((latest) => {
+			latest?.close();
+			return null;
+		});
+		this.#latest.abort(reason);
 	}
 }
 

@@ -112,7 +112,7 @@ impl Auth {
 		}
 
 		if auth.is_some() {
-			return Err(anyhow::anyhow!("token required"));
+			return Err(anyhow::anyhow!("token required for prefix: {}", prefix));
 		}
 
 		// No auth required, so create a dummy token that allows accessing everything.

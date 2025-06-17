@@ -296,7 +296,6 @@ export function Modal(props: { role?: SupportRole; show?: Partial }) {
 
 const SupportDetails = (props: { support: Full | undefined; role: "core" | "watch" | "publish" | "all" }) => {
 	const support = props.support;
-	if (!support) return null;
 
 	const c1: JSX.CSSProperties = {
 		"grid-column-start": 1,
@@ -320,80 +319,84 @@ const SupportDetails = (props: { support: Full | undefined; role: "core" | "watc
 		value === "full" ? "🟢 Full" : value === "partial" ? "🟡 Partial" : "🔴 None";
 
 	return (
-		<div
-			style={{
-				display: "grid",
-				"grid-template-columns": "1fr 1fr 1fr",
-				"column-gap": "0.5rem",
-				"row-gap": "0.2rem",
-				"background-color": "rgba(255, 255, 255, 0.25)",
-				"border-radius": "0.5rem",
-				padding: "1rem",
-				"font-size": "0.875rem",
-			}}
-		>
-			<div style={c1}>WebTransport</div>
-			<div style={c3}>{binary(support.webtransport)}</div>
-			<Show when={props.role !== "core"}>
-				<Show when={props.role !== "watch"}>
-					<div style={c1}>Capture</div>
-					<div style={c2}>Audio</div>
-					<div style={c3}>{binary(support.audio.capture)}</div>
-					<div style={c2}>Video</div>
-					<div style={c3}>{partial(support.video.capture)}</div>
-					<div style={c1}>Encoding</div>
-					<div style={c2}>Opus</div>
-					<div style={c3}>{binary(support.audio.encoding?.opus)}</div>
-					<div style={c2}>AAC</div>
-					<div style={c3}>{binary(support.audio.encoding?.aac)}</div>
-					<div style={c2}>AV1</div>
-					<div style={c3}>{hardware(support.video.encoding?.av1)}</div>
-					<div style={c2}>H.265</div>
-					<div style={c3}>{hardware(support.video.encoding?.h265)}</div>
-					<div style={c2}>H.264</div>
-					<div style={c3}>{hardware(support.video.encoding?.h264)}</div>
-					<div style={c2}>VP9</div>
-					<div style={c3}>{hardware(support.video.encoding?.vp9)}</div>
-					<div style={c2}>VP8</div>
-					<div style={c3}>{hardware(support.video.encoding?.vp8)}</div>
-				</Show>
-				<Show when={props.role !== "publish"}>
-					<div style={c1}>Rendering</div>
-					<div style={c2}>Audio</div>
-					<div style={c3}>{binary(support.audio.render)}</div>
-					<div style={c2}>Video</div>
-					<div style={c3}>{binary(support.video.render)}</div>
-					<div style={c1}>Decoding</div>
-					<div style={c2}>Audio</div>
-					<div style={c3}>{binary(support.audio.decoding?.opus)}</div>
-					<div style={c2}>AAC</div>
-					<div style={c3}>{binary(support.audio.decoding?.aac)}</div>
-					<div style={c2}>AV1</div>
-					<div style={c3}>{hardware(support.video.decoding?.av1)}</div>
-					<div style={c2}>H.265</div>
-					<div style={c3}>{hardware(support.video.decoding?.h265)}</div>
-					<div style={c2}>H.264</div>
-					<div style={c3}>{hardware(support.video.decoding?.h264)}</div>
-					<div style={c2}>VP9</div>
-					<div style={c3}>{hardware(support.video.decoding?.vp9)}</div>
-					<div style={c2}>VP8</div>
-					<div style={c3}>{hardware(support.video.decoding?.vp8)}</div>
-				</Show>
-				<Show when={FIREFOX}>
-					<div
-						style={{
-							"grid-column-start": 1,
-							"grid-column-end": 4,
-							"text-align": "center",
-							"font-size": "0.875rem",
-							"font-style": "italic",
-						}}
-					>
-						* Hardware acceleration is{" "}
-						<a href="https://github.com/w3c/webcodecs/issues/896">undetectable</a> on Firefox.
-					</div>
-				</Show>
-			</Show>
-		</div>
+		<Show when={support}>
+			{(support) => (
+				<div
+					style={{
+						display: "grid",
+						"grid-template-columns": "1fr 1fr 1fr",
+						"column-gap": "0.5rem",
+						"row-gap": "0.2rem",
+						"background-color": "rgba(255, 255, 255, 0.25)",
+						"border-radius": "0.5rem",
+						padding: "1rem",
+						"font-size": "0.875rem",
+					}}
+				>
+					<div style={c1}>WebTransport</div>
+					<div style={c3}>{binary(support().webtransport)}</div>
+					<Show when={props.role !== "core"}>
+						<Show when={props.role !== "watch"}>
+							<div style={c1}>Capture</div>
+							<div style={c2}>Audio</div>
+							<div style={c3}>{binary(support().audio.capture)}</div>
+							<div style={c2}>Video</div>
+							<div style={c3}>{partial(support().video.capture)}</div>
+							<div style={c1}>Encoding</div>
+							<div style={c2}>Opus</div>
+							<div style={c3}>{binary(support().audio.encoding?.opus)}</div>
+							<div style={c2}>AAC</div>
+							<div style={c3}>{binary(support().audio.encoding?.aac)}</div>
+							<div style={c2}>AV1</div>
+							<div style={c3}>{hardware(support().video.encoding?.av1)}</div>
+							<div style={c2}>H.265</div>
+							<div style={c3}>{hardware(support().video.encoding?.h265)}</div>
+							<div style={c2}>H.264</div>
+							<div style={c3}>{hardware(support().video.encoding?.h264)}</div>
+							<div style={c2}>VP9</div>
+							<div style={c3}>{hardware(support().video.encoding?.vp9)}</div>
+							<div style={c2}>VP8</div>
+							<div style={c3}>{hardware(support().video.encoding?.vp8)}</div>
+						</Show>
+						<Show when={props.role !== "publish"}>
+							<div style={c1}>Rendering</div>
+							<div style={c2}>Audio</div>
+							<div style={c3}>{binary(support().audio.render)}</div>
+							<div style={c2}>Video</div>
+							<div style={c3}>{binary(support().video.render)}</div>
+							<div style={c1}>Decoding</div>
+							<div style={c2}>Audio</div>
+							<div style={c3}>{binary(support().audio.decoding?.opus)}</div>
+							<div style={c2}>AAC</div>
+							<div style={c3}>{binary(support().audio.decoding?.aac)}</div>
+							<div style={c2}>AV1</div>
+							<div style={c3}>{hardware(support().video.decoding?.av1)}</div>
+							<div style={c2}>H.265</div>
+							<div style={c3}>{hardware(support().video.decoding?.h265)}</div>
+							<div style={c2}>H.264</div>
+							<div style={c3}>{hardware(support().video.decoding?.h264)}</div>
+							<div style={c2}>VP9</div>
+							<div style={c3}>{hardware(support().video.decoding?.vp9)}</div>
+							<div style={c2}>VP8</div>
+							<div style={c3}>{hardware(support().video.decoding?.vp8)}</div>
+						</Show>
+						<Show when={FIREFOX}>
+							<div
+								style={{
+									"grid-column-start": 1,
+									"grid-column-end": 4,
+									"text-align": "center",
+									"font-size": "0.875rem",
+									"font-style": "italic",
+								}}
+							>
+								* Hardware acceleration is{" "}
+								<a href="https://github.com/w3c/webcodecs/issues/896">undetectable</a> on Firefox.
+							</div>
+						</Show>
+					</Show>
+				</div>
+			)}
+		</Show>
 	);
 };

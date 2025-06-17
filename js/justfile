@@ -24,6 +24,9 @@ check flags="":
 	# Format/lint the JS packages
 	pnpm -r exec biome check
 
+	# Make sure eslint is happy
+	pnpm -r exec eslint .
+
 	# Make sure the JS packages are not vulnerable
 	pnpm -r exec pnpm audit
 
@@ -37,6 +40,9 @@ fix flags="":
 
 	# Format and lint
 	pnpm -r exec biome check --fix
+
+	# Some additional linting.
+	pnpm -r exec eslint . --fix
 
 	# Make sure the JS packages are not vulnerable
 	pnpm -r exec pnpm audit --fix

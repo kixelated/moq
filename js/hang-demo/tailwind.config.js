@@ -1,5 +1,7 @@
+import typography from "@tailwindcss/typography";
+
 // tailwind.config.js
-module.exports = {
+export default {
 	content: ["./src/*.{html,js,ts,jsx,tsx}"],
-	plugins: [require("@tailwindcss/typography")],
+	plugins: [typography],
 };

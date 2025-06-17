@@ -1,14 +1,13 @@
 import "./index.css";
 import "./demo/highlight";
 
-import { createMemo, createSelector, createSignal, onCleanup } from "solid-js";
-import { For, render } from "solid-js/web";
+import { For, Switch, createMemo, createSelector, createSignal, onCleanup } from "solid-js";
+import { render } from "solid-js/web";
 
 import * as Moq from "@kixelated/moq";
 import { Match } from "solid-js";
 import { Show } from "solid-js";
 import { JSX } from "solid-js/jsx-runtime";
-import { Switch } from "solid-js/web";
 
 const root = document.querySelector("#root") as HTMLDivElement;
 

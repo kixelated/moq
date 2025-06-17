@@ -326,7 +326,7 @@ export class Video {
 			config.avc = { format: "annexb" };
 		} else if (config.codec.startsWith("hev1")) {
 			// Annex-B allows changing the resolution without nessisarily updating the catalog (description).
-			// @ts-ignore Typescript needs to be updated.
+			// @ts-expect-error Typescript needs to be updated.
 			config.hevc = { format: "annexb" };
 		} else if (config.codec.startsWith("vp09")) {
 			config.bitrate = bitrate * 0.8;

@@ -103,7 +103,7 @@ export class Signals {
 	#dispose: Dispose;
 	#owner: Owner;
 
-	// @ts-ignore
+	// @ts-expect-error no types
 	static dev = import.meta.env?.MODE !== "production";
 
 	// Sanity check to make sure roots are being disposed on dev.

@@ -1,5 +1,6 @@
 import { Signals, cleanup, signal } from "@kixelated/signals";
-import { Show, render } from "solid-js/web";
+import { Show } from "solid-js";
+import { render } from "solid-js/web";
 import { Connection } from "../connection";
 import { Broadcast, Device } from "./broadcast";
 import { Controls } from "./controls";
