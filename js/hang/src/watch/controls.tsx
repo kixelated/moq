@@ -1,9 +1,9 @@
+import solid from "@kixelated/signals/solid";
 import { Match, Show, Switch } from "solid-js";
 import { JSX } from "solid-js/jsx-runtime";
 import { AudioEmitter } from "./audio";
 import { Broadcast } from "./broadcast";
 import { VideoRenderer } from "./video";
-import solid from "@kixelated/signals/solid";
 
 // A simple set of controls mostly for the demo.
 // You don't have to use SolidJS to implement your own controls; use the .subscribe() API instead.

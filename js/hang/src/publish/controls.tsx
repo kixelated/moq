@@ -1,7 +1,7 @@
+import solid from "@kixelated/signals/solid";
 import { Match, Switch, createSelector } from "solid-js";
 import { JSX } from "solid-js/jsx-runtime";
 import { Broadcast, Device } from "./broadcast";
-import solid from "@kixelated/signals/solid";
 
 export function Controls(props: { broadcast: Broadcast }): JSX.Element {
 	return (

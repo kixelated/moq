@@ -1,4 +1,5 @@
 import { Root, Signal } from "@kixelated/signals";
+import solid from "@kixelated/signals/solid";
 import { Show } from "solid-js";
 import { render } from "solid-js/web";
 import { Connection } from "../connection";
@@ -6,7 +7,6 @@ import { AudioEmitter } from "./audio";
 import { Broadcast } from "./broadcast";
 import { Controls } from "./controls";
 import { VideoRenderer } from "./video";
-import solid from "@kixelated/signals/solid";
 
 // An optional web component that wraps a <canvas>
 export default class HangWatch extends HTMLElement {
