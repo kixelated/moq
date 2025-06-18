@@ -25,27 +25,33 @@ export class Stream {
 	}
 
 	static async accept(quic: WebTransport): Promise<[StreamBi, Stream] | undefined> {
-		const reader =
-			quic.incomingBidirectionalStreams.getReader() as ReadableStreamDefaultReader<WebTransportBidirectionalStream>;
-		const next = await reader.read();
-		reader.releaseLock();
+		for (;;) {
+			try {
+				const reader =
+					quic.incomingBidirectionalStreams.getReader() as ReadableStreamDefaultReader<WebTransportBidirectionalStream>;
+				const next = await reader.read();
+				reader.releaseLock();
 
-		if (next.done) return;
-		const stream = new Stream(next.value);
-		let msg: StreamBi;
+				if (next.done) return;
+				const stream = new Stream(next.value);
+				let msg: StreamBi;
 
-		const typ = await stream.reader.u8();
-		if (typ === Wire.SessionClient.StreamID) {
-			msg = await Wire.SessionClient.decode(stream.reader);
-		} else if (typ === Wire.AnnounceInterest.StreamID) {
-			msg = await Wire.AnnounceInterest.decode(stream.reader);
-		} else if (typ === Wire.Subscribe.StreamID) {
-			msg = await Wire.Subscribe.decode(stream.reader);
-		} else {
-			throw new Error(`unknown stream type: ${typ.toString()}`);
+				const typ = await stream.reader.u8();
+				if (typ === Wire.SessionClient.StreamID) {
+					msg = await Wire.SessionClient.decode(stream.reader);
+				} else if (typ === Wire.AnnounceInterest.StreamID) {
+					msg = await Wire.AnnounceInterest.decode(stream.reader);
+				} else if (typ === Wire.Subscribe.StreamID) {
+					msg = await Wire.Subscribe.decode(stream.reader);
+				} else {
+					throw new Error(`unknown stream type: ${typ.toString()}`);
+				}
+
+				return [msg, stream];
+			} catch (err) {
+				console.warn("error accepting stream", err);
+			}
 		}
-
-		return [msg, stream];
 	}
 
 	static async open(quic: WebTransport, msg: StreamBi, priority?: number): Promise<Stream> {
@@ -212,24 +218,30 @@ export class Reader {
 	}
 
 	static async accept(quic: WebTransport): Promise<[StreamUni, Reader] | undefined> {
-		const reader = quic.incomingUnidirectionalStreams.getReader() as ReadableStreamDefaultReader<
-			ReadableStream<Uint8Array>
-		>;
-		const next = await reader.read();
-		reader.releaseLock();
+		for (;;) {
+			try {
+				const reader = quic.incomingUnidirectionalStreams.getReader() as ReadableStreamDefaultReader<
+					ReadableStream<Uint8Array>
+				>;
+				const next = await reader.read();
+				reader.releaseLock();
 
-		if (next.done) return;
-		const stream = new Reader(next.value);
-		let msg: StreamUni;
+				if (next.done) return;
+				const stream = new Reader(next.value);
+				let msg: StreamUni;
 
-		const typ = await stream.u8();
-		if (typ === Wire.Group.StreamID) {
-			msg = await Wire.Group.decode(stream);
-		} else {
-			throw new Error(`unknown stream type: ${typ.toString()}`);
+				const typ = await stream.u8();
+				if (typ === Wire.Group.StreamID) {
+					msg = await Wire.Group.decode(stream);
+				} else {
+					throw new Error(`unknown stream type: ${typ.toString()}`);
+				}
+
+				return [msg, stream];
+			} catch (err) {
+				console.warn("error accepting unidirectional stream", err);
+			}
 		}
-
-		return [msg, stream];
 	}
 }
 
