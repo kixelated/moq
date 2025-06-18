@@ -86,7 +86,9 @@ export class Audio {
 		});
 		effect.cleanup(() => context.close());
 
-		const root = new MediaStreamAudioSourceNode(context, { mediaStream: new MediaStream([media]) });
+		const root = new MediaStreamAudioSourceNode(context, {
+			mediaStream: new MediaStream([media]),
+		});
 
 		this.#root.set(root);
 		effect.cleanup(() => this.#root.set(undefined));
@@ -94,7 +96,11 @@ export class Audio {
 		// Async because we need to wait for the worklet to be registered.
 		// Annoying, I know...
 		context.audioWorklet.addModule(`data:text/javascript,(${worklet.toString()})()`).then(() => {
-			const worklet = new AudioWorkletNode(context, "capture");
+			const worklet = new AudioWorkletNode(context, "capture", {
+				numberOfInputs: 1,
+				numberOfOutputs: 0,
+				channelCount: settings.channelCount,
+			});
 			this.#worklet.set(worklet);
 
 			root.connect(worklet);
@@ -119,16 +125,6 @@ export class Audio {
 
 		const settings = media.getSettings() as AudioTrackSettings;
 
-		// TODO: This is a Firefox hack to get the sample rate.
-		const sampleRate =
-			settings.sampleRate ??
-			(() => {
-				const ctx = new AudioContext();
-				const rate = ctx.sampleRate;
-				ctx.close();
-				return rate;
-			})();
-
 		const catalog = {
 			track: {
 				name: track.name,
@@ -137,7 +133,8 @@ export class Audio {
 			config: {
 				// TODO get codec and description from decoderConfig
 				codec: "opus",
-				sampleRate,
+				// Firefox doesn't provide the sampleRate in the settings.
+				sampleRate: settings.sampleRate ?? worklet.context.sampleRate,
 				numberOfChannels: settings.channelCount,
 				// TODO configurable
 				bitrate: 64_000,
@@ -180,7 +177,8 @@ export class Audio {
 			bitrate: config.bitrate,
 		});
 
-		worklet.port.addEventListener("message", ({ data: channels }: { data: Float32Array[] }) => {
+		worklet.port.onmessage = ({ data }: { data: Float32Array[] }) => {
+			const channels = data.slice(0, settings.channelCount);
 			const joinedLength = channels.reduce((a, b) => a + b.length, 0);
 			const joined = new Float32Array(joinedLength);
 
@@ -201,7 +199,7 @@ export class Audio {
 
 			encoder.encode(frame);
 			frame.close();
-		});
+		};
 	}
 
 	close() {
