@@ -327,7 +327,7 @@ const SupportDetails = (props: { support: Full | undefined; role: "core" | "watc
 						"grid-template-columns": "1fr 1fr 1fr",
 						"column-gap": "0.5rem",
 						"row-gap": "0.2rem",
-						"background-color": "rgba(255, 255, 255, 0.25)",
+						"background-color": "rgba(0, 0, 0, 0.6)",
 						"border-radius": "0.5rem",
 						padding: "1rem",
 						"font-size": "0.875rem",
