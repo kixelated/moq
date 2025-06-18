@@ -3,6 +3,7 @@ import { JSX } from "solid-js/jsx-runtime";
 import { AudioEmitter } from "./audio";
 import { Broadcast } from "./broadcast";
 import { VideoRenderer } from "./video";
+import solid from "@kixelated/signals/solid";
 
 // A simple set of controls mostly for the demo.
 // You don't have to use SolidJS to implement your own controls; use the .subscribe() API instead.
@@ -33,7 +34,7 @@ export function Controls(props: {
 }
 
 function Pause(props: { video: VideoRenderer }): JSX.Element {
-	const paused = props.video.paused.solid();
+	const paused = solid(props.video.paused);
 	const togglePause = (e: MouseEvent) => {
 		e.preventDefault();
 		props.video.paused.set((prev) => !prev);
@@ -49,7 +50,7 @@ function Pause(props: { video: VideoRenderer }): JSX.Element {
 }
 
 function Volume(props: { audio: AudioEmitter }): JSX.Element {
-	const volume = props.audio.volume.solid();
+	const volume = solid(props.audio.volume);
 
 	const changeVolume = (str: string) => {
 		const v = Number.parseFloat(str) / 100;
@@ -81,9 +82,9 @@ function Volume(props: { audio: AudioEmitter }): JSX.Element {
 }
 
 function Status(props: { broadcast: Broadcast }): JSX.Element {
-	const url = props.broadcast.connection.url.solid();
-	const connection = props.broadcast.connection.status.solid();
-	const broadcast = props.broadcast.status.solid();
+	const url = solid(props.broadcast.connection.url);
+	const connection = solid(props.broadcast.connection.status);
+	const broadcast = solid(props.broadcast.status);
 
 	return (
 		<div>

@@ -150,12 +150,6 @@ importers:
       dequal:
         specifier: ^2.0.3
         version: 2.0.3
-      react:
-        specifier: ^19.0.0
-        version: 19.1.0
-      solid-js:
-        specifier: ^1.9.7
-        version: 1.9.7
     devDependencies:
       tsx:
         specifier: ^4.20.1
@@ -163,6 +157,13 @@ importers:
       typescript:
         specifier: ^5.8.3
         version: 5.8.3
+    optionalDependencies:
+      react:
+        specifier: ^19.0.0
+        version: 19.1.0
+      solid-js:
+        specifier: ^1.9.7
+        version: 1.9.7
 
 packages:
 
@@ -3494,7 +3495,8 @@ snapshots:
 
   queue-microtask@1.2.3: {}
 
-  react@19.1.0: {}
+  react@19.1.0:
+    optional: true
 
   relateurl@0.2.7: {}
 

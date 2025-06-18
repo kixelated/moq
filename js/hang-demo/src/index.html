@@ -87,10 +87,11 @@ watch.audio.muted.set(true);
 
 	<pre><code class="language-typescript">
 import { Watch } from "@kixelated/hang";
+import solid from "@kixelated/signals/solid";
 
 function Volume(hang: Watch) {
 	// Switch to `react` if you're using React, duh.
-	const volume = hang.volume.solid();
+	const volume = solid(hang.volume);
 
 	// Return a div that displays the volume.
 	return &lt;div&gt;

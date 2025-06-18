@@ -6,6 +6,7 @@ import { AudioEmitter } from "./audio";
 import { Broadcast } from "./broadcast";
 import { Controls } from "./controls";
 import { VideoRenderer } from "./video";
+import solid from "@kixelated/signals/solid";
 
 // An optional web component that wraps a <canvas>
 export default class HangWatch extends HTMLElement {
@@ -35,7 +36,7 @@ export default class HangWatch extends HTMLElement {
 		// Render the controls element.
 		render(
 			() => (
-				<Show when={this.#controls.solid()}>
+				<Show when={solid(this.#controls)}>
 					<Controls broadcast={this.broadcast} video={this.video} audio={this.audio} root={this} />
 				</Show>
 			),

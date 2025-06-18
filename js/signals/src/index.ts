@@ -1,6 +1,4 @@
 import { dequal } from "dequal";
-import { useSyncExternalStore } from "react";
-import { Accessor, createSignal } from "solid-js";
 
 export type Dispose = () => void;
 
@@ -39,22 +37,6 @@ export class Signal<T> {
 		this.#subscribers.add(fn);
 		return () => this.#subscribers.delete(fn);
 	}
-
-	// A helper to create a solid-js signal.
-	solid(): Accessor<T> {
-		const [get, set] = createSignal(this.#value);
-		this.subscribe((value) => set(() => value));
-		return get;
-	}
-
-	// A helper to create a React signal.
-	react(): T {
-		return useSyncExternalStore(
-			(callback) => this.subscribe(callback),
-			() => this.peek(),
-			() => this.peek(),
-		);
-	}
 }
 
 // Same as Signal but without the `set` method.
@@ -75,10 +57,6 @@ export class Computed<T> {
 
 	readonly(): Computed<T> {
 		return this;
-	}
-
-	solid(): Accessor<T> {
-		return this.#signal.solid();
 	}
 }
 
