@@ -50,7 +50,9 @@ export class Audio {
 	#worklet = new Signal<AudioWorkletNode | undefined>(undefined);
 
 	// Expose the root of the audio graph so we can use it for custom visualizations.
-	readonly root: Computed<AudioNode | undefined>;
+	#root = new Signal<MediaStreamAudioSourceNode | undefined>(undefined);
+	// Downcast to AudioNode so it matches Watch.
+	readonly root = this.#root.readonly() as Computed<AudioNode | undefined>;
 
 	#group?: Moq.GroupProducer;
 	#groupTimestamp = 0;
@@ -63,8 +65,6 @@ export class Audio {
 		this.media = new Signal(props?.media);
 		this.enabled = new Signal(props?.enabled ?? false);
 		this.constraints = new Signal(props?.constraints);
-
-		this.root = this.#signals.computed((effect) => effect.get(this.#worklet) as AudioNode | undefined);
 
 		this.#signals.effect(this.#initWorklet.bind(this));
 		this.#signals.effect(this.#runEncoder.bind(this));
@@ -86,12 +86,19 @@ export class Audio {
 		});
 		effect.cleanup(() => context.close());
 
+		const root = new MediaStreamAudioSourceNode(context, { mediaStream: new MediaStream([media]) });
+
+		this.#root.set(root);
+		effect.cleanup(() => this.#root.set(undefined));
+
 		// Async because we need to wait for the worklet to be registered.
-		// Annoying, I know
+		// Annoying, I know...
 		context.audioWorklet.addModule(`data:text/javascript,(${worklet.toString()})()`).then(() => {
-			const node = new AudioWorkletNode(context, "capture");
-			this.#worklet.set(node);
-			effect.cleanup(() => node.disconnect());
+			const worklet = new AudioWorkletNode(context, "capture");
+			this.#worklet.set(worklet);
+
+			root.connect(worklet);
+			effect.cleanup(() => worklet.disconnect());
 		});
 	}
 
