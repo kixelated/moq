@@ -1,4 +1,4 @@
-use std::path::PathBuf;
+use std::{collections::HashMap, path::PathBuf};
 
 use anyhow::Context;
 use moq_lite::{BroadcastConsumer, BroadcastProducer, OriginProducer};
@@ -105,6 +105,9 @@ impl Cluster {
 		// Subscribe to available origins.
 		let mut origins = root.consume_prefix(format!("{}/", prefix));
 
+		// Cancel tasks when the origin is closed.
+		let mut active: HashMap<String, tokio::task::AbortHandle> = HashMap::new();
+
 		// Discover other origins.
 		// NOTE: The root node will connect to all other nodes as a client, ignoring the existing (server) connection.
 		// This ensures that nodes are advertising a valid hostname before any tracks get announced.
@@ -114,20 +117,32 @@ impl Cluster {
 				continue;
 			}
 
+			let origin = match origin {
+				Some(origin) => origin,
+				None => {
+					tracing::info!(%node, "origin cancelled");
+					active.remove(&node).unwrap().abort();
+					continue;
+				}
+			};
+
 			tracing::info!(%node, "discovered origin");
 
 			let this = self.clone();
 			let token = token.clone();
+			let node2 = node.clone();
 
-			tokio::spawn(
+			let handle = tokio::spawn(
 				async move {
-					match this.run_remote(&node, token, origin).await {
-						Ok(()) => tracing::info!(%node, "origin closed"),
-						Err(err) => tracing::warn!(?err, %node, "origin closed"),
+					match this.run_remote(&node2, token, origin).await {
+						Ok(()) => tracing::info!(%node2, "origin closed"),
+						Err(err) => tracing::warn!(?err, %node2, "origin error"),
 					}
 				}
 				.in_current_span(),
 			);
+
+			active.insert(node, handle.abort_handle());
 		}
 
 		Ok(())

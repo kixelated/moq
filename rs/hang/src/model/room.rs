@@ -4,7 +4,6 @@ use web_async::Lock;
 
 use crate::model::{BroadcastConsumer, BroadcastProducer};
 
-#[derive(Clone)]
 pub struct Room {
 	pub path: String,
 	broadcasts: moq_lite::OriginConsumer,
@@ -40,7 +39,10 @@ impl Room {
 	}
 
 	/// Returns the next broadcaster in the room (not including ourselves).
-	pub async fn watch(&mut self) -> Option<BroadcastConsumer> {
+	///
+	/// If None is returned, then the broadcaster with that name has stopped broadcasting or is being reannounced.
+	/// When reannounced, the old BroadcastConsumer won't necessarily be closed, so you might have two broadcasts with the same path.
+	pub async fn watch(&mut self) -> Option<(String, Option<BroadcastConsumer>)> {
 		loop {
 			let (suffix, broadcast) = self.broadcasts.next().await?;
 
@@ -49,8 +51,7 @@ impl Room {
 				continue;
 			}
 
-			let broadcast = BroadcastConsumer::new(broadcast);
-			return Some(broadcast);
+			return Some((suffix, broadcast.map(BroadcastConsumer::new)));
 		}
 	}
 

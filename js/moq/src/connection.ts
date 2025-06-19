@@ -125,7 +125,13 @@ export class Connection {
 		const bidis = this.#runBidis();
 		const unis = this.#runUnis();
 
-		await Promise.all([session, bidis, unis]);
+		try {
+			await Promise.all([session, bidis, unis]);
+		} catch (err) {
+			console.error("fatal error running connection", err);
+		} finally {
+			this.close();
+		}
 	}
 
 	/**

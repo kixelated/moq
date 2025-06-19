@@ -160,6 +160,7 @@ export class Root {
 	}
 }
 
+// TODO Make this a single instance of an Effect, so close() can work correctly from async code.
 export class Effect {
 	// eslint-disable-next-line @typescript-eslint/ban-ts-comment
 	// @ts-ignore depends on the bundler.

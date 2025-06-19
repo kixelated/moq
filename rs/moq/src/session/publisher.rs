@@ -1,6 +1,3 @@
-use std::collections::HashSet;
-
-use futures::{stream::FuturesUnordered, StreamExt};
 use web_async::FuturesExt;
 
 use crate::{
@@ -63,9 +60,6 @@ impl Publisher {
 	async fn run_announce(&mut self, stream: &mut Stream, prefix: &str) -> Result<(), Error> {
 		let mut announced = self.broadcasts.consume_prefix(prefix);
 
-		let mut active = HashSet::new();
-		let mut tasks = FuturesUnordered::new();
-
 		// Flush any synchronously announced paths
 		loop {
 			tokio::select! {
@@ -74,36 +68,21 @@ impl Publisher {
 				announced = announced.next() => {
 					match announced {
 						Some((suffix, broadcast)) => {
-							tracing::debug!(?suffix, "announce");
-
-							let msg = message::Announce::Active { suffix: suffix.clone() };
-							stream.writer.encode(&msg).await?;
-							active.insert(suffix.clone());
-
-							// Wait until the broadcast is closed before unannouncing.
-							tasks.push(async move {
-								broadcast.closed().await;
-								suffix
-							});
+							if broadcast.is_some() {
+								tracing::debug!(?suffix, "announce");
+								let msg = message::Announce::Active { suffix: suffix.clone() };
+								stream.writer.encode(&msg).await?;
+							} else {
+								tracing::debug!(?suffix, "unannounce");
+								let msg = message::Announce::Ended { suffix };
+								stream.writer.encode(&msg).await?;
+							}
 						},
-						None => break,
+						None => return stream.writer.finish().await,
 					}
-				}
-				Some(suffix) = tasks.next() => {
-					active.remove(&suffix);
-					let msg = message::Announce::Ended { suffix };
-					stream.writer.encode(&msg).await?;
 				}
 			}
 		}
-
-		// Clean up any remaining active broadcasts.
-		for suffix in active.drain() {
-			let msg = message::Announce::Ended { suffix };
-			stream.writer.encode(&msg).await?;
-		}
-
-		stream.writer.finish().await
 	}
 
 	pub async fn recv_subscribe(&mut self, stream: &mut Stream) -> Result<(), Error> {

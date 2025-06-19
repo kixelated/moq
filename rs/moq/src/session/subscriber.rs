@@ -83,10 +83,7 @@ impl Subscriber {
 					let consumer = producer.consume();
 
 					// Run the broadcast in the background until all consumers are dropped.
-					if !announced.publish(suffix.clone(), consumer) {
-						return Err(Error::Duplicate);
-					}
-
+					announced.publish(suffix.clone(), consumer);
 					producers.insert(suffix.clone(), producer.clone());
 
 					spawn(self.clone().run_broadcast(suffix, producer));
