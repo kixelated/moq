@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.2](https://github.com/kixelated/moq/compare/moq-lite-v0.3.1...moq-lite-v0.3.2) - 2025-06-20
+
+### Other
+
+- Fix misc bugs ([#430](https://github.com/kixelated/moq/pull/430))
+
 ## [0.3.1](https://github.com/kixelated/moq/compare/moq-lite-v0.3.0...moq-lite-v0.3.1) - 2025-06-16
 
 ### Other

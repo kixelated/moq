@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.3](https://github.com/kixelated/moq/compare/hang-wasm-v0.1.2...hang-wasm-v0.1.3) - 2025-06-20
+
+### Other
+
+- updated the following local packages: hang
+
 ## [0.1.2](https://github.com/kixelated/moq/compare/hang-wasm-v0.1.1...hang-wasm-v0.1.2) - 2025-06-16
 
 ### Other

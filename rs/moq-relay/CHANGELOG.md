@@ -6,6 +6,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.7.4](https://github.com/kixelated/moq/compare/moq-relay-v0.7.3...moq-relay-v0.7.4) - 2025-06-20
+
+### Other
+
+- Fix misc bugs ([#430](https://github.com/kixelated/moq/pull/430))
+- JS signals revamp ([#429](https://github.com/kixelated/moq/pull/429))
+- Add eslint for some more linting checks. ([#427](https://github.com/kixelated/moq/pull/427))
+
 ## [0.7.3](https://github.com/kixelated/moq/compare/moq-relay-v0.7.2...moq-relay-v0.7.3) - 2025-06-16
 
 ### Other
