@@ -51,6 +51,9 @@ importers:
       '@kixelated/signals':
         specifier: file:../signals
         version: link:../signals
+      '@types/dom-mediacapture-transform':
+        specifier: ^0.1.11
+        version: 0.1.11
       buffer:
         specifier: ^6.0.3
         version: 6.0.3
@@ -61,6 +64,9 @@ importers:
         specifier: ^3.25.62
         version: 3.25.62
     devDependencies:
+      '@types/audioworklet':
+        specifier: ^0.0.77
+        version: 0.0.77
       '@typescript/lib-dom':
         specifier: npm:@types/web@^0.0.241
         version: '@types/web@0.0.241'
@@ -835,6 +841,9 @@ packages:
   '@tybys/wasm-util@0.9.0':
     resolution: {integrity: sha512-6+7nlbMVX/PVDCwaIQ8nTOPveOcFLSt8GcXdx8hD0bt39uWxYT88uXzqTd4fTvqta7oeUJqudepapKNt2DYJFw==}
 
+  '@types/audioworklet@0.0.77':
+    resolution: {integrity: sha512-aPQ0DurtnDRWO3qvu8iK1R0aDlKS7sDOWx7MVhMWkGTmlyfnf50GPKYJlKdq8UP159ntPiqPJ5XZ/2v1R0V0Bw==}
+
   '@types/babel__core@7.20.5':
     resolution: {integrity: sha512-qoQprZvz5wQFJwMDqeseRXWv3rqMvhgpbXFfVyWhbx9X47POIA6i/+dXefEmZKoAgOaTdaIgNSMqMIU61yRyzA==}
 
@@ -846,6 +855,12 @@ packages:
 
   '@types/babel__traverse@7.20.7':
     resolution: {integrity: sha512-dkO5fhS7+/oos4ciWxyEyjWe48zmG6wbCheo/G2ZnHx4fs3EU6YC6UM8rk56gAjNJ9P3MTH2jo5jb92/K6wbng==}
+
+  '@types/dom-mediacapture-transform@0.1.11':
+    resolution: {integrity: sha512-Y2p+nGf1bF2XMttBnsVPHUWzRRZzqUoJAKmiP10b5umnO6DDrWI0BrGDJy1pOHoOULVmGSfFNkQrAlC5dcj6nQ==}
+
+  '@types/dom-webcodecs@0.1.15':
+    resolution: {integrity: sha512-omOlCPvTWyPm4ZE5bZUhlSvnHM2ZWM2U+1cPiYFL/e8aV5O9MouELp+L4dMKNTON0nTeHqEg+KWDfFQMY5Wkaw==}
 
   '@types/estree@1.0.7':
     resolution: {integrity: sha512-w28IoSUCJpidD/TGviZwwMJckNESJZXFu7NBZ5YJ4mEUnNraUn9Pm8HSZm/jDF1pDWYKspWE7oVphigUPRakIQ==}
@@ -2578,6 +2593,8 @@ snapshots:
       tslib: 2.8.1
     optional: true
 
+  '@types/audioworklet@0.0.77': {}
+
   '@types/babel__core@7.20.5':
     dependencies:
       '@babel/parser': 7.27.5
@@ -2598,6 +2615,12 @@ snapshots:
   '@types/babel__traverse@7.20.7':
     dependencies:
       '@babel/types': 7.27.6
+
+  '@types/dom-mediacapture-transform@0.1.11':
+    dependencies:
+      '@types/dom-webcodecs': 0.1.15
+
+  '@types/dom-webcodecs@0.1.15': {}
 
   '@types/estree@1.0.7': {}
 

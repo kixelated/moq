@@ -389,9 +389,7 @@ export class Video {
 // Based on: https://jan-ivar.github.io/polyfills/mediastreamtrackprocessor.js
 // Thanks Jan-Ivar
 function VideoTrackProcessor(track: VideoTrack): ReadableStream<VideoFrame> {
-	// @ts-expect-error Chrome only for now
 	if (self.MediaStreamTrackProcessor) {
-		// @ts-expect-error Chrome only for now
 		return new self.MediaStreamTrackProcessor({ track }).readable;
 	}
 

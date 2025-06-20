@@ -7,6 +7,9 @@ import * as Container from "../container";
 // An annoying hack, but there's stuttering that we need to fix.
 const LATENCY = 50;
 
+const MIN_GAIN = 0.001;
+const FADE_TIME = 0.2;
+
 export type AudioProps = {
 	enabled?: boolean;
 };
@@ -309,8 +312,16 @@ export class AudioEmitter {
 			const gain = effect.get(this.#gain);
 			if (!gain) return;
 
+			// Cancel any scheduled transitions on change.
+			effect.cleanup(() => gain.gain.cancelScheduledValues(gain.context.currentTime));
+
 			const volume = effect.get(this.volume);
-			gain.gain.value = volume;
+			if (volume < MIN_GAIN) {
+				gain.gain.exponentialRampToValueAtTime(MIN_GAIN, gain.context.currentTime + FADE_TIME);
+				gain.gain.setValueAtTime(0, gain.context.currentTime + FADE_TIME + 0.01);
+			} else {
+				gain.gain.exponentialRampToValueAtTime(volume, gain.context.currentTime + FADE_TIME);
+			}
 		});
 
 		this.#signals.effect((effect) => {

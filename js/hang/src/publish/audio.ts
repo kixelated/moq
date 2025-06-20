@@ -3,8 +3,13 @@ import { Computed, Effect, Root, Signal } from "@kixelated/signals";
 import * as Catalog from "../catalog";
 import * as Container from "../container";
 
+import workletUrl from "../worklet/capture.ts?url";
+
 // Create a group every half a second
 const GOP_DURATION = 0.5;
+
+const GAIN_MIN = 0.001;
+const FADE_TIME = 0.2;
 
 export type AudioConstraints = Omit<
 	MediaTrackConstraints,
@@ -35,11 +40,17 @@ export type AudioProps = {
 	enabled?: boolean;
 	media?: AudioTrack;
 	constraints?: AudioConstraints;
+
+	muted?: boolean;
+	volume?: number;
 };
 
 export class Audio {
 	broadcast: Moq.BroadcastProducer;
 	enabled: Signal<boolean>;
+
+	muted: Signal<boolean>;
+	volume: Signal<number>;
 
 	readonly media: Signal<AudioTrack | undefined>;
 	readonly constraints: Signal<AudioConstraints | undefined>;
@@ -49,10 +60,9 @@ export class Audio {
 
 	#worklet = new Signal<AudioWorkletNode | undefined>(undefined);
 
-	// Expose the root of the audio graph so we can use it for custom visualizations.
-	#root = new Signal<MediaStreamAudioSourceNode | undefined>(undefined);
+	#gain = new Signal<GainNode | undefined>(undefined);
 	// Downcast to AudioNode so it matches Watch.
-	readonly root = this.#root.readonly() as Computed<AudioNode | undefined>;
+	readonly root = this.#gain.readonly() as Computed<AudioNode | undefined>;
 
 	#group?: Moq.GroupProducer;
 	#groupTimestamp = 0;
@@ -65,12 +75,15 @@ export class Audio {
 		this.media = new Signal(props?.media);
 		this.enabled = new Signal(props?.enabled ?? false);
 		this.constraints = new Signal(props?.constraints);
+		this.muted = new Signal(props?.muted ?? false);
+		this.volume = new Signal(props?.volume ?? 1);
 
-		this.#signals.effect(this.#initWorklet.bind(this));
+		this.#signals.effect(this.#runSource.bind(this));
+		this.#signals.effect(this.#runGain.bind(this));
 		this.#signals.effect(this.#runEncoder.bind(this));
 	}
 
-	#initWorklet(effect: Effect): void {
+	#runSource(effect: Effect): void {
 		if (!effect.get(this.enabled)) return;
 
 		const media = effect.get(this.media);
@@ -89,13 +102,17 @@ export class Audio {
 		const root = new MediaStreamAudioSourceNode(context, {
 			mediaStream: new MediaStream([media]),
 		});
+		effect.cleanup(() => root.disconnect());
 
-		this.#root.set(root);
-		effect.cleanup(() => this.#root.set(undefined));
+		const gain = new GainNode(context, {
+			gain: this.volume.peek(),
+		});
+		root.connect(gain);
+		effect.cleanup(() => gain.disconnect());
 
 		// Async because we need to wait for the worklet to be registered.
 		// Annoying, I know...
-		context.audioWorklet.addModule(`data:text/javascript,(${worklet.toString()})()`).then(() => {
+		context.audioWorklet.addModule(workletUrl).then(() => {
 			const worklet = new AudioWorkletNode(context, "capture", {
 				numberOfInputs: 1,
 				numberOfOutputs: 0,
@@ -103,19 +120,38 @@ export class Audio {
 			});
 			this.#worklet.set(worklet);
 
-			root.connect(worklet);
+			gain.connect(worklet);
 			effect.cleanup(() => worklet.disconnect());
+
+			// Only set the gain after the worklet is registered.
+			this.#gain.set(gain);
+			effect.cleanup(() => this.#gain.set(undefined));
 		});
+	}
+
+	#runGain(effect: Effect): void {
+		const gain = effect.get(this.#gain);
+		if (!gain) return;
+
+		effect.cleanup(() => gain.gain.cancelScheduledValues(gain.context.currentTime));
+
+		const volume = effect.get(this.muted) ? 0 : effect.get(this.volume);
+		if (volume < GAIN_MIN) {
+			gain.gain.exponentialRampToValueAtTime(GAIN_MIN, gain.context.currentTime + FADE_TIME);
+			gain.gain.setValueAtTime(0, gain.context.currentTime + FADE_TIME + 0.01);
+		} else {
+			gain.gain.exponentialRampToValueAtTime(volume, gain.context.currentTime + FADE_TIME);
+		}
 	}
 
 	#runEncoder(effect: Effect): void {
 		if (!effect.get(this.enabled)) return;
 
-		const worklet = effect.get(this.#worklet);
-		if (!worklet) return;
-
 		const media = effect.get(this.media);
 		if (!media) return;
+
+		const worklet = effect.get(this.#worklet);
+		if (!worklet) return;
 
 		const track = new Moq.TrackProducer(`audio-${this.#id++}`, 1);
 		this.broadcast.insertTrack(track.consume());
@@ -134,7 +170,7 @@ export class Audio {
 				// TODO get codec and description from decoderConfig
 				codec: "opus",
 				// Firefox doesn't provide the sampleRate in the settings.
-				sampleRate: settings.sampleRate ?? worklet.context.sampleRate,
+				sampleRate: settings.sampleRate ?? worklet?.context.sampleRate,
 				numberOfChannels: settings.channelCount,
 				// TODO configurable
 				bitrate: 64_000,
@@ -177,8 +213,8 @@ export class Audio {
 			bitrate: config.bitrate,
 		});
 
-		worklet.port.onmessage = ({ data }: { data: Float32Array[] }) => {
-			const channels = data.slice(0, settings.channelCount);
+		worklet.port.onmessage = ({ data }: { data: { timestamp: number; channels: Float32Array[] } }) => {
+			const channels = data.channels.slice(0, settings.channelCount);
 			const joinedLength = channels.reduce((a, b) => a + b.length, 0);
 			const joined = new Float32Array(joinedLength);
 
@@ -192,7 +228,7 @@ export class Audio {
 				sampleRate: worklet.context.sampleRate,
 				numberOfFrames: channels[0].length,
 				numberOfChannels: channels.length,
-				timestamp: (worklet.context.currentTime * 1e6) | 0,
+				timestamp: (1_000_000 * data.timestamp) / worklet.context.sampleRate,
 				data: joined,
 				transfer: [joined.buffer],
 			});
@@ -205,19 +241,4 @@ export class Audio {
 	close() {
 		this.#signals.close();
 	}
-}
-
-function worklet() {
-	// @ts-expect-error Would need a separate file/tsconfig to get this to work.
-	registerProcessor(
-		"capture",
-		// @ts-expect-error Would need a separate tsconfig to get this to work.
-		class Processor extends AudioWorkletProcessor {
-			process(input: Float32Array[][]) {
-				// @ts-expect-error Would need a separate tsconfig to get this to work.
-				this.port.postMessage(input[0]);
-				return true;
-			}
-		},
-	);
 }
