@@ -13,7 +13,9 @@ use web_async::Lock;
 
 use super::Track;
 
-type State = HashMap<String, TrackConsumer>;
+struct State {
+	lookup: HashMap<String, TrackConsumer>,
+}
 
 /// Receive broadcast/track requests and return if we can fulfill them.
 pub struct BroadcastProducer {
@@ -35,7 +37,7 @@ impl Default for BroadcastProducer {
 impl BroadcastProducer {
 	pub fn new() -> Self {
 		Self {
-			published: Default::default(),
+			published: Lock::new(State { lookup: HashMap::new() }),
 			closed: Default::default(),
 			requested: async_channel::unbounded(),
 			cloned: Default::default(),
@@ -59,6 +61,7 @@ impl BroadcastProducer {
 		let unique = self
 			.published
 			.lock()
+			.lookup
 			.insert(track.info.name.clone(), track.clone())
 			.is_none();
 
@@ -73,7 +76,7 @@ impl BroadcastProducer {
 		track.closed().await.ok();
 
 		// Remove the track from the lookup.
-		let mut published = published.lock();
+		let published = &mut published.lock().lookup;
 		match published.remove(&track.info.name) {
 			// Make sure we are removing the correct track.
 			Some(other) if other.is_clone(&track) => true,
@@ -138,7 +141,7 @@ impl Drop for BroadcastProducer {
 		}
 
 		// Cleanup any published tracks.
-		self.published.lock().clear();
+		self.published.lock().lookup.clear();
 	}
 }
 
@@ -177,32 +180,17 @@ pub struct BroadcastConsumer {
 
 impl BroadcastConsumer {
 	pub fn subscribe(&self, track: &Track) -> TrackConsumer {
-		/*
-		let closed = match self.closed.wait_for(|closed| *closed).now_or_never() {
-			None => false, // would have blocked
-			Some(true) => true,
-			Some(false) => false,
-		};
-
-		if closed {
-			// Kind of hacky, but return a closed track consumer.
-			let track = track.clone().produce();
-			track.abort(Error::Cancel);
-			return track.consume();
-		}
-		*/
-
 		let mut published = self.published.lock();
 
 		// Return any explictly published track.
-		if let Some(consumer) = published.get(&track.name).cloned() {
+		if let Some(consumer) = published.lookup.get(&track.name).cloned() {
 			return consumer;
 		}
 
 		// Otherwise we have never seen this track before and need to create a new producer.
 		let producer = track.clone().produce();
 		let consumer = producer.consume();
-		published.insert(track.name.clone(), consumer.clone());
+		published.lookup.insert(track.name.clone(), consumer.clone());
 
 		// Insert the producer into the lookup so we will deduplicate requests.
 		// This is not a subscriber so it doesn't count towards "used" subscribers.

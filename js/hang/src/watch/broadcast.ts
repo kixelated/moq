@@ -130,24 +130,26 @@ export class Broadcast {
 		const catalog = broadcast.subscribe("catalog.json", 0);
 		effect.cleanup(() => catalog.close());
 
-		effect.spawn(async (cancel) => {
-			try {
-				for (;;) {
-					const update = await Promise.race([Catalog.fetch(catalog), cancel]);
-					if (!update) break;
+		effect.spawn(this.#fetchCatalog.bind(this, catalog));
+	}
 
-					console.debug("received catalog", this.path.peek(), update);
+	async #fetchCatalog(catalog: Moq.TrackConsumer, cancel: Promise<void>): Promise<void> {
+		try {
+			for (;;) {
+				const update = await Promise.race([Catalog.fetch(catalog), cancel]);
+				if (!update) break;
 
-					this.#catalog.set(update);
-					this.status.set("live");
-				}
-			} catch (err) {
-				console.warn("error fetching catalog", this.path.peek(), err);
-			} finally {
-				this.#catalog.set(undefined);
-				this.status.set("offline");
+				console.debug("received catalog", this.path.peek(), update);
+
+				this.#catalog.set(update);
+				this.status.set("live");
 			}
-		});
+		} catch (err) {
+			console.warn("error fetching catalog", this.path.peek(), err);
+		} finally {
+			this.#catalog.set(undefined);
+			this.status.set("offline");
+		}
 	}
 
 	close() {

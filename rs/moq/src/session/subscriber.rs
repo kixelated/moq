@@ -37,7 +37,7 @@ impl Subscriber {
 	pub fn consume_prefix<T: ToString>(&self, prefix: T) -> OriginConsumer {
 		let prefix = prefix.to_string();
 
-		let producer = OriginProducer::default();
+		let producer = OriginProducer::new();
 		let consumer = producer.consume_prefix(prefix.clone());
 
 		web_async::spawn(self.clone().run_announced(prefix, producer));

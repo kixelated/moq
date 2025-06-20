@@ -113,19 +113,23 @@ export class Audio {
 		});
 
 		effect.spawn(async (cancel) => {
-			for (;;) {
-				const frame = await Promise.race([sub.nextFrame(), cancel]);
-				if (!frame) break;
+			try {
+				for (;;) {
+					const frame = await Promise.race([sub.nextFrame(), cancel]);
+					if (!frame) break;
 
-				const decoded = Container.decodeFrame(frame.data);
+					const decoded = Container.decodeFrame(frame.data);
 
-				const chunk = new EncodedAudioChunk({
-					type: "key",
-					data: decoded.data,
-					timestamp: decoded.timestamp,
-				});
+					const chunk = new EncodedAudioChunk({
+						type: "key",
+						data: decoded.data,
+						timestamp: decoded.timestamp,
+					});
 
-				decoder.decode(chunk);
+					decoder.decode(chunk);
+				}
+			} catch (error) {
+				console.warn("audio subscription error", error);
 			}
 		});
 	}

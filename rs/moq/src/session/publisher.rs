@@ -16,7 +16,7 @@ impl Publisher {
 	pub fn new(session: web_transport::Session) -> Self {
 		Self {
 			session,
-			broadcasts: Default::default(),
+			broadcasts: OriginProducer::new(),
 		}
 	}
 

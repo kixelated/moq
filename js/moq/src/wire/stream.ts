@@ -26,13 +26,14 @@ export class Stream {
 
 	static async accept(quic: WebTransport): Promise<[StreamBi, Stream] | undefined> {
 		for (;;) {
-			try {
-				const reader =
-					quic.incomingBidirectionalStreams.getReader() as ReadableStreamDefaultReader<WebTransportBidirectionalStream>;
-				const next = await reader.read();
-				reader.releaseLock();
+			const reader =
+				quic.incomingBidirectionalStreams.getReader() as ReadableStreamDefaultReader<WebTransportBidirectionalStream>;
+			const next = await reader.read();
+			reader.releaseLock();
 
-				if (next.done) return;
+			if (next.done) return;
+
+			try {
 				const stream = new Stream(next.value);
 				let msg: StreamBi;
 
@@ -50,6 +51,7 @@ export class Stream {
 				return [msg, stream];
 			} catch (err) {
 				console.warn("error accepting stream", err);
+				// Continue to the next stream.
 			}
 		}
 	}
@@ -219,14 +221,15 @@ export class Reader {
 
 	static async accept(quic: WebTransport): Promise<[StreamUni, Reader] | undefined> {
 		for (;;) {
-			try {
-				const reader = quic.incomingUnidirectionalStreams.getReader() as ReadableStreamDefaultReader<
-					ReadableStream<Uint8Array>
-				>;
-				const next = await reader.read();
-				reader.releaseLock();
+			const reader = quic.incomingUnidirectionalStreams.getReader() as ReadableStreamDefaultReader<
+				ReadableStream<Uint8Array>
+			>;
+			const next = await reader.read();
+			reader.releaseLock();
 
-				if (next.done) return;
+			if (next.done) return;
+
+			try {
 				const stream = new Reader(next.value);
 				let msg: StreamUni;
 
@@ -240,6 +243,7 @@ export class Reader {
 				return [msg, stream];
 			} catch (err) {
 				console.warn("error accepting unidirectional stream", err);
+				// Continue to the next stream.
 			}
 		}
 	}

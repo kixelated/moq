@@ -230,19 +230,23 @@ export class Video {
 		});
 
 		effect.spawn(async (cancel) => {
-			for (;;) {
-				const next = await Promise.race([sub.nextFrame(), cancel]);
-				if (!next) break;
+			try {
+				for (;;) {
+					const next = await Promise.race([sub.nextFrame(), cancel]);
+					if (!next) break;
 
-				const decoded = Container.decodeFrame(next.data);
+					const decoded = Container.decodeFrame(next.data);
 
-				const chunk = new EncodedVideoChunk({
-					type: next.frame === 0 ? "key" : "delta",
-					data: decoded.data,
-					timestamp: decoded.timestamp,
-				});
+					const chunk = new EncodedVideoChunk({
+						type: next.frame === 0 ? "key" : "delta",
+						data: decoded.data,
+						timestamp: decoded.timestamp,
+					});
 
-				decoder.decode(chunk);
+					decoder.decode(chunk);
+				}
+			} catch (error) {
+				console.warn("video subscription error", error);
 			}
 		});
 	}

@@ -176,6 +176,7 @@ export class Effect {
 	#unwatch: Dispose[] = [];
 	#async: Promise<void>[] = [];
 
+	#stack?: string;
 	#scheduled = false;
 
 	constructor(fn: (effect: Effect) => void) {
@@ -185,7 +186,17 @@ export class Effect {
 		}
 
 		this.#fn = fn;
-		this.#fn(this);
+
+		if (Effect.dev) {
+			this.#stack = new Error().stack;
+		}
+
+		try {
+			this.#fn(this);
+		} catch (error) {
+			console.error("effect error", error);
+			if (this.#stack) console.error("stack", this.#stack);
+		}
 	}
 
 	#schedule(): void {
@@ -199,9 +210,14 @@ export class Effect {
 
 		// Wait for all async effects to complete.
 		// There's a 1s timeout here to catch cleanup functions that don't exit.
-		const timeout = new Promise((reject) => setTimeout(() => reject(new Error("cleanup timeout")), 1000));
-		await Promise.race([timeout, Promise.all(this.#async)]);
-		this.#async.length = 0;
+		try {
+			const timeout = new Promise((reject) => setTimeout(() => reject(new Error("cleanup timeout")), 1000));
+			await Promise.race([timeout, Promise.all(this.#async)]);
+			this.#async.length = 0;
+		} catch (error) {
+			console.error("async effect error", error);
+			if (this.#stack) console.error("stack", this.#stack);
+		}
 
 		// Unsubscribe from all signals.
 		for (const unwatch of this.#unwatch) unwatch();
@@ -212,7 +228,13 @@ export class Effect {
 		this.#dispose.length = 0;
 
 		this.#scheduled = false;
-		this.#fn(this);
+
+		try {
+			this.#fn(this);
+		} catch (error) {
+			console.error("effect error", error);
+			if (this.#stack) console.error("stack", this.#stack);
+		}
 	}
 
 	// Get the current value of a signal, monitoring it for changes (via ===) and rerunning on change.

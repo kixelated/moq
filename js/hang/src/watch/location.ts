@@ -73,7 +73,7 @@ export class Location {
 			const consumer = new Container.PositionConsumer(track);
 			effect.cleanup(() => consumer.close());
 
-			void runConsumer(consumer, this.#current);
+			effect.spawn(runConsumer.bind(this, consumer, this.#current));
 		});
 	}
 
@@ -87,10 +87,14 @@ export class Location {
 	}
 }
 
-async function runConsumer(consumer: Container.PositionConsumer, location: Signal<Catalog.Position | undefined>) {
+async function runConsumer(
+	consumer: Container.PositionConsumer,
+	location: Signal<Catalog.Position | undefined>,
+	cancel: Promise<void>,
+) {
 	try {
 		for (;;) {
-			const position = await consumer.next();
+			const position = await Promise.race([consumer.next(), cancel]);
 			if (!position) break;
 
 			location.set(position);
@@ -150,7 +154,7 @@ export class LocationPeer {
 		effect.cleanup(() => sub.close());
 
 		const consumer = new Container.PositionConsumer(sub);
-		void runConsumer(consumer, this.location);
+		effect.spawn(runConsumer.bind(this, consumer, this.location));
 	}
 
 	close() {
