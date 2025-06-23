@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="en" class="dark">
+
+<head>
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>MoQ Demo</title>
+
+	<link rel="stylesheet" href="index.css">
+	<link rel="icon" type="image/svg+xml" href="/favicon.svg">
+</head>
+
+<body class="dark:bg-black">
+	<!-- Show if this browser supports everything we need. -->
+	<hang-support show="partial"></hang-support>
+
+	<!--
+	 	This is a simple element to render each broadcast in a grid.
+		It will discover any broadcast starting with `demo/` and render them.
+	-->
+	<hang-meet url="http://localhost:4443/demo/">
+		<!--
+			If a `hang-publish` element is nested, then it will inherit the `url` attribute and use the `path` as the suffix.
+			It also won't be downloaded, instead rendered in the grid if `preview` is set.
+			This is rather limited but so is this Web Component; use the JS API for more control.
+		-->
+		<hang-publish path="me" audio video controls preview></hang-publish>
+	</hang-meet>
+
+	<h3>Other demos:</h3>
+	<ul>
+		<li><a href="index.html">Watch a single broadcast.</a></li>
+		<li><a href="publish.html">Publish a single broadcast.</a></li>
+		<li><a href="support.html">Check browser support.</a></li>
+	</ul>
+
+	<h3>Tips:</h3>
+	<p>
+		Only see the funny bunny?
+		Click on the controls at the top to publish a <code>demo/me</code> broadcast just like the <a href="publish.html">publish demo</a>.
+		Or add another broadcast by running <code class="language-bash">just pub tos</code> in a new terminal.
+	</p>
+	<p>
+		<b>NOTE:</b> If you see a black screen, it might be an old broadcast that hasn't timed out.
+		Browsers currently don't seem to cleanly close QUIC connections so we have to wait for the keep-alive timeout.
+		It's currently 10 seconds, but it's configurable on the relay.
+	</p>
+	<hr />
+	<p>
+		Broadcasts are discovered/announced via the relay server; no need for a separate signaling server.
+		You could download your own broadcast... or save some bandwidth and perform a local preview.
+		You still get a signal informing you when other viewers can see your broadcast.
+	</p>
+	<p>
+		A "room" of broadcasts is little more than a shared prefix.
+		If you publish to <code>demo/foo</code> and <code>demo/bar</code>, then using <code>demo</code> will render both.
+		You can provide the path via the connection URL or appending a <code>path</code> attribute.
+		The only difference is authentication; a more constrained connection can't access other rooms.
+	</p>
+	<hr />
+	<p>
+		I hightly recommend using the Javascript API instead of the Web Component, even if the API is still evolving.
+		There's just too much business logic involved in determining how to render broadcasts.
+		This demo uses the most basic grid layout with near-zero styling.
+		It's ugly on purpose.
+		There's a million different ways to render a collection of broadcasts and it's up to your application to decide.
+	</p>
+	<p>
+		My application renders to a shared canvas instead.
+		If you're interested in the details, it's similar to the <code class="language-javascript">VideoRenderer</code> class.
+		You should instead use this library to discover broadcasts, download them, and perhaps render them.
+	</p>
+</body>
+
+<script type="module" src="meet.ts"></script>
+
+</html>

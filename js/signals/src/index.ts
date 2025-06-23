@@ -2,9 +2,14 @@ import { dequal } from "dequal";
 
 export type Dispose = () => void;
 
+type Subscriber<T> = {
+	fn: (value: T) => void;
+	unique: boolean;
+};
+
 export class Signal<T> {
 	#value: T;
-	#subscribers: Set<(value: T) => void> = new Set();
+	#subscribers: Set<Subscriber<T>> = new Set();
 
 	constructor(value: T) {
 		this.#value = value;
@@ -19,23 +24,35 @@ export class Signal<T> {
 		let newValue: T;
 		if (typeof value === "function") {
 			newValue = (value as (prev: T) => T)(this.#value);
+			// NOTE: We can't use === here because we don't know if the function mutated the value.
+			// It's a VERY common pitfall so we err on the side of spurious updates.
 		} else {
 			newValue = value;
+			if (newValue === this.#value) return;
 		}
 
-		if (newValue === this.#value) return;
 		this.#value = newValue;
 
-		for (const fn of this.#subscribers) fn(newValue);
+		for (const subscriber of this.#subscribers) {
+			subscriber.fn(newValue);
+		}
+	}
+
+	// Mutate the current value and notify subscribers.
+	update(fn: (prev: T) => void): void {
+		fn(this.#value);
+		this.set(this.#value);
 	}
 
 	readonly(): Computed<T> {
 		return new Computed(this);
 	}
 
-	subscribe(fn: (value: T) => void): Dispose {
-		this.#subscribers.add(fn);
-		return () => this.#subscribers.delete(fn);
+	// Subscribe to the signal, optionally only if the value is different (via dequals).
+	subscribe(fn: (value: T) => void, unique = false): Dispose {
+		const subscriber = { fn, unique };
+		this.#subscribers.add(subscriber);
+		return () => this.#subscribers.delete(subscriber);
 	}
 }
 
@@ -115,7 +132,7 @@ export class Root {
 		return new Computed(signal);
 	}
 
-	// Same as `computed` but performs a deep equality check on the value.
+	// Same as `computed` but performs a deep equality check on the returned value.
 	unique<T>(fn: (effect: Effect) => T): Computed<T> {
 		let signal: Signal<T> | undefined;
 

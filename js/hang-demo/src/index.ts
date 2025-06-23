@@ -1,4 +1,3 @@
-import "./index.css";
 import "./highlight";
 
 import HangSupport from "@kixelated/hang/support/element";

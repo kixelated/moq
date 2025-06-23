@@ -11,7 +11,8 @@ export default defineConfig({
 			input: {
 				watch: "index.html",
 				publish: "publish.html",
-				announce: "announce.html",
+				support: "support.html",
+				meet: "meet.html",
 			},
 		},
 	},

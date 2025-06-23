@@ -3,6 +3,7 @@ import * as Moq from "@kixelated/moq";
 import { Effect, Root, Signal } from "@kixelated/signals";
 import * as Catalog from "../catalog";
 import * as Container from "../container";
+import { isFirefox } from "../hacks";
 
 // Create a group every 2 seconds
 const GOP_DURATION_US = 2 * 1000 * 1000;
@@ -280,7 +281,7 @@ export class Video {
 
 		// Try hardware encoding first.
 		// We can't reliably detect hardware encoding on Firefox: https://github.com/w3c/webcodecs/issues/896
-		if (!navigator.userAgent.toLowerCase().includes("firefox")) {
+		if (!isFirefox) {
 			for (const codec of HARDWARE_CODECS) {
 				const config = Video.#codecSpecific(baseConfig, codec, bitrate, true);
 				const { supported, config: hardwareConfig } = await VideoEncoder.isConfigSupported(config);

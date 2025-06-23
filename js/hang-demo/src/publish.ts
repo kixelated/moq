@@ -1,4 +1,3 @@
-import "./index.css";
 import "./highlight";
 
 // We need to import Web Components with fully-qualified paths because of tree-shaking.

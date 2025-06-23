@@ -6,6 +6,7 @@ import { Audio, AudioProps, AudioTrack } from "./audio";
 import { Chat, ChatProps } from "./chat";
 import { Location, LocationProps } from "./location";
 import { Video, VideoProps, VideoTrack } from "./video";
+import { isChrome } from "../hacks";
 
 export type Device = "screen" | "camera";
 
@@ -93,22 +94,24 @@ export class Broadcast {
 
 		if (!effect.get(this.audio.enabled)) return;
 
-		const media = navigator.mediaDevices.getUserMedia({ audio: effect.get(this.audio.constraints) ?? true });
+		const constraints = effect.get(this.audio.constraints) ?? {};
 
-		media
-			.then((media) => {
-				const track = media.getAudioTracks().at(0);
-				this.audio.media.set(track as AudioTrack | undefined);
-			})
-			.catch((err) => {
-				console.error("failed to get media", err);
-			});
+		// Chrome has a long-standing bug where echoCancellation does NOT work with WebAudio.
+		// See and bump: https://issues.chromium.org/issues/40504498
+		// Unless explicitly requested, we disable it.
+		if (isChrome && constraints?.echoCancellation === undefined) {
+			constraints.echoCancellation = { exact: false };
+		}
 
-		effect.cleanup(() => {
-			this.audio.media.set((prev) => {
-				prev?.stop();
-				return undefined;
-			});
+		const mediaPromise = navigator.mediaDevices.getUserMedia({ audio: constraints });
+
+		effect.spawn(async (_cancel) => {
+			const media = await mediaPromise;
+			const track = media.getAudioTracks().at(0) as AudioTrack | undefined;
+			effect.cleanup(() => track?.stop());
+
+			this.audio.media.set(track);
+			effect.cleanup(() => this.audio.media.set(undefined));
 		});
 	}
 
@@ -118,22 +121,15 @@ export class Broadcast {
 
 		if (!effect.get(this.video.enabled)) return;
 
-		const media = navigator.mediaDevices.getUserMedia({ video: effect.get(this.video.constraints) ?? true });
+		const mediaPromise = navigator.mediaDevices.getUserMedia({ video: effect.get(this.video.constraints) ?? true });
 
-		media
-			.then((media) => {
-				const track = media.getVideoTracks().at(0);
-				this.video.media.set(track as VideoTrack | undefined);
-			})
-			.catch((err) => {
-				console.error("failed to get media", err);
-			});
+		effect.spawn(async (_cancel) => {
+			const media = await mediaPromise;
+			const track = media.getVideoTracks().at(0) as VideoTrack | undefined;
+			effect.cleanup(() => track?.stop());
 
-		effect.cleanup(() => {
-			this.video.media.set((prev) => {
-				prev?.stop();
-				return undefined;
-			});
+			this.video.media.set(track);
+			effect.cleanup(() => this.video.media.set(undefined));
 		});
 	}
 
@@ -153,7 +149,7 @@ export class Broadcast {
 			controller.setFocusBehavior("no-focus-change");
 		}
 
-		const media = navigator.mediaDevices.getDisplayMedia({
+		const mediaPromise = navigator.mediaDevices.getDisplayMedia({
 			video: effect.get(this.video.constraints) ?? true,
 			audio: effect.get(this.audio.constraints) ?? true,
 			// @ts-expect-error Chrome only
@@ -165,27 +161,19 @@ export class Broadcast {
 			// systemAudio: "exclude",
 		});
 
-		media
-			.then((media) => {
-				const video = media.getVideoTracks().at(0) as VideoTrack | undefined;
-				const audio = media.getAudioTracks().at(0) as AudioTrack | undefined;
-				this.video.media.set(video);
-				this.audio.media.set(audio);
-			})
-			.catch((err) => {
-				console.error("failed to get media", err);
-			});
+		effect.spawn(async (_cancel) => {
+			const media = await mediaPromise;
+			const video = media.getVideoTracks().at(0) as VideoTrack | undefined;
+			const audio = media.getAudioTracks().at(0) as AudioTrack | undefined;
 
-		effect.cleanup(() => {
-			this.video.media.set((prev) => {
-				prev?.stop();
-				return undefined;
-			});
+			effect.cleanup(() => video?.stop());
+			effect.cleanup(() => audio?.stop());
 
-			this.audio.media.set((prev) => {
-				prev?.stop();
-				return undefined;
-			});
+			this.video.media.set(video);
+			effect.cleanup(() => this.video.media.set(undefined));
+
+			this.audio.media.set(audio);
+			effect.cleanup(() => this.audio.media.set(undefined));
 		});
 	}
 
