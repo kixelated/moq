@@ -1,7 +1,7 @@
+import { Root } from "@kixelated/signals";
+import { Publish, Watch } from "..";
 import { Connection } from "../connection";
 import { Room } from "./room";
-import { Publish, Watch } from "..";
-import { Root } from "@kixelated/signals";
 
 import HangPublish from "../publish/element";
 

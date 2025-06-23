@@ -1,8 +1,8 @@
-import { Accessor, createEffect, createMemo, createSelector, createSignal, JSX, Match, Show, Switch } from "solid-js";
-import { render } from "solid-js/web";
-import { Codec, Full, isSupported, Partial, SupportRole } from "./";
 import { Signal } from "@kixelated/signals";
 import solid from "@kixelated/signals/solid";
+import { Accessor, JSX, Match, Show, Switch, createEffect, createMemo, createSelector, createSignal } from "solid-js";
+import { render } from "solid-js/web";
+import { Codec, Full, Partial, SupportRole, isSupported } from "./";
 
 import { isFirefox } from "../hacks";
 

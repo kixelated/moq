@@ -34,7 +34,6 @@
 	"dependencies": {
 		"@kixelated/moq": "file:../moq",
 		"@kixelated/signals": "file:../signals",
-		"@types/dom-mediacapture-transform": "^0.1.11",
 		"buffer": "^6.0.3",
 		"zod": "^3.25.62"
 	},

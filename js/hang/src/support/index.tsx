@@ -117,8 +117,7 @@ export async function isSupported(): Promise<Full> {
 	return {
 		webtransport: typeof WebTransport !== "undefined",
 		audio: {
-			// We have a polyfill for when MediaStreamTrackProcessor is not supported.
-			capture: typeof MediaStreamTrackProcessor !== "undefined" || typeof AudioWorkletNode !== "undefined",
+			capture: typeof AudioWorkletNode !== "undefined",
 			encoding:
 				typeof AudioEncoder !== "undefined"
 					? {
@@ -138,6 +137,7 @@ export async function isSupported(): Promise<Full> {
 		video: {
 			capture:
 				// We have a fallback for MediaStreamTrackProcessor, but it's pretty gross so no full points.
+				// @ts-expect-error No typescript types yet.
 				typeof MediaStreamTrackProcessor !== "undefined"
 					? "full"
 					: typeof OffscreenCanvas !== "undefined"

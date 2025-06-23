@@ -2,11 +2,11 @@ import * as Moq from "@kixelated/moq";
 import { Effect, Root, Signal } from "@kixelated/signals";
 import * as Catalog from "../catalog";
 import { Connection } from "../connection";
+import { isChrome } from "../hacks";
 import { Audio, AudioProps, AudioTrack } from "./audio";
 import { Chat, ChatProps } from "./chat";
 import { Location, LocationProps } from "./location";
 import { Video, VideoProps, VideoTrack } from "./video";
-import { isChrome } from "../hacks";
 
 export type Device = "screen" | "camera";
 

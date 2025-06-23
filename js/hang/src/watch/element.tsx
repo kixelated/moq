@@ -1,6 +1,6 @@
 import { Root, Signal } from "@kixelated/signals";
 import solid from "@kixelated/signals/solid";
-import { Show, Match, Switch, JSX } from "solid-js";
+import { JSX, Match, Show, Switch } from "solid-js";
 import { render } from "solid-js/web";
 import { Connection } from "../connection";
 import { AudioEmitter } from "./audio";

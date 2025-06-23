@@ -3,8 +3,6 @@ import { Computed, Effect, Root, Signal } from "@kixelated/signals";
 import * as Catalog from "../catalog";
 import * as Container from "../container";
 
-import workletUrl from "../worklet/capture.ts?url";
-
 // Create a group every half a second
 const GOP_DURATION = 0.5;
 
@@ -112,7 +110,7 @@ export class Audio {
 
 		// Async because we need to wait for the worklet to be registered.
 		// Annoying, I know...
-		context.audioWorklet.addModule(workletUrl).then(() => {
+		context.audioWorklet.addModule(new URL("../worklet/capture.ts", import.meta.url).toString()).then(() => {
 			const worklet = new AudioWorkletNode(context, "capture", {
 				numberOfInputs: 1,
 				numberOfOutputs: 0,
