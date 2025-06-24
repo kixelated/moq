@@ -117,8 +117,6 @@ export class Room {
 	}
 
 	#handleUpdate(update: Moq.Announce) {
-		console.log("handleUpdate", update);
-
 		for (const [path, broadcast] of this.locals) {
 			if (update.path === path) {
 				if (update.active) {
