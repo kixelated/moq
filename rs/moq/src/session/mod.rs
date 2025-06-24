@@ -221,32 +221,4 @@ impl Session {
 	pub async fn closed(&self) -> Error {
 		self.webtransport.closed().await.into()
 	}
-
-	/*
-	/// Publish all of our broadcasts to the given origin.
-	///
-	/// If an optional prefix is provided, the prefix will be applied when inserting into the origin.
-	pub async fn publish_to(&mut self, mut origin: OriginProducer, prefix: &str) {
-		let mut broadcasts = self.consume_prefix(prefix);
-
-		while let Some((suffix, broadcast)) = broadcasts.next().await {
-			// We can avoid a string copy if there's no prefix.
-			match prefix {
-				"" => origin.publish(suffix, broadcast),
-				prefix => origin.publish(format!("{}{}", prefix, suffix), broadcast),
-			};
-		}
-	}
-
-	/// Serve all broadcasts from the given origin.
-	///
-	/// If the prefix is provided, then only broadcasts matching the (stripped) prefix are served.
-	pub async fn consume_from(&mut self, origin: OriginProducer, prefix: &str) {
-		let mut remotes = origin.consume_prefix(prefix);
-
-		while let Some((suffix, broadcast)) = remotes.next().await {
-			self.publish(suffix, broadcast);
-		}
-	}
-	*/
 }

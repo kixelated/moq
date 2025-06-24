@@ -1,5 +1,3 @@
-use web_async::FuturesExt;
-
 use crate::{
 	message, model::GroupConsumer, BroadcastConsumer, Error, OriginConsumer, OriginProducer, Track, TrackConsumer,
 };
@@ -134,128 +132,105 @@ impl Publisher {
 	}
 
 	async fn run_track(&mut self, mut track: TrackConsumer, subscribe: &mut message::Subscribe) -> Result<(), Error> {
-		// Kind of hacky, but we only serve up to two groups concurrently.
-		// This avoids a race where we try to cancel the previous group at the same time as we FIN it.
-		// We don't want to allow N concurrent groups otherwise slow consumers will eat our RAM.
-		// FuturesOrdered would be used if there was a `pop` method.
-		let mut old_group = None;
-		let mut new_group = None;
+		// TODO use a BTreeMap serve the latest N groups by sequence.
+		// Until then, we'll implement N=2 manually.
+		let mut old_group: Option<(u64, tokio::task::JoinHandle<Result<(), Error>>)> = None;
+		let mut new_group: Option<(u64, tokio::task::JoinHandle<Result<(), Error>>)> = None;
 
-		loop {
-			tokio::select! {
-				Some(group) = track.next_group().transpose() => {
-					let mut group = group?;
+		// Keep reading groups from the track, some of which may arrive out of order.
+		while let Some(group) = track.next_group().await? {
+			let sequence = group.info.sequence;
+			let latest = new_group.as_ref().map(|g| g.0).unwrap_or(0);
 
-					let mut session = self.session.clone();
-					let priority = Self::stream_priority(subscribe.priority, group.info.sequence);
-
-					let msg = message::Group {
-						subscribe: subscribe.id,
-						sequence: group.info.sequence,
-					};
-
-					let track = track.info.clone();
-
-					let future = Some(Box::pin(async move {
-						// TODO open streams in priority order to help with MAX_STREAMS flow control issues.
-
-						let mut stream = tokio::select! {
-							biased;
-							res = Writer::open(&mut session, message::DataType::Group) => res?,
-							// Add a timeout to detect when we're blocked by flow control.
-							_ = tokio::time::sleep(tokio::time::Duration::from_secs(1)) => {
-								return Err(Error::Timeout);
-							}
-						};
-
-						stream.set_priority(priority);
-
-						tracing::trace!(track = %track.name, group = %group.info.sequence, "serving group");
-
-						let res = Self::serve_group(&mut stream, msg, &mut group).await;
-
-						match res {
-							Err(Error::Cancel) | Err(Error::WebTransport(_)) => {
-								tracing::trace!(track = %track.name, group = %group.info.sequence, "serving group cancelled");
-								stream.abort(&Error::Cancel);
-							}
-							Err(err) => {
-								tracing::debug!(?err, track = %track.name, group = %group.info.sequence, "serving group error");
-								stream.abort(&err);
-							}
-							Ok(size) => {
-								tracing::trace!(track = %track.name, group = %group.info.sequence, size, "serving group complete");
-							}
-						}
-
-						Ok::<(), Error>(())
-					}));
-
-					if new_group.is_none() {
-						new_group = future;
-					} else {
-						old_group = new_group;
-						new_group = future;
-					}
-				},
-				Some(_) = async { Some(old_group.as_mut()?.await) } => {
-					old_group = None;
-				},
-				Some(_) = async { Some(new_group.as_mut()?.await) } => {
-					new_group = None;
-					old_group = None; // Also cancel the old group because it's so far behind.
-				},
-				// No more groups to serve.
-				else => break,
+			// If this group is older than the oldest group we're serving, skip it.
+			// We always serve at most two groups, but maybe we should serve only sequence >= MAX-1.
+			if sequence < old_group.as_ref().map(|g| g.0).unwrap_or(0) {
+				tracing::debug!(track = %track.info.name, old = %sequence, %latest, "skipping group");
+				continue;
 			}
+
+			let priority = Self::stream_priority(track.info.priority, sequence);
+			let msg = message::Group {
+				subscribe: subscribe.id,
+				sequence,
+			};
+
+			// Spawn a task to serve this group, ignoring any errors because they don't really matter.
+			// TODO add some logging at least.
+			let handle = tokio::spawn(Self::serve_group(self.session.clone(), msg, priority, group));
+
+			// Terminate the old group if it's still running.
+			if let Some(old_group) = old_group.take() {
+				if !old_group.1.is_finished() {
+					tracing::debug!(track = %track.info.name, old = %old_group.0, %latest, "aborting group");
+					old_group.1.abort();
+				}
+			}
+
+			if sequence >= latest {
+				old_group = new_group;
+				new_group = Some((sequence, handle));
+			} else {
+				old_group = Some((sequence, handle));
+			}
+		}
+
+		// No more groups, but we still need to wait for the last groups to finish.
+		// Ignore any errors because they don't really matter.
+		if let Some(old_group) = old_group.take() {
+			let _ = old_group.1.await;
+		}
+
+		if let Some(new_group) = new_group.take() {
+			let _ = new_group.1.await;
 		}
 
 		Ok(())
 	}
 
 	pub async fn serve_group(
-		stream: &mut Writer,
+		mut session: web_transport::Session,
 		msg: message::Group,
-		group: &mut GroupConsumer,
-	) -> Result<usize, Error> {
+		priority: i32,
+		mut group: GroupConsumer,
+	) -> Result<(), Error> {
+		// TODO add a way to open in priority order.
+		let mut stream = Writer::open(&mut session, message::DataType::Group).await?;
+		stream.set_priority(priority);
 		stream.encode(&msg).await?;
 
-		let mut size = 0;
-
 		loop {
-			tokio::select! {
+			let frame = tokio::select! {
 				biased;
 				_ = stream.closed() => return Err(Error::Cancel),
-				frame = group.next_frame() => {
-					let mut frame = match frame? {
-						Some(frame) => frame,
-						None => break,
-					};
+				frame = group.next_frame() => frame,
+			};
 
-					size += frame.info.size as usize;
+			let mut frame = match frame? {
+				Some(frame) => frame,
+				None => break,
+			};
 
-					let header = message::Frame { size: frame.info.size };
-					stream.encode(&header).await?;
+			let header = message::Frame { size: frame.info.size };
+			stream.encode(&header).await?;
 
-					loop {
-						tokio::select! {
-							biased;
-							_ = stream.closed() => return Err(Error::Cancel),
-							chunk = frame.read() => {
-								match chunk? {
-									Some(chunk) => stream.write(&chunk).await?,
-									None => break,
-								}
-							}
-						}
-					}
+			loop {
+				let chunk = tokio::select! {
+					biased;
+					_ = stream.closed() => return Err(Error::Cancel),
+					chunk = frame.read() => chunk,
+				};
+
+				match chunk? {
+					Some(chunk) => stream.write(&chunk).await?,
+					None => break,
 				}
 			}
 		}
 
 		stream.finish().await?;
 
-		Ok(size)
+		Ok(())
 	}
 
 	// Quinn takes a i32 priority.
