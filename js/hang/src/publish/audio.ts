@@ -109,8 +109,8 @@ export class Audio {
 		effect.cleanup(() => gain.disconnect());
 
 		// Async because we need to wait for the worklet to be registered.
-		// Annoying, I know...
-		context.audioWorklet.addModule(new URL("../worklet/capture.ts", import.meta.url).toString()).then(() => {
+		// We load the worklet from a string because bundlers are dumb.
+		context.audioWorklet.addModule(`data:text/javascript,(${worklet.toString()})()`).then(() => {
 			const worklet = new AudioWorkletNode(context, "capture", {
 				numberOfInputs: 1,
 				numberOfOutputs: 0,
@@ -211,7 +211,7 @@ export class Audio {
 			bitrate: config.bitrate,
 		});
 
-		worklet.port.onmessage = ({ data }: { data: { timestamp: number; channels: Float32Array[] } }) => {
+		worklet.port.onmessage = ({ data }: { data: WorkletMessage }) => {
 			const channels = data.channels.slice(0, settings.channelCount);
 			const joinedLength = channels.reduce((a, b) => a + b.length, 0);
 			const joined = new Float32Array(joinedLength);
@@ -239,4 +239,37 @@ export class Audio {
 	close() {
 		this.#signals.close();
 	}
+}
+
+interface WorkletMessage {
+	timestamp: number;
+	channels: Float32Array[];
+}
+
+// NOTE: This runs on the AudioWorklet thread, so it doesn't actually have full capabilities.
+// We could use a separate tsconfig.json for this but it's a pain in the butt getting bundlers to work.
+function worklet() {
+	registerProcessor(
+		"capture",
+		class Processor extends AudioWorkletProcessor {
+			// NOTE: You can't use # here because of how we're loading the worklet.
+			// Not that it matters anyway because this runs in a separate thread with no access to any other classes.
+			sampleCount = 0;
+
+			process(input: Float32Array[][]) {
+				if (input.length > 1) throw new Error("only one input is supported.");
+				const channels = input[0];
+
+				const message: WorkletMessage = {
+					timestamp: this.sampleCount,
+					channels,
+				};
+
+				this.port.postMessage(message);
+
+				this.sampleCount += channels[0].length;
+				return true;
+			}
+		},
+	);
 }
