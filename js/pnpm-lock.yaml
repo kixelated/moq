@@ -18,6 +18,9 @@ importers:
       '@eslint/js':
         specifier: ^9.29.0
         version: 9.29.0
+      '@types/audioworklet':
+        specifier: ^0.0.77
+        version: 0.0.77
       '@types/node':
         specifier: ^24
         version: 24.0.1
@@ -61,9 +64,6 @@ importers:
         specifier: ^3.25.62
         version: 3.25.62
     devDependencies:
-      '@types/audioworklet':
-        specifier: ^0.0.77
-        version: 0.0.77
       '@typescript/lib-dom':
         specifier: npm:@types/web@^0.0.241
         version: '@types/web@0.0.241'
