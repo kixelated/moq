@@ -24,6 +24,8 @@ export class Stream {
 		this.reader = new Reader(props.readable);
 	}
 
+	// TODO accept/parse streams in parallel.
+	// I just added this for incoming unidirectional streams, but holding off on bidirectional streams for now.
 	static async accept(quic: WebTransport): Promise<[StreamBi, Stream] | undefined> {
 		for (;;) {
 			const reader =
@@ -218,35 +220,6 @@ export class Reader {
 	async closed() {
 		return this.#reader.closed;
 	}
-
-	static async accept(quic: WebTransport): Promise<[StreamUni, Reader] | undefined> {
-		for (;;) {
-			const reader = quic.incomingUnidirectionalStreams.getReader() as ReadableStreamDefaultReader<
-				ReadableStream<Uint8Array>
-			>;
-			const next = await reader.read();
-			reader.releaseLock();
-
-			if (next.done) return;
-
-			try {
-				const stream = new Reader(next.value);
-				let msg: StreamUni;
-
-				const typ = await stream.u8();
-				if (typ === Wire.Group.StreamID) {
-					msg = await Wire.Group.decode(stream);
-				} else {
-					throw new Error(`unknown stream type: ${typ.toString()}`);
-				}
-
-				return [msg, stream];
-			} catch (err) {
-				console.warn("error accepting unidirectional stream", err);
-				// Continue to the next stream.
-			}
-		}
-	}
 }
 
 // Writer wraps a stream and writes chunks of data
@@ -400,4 +373,62 @@ export function setUint64(dst: Uint8Array, v: bigint): Uint8Array {
 	view.setBigUint64(0, v);
 
 	return new Uint8Array(view.buffer, view.byteOffset, view.byteLength);
+}
+
+// Returns the next stream from the connection, processing the stream headers in parallel.
+export class Readers {
+	#reader: ReadableStreamDefaultReader<[StreamUni, Reader]>;
+
+	constructor(quic: WebTransport) {
+		this.#reader = new ReadableStream({
+			async start(controller) {
+				try {
+					await runConnection(quic, controller);
+					controller.close();
+				} catch (err) {
+					controller.error(err);
+				}
+			},
+		}).getReader();
+	}
+
+	async next(): Promise<[StreamUni, Reader] | undefined> {
+		const next = await this.#reader.read();
+		if (next.done) return;
+		return next.value;
+	}
+
+	close() {
+		this.#reader.cancel();
+	}
+}
+
+async function runConnection(quic: WebTransport, controller: ReadableStreamDefaultController<[StreamUni, Reader]>) {
+	const reader = quic.incomingUnidirectionalStreams.getReader() as ReadableStreamDefaultReader<
+		ReadableStream<Uint8Array>
+	>;
+
+	for (;;) {
+		const next = await reader.read();
+		if (next.done) return;
+
+		const stream = new Reader(next.value);
+
+		// Run each stream in parallel, enqueuing the result.
+		runStream(stream, controller).catch((err) => {
+			console.warn("ignoring stream", err);
+			stream.stop(err);
+		});
+	}
+}
+
+async function runStream(stream: Reader, controller: ReadableStreamDefaultController<[StreamUni, Reader]>) {
+	const typ = await stream.u8();
+
+	if (typ !== Wire.Group.StreamID) {
+		throw new Error(`unknown stream type: ${typ.toString()}`);
+	}
+
+	const msg = await Wire.Group.decode(stream);
+	controller.enqueue([msg, stream]);
 }

@@ -217,8 +217,10 @@ export class Connection {
 	}
 
 	async #runUnis() {
+		const readers = new Wire.Readers(this.#quic);
+
 		for (;;) {
-			const next = await Wire.Reader.accept(this.#quic);
+			const next = await readers.next();
 			if (!next) {
 				break;
 			}
