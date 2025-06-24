@@ -1,3 +1,5 @@
+use web_async::FuturesExt;
+
 use crate::{
 	message, model::GroupConsumer, BroadcastConsumer, Error, OriginConsumer, OriginProducer, Track, TrackConsumer,
 };
@@ -134,17 +136,39 @@ impl Publisher {
 	async fn run_track(&mut self, mut track: TrackConsumer, subscribe: &mut message::Subscribe) -> Result<(), Error> {
 		// TODO use a BTreeMap serve the latest N groups by sequence.
 		// Until then, we'll implement N=2 manually.
-		let mut old_group: Option<(u64, tokio::task::JoinHandle<Result<(), Error>>)> = None;
-		let mut new_group: Option<(u64, tokio::task::JoinHandle<Result<(), Error>>)> = None;
+		// Also, this is more complicated because we can't use tokio because of WASM.
+		// We need to drop futures in order to cancel them and keep polling them with select!
+		let mut old_group = None;
+		let mut new_group = None;
+
+		// Annoying that we can't use a tuple here as we need the compiler to infer the type.
+		// Otherwise we'd have to pick Send or !Send...
+		let mut old_sequence = None;
+		let mut new_sequence = None;
 
 		// Keep reading groups from the track, some of which may arrive out of order.
-		while let Some(group) = track.next_group().await? {
+		loop {
+			let group = tokio::select! {
+				biased;
+				Some(group) = track.next_group().transpose() => group,
+				Some(_) = async { Some(old_group.as_mut()?.await) } => {
+					old_group = None;
+					continue;
+				},
+				Some(_) = async { Some(new_group.as_mut()?.await) } => {
+					new_group = old_group;
+					old_group = None;
+					continue;
+				},
+				else => return Ok(()),
+			}?;
+
 			let sequence = group.info.sequence;
-			let latest = new_group.as_ref().map(|g| g.0).unwrap_or(0);
+			let latest = new_sequence.as_ref().unwrap_or(&0);
 
 			// If this group is older than the oldest group we're serving, skip it.
 			// We always serve at most two groups, but maybe we should serve only sequence >= MAX-1.
-			if sequence < old_group.as_ref().map(|g| g.0).unwrap_or(0) {
+			if sequence < *old_sequence.as_ref().unwrap_or(&0) {
 				tracing::debug!(track = %track.info.name, old = %sequence, %latest, "skipping group");
 				continue;
 			}
@@ -157,35 +181,25 @@ impl Publisher {
 
 			// Spawn a task to serve this group, ignoring any errors because they don't really matter.
 			// TODO add some logging at least.
-			let handle = tokio::spawn(Self::serve_group(self.session.clone(), msg, priority, group));
+			let handle = Box::pin(Self::serve_group(self.session.clone(), msg, priority, group));
 
 			// Terminate the old group if it's still running.
-			if let Some(old_group) = old_group.take() {
-				if !old_group.1.is_finished() {
-					tracing::debug!(track = %track.info.name, old = %old_group.0, %latest, "aborting group");
-					old_group.1.abort();
-				}
+			if let Some(old_sequence) = old_sequence.take() {
+				tracing::debug!(track = %track.info.name, old = %old_sequence, %latest, "aborting group");
+				old_group.take(); // Drop the future to cancel it.
 			}
 
-			if sequence >= latest {
+			if sequence >= *latest {
 				old_group = new_group;
-				new_group = Some((sequence, handle));
+				old_sequence = new_sequence;
+
+				new_group = Some(handle);
+				new_sequence = Some(sequence);
 			} else {
-				old_group = Some((sequence, handle));
+				old_group = Some(handle);
+				old_sequence = Some(sequence);
 			}
 		}
-
-		// No more groups, but we still need to wait for the last groups to finish.
-		// Ignore any errors because they don't really matter.
-		if let Some(old_group) = old_group.take() {
-			let _ = old_group.1.await;
-		}
-
-		if let Some(new_group) = new_group.take() {
-			let _ = new_group.1.await;
-		}
-
-		Ok(())
 	}
 
 	pub async fn serve_group(
