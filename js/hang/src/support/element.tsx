@@ -2,24 +2,25 @@ import { Signal } from "@kixelated/signals";
 import solid from "@kixelated/signals/solid";
 import { Accessor, JSX, Match, Show, Switch, createEffect, createMemo, createSelector, createSignal } from "solid-js";
 import { render } from "solid-js/web";
-import { Codec, Full, Partial, SupportRole, isSupported } from "./";
+import { Codec, Full, Partial, SupportMode, isSupported } from "./";
 
 import { isFirefox } from "../hacks";
 
+const OBSERVED = ["mode", "show", "details"] as const;
+type Observed = (typeof OBSERVED)[number];
+
 export default class HangSupport extends HTMLElement {
-	#role = new Signal<SupportRole>("all");
+	#mode = new Signal<SupportMode>("all");
 	#show = new Signal<Partial>("full");
 	#details = new Signal<boolean>(false);
 	#support = new Signal<Full | undefined>(undefined);
 
-	static get observedAttributes() {
-		return ["role", "show", "details"];
-	}
+	static observedAttributes = OBSERVED;
 
 	constructor() {
 		super();
 
-		const role = solid(this.#role);
+		const mode = solid(this.#mode);
 		const show = solid(this.#show);
 		const details = solid(this.#details);
 		const support = solid(this.#support);
@@ -29,33 +30,60 @@ export default class HangSupport extends HTMLElement {
 		render(
 			() => (
 				<Show when={support()}>
-					{(support) => <Modal role={role} show={show} details={details} support={support} />}
+					{(support) => <Modal mode={mode} show={show} details={details} support={support} />}
 				</Show>
 			),
 			this,
 		);
 	}
 
-	attributeChangedCallback(name: string, _oldValue: string | null, newValue: string | null) {
-		if (name === "role") {
-			const role = newValue ?? "all";
+	attributeChangedCallback(name: Observed, _oldValue: string | null, newValue: string | null) {
+		if (name === "mode") {
+			const mode = newValue ?? "all";
 
-			if (role === "core" || role === "watch" || role === "publish" || role === "all") {
-				this.#role.set(role);
+			if (mode === "core" || mode === "watch" || mode === "publish" || mode === "all") {
+				this.mode = mode;
 			} else {
-				throw new Error(`Invalid role: ${role}`);
+				throw new Error(`Invalid mode: ${mode}`);
 			}
 		} else if (name === "show") {
 			const show = newValue ?? "full";
 			if (show === "full" || show === "partial" || show === "none") {
-				this.#show.set(show);
+				this.show = show;
 			} else {
 				throw new Error(`Invalid show: ${show}`);
 			}
 		} else if (name === "details") {
 			const details = newValue !== null;
-			this.#details.set(details);
+			this.details = details;
+		} else {
+			const exhaustive: never = name;
+			throw new Error(`Invalid attribute: ${exhaustive}`);
 		}
+	}
+
+	get mode(): SupportMode {
+		return this.#mode.peek();
+	}
+
+	set mode(mode: SupportMode) {
+		this.#mode.set(mode);
+	}
+
+	get show(): Partial {
+		return this.#show.peek();
+	}
+
+	set show(show: Partial) {
+		this.#show.set(show);
+	}
+
+	get details(): boolean {
+		return this.#details.peek();
+	}
+
+	set details(details: boolean) {
+		this.#details.set(details);
 	}
 }
 
@@ -69,7 +97,7 @@ declare global {
 
 function SupportDetails(props: {
 	support: Accessor<Full>;
-	role: Accessor<"core" | "watch" | "publish" | "all">;
+	mode: Accessor<"core" | "watch" | "publish" | "all">;
 }) {
 	const support = props.support();
 
@@ -111,8 +139,8 @@ function SupportDetails(props: {
 				>
 					<div style={c1}>WebTransport</div>
 					<div style={c3}>{binary(support().webtransport)}</div>
-					<Show when={props.role() !== "core"}>
-						<Show when={props.role() !== "watch"}>
+					<Show when={props.mode() !== "core"}>
+						<Show when={props.mode() !== "watch"}>
 							<div style={c1}>Capture</div>
 							<div style={c2}>Audio</div>
 							<div style={c3}>{binary(support().audio.capture)}</div>
@@ -134,7 +162,7 @@ function SupportDetails(props: {
 							<div style={c2}>VP8</div>
 							<div style={c3}>{hardware(support().video.encoding?.vp8)}</div>
 						</Show>
-						<Show when={props.role() !== "publish"}>
+						<Show when={props.mode() !== "publish"}>
 							<div style={c1}>Rendering</div>
 							<div style={c2}>Audio</div>
 							<div style={c3}>{binary(support().audio.render)}</div>
@@ -178,7 +206,7 @@ function SupportDetails(props: {
 }
 
 function Modal(props: {
-	role: Accessor<SupportRole>;
+	mode: Accessor<SupportMode>;
 	show: Accessor<Partial>;
 	details: Accessor<boolean>;
 	support: Accessor<Full>;
@@ -225,13 +253,13 @@ function Modal(props: {
 
 	const final = createMemo<"full" | "partial" | "none" | undefined>(() => {
 		const b = core();
-		if (b === "none" || props.role() === "core") return b;
+		if (b === "none" || props.mode() === "core") return b;
 
-		if (props.role() === "watch") {
+		if (props.mode() === "watch") {
 			return watch();
 		}
 
-		if (props.role() === "publish") {
+		if (props.mode() === "publish") {
 			return publish();
 		}
 
@@ -288,7 +316,7 @@ function Modal(props: {
 					</button>
 				</div>
 				<Show when={showDetails()}>
-					<SupportDetails support={props.support} role={props.role} />
+					<SupportDetails support={props.support} mode={props.mode} />
 				</Show>
 			</div>
 		</Show>

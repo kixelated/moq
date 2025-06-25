@@ -5,8 +5,11 @@ import { render } from "solid-js/web";
 import { Connection } from "../connection";
 import { Broadcast, Device } from "./broadcast";
 
+const OBSERVED = ["url", "path", "device", "audio", "video", "controls"] as const;
+type Observed = (typeof OBSERVED)[number];
+
 export default class HangPublish extends HTMLElement {
-	static observedAttributes = ["url", "path", "device", "audio", "video", "controls"];
+	static observedAttributes = OBSERVED;
 
 	#controls = new Signal(false);
 
@@ -51,20 +54,75 @@ export default class HangPublish extends HTMLElement {
 		);
 	}
 
-	attributeChangedCallback(name: string, _oldValue: string | null, newValue: string | null) {
+	attributeChangedCallback(name: Observed, _oldValue: string | null, newValue: string | null) {
 		if (name === "url") {
-			this.connection.url.set(newValue ? new URL(newValue) : undefined);
+			this.url = newValue ? new URL(newValue) : undefined;
 		} else if (name === "path") {
-			this.broadcast.path.set(newValue ?? "");
+			this.path = newValue ?? "";
 		} else if (name === "device") {
-			this.broadcast.device.set(newValue as Device);
+			if (newValue === "camera" || newValue === "screen" || newValue === null) {
+				this.device = newValue ?? undefined;
+			} else {
+				throw new Error(`Invalid device: ${newValue}`);
+			}
 		} else if (name === "audio") {
-			this.broadcast.audio.enabled.set(newValue !== null);
+			this.audio = newValue !== null;
 		} else if (name === "video") {
-			this.broadcast.video.enabled.set(newValue !== null);
+			this.video = newValue !== null;
 		} else if (name === "controls") {
-			this.#controls.set(newValue !== null);
+			this.controls = newValue !== null;
+		} else {
+			const exhaustive: never = name;
+			throw new Error(`Invalid attribute: ${exhaustive}`);
 		}
+	}
+
+	get url(): URL | undefined {
+		return this.connection.url.peek();
+	}
+
+	set url(url: URL | undefined) {
+		this.connection.url.set(url);
+	}
+
+	get path(): string {
+		return this.broadcast.path.peek();
+	}
+
+	set path(path: string) {
+		this.broadcast.path.set(path);
+	}
+
+	get device(): Device | undefined {
+		return this.broadcast.device.peek();
+	}
+
+	set device(device: Device | undefined) {
+		this.broadcast.device.set(device);
+	}
+
+	get audio(): boolean {
+		return this.broadcast.audio.enabled.peek();
+	}
+
+	set audio(audio: boolean) {
+		this.broadcast.audio.enabled.set(audio);
+	}
+
+	get video(): boolean {
+		return this.broadcast.video.enabled.peek();
+	}
+
+	set video(video: boolean) {
+		this.broadcast.video.enabled.set(video);
+	}
+
+	get controls(): boolean {
+		return this.#controls.peek();
+	}
+
+	set controls(controls: boolean) {
+		this.#controls.set(controls);
 	}
 }
 

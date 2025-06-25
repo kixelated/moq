@@ -5,11 +5,14 @@ import { Room } from "./room";
 
 import HangPublish from "../publish/element";
 
+const OBSERVED = ["url", "path"] as const;
+type Observed = (typeof OBSERVED)[number];
+
 // NOTE: This element is more of an example of how to use the library.
 // You likely want your own layout, rendering, controls, etc.
 // This element instead creates a crude NxN grid of broadcasts.
 export default class HangMeet extends HTMLElement {
-	static observedAttributes = ["url", "path"];
+	static observedAttributes = OBSERVED;
 
 	connection: Connection;
 	room: Room;
@@ -140,12 +143,31 @@ export default class HangMeet extends HTMLElement {
 		this.#container.appendChild(canvas);
 	}
 
-	attributeChangedCallback(name: string, _oldValue: string | null, newValue: string | null) {
+	attributeChangedCallback(name: Observed, _oldValue: string | null, newValue: string | null) {
 		if (name === "url") {
-			this.connection.url.set(newValue ? new URL(newValue) : undefined);
+			this.url = newValue ? new URL(newValue) : undefined;
 		} else if (name === "path") {
-			this.room.path.set(newValue ?? "");
+			this.path = newValue ?? "";
+		} else {
+			const exhaustive: never = name;
+			throw new Error(`Invalid attribute: ${exhaustive}`);
 		}
+	}
+
+	get url(): URL | undefined {
+		return this.connection.url.peek();
+	}
+
+	set url(url: URL | undefined) {
+		this.connection.url.set(url);
+	}
+
+	get path(): string {
+		return this.room.path.peek();
+	}
+
+	set path(path: string) {
+		this.room.path.set(path);
 	}
 }
 

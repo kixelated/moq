@@ -1,6 +1,6 @@
 import { isFirefox } from "../hacks";
 
-export type SupportRole = "core" | "watch" | "publish" | "all";
+export type SupportMode = "core" | "watch" | "publish" | "all";
 export type Partial = "full" | "partial" | "none";
 
 export type Audio = {

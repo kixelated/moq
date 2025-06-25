@@ -7,9 +7,12 @@ import { AudioEmitter } from "./audio";
 import { Broadcast } from "./broadcast";
 import { VideoRenderer } from "./video";
 
+const OBSERVED = ["url", "paused", "volume", "muted", "controls"] as const;
+type Observed = (typeof OBSERVED)[number];
+
 // An optional web component that wraps a <canvas>
 export default class HangWatch extends HTMLElement {
-	static observedAttributes = ["url", "paused", "volume", "muted", "controls"];
+	static observedAttributes = OBSERVED;
 
 	#controls = new Signal(false);
 
@@ -32,10 +35,12 @@ export default class HangWatch extends HTMLElement {
 		this.video = new VideoRenderer(this.broadcast.video, { canvas });
 		this.audio = new AudioEmitter(this.broadcast.audio);
 
+		const controls = solid(this.#controls);
+
 		// Render the controls element.
 		render(
 			() => (
-				<Show when={solid(this.#controls)}>
+				<Show when={controls()}>
 					<Controls broadcast={this.broadcast} video={this.video} audio={this.audio} root={this} />
 				</Show>
 			),
@@ -92,23 +97,67 @@ export default class HangWatch extends HTMLElement {
 		});
 	}
 
-	attributeChangedCallback(name: string, oldValue: string | null, newValue: string | null) {
+	attributeChangedCallback(name: Observed, oldValue: string | null, newValue: string | null) {
 		if (oldValue === newValue) {
 			return;
 		}
 
 		if (name === "url") {
-			this.connection.url.set(newValue ? new URL(newValue) : undefined);
+			this.url = newValue ? new URL(newValue) : undefined;
 		} else if (name === "paused") {
-			this.video.paused.set(newValue !== null);
+			this.paused = newValue !== null;
 		} else if (name === "volume") {
 			const volume = newValue ? Number.parseFloat(newValue) : 0.5;
-			this.audio.volume.set(volume);
+			this.volume = volume;
 		} else if (name === "muted") {
-			this.audio.muted.set(newValue !== null);
+			this.muted = newValue !== null;
 		} else if (name === "controls") {
-			this.#controls.set(newValue !== null);
+			this.controls = newValue !== null;
+		} else {
+			const exhaustive: never = name;
+			throw new Error(`Invalid attribute: ${exhaustive}`);
 		}
+	}
+
+	// Make cooresponding properties for the element, more type-safe than using attributes.
+	get url(): URL | undefined {
+		return this.connection.url.peek();
+	}
+
+	set url(url: URL | undefined) {
+		this.connection.url.set(url);
+	}
+
+	get paused(): boolean {
+		return this.video.paused.peek();
+	}
+
+	set paused(paused: boolean) {
+		this.video.paused.set(paused);
+	}
+
+	get volume(): number {
+		return this.audio.volume.peek();
+	}
+
+	set volume(volume: number) {
+		this.audio.volume.set(volume);
+	}
+
+	get muted(): boolean {
+		return this.audio.muted.peek();
+	}
+
+	set muted(muted: boolean) {
+		this.audio.muted.set(muted);
+	}
+
+	get controls(): boolean {
+		return this.#controls.peek();
+	}
+
+	set controls(controls: boolean) {
+		this.#controls.set(controls);
 	}
 
 	// TODO Do this on disconnectedCallback?
