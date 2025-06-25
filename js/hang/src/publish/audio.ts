@@ -248,14 +248,14 @@ interface WorkletMessage {
 
 // NOTE: This runs on the AudioWorklet thread, so it doesn't actually have full capabilities.
 // We could use a separate tsconfig.json for this but it's a pain in the butt getting bundlers to work.
+// WARN: // and # will break things, hence the /* */ comments.
+// One day I'll figure out how to make worklets actually work with bundlers.
 function worklet() {
-	// @ts-expect-error - No audio worklet types.
+	/* @ts-expect-error - No audio worklet types. */
 	registerProcessor(
 		"capture",
-		// @ts-expect-error - No audio worklet types.
+		/* @ts-expect-error - No audio worklet types. */
 		class Processor extends AudioWorkletProcessor {
-			// NOTE: You can't use # here because of how we're loading the worklet.
-			// Not that it matters anyway because this runs in a separate thread with no access to any other classes.
 			sampleCount = 0;
 
 			process(input: Float32Array[][]) {
@@ -267,7 +267,7 @@ function worklet() {
 					channels,
 				};
 
-				// @ts-expect-error - No audio worklet types.
+				/* @ts-expect-error - No audio worklet types. */
 				this.port.postMessage(message);
 
 				this.sampleCount += channels[0].length;
