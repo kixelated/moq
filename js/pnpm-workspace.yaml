@@ -1,12 +1,15 @@
 packages:
-  - js/moq
-  - js/hang
-  - js/hang-demo
-  - js/signals
+  - moq
+  - hang
+  - hang-demo
+  - signals
+
 onlyBuiltDependencies:
+  - '@tailwindcss/oxide'
   - core-js
   - esbuild
   - wasm-pack
+
 overrides:
   brace-expansion@>=1.0.0 <=1.1.11: '>=1.1.12'
   brace-expansion@>=2.0.0 <=2.0.1: '>=2.0.2'
