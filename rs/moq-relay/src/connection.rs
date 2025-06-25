@@ -18,15 +18,19 @@ impl Connection {
 			}
 		};
 
-		// Publish all local and remote broadcasts to the session.
-		// TODO We need to learn if this is a relay and NOT publish remotes.
+		// Publish all primary and secondary broadcasts to the session.
 		if let Some(subscribe) = self.token.subscribe {
 			let full = format!("{}{}", self.token.path, subscribe);
-			let locals = self.cluster.locals.consume_prefix(&full);
-			let remotes = self.cluster.remotes.consume_prefix(&full);
 
-			session.publish_prefix(&subscribe, locals);
-			session.publish_prefix(&subscribe, remotes);
+			let primary = self.cluster.primary.consume_prefix(&full);
+			session.publish_prefix(&subscribe, primary);
+
+			// Only publish primary broadcasts if the client is a cluster node.
+			if !self.token.subscribe_primary {
+				// TODO prefer primary broadcasts if there's a tie?
+				let secondary = self.cluster.secondary.consume_prefix(&full);
+				session.publish_prefix(&subscribe, secondary);
+			}
 		}
 
 		// Publish all broadcasts produced by the session to the local origin.
@@ -35,14 +39,22 @@ impl Connection {
 			let produced = session.consume_prefix(&publish);
 
 			let full = format!("{}{}", self.token.path, publish);
-			self.cluster.locals.publish_prefix(&full, produced);
+
+			// If we're a secondary, then we only publish to the secondary cluster.
+			if self.token.publish_secondary {
+				self.cluster.secondary.publish_prefix(&full, produced);
+			} else {
+				self.cluster.primary.publish_prefix(&full, produced);
+			}
 		}
 
 		// Publish this specific broadcast if it's being forced.
+		// This is useful to avoid a secret participant in a call, only subscribing but not publishing.
+		// It also avoids an RTT when the user joins a call I guess.
 		if let Some(publish_force) = self.token.publish_force {
 			let produced = session.consume(&publish_force);
 			let full = format!("{}{}", self.token.path, publish_force);
-			self.cluster.locals.publish(&full, produced);
+			self.cluster.primary.publish(&full, produced);
 		}
 
 		// Wait until the session is closed.

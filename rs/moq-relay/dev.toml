@@ -65,7 +65,7 @@ tls.generate = ["localhost"]
 # - If someone tries to connect to `/demo/**` without a (valid) token, then the connection will be rejected.
 # - If someone tries to connect to `/baz/**`, then the root key will be used instead.
 [auth]
-# just relay will generate a root key and set this value via the CLI
+# `just leaf` will generate a root key and set this value via the CLI
 key = "dev/root.jwk"
 
 # Allow any connection to these paths without a token.

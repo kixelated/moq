@@ -1,9 +1,16 @@
+[log]
+# Enable debug logging for development.
+# The RUST_LOG environment variable will take precedence.
+level = "debug"
+
 [server]
+# Listen for QUIC connections on UDP:4443
+# Sometimes IPv6 causes issues; try 127.0.0.1:4443 instead.
 listen = "[::]:4444"
 
 # Generate a self-signed certificate for the server.
 # You should use a real certificate in production.
-tls.generate = ["localhost:4444"]
+tls.generate = ["localhost"]
 
 # This clustering scheme is very very simple for now.
 #
@@ -27,8 +34,8 @@ tls.generate = ["localhost:4444"]
 connect = "localhost:4443"
 
 # Use the token in this file when connecting to other nodes.
-# `just leaf` will populate this file.
-token = "dev/root.jwt"
+# `just auth` will populate this file.
+token = "dev/node.jwt"
 
 # My hostname, which must be accessible from other nodes.
 advertise = "localhost:4444"
@@ -54,5 +61,5 @@ tls.disable_verify = true
 # `just leaf` will populate this file.
 key = "dev/root.jwk"
 
-# Allow any connection to `/demo/**` or `/anon/**` without a token.
-path = { demo = "", anon = "" }
+# Allow any connection to these paths without a token.
+path = { demo = "", anon = "", hang = "" }

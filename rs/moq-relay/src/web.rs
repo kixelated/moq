@@ -77,8 +77,8 @@ impl Web {
 
 /// Serve the announced broadcasts for a given prefix.
 async fn serve_announced(Path(prefix): Path<String>, cluster: Cluster) -> impl IntoResponse {
-	let mut local = cluster.locals.consume_prefix(&prefix);
-	let mut remote = cluster.remotes.consume_prefix(&prefix);
+	let mut local = cluster.primary.consume_prefix(&prefix);
+	let mut remote = cluster.secondary.consume_prefix(&prefix);
 
 	let mut broadcasts = Vec::new();
 

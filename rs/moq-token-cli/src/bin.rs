@@ -47,9 +47,21 @@ enum Commands {
 		#[arg(long)]
 		publish_force: Option<String>,
 
+		/// If true, then any broadcasts published by this user should be considered secondary.
+		/// This is primarily used for gossiping broadcasts between cluster nodes.
+		/// They will only gossip primary broadcasts, and use each other as secondaries.
+		#[arg(long)]
+		publish_secondary: bool,
+
 		/// If specified, the user can subscribe to any broadcasts matching a prefix.
 		#[arg(long)]
 		subscribe: Option<String>,
+
+		/// If true, then this session will only receive primary broadcasts.
+		/// This is primarily used for gossiping broadcasts between cluster nodes.
+		/// We don't want nodes gossiping themselves as origins if they're just a middle node.
+		#[arg(long)]
+		subscribe_primary: bool,
 
 		/// The expiration time of the token as a unix timestamp.
 		#[arg(long, value_parser = parse_unix_timestamp)]
@@ -77,7 +89,9 @@ fn main() -> anyhow::Result<()> {
 			path,
 			publish,
 			publish_force,
+			publish_secondary,
 			subscribe,
+			subscribe_primary,
 			expires,
 			issued,
 		} => {
@@ -87,7 +101,9 @@ fn main() -> anyhow::Result<()> {
 				path,
 				publish,
 				publish_force,
+				publish_secondary,
 				subscribe,
+				subscribe_primary,
 				expires,
 				issued,
 			};

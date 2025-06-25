@@ -36,10 +36,10 @@ pub struct Cluster {
 	client: moq_native::Client,
 
 	// Tracks announced by local clients (users).
-	pub locals: OriginProducer,
+	pub primary: OriginProducer,
 
 	// Tracks announced by remote servers (cluster).
-	pub remotes: OriginProducer,
+	pub secondary: OriginProducer,
 }
 
 impl Cluster {
@@ -49,15 +49,15 @@ impl Cluster {
 		Cluster {
 			config,
 			client,
-			locals: OriginProducer::new(),
-			remotes: OriginProducer::new(),
+			primary: OriginProducer::new(),
+			secondary: OriginProducer::new(),
 		}
 	}
 
 	pub fn get(&self, broadcast: &str) -> Option<BroadcastConsumer> {
-		self.locals
+		self.primary
 			.consume(broadcast)
-			.or_else(|| self.remotes.consume(broadcast))
+			.or_else(|| self.secondary.consume(broadcast))
 	}
 
 	pub async fn run(self) -> anyhow::Result<()> {
@@ -69,7 +69,7 @@ impl Cluster {
 		}
 	}
 
-	async fn run_leaf(self, root: String) -> anyhow::Result<()> {
+	async fn run_leaf(mut self, root: String) -> anyhow::Result<()> {
 		// Create a "broadcast" with no tracks to announce ourselves.
 		let noop = BroadcastProducer::new();
 
@@ -101,6 +101,16 @@ impl Cluster {
 			let path = format!("{}/{}", prefix, myself);
 			root.publish(path, noop.consume());
 		}
+
+		// Publish all of our primary broadcasts to the root.
+		// There's no point in publishing secondary broadcasts because we form a mesh cluster.
+		let primary = self.primary.consume_all();
+		root.publish_all(primary);
+
+		// Consume all of the remote broadcasts as secondary broadcasts.
+		// If there's a tie, we'll still prefer our primary broadcasts.
+		let remotes = root.consume_all();
+		self.secondary.publish_all(remotes);
 
 		// Subscribe to available origins.
 		let mut origins = root.consume_prefix(format!("{}/", prefix));
@@ -191,13 +201,15 @@ impl Cluster {
 			.await
 			.context("failed to establish session")?;
 
-		// Publish all of our local broadcasts to the remote.
-		let locals = self.locals.consume_all();
-		session.publish_all(locals);
+		// Publish all of our primary broadcasts to the remote.
+		// There's no point in publishing secondary broadcasts because we form a mesh cluster.
+		let primary = self.primary.consume_all();
+		session.publish_all(primary);
 
-		// Consume all of the remote broadcasts.
+		// Consume all of the remote broadcasts as secondary broadcasts.
+		// If there's a tie, we'll still prefer our primary broadcasts.
 		let remotes = session.consume_all();
-		self.remotes.publish_all(remotes);
+		self.secondary.publish_all(remotes);
 
 		Err(session.closed().await.into())
 	}

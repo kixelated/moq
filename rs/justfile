@@ -30,13 +30,16 @@ auth:
 
 	# Generate a token that allows us to publish and subscribe to all paths.
 	# Obviously this needs to be secured in production.
-	if [ ! -f "dev/root.jwt" ]; then \
-		cargo run --quiet --bin moq-token -- --key "dev/root.jwk" sign --path "" --subscribe "" --publish "" > dev/root.jwt; \
+	# The primary/secondary flags are used to change what gets published based on the client.
+	if [ ! -f "dev/node.jwt" ]; then \
+		cargo run --quiet --bin moq-token -- --key "dev/root.jwk" sign \
+			--path "" \
+			--subscribe "" \
+			--subscribe-primary \
+			--publish "" \
+			--publish-secondary \
+			> dev/node.jwt; \
 	fi
-
-# Run a cluster of relay servers
-cluster:
-	pnpm i && pnpm exec concurrently --kill-others --names root,leaf,bbb,web --prefix-colors auto "just relay" "sleep 1 && just leaf" "sleep 2 && just pub bbb" "sleep 3 && just web"
 
 # Download the video and convert it to a fragmented MP4 that we can stream
 download name:
@@ -64,7 +67,7 @@ download-url name:
 	esac
 
 # Publish a video using ffmpeg to the localhost relay server
-pub name:
+pub name addr='http://localhost:4443/demo':
 	# Download the sample media.
 	just download {{name}}
 
@@ -77,10 +80,10 @@ pub name:
 		-i "dev/{{name}}.fmp4" \
 		-c copy \
 		-f mp4 -movflags cmaf+separate_moof+delay_moov+skip_trailer+frag_every_frame \
-		- | cargo run --bin hang -- publish "http://localhost:4443/demo/{{name}}.hang"
+		- | cargo run --bin hang -- publish "{{addr}}/{{name}}.hang"
 
 # Publish a video using gstreamer to the localhost relay server
-pub-gst name:
+pub-gst name addr='http://localhost:4443/demo':
 	# Download the sample media.
 	just download {{name}}
 
@@ -90,18 +93,18 @@ pub-gst name:
 	# Run gstreamer and pipe the output to our plugin
 	GST_PLUGIN_PATH="${PWD}/target/debug${GST_PLUGIN_PATH:+:$GST_PLUGIN_PATH}" \
 	gst-launch-1.0 -v -e multifilesrc location="dev/{{name}}.fmp4" loop=true ! qtdemux name=demux \
-		demux.video_0 ! h264parse ! queue ! identity sync=true ! isofmp4mux name=mux chunk-duration=1 fragment-duration=1 ! hangsink url="http://localhost:4443/demo/{{name}}.hang" tls-disable-verify=true \
+		demux.video_0 ! h264parse ! queue ! identity sync=true ! isofmp4mux name=mux chunk-duration=1 fragment-duration=1 ! hangsink url="{{addr}}/{{name}}.hang" tls-disable-verify=true \
 		demux.audio_0 ! aacparse ! queue ! mux.
 
 # Subscribe to a video using gstreamer
-sub-gst name:
+sub name addr='http://localhost:4443/demo':
 	# Build the plugins
 	cargo build -p hang-gst
 
 	# Run gstreamer and pipe the output to our plugin
 	# This will render the video to the screen
 	GST_PLUGIN_PATH="${PWD}/target/debug${GST_PLUGIN_PATH:+:$GST_PLUGIN_PATH}" \
-	gst-launch-1.0 -v -e hangsrc url="http://localhost:4443/demo/{{name}}.hang" tls-disable-verify=true ! decodebin ! videoconvert ! autovideosink
+	gst-launch-1.0 -v -e hangsrc url="{{addr}}/{{name}}.hang" tls-disable-verify=true ! decodebin ! videoconvert ! autovideosink
 
 # Publish a video using ffmpeg directly from hang to the localhost
 serve name:

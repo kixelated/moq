@@ -16,25 +16,50 @@ setup:
 	just --justfile rs/justfile setup
 
 # Run the relay, web server, and publish bbb.
-all: build
+all:
+	# We use pnpm for concurrently, unfortunately, so make sure it's installed.
+	cd js && pnpm i
+
 	# Then run the relay with a slight head start.
 	# It doesn't matter if the web beats BBB because we support automatic reloading.
-	js/node_modules/.bin/concurrently --kill-others --names srv,bbb,web --prefix-colors auto "just relay" "sleep 1 && just pub bbb" "sleep 1 && just web"
+	js/node_modules/.bin/concurrently --kill-others --names srv,bbb,web --prefix-colors auto \
+		"just relay" \
+		"sleep 1 && just pub bbb" \
+		"sleep 2 && just web"
 
 # Run a localhost relay server
 relay:
 	just --justfile rs/justfile relay
 
+# Run a cluster of relay servers
+cluster:
+	# We use pnpm for concurrently, unfortunately, so make sure it's installed.
+	cd js && pnpm i
+
+	# Then run a BOATLOAD of services to make sure they all work correctly.
+	# Publish the funny bunny to the root node.
+	# Publish the robot fanfic to the leaf node.
+	js/node_modules/.bin/concurrently --kill-others --names root,leaf,bbb,tos,web --prefix-colors auto \
+		"just relay" \
+		"sleep 1 && just leaf" \
+		"sleep 2 && just pub bbb http://localhost:4443/demo" \
+		"sleep 3 && just pub tos http://localhost:4444/demo" \
+		"sleep 4 && just web"
+
+# Run a leaf node
+leaf:
+	just --justfile rs/justfile leaf
+
 # Publish a video using ffmpeg to the localhost relay server
-pub name:
-	just --justfile rs/justfile pub {{name}}
+pub name addr='http://localhost:4443/demo':
+	just --justfile rs/justfile pub {{name}} {{addr}}
 
 # Publish a video using gstreamer to the localhost relay server
-pub-gst name:
-	just --justfile rs/justfile pub-gst {{name}}
+pub-gst name addr='http://localhost:4443/demo':
+	just --justfile rs/justfile pub-gst {{name}} {{addr}}
 
 # Subscribe to a video using gstreamer
-sub-gst name:
+sub name:
 	just --justfile rs/justfile sub-gst {{name}}
 
 # Publish a video using ffmpeg directly from hang to the localhost
