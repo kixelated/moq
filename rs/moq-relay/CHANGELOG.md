@@ -6,6 +6,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.7.5](https://github.com/kixelated/moq/compare/moq-relay-v0.7.4...moq-relay-v0.7.5) - 2025-06-25
+
+### Other
+
+- Fix clustering, probably. ([#441](https://github.com/kixelated/moq/pull/441))
+
 ## [0.7.4](https://github.com/kixelated/moq/compare/moq-relay-v0.7.3...moq-relay-v0.7.4) - 2025-06-20
 
 ### Other

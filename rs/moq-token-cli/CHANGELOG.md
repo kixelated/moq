@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.3](https://github.com/kixelated/moq/compare/moq-token-cli-v0.1.2...moq-token-cli-v0.1.3) - 2025-06-25
+
+### Other
+
+- Fix clustering, probably. ([#441](https://github.com/kixelated/moq/pull/441))
+
 ## [0.1.2](https://github.com/kixelated/moq/compare/moq-token-cli-v0.1.1...moq-token-cli-v0.1.2) - 2025-06-20
 
 ### Other

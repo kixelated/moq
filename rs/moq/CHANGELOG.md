@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.3](https://github.com/kixelated/moq/compare/moq-lite-v0.3.2...moq-lite-v0.3.3) - 2025-06-25
+
+### Other
+
+- Fix a panic caused if the same broadcast is somehow announced twice. ([#439](https://github.com/kixelated/moq/pull/439))
+- Improve how groups are served in Rust. ([#435](https://github.com/kixelated/moq/pull/435))
+
 ## [0.3.2](https://github.com/kixelated/moq/compare/moq-lite-v0.3.1...moq-lite-v0.3.2) - 2025-06-20
 
 ### Other
