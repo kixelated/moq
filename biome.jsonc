@@ -1,33 +1,25 @@
-// TODO This should be removed. I just need to find a way for the VSCode plugin to use js/biome.jsonc.
+// This has to be in the root otherwise the VSCode plugin will not work out of the box.
 {
-	"$schema": "https://biomejs.dev/schemas/1.9.4/schema.json",
-	"files": {
-		// Biome is too dumb to use our .gitignore.
-		"ignore": [
-			"**/node_modules",
-			"**/dist"
-		]
-	},
+	"$schema": "https://biomejs.dev/schemas/2.0.5/schema.json",
 	"vcs": {
 		"enabled": true,
 		"clientKind": "git",
 		"useIgnoreFile": true
 	},
 	"formatter": {
-		"enabled": true,
-		"useEditorconfig": true
-	},
-	"organizeImports": {
-		"enabled": true
+		// We repeat the editorconfig settings here because biome has spotty mono-repo support.
+		// "useEditorconfig": true,
+		"lineWidth": 120,
+		"indentStyle": "tab",
+		"indentWidth": 4,
+		"lineEnding": "lf"
 	},
 	"linter": {
-		"enabled": true,
 		"rules": {
 			"a11y": {
 				"useMediaCaption": "off"
 			},
 			"style": {
-				"useImportType": "off",
 				"useNodejsImportProtocol": "off"
 			}
 		}

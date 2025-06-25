@@ -25,7 +25,12 @@
 		"./src/support/element.ts",
 		"./src/meet/element.tsx"
 	],
-	"files": ["./src", "./dist", "README.md", "tsconfig.json"],
+	"files": [
+		"./src",
+		"./dist",
+		"README.md",
+		"tsconfig.json"
+	],
 	"scripts": {
 		"build": "vite build && tsc -b",
 		"check": "tsc --noEmit",

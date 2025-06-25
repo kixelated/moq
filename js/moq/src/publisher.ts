@@ -1,5 +1,5 @@
 import { AnnouncedProducer } from "./announced";
-import { BroadcastConsumer } from "./broadcast";
+import type { BroadcastConsumer } from "./broadcast";
 import type { GroupConsumer } from "./group";
 import type { TrackConsumer } from "./track";
 import { error } from "./util/error";

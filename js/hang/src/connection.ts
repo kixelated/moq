@@ -1,5 +1,5 @@
 import * as Moq from "@kixelated/moq";
-import { Effect, Root, Signal } from "@kixelated/signals";
+import { type Effect, Root, Signal } from "@kixelated/signals";
 
 export type ConnectionProps = {
 	// The URL of the relay server.

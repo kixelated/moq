@@ -3,7 +3,7 @@ import solid from "@kixelated/signals/solid";
 import { Show } from "solid-js";
 import { render } from "solid-js/web";
 import { Connection } from "../connection";
-import { Broadcast, Device } from "./broadcast";
+import { Broadcast, type Device } from "./broadcast";
 
 const OBSERVED = ["url", "path", "device", "audio", "video", "controls"] as const;
 type Observed = (typeof OBSERVED)[number];
@@ -134,8 +134,8 @@ declare global {
 	}
 }
 
-import { Match, Switch, createSelector } from "solid-js";
-import { JSX } from "solid-js/jsx-runtime";
+import { createSelector, Match, Switch } from "solid-js";
+import type { JSX } from "solid-js/jsx-runtime";
 
 function Controls(props: { broadcast: Broadcast }): JSX.Element {
 	return (

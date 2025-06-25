@@ -1,5 +1,5 @@
-import { Connection, Moq, Publish, Watch } from "@kixelated/hang";
-import { Effect, Root, Signal } from "@kixelated/signals";
+import { type Connection, type Moq, type Publish, Watch } from "@kixelated/hang";
+import { type Effect, Root, Signal } from "@kixelated/signals";
 
 export type Broadcast = Watch.Broadcast | Publish.Broadcast;
 

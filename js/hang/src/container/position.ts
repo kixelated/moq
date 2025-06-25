@@ -1,4 +1,4 @@
-import * as Moq from "@kixelated/moq";
+import type * as Moq from "@kixelated/moq";
 import * as Catalog from "../catalog";
 
 // TODO Make a binary format for this.

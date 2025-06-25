@@ -1,7 +1,7 @@
-import { AnnouncedConsumer, AnnouncedProducer } from "./announced";
-import { BroadcastConsumer, BroadcastProducer } from "./broadcast";
+import { type AnnouncedConsumer, AnnouncedProducer } from "./announced";
+import { type BroadcastConsumer, BroadcastProducer } from "./broadcast";
 import { GroupProducer } from "./group";
-import { type TrackProducer } from "./track";
+import type { TrackProducer } from "./track";
 import { error } from "./util/error";
 import * as Wire from "./wire";
 

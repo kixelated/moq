@@ -1,6 +1,6 @@
 import * as Moq from "@kixelated/moq";
-import { Computed, Effect, Root, Signal } from "@kixelated/signals";
-import * as Catalog from "../catalog";
+import { type Computed, type Effect, Root, Signal } from "@kixelated/signals";
+import type * as Catalog from "../catalog";
 import * as Container from "../container";
 
 // Create a group every half a second

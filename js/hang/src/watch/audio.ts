@@ -1,7 +1,7 @@
+import type * as Moq from "@kixelated/moq";
+import { type Computed, type Effect, Root, Signal } from "@kixelated/signals";
 import { Buffer } from "buffer";
-import * as Moq from "@kixelated/moq";
-import { Computed, Effect, Root, Signal } from "@kixelated/signals";
-import * as Catalog from "../catalog";
+import type * as Catalog from "../catalog";
 import * as Container from "../container";
 
 // An annoying hack, but there's stuttering that we need to fix.

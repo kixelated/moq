@@ -1,4 +1,4 @@
-import { WatchConsumer, WatchProducer } from "./util/watch";
+import { type WatchConsumer, WatchProducer } from "./util/watch";
 
 /**
  * Handles writing frames to a group.

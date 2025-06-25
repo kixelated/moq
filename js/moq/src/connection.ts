@@ -1,6 +1,6 @@
 import { Buffer } from "buffer";
-import { AnnouncedConsumer } from "./announced";
-import { BroadcastConsumer } from "./broadcast";
+import type { AnnouncedConsumer } from "./announced";
+import type { BroadcastConsumer } from "./broadcast";
 import { Publisher } from "./publisher";
 import { Subscriber } from "./subscriber";
 import * as Wire from "./wire";

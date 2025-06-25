@@ -1,11 +1,11 @@
 import * as Moq from "@kixelated/moq";
-import { Effect, Root, Signal } from "@kixelated/signals";
+import { type Effect, Root, Signal } from "@kixelated/signals";
 import * as Catalog from "../catalog";
-import { Connection } from "../connection";
-import { Audio, AudioProps, AudioTrack } from "./audio";
-import { Chat, ChatProps } from "./chat";
-import { Location, LocationProps } from "./location";
-import { Video, VideoProps, VideoTrack } from "./video";
+import type { Connection } from "../connection";
+import { Audio, type AudioProps, type AudioTrack } from "./audio";
+import { Chat, type ChatProps } from "./chat";
+import { Location, type LocationProps } from "./location";
+import { Video, type VideoProps, type VideoTrack } from "./video";
 
 export type Device = "screen" | "camera";
 

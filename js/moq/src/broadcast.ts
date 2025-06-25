@@ -1,5 +1,5 @@
-import { TrackConsumer, TrackProducer } from "./track";
-import { WatchConsumer, WatchProducer } from "./util/watch";
+import { type TrackConsumer, TrackProducer } from "./track";
+import { type WatchConsumer, WatchProducer } from "./util/watch";
 
 class State {
 	tracks = new Map<string, TrackConsumer>();

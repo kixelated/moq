@@ -5,7 +5,10 @@
 	"description": "Media over QUIC library",
 	"license": "(MIT OR Apache-2.0)",
 	"repository": "github:kixelated/moq",
-	"files": ["./src", "README.md"],
+	"files": [
+		"./src",
+		"README.md"
+	],
 	"exports": {
 		".": "./src/index.js"
 	},

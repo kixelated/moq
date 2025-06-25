@@ -45,10 +45,8 @@ if (pkg.files) {
 	pkg.files = pkg.files.map(rewritePath);
 }
 
-// biome-ignore lint/performance/noDelete: <explanation>
-delete pkg.devDependencies;
-// biome-ignore lint/performance/noDelete: <explanation>
-delete pkg.scripts;
+pkg.devDependencies = undefined;
+pkg.scripts = undefined;
 
 mkdirSync("dist", { recursive: true });
 writeFileSync("dist/package.json", JSON.stringify(pkg, null, 2));

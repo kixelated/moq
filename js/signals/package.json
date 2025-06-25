@@ -10,7 +10,9 @@
 		"./solid": "./src/solid.ts",
 		"./react": "./src/react.ts"
 	},
-	"files": ["./src"],
+	"files": [
+		"./src"
+	],
 	"scripts": {
 		"build": "tsc -b",
 		"check": "tsc --noEmit",

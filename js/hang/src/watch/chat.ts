@@ -1,8 +1,7 @@
-import * as Moq from "@kixelated/moq";
-import * as Catalog from "../catalog";
-
-import { Computed, Root, Signal } from "@kixelated/signals";
+import type * as Moq from "@kixelated/moq";
+import { type Computed, Root, Signal } from "@kixelated/signals";
 import { Container } from "..";
+import type * as Catalog from "../catalog";
 
 export interface ChatProps {
 	// Whether to start downloading the chat.

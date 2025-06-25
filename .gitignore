@@ -24,9 +24,3 @@ result
 *.hex
 *.jwk
 *.jwt
-
-# We're using pnpm
-package-lock.json
-bun.lockb
-yarn.lock
-node_modules

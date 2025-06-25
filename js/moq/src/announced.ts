@@ -1,4 +1,4 @@
-import { WatchConsumer, WatchProducer } from "./util/watch";
+import { type WatchConsumer, WatchProducer } from "./util/watch";
 
 /**
  * The availability of a broadcast.

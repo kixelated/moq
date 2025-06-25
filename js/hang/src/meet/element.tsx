@@ -1,9 +1,8 @@
 import { Root } from "@kixelated/signals";
-import { Publish, Watch } from "..";
+import { type Publish, Watch } from "..";
 import { Connection } from "../connection";
-import { Room } from "./room";
-
 import HangPublish from "../publish/element";
+import { Room } from "./room";
 
 const OBSERVED = ["url", "path"] as const;
 type Observed = (typeof OBSERVED)[number];

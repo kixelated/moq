@@ -22,7 +22,7 @@ check flags="":
 	pnpm -r test
 
 	# Format/lint the JS packages
-	pnpm -r exec biome check
+	pnpm exec biome check
 
 	# Make sure eslint is happy
 	pnpm -r exec eslint .
@@ -39,7 +39,7 @@ fix flags="":
 	pnpm -r install {{flags}}
 
 	# Format and lint
-	pnpm -r exec biome check --fix
+	pnpm exec biome check --fix
 
 	# Some additional linting.
 	pnpm -r exec eslint . --fix

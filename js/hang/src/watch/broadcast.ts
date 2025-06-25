@@ -1,11 +1,11 @@
-import * as Moq from "@kixelated/moq";
-import { Computed, Effect, Root, Signal } from "@kixelated/signals";
+import type * as Moq from "@kixelated/moq";
+import { type Computed, type Effect, Root, Signal } from "@kixelated/signals";
 import * as Catalog from "../catalog";
-import { Connection } from "../connection";
-import { Audio, AudioProps } from "./audio";
-import { Chat, ChatProps } from "./chat";
-import { Location, LocationProps } from "./location";
-import { Video, VideoProps } from "./video";
+import type { Connection } from "../connection";
+import { Audio, type AudioProps } from "./audio";
+import { Chat, type ChatProps } from "./chat";
+import { Location, type LocationProps } from "./location";
+import { Video, type VideoProps } from "./video";
 
 export interface BroadcastProps {
 	// Whether to start downloading the broadcast.

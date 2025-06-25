@@ -1,4 +1,4 @@
-import * as Moq from "@kixelated/moq";
+import type * as Moq from "@kixelated/moq";
 
 export class ChatProducer {
 	#track: Moq.TrackProducer;

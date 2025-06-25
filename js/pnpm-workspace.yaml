@@ -1,8 +1,8 @@
 packages:
-  - moq
-  - hang
-  - hang-demo
-  - signals
+  - js/moq
+  - js/hang
+  - js/hang-demo
+  - js/signals
 onlyBuiltDependencies:
   - core-js
   - esbuild

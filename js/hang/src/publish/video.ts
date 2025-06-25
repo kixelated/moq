@@ -1,7 +1,7 @@
-import { Buffer } from "buffer";
 import * as Moq from "@kixelated/moq";
-import { Effect, Root, Signal } from "@kixelated/signals";
-import * as Catalog from "../catalog";
+import { type Effect, Root, Signal } from "@kixelated/signals";
+import { Buffer } from "buffer";
+import type * as Catalog from "../catalog";
 import * as Container from "../container";
 import { isFirefox } from "../hacks";
 

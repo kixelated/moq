@@ -1,4 +1,4 @@
-import * as Moq from "@kixelated/moq";
+import type * as Moq from "@kixelated/moq";
 import { z } from "zod/v4-mini";
 
 import { AudioSchema } from "./audio";

@@ -1,10 +1,19 @@
 import { Signal } from "@kixelated/signals";
 import solid from "@kixelated/signals/solid";
-import { Accessor, JSX, Match, Show, Switch, createEffect, createMemo, createSelector, createSignal } from "solid-js";
+import {
+	type Accessor,
+	createEffect,
+	createMemo,
+	createSelector,
+	createSignal,
+	type JSX,
+	Match,
+	Show,
+	Switch,
+} from "solid-js";
 import { render } from "solid-js/web";
-import { Codec, Full, Partial, SupportMode, isSupported } from "./";
-
 import { isFirefox } from "../hacks";
+import { type Codec, type Full, isSupported, type Partial, type SupportMode } from "./";
 
 const OBSERVED = ["mode", "show", "details"] as const;
 type Observed = (typeof OBSERVED)[number];
@@ -95,10 +104,7 @@ declare global {
 	}
 }
 
-function SupportDetails(props: {
-	support: Accessor<Full>;
-	mode: Accessor<"core" | "watch" | "publish" | "all">;
-}) {
+function SupportDetails(props: { support: Accessor<Full>; mode: Accessor<"core" | "watch" | "publish" | "all"> }) {
 	const support = props.support();
 
 	const c1: JSX.CSSProperties = {

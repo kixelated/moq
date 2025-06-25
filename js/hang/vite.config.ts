@@ -1,6 +1,6 @@
+import glob from "fast-glob";
 import { readFileSync } from "fs";
 import path from "path";
-import glob from "fast-glob";
 import { defineConfig } from "vite";
 import solid from "vite-plugin-solid";
 

@@ -1,4 +1,4 @@
-import * as Moq from "@kixelated/moq";
+import type * as Moq from "@kixelated/moq";
 import { getVint53, setVint53 } from "./vint";
 
 export interface FrameSource {
