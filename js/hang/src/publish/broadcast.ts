@@ -2,7 +2,6 @@ import * as Moq from "@kixelated/moq";
 import { Effect, Root, Signal } from "@kixelated/signals";
 import * as Catalog from "../catalog";
 import { Connection } from "../connection";
-import { isChrome } from "../hacks";
 import { Audio, AudioProps, AudioTrack } from "./audio";
 import { Chat, ChatProps } from "./chat";
 import { Location, LocationProps } from "./location";
@@ -95,13 +94,6 @@ export class Broadcast {
 		if (!effect.get(this.audio.enabled)) return;
 
 		const constraints = effect.get(this.audio.constraints) ?? {};
-
-		// Chrome has a long-standing bug where echoCancellation does NOT work with WebAudio.
-		// See and bump: https://issues.chromium.org/issues/40504498
-		// Unless explicitly requested, we disable it.
-		if (isChrome && constraints?.echoCancellation === undefined) {
-			constraints.echoCancellation = { exact: false };
-		}
 
 		const mediaPromise = navigator.mediaDevices.getUserMedia({ audio: constraints });
 
