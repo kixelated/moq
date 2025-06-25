@@ -80,7 +80,7 @@ importers:
   hang-demo:
     dependencies:
       '@kixelated/hang':
-        specifier: workspace:^0.2.3
+        specifier: workspace:^0.2.5
         version: link:../hang
       solid-js:
         specifier: ^1.9.7
