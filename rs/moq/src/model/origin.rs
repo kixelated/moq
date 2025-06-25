@@ -17,13 +17,16 @@ struct ProducerState {
 }
 
 impl ProducerState {
-	fn publish(&mut self, path: String, broadcast: BroadcastConsumer) {
+	// Returns true if this was a unique broadcast.
+	fn publish(&mut self, path: String, broadcast: BroadcastConsumer) -> bool {
+		let mut unique = true;
+
 		match self.active.entry(path.clone()) {
 			hash_map::Entry::Occupied(mut entry) => {
 				let state = entry.get_mut();
 				if state.active.is_clone(&broadcast) {
-					tracing::warn!(?path, "skipping duplicate publish");
-					return;
+					// If we're already publishing this broadcast, then don't do anything.
+					return false;
 				}
 
 				// Make the new broadcast the active one.
@@ -35,6 +38,9 @@ impl ProducerState {
 				let pos = state.backup.iter().position(|b| b.is_clone(&broadcast));
 				if let Some(pos) = pos {
 					state.backup[pos] = old;
+
+					// We're already publishing this broadcast, so don't run the cleanup task.
+					unique = false;
 				} else {
 					state.backup.push(old);
 				}
@@ -51,6 +57,8 @@ impl ProducerState {
 		};
 
 		retain_mut_unordered(&mut self.consumers, |c| c.insert(&path, &broadcast));
+
+		unique
 	}
 
 	fn remove(&mut self, path: String, broadcast: BroadcastConsumer) {
@@ -156,7 +164,12 @@ impl OriginProducer {
 	/// If the new broadcast is closed before the old one, then the old broadcast will be reannounced.
 	pub fn publish<S: ToString>(&mut self, path: S, broadcast: BroadcastConsumer) {
 		let path = path.to_string();
-		self.state.lock().publish(path.clone(), broadcast.clone());
+
+		if !self.state.lock().publish(path.clone(), broadcast.clone()) {
+			// This is not a big deal, but we want to avoid spawning additional cleanup tasks.
+			tracing::warn!(?path, "duplicate publish");
+			return;
+		}
 
 		let state = self.state.clone().downgrade();
 
@@ -419,6 +432,24 @@ mod tests {
 		drop(broadcast1);
 
 		// Wait for the cleanup async task to run.
+		tokio::time::sleep(tokio::time::Duration::from_millis(1)).await;
+		assert!(producer.consume("test").is_none());
+	}
+
+	#[tokio::test]
+	async fn test_double_publish() {
+		let mut producer = OriginProducer::new();
+		let broadcast = BroadcastProducer::new();
+
+		// Ensure it doesn't crash.
+		producer.publish("test", broadcast.consume());
+		producer.publish("test", broadcast.consume());
+
+		assert!(producer.consume("test").is_some());
+
+		drop(broadcast);
+
+		// Wait for the async task to run.
 		tokio::time::sleep(tokio::time::Duration::from_millis(1)).await;
 		assert!(producer.consume("test").is_none());
 	}
