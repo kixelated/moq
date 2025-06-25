@@ -1,7 +1,7 @@
 {
 	"name": "@kixelated/hang",
 	"type": "module",
-	"version": "0.2.2",
+	"version": "0.2.3",
 	"description": "Media over QUIC library",
 	"license": "(MIT OR Apache-2.0)",
 	"repository": "github:kixelated/moq",
@@ -32,8 +32,8 @@
 		"release": "tsx ../scripts/release.ts"
 	},
 	"dependencies": {
-		"@kixelated/moq": "file:../moq",
-		"@kixelated/signals": "file:../signals",
+		"@kixelated/moq": "workspace:^0.6.1",
+		"@kixelated/signals": "workspace:^0.3.0",
 		"buffer": "^6.0.3",
 		"zod": "^3.25.62"
 	},

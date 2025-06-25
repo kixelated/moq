@@ -46,10 +46,10 @@ importers:
   hang:
     dependencies:
       '@kixelated/moq':
-        specifier: file:../moq
+        specifier: workspace:^0.6.1
         version: link:../moq
       '@kixelated/signals':
-        specifier: file:../signals
+        specifier: workspace:^0.3.0
         version: link:../signals
       buffer:
         specifier: ^6.0.3
@@ -80,14 +80,8 @@ importers:
   hang-demo:
     dependencies:
       '@kixelated/hang':
-        specifier: workspace:^
+        specifier: workspace:^0.2.3
         version: link:../hang
-      '@kixelated/moq':
-        specifier: workspace:^
-        version: link:../moq
-      '@kixelated/signals':
-        specifier: workspace:^
-        version: link:../signals
       solid-js:
         specifier: ^1.9.7
         version: 1.9.7
