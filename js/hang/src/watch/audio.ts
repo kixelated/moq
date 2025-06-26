@@ -1,9 +1,9 @@
-import { Buffer } from "buffer";
 import type * as Moq from "@kixelated/moq";
 import { type Computed, type Effect, Root, Signal } from "@kixelated/signals";
+import { Buffer } from "buffer";
 import type * as Catalog from "../catalog";
 import * as Container from "../container";
-import type * as Render from "../worklet/render";
+import type * as Worklet from "../worklet";
 
 const MIN_GAIN = 0.001;
 const FADE_TIME = 0.2;
@@ -72,7 +72,7 @@ export class Audio {
 				effect.cleanup(() => worklet.disconnect());
 
 				// Listen for buffer status updates (optional, for monitoring)
-				worklet.port.onmessage = (event: MessageEvent<Render.Status>) => {
+				worklet.port.onmessage = (event: MessageEvent<Worklet.Status>) => {
 					const { type, available } = event.data;
 					if (type === "status") {
 						this.buffered = (1000 * available) / sampleRate;
@@ -163,7 +163,7 @@ export class Audio {
 			channelData.push(data);
 		}
 
-		const msg: Render.Data = {
+		const msg: Worklet.Data = {
 			type: "data",
 			data: channelData,
 			timestamp: sample.timestamp,

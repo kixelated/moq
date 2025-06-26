@@ -2,7 +2,7 @@ import * as Moq from "@kixelated/moq";
 import { type Computed, type Effect, Root, Signal } from "@kixelated/signals";
 import type * as Catalog from "../catalog";
 import * as Container from "../container";
-import type { AudioFrame } from "../worklet/capture";
+import type * as Worklet from "../worklet";
 
 // Create a group every half a second
 const GOP_DURATION = 0.5;
@@ -211,7 +211,7 @@ export class Audio {
 			bitrate: config.bitrate,
 		});
 
-		worklet.port.onmessage = ({ data }: { data: AudioFrame }) => {
+		worklet.port.onmessage = ({ data }: { data: Worklet.AudioFrame }) => {
 			const channels = data.channels.slice(0, settings.channelCount);
 			const joinedLength = channels.reduce((a, b) => a + b.length, 0);
 			const joined = new Float32Array(joinedLength);

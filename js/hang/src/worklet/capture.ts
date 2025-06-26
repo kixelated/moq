@@ -1,7 +1,4 @@
-export interface AudioFrame {
-	timestamp: number;
-	channels: Float32Array[];
-}
+import type { AudioFrame } from ".";
 
 class Capture extends AudioWorkletProcessor {
 	#sampleCount = 0;
