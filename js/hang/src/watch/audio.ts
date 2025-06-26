@@ -1,9 +1,11 @@
 import type * as Moq from "@kixelated/moq";
-import { type Computed, type Effect, Root, Signal } from "@kixelated/signals";
+import { type Accessor, type Computed, type Effect, Root, Signal } from "@kixelated/signals";
 import { Buffer } from "buffer";
 import type * as Catalog from "../catalog";
 import * as Container from "../container";
 import type * as Worklet from "../worklet";
+
+import WORKLET_URL from "../worklet/render?worker&url";
 
 const MIN_GAIN = 0.001;
 const FADE_TIME = 0.2;
@@ -16,8 +18,8 @@ export type AudioProps = {
 // Downloads audio from a track and emits it to an AudioContext.
 // The user is responsible for hooking up audio to speakers, an analyzer, etc.
 export class Audio {
-	broadcast: Signal<Moq.BroadcastConsumer | undefined>;
-	catalog: Signal<Catalog.Root | undefined>;
+	broadcast: Accessor<Moq.BroadcastConsumer | undefined>;
+	catalog: Accessor<Catalog.Root | undefined>;
 	enabled: Signal<boolean>;
 	selected: Computed<Catalog.Audio | undefined>;
 
@@ -37,8 +39,8 @@ export class Audio {
 	#signals = new Root();
 
 	constructor(
-		broadcast: Signal<Moq.BroadcastConsumer | undefined>,
-		catalog: Signal<Catalog.Root | undefined>,
+		broadcast: Accessor<Moq.BroadcastConsumer | undefined>,
+		catalog: Accessor<Catalog.Root | undefined>,
 		props?: AudioProps,
 	) {
 		this.broadcast = broadcast;
@@ -46,7 +48,7 @@ export class Audio {
 		this.enabled = new Signal(props?.enabled ?? false);
 		this.latency = new Signal(props?.latency ?? 100); // TODO Reduce this once fMP4 stuttering is fixed.
 
-		this.selected = this.#signals.computed((effect) => effect.get(this.catalog)?.audio?.[0]);
+		this.selected = this.#signals.unique((effect) => effect.get(this.catalog)?.audio?.[0]);
 
 		this.#signals.effect((effect) => {
 			const enabled = effect.get(this.enabled);
@@ -65,7 +67,7 @@ export class Audio {
 
 			effect.spawn(async () => {
 				// Register the AudioWorklet processor
-				await context.audioWorklet.addModule(new URL("../worklet/render.ts", import.meta.url));
+				await context.audioWorklet.addModule(WORKLET_URL);
 
 				// Create the worklet node
 				const worklet = new AudioWorkletNode(context, "render");

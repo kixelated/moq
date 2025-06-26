@@ -4,6 +4,8 @@ import type * as Catalog from "../catalog";
 import * as Container from "../container";
 import type * as Worklet from "../worklet";
 
+import WORKLET_URL from "../worklet/capture?worker&url";
+
 // Create a group every half a second
 const GOP_DURATION = 0.5;
 
@@ -51,8 +53,8 @@ export class Audio {
 	muted: Signal<boolean>;
 	volume: Signal<number>;
 
-	readonly media: Signal<AudioTrack | undefined>;
-	readonly constraints: Signal<AudioConstraints | undefined>;
+	media: Signal<AudioTrack | undefined>;
+	constraints: Signal<AudioConstraints | undefined>;
 
 	#catalog = new Signal<Catalog.Audio | undefined>(undefined);
 	readonly catalog = this.#catalog.readonly();
@@ -110,13 +112,15 @@ export class Audio {
 		effect.cleanup(() => gain.disconnect());
 
 		// Async because we need to wait for the worklet to be registered.
-		context.audioWorklet.addModule(new URL("../worklet/capture.ts", import.meta.url)).then(() => {
+		context.audioWorklet.addModule(WORKLET_URL).then(() => {
 			const worklet = new AudioWorkletNode(context, "capture", {
 				numberOfInputs: 1,
 				numberOfOutputs: 0,
 				channelCount: settings.channelCount,
 			});
+
 			this.#worklet.set(worklet);
+			effect.cleanup(() => this.#worklet.set(undefined));
 
 			gain.connect(worklet);
 			effect.cleanup(() => worklet.disconnect());
@@ -152,9 +156,9 @@ export class Audio {
 		if (!worklet) return;
 
 		const track = new Moq.TrackProducer(`audio-${this.#id++}`, 1);
-		this.broadcast.insertTrack(track.consume());
-
 		effect.cleanup(() => track.close());
+
+		this.broadcast.insertTrack(track.consume());
 		effect.cleanup(() => this.broadcast.removeTrack(track.name));
 
 		const settings = media.getSettings() as AudioTrackSettings;
@@ -171,7 +175,7 @@ export class Audio {
 				sampleRate: settings.sampleRate ?? worklet?.context.sampleRate,
 				numberOfChannels: settings.channelCount,
 				// TODO configurable
-				bitrate: 64_000,
+				bitrate: settings.channelCount * 32_000,
 			},
 		};
 

@@ -2,12 +2,48 @@ import { dequal } from "dequal";
 
 export type Dispose = () => void;
 
-type Subscriber<T> = {
-	fn: (value: T) => void;
-	unique: boolean;
-};
+type Subscriber<T> = (value: T) => void;
 
-export class Signal<T> {
+export interface Accessor<T> {
+	peek(): T;
+	subscribe(fn: Subscriber<T>): Dispose;
+	readonly(): Computed<T>;
+}
+
+// A signal that uses dequal instead of === to deduplicate updates.
+export class Unique<T> implements Accessor<T> {
+	#value: T;
+	#subscribers: Set<Subscriber<T>> = new Set();
+
+	constructor(value: T) {
+		this.#value = value;
+	}
+
+	peek(): T {
+		return this.#value;
+	}
+
+	// We don't support functions here because we don't know if the function mutated the value.
+	set(value: T): void {
+		if (dequal(value, this.#value)) return;
+		this.#value = value;
+
+		for (const subscriber of this.#subscribers) {
+			subscriber(value);
+		}
+	}
+
+	subscribe(fn: Subscriber<T>): Dispose {
+		this.#subscribers.add(fn);
+		return () => this.#subscribers.delete(fn);
+	}
+
+	readonly(): Computed<T> {
+		return new Computed(this);
+	}
+}
+
+export class Signal<T> implements Accessor<T> {
 	#value: T;
 	#subscribers: Set<Subscriber<T>> = new Set();
 
@@ -34,7 +70,7 @@ export class Signal<T> {
 		this.#value = newValue;
 
 		for (const subscriber of this.#subscribers) {
-			subscriber.fn(newValue);
+			subscriber(newValue);
 		}
 	}
 
@@ -48,19 +84,17 @@ export class Signal<T> {
 		return new Computed(this);
 	}
 
-	// Subscribe to the signal, optionally only if the value is different (via dequals).
-	subscribe(fn: (value: T) => void, unique = false): Dispose {
-		const subscriber = { fn, unique };
-		this.#subscribers.add(subscriber);
-		return () => this.#subscribers.delete(subscriber);
+	subscribe(fn: Subscriber<T>): Dispose {
+		this.#subscribers.add(fn);
+		return () => this.#subscribers.delete(fn);
 	}
 }
 
 // Same as Signal but without the `set` method.
-export class Computed<T> {
-	#signal: Signal<T>;
+export class Computed<T> implements Accessor<T> {
+	#signal: Accessor<T>;
 
-	constructor(signal: Signal<T>) {
+	constructor(signal: Accessor<T>) {
 		this.#signal = signal;
 	}
 
@@ -134,13 +168,13 @@ export class Root {
 
 	// Same as `computed` but performs a deep equality check on the returned value.
 	unique<T>(fn: (effect: Effect) => T): Computed<T> {
-		let signal: Signal<T> | undefined;
+		let signal: Unique<T> | undefined;
 
 		this.effect((root) => {
 			const value = fn(root);
 			if (signal === undefined) {
-				signal = new Signal(value);
-			} else if (!dequal(signal.peek(), value)) {
+				signal = new Unique(value);
+			} else {
 				signal.set(value);
 			}
 		});
@@ -255,7 +289,7 @@ export class Effect {
 	}
 
 	// Get the current value of a signal, monitoring it for changes (via ===) and rerunning on change.
-	get<T>(signal: Signal<T> | Computed<T>): T {
+	get<T>(signal: Accessor<T>): T {
 		if (this.#dispose === undefined) throw new Error("closed");
 
 		const value = signal.peek();
@@ -266,7 +300,7 @@ export class Effect {
 	}
 
 	// Get the current value of a signal, monitoring it for changes (via dequal) and rerunning on change.
-	unique<T>(signal: Signal<T> | Computed<T>): T {
+	unique<T>(signal: Accessor<T>): T {
 		if (this.#dispose === undefined) throw new Error("closed");
 
 		const value = signal.peek();

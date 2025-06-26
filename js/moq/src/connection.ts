@@ -161,13 +161,6 @@ export class Connection {
 	 * @returns A BroadcastConsumer instance
 	 */
 	consume(broadcast: string): BroadcastConsumer {
-		const publisher = this.#publisher.consume(broadcast);
-		if (publisher) {
-			// This is probably a bug; fix your code.
-			console.warn("consuming a broadcast we're publishing: ", broadcast);
-			return publisher;
-		}
-
 		return this.#subscriber.consume(broadcast);
 	}
 
