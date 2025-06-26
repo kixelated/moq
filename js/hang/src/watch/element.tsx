@@ -7,7 +7,7 @@ import { AudioEmitter } from "./audio";
 import { Broadcast } from "./broadcast";
 import { VideoRenderer } from "./video";
 
-const OBSERVED = ["url", "paused", "volume", "muted", "controls", "latency"] as const;
+const OBSERVED = ["url", "path", "paused", "volume", "muted", "controls", "latency"] as const;
 type Observed = (typeof OBSERVED)[number];
 
 // An optional web component that wraps a <canvas>
@@ -59,6 +59,15 @@ export default class HangWatch extends HTMLElement {
 		});
 
 		this.#signals.effect((effect) => {
+			const path = effect.get(this.broadcast.path);
+			if (path) {
+				this.setAttribute("path", path);
+			} else {
+				this.removeAttribute("path");
+			}
+		});
+
+		this.#signals.effect((effect) => {
 			const muted = effect.get(this.audio.muted);
 			if (muted) {
 				this.setAttribute("muted", "");
@@ -104,6 +113,8 @@ export default class HangWatch extends HTMLElement {
 
 		if (name === "url") {
 			this.url = newValue ? new URL(newValue) : undefined;
+		} else if (name === "path") {
+			this.path = newValue ?? "";
 		} else if (name === "paused") {
 			this.paused = newValue !== null;
 		} else if (name === "volume") {
@@ -129,6 +140,14 @@ export default class HangWatch extends HTMLElement {
 
 	set url(url: URL | undefined) {
 		this.connection.url.set(url);
+	}
+
+	get path(): string {
+		return this.broadcast.path.peek();
+	}
+
+	set path(path: string) {
+		this.broadcast.path.set(path);
 	}
 
 	get paused(): boolean {
