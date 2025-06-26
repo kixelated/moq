@@ -2,6 +2,7 @@ import * as Moq from "@kixelated/moq";
 import { type Computed, type Effect, Root, Signal } from "@kixelated/signals";
 import type * as Catalog from "../catalog";
 import * as Container from "../container";
+import type { AudioFrame } from "../worklet/capture";
 
 // Create a group every half a second
 const GOP_DURATION = 0.5;
@@ -109,8 +110,7 @@ export class Audio {
 		effect.cleanup(() => gain.disconnect());
 
 		// Async because we need to wait for the worklet to be registered.
-		// We load the worklet from a string because bundlers are dumb.
-		context.audioWorklet.addModule(`data:text/javascript,(${worklet.toString()})()`).then(() => {
+		context.audioWorklet.addModule(new URL("../worklet/capture.ts", import.meta.url)).then(() => {
 			const worklet = new AudioWorkletNode(context, "capture", {
 				numberOfInputs: 1,
 				numberOfOutputs: 0,
@@ -211,7 +211,7 @@ export class Audio {
 			bitrate: config.bitrate,
 		});
 
-		worklet.port.onmessage = ({ data }: { data: WorkletMessage }) => {
+		worklet.port.onmessage = ({ data }: { data: AudioFrame }) => {
 			const channels = data.channels.slice(0, settings.channelCount);
 			const joinedLength = channels.reduce((a, b) => a + b.length, 0);
 			const joined = new Float32Array(joinedLength);
@@ -239,40 +239,4 @@ export class Audio {
 	close() {
 		this.#signals.close();
 	}
-}
-
-interface WorkletMessage {
-	timestamp: number;
-	channels: Float32Array[];
-}
-
-// NOTE: This runs on the AudioWorklet thread, so it doesn't actually have full capabilities.
-// We could use a separate tsconfig.json for this but it's a pain in the butt getting bundlers to work.
-// WARN: // and # will break things, hence the /* */ comments.
-// One day I'll figure out how to make worklets actually work with bundlers.
-function worklet() {
-	/* @ts-expect-error - No audio worklet types. */
-	registerProcessor(
-		"capture",
-		/* @ts-expect-error - No audio worklet types. */
-		class Processor extends AudioWorkletProcessor {
-			sampleCount = 0;
-
-			process(input: Float32Array[][]) {
-				if (input.length > 1) throw new Error("only one input is supported.");
-				const channels = input[0];
-
-				const message: WorkletMessage = {
-					timestamp: this.sampleCount,
-					channels,
-				};
-
-				/* @ts-expect-error - No audio worklet types. */
-				this.port.postMessage(message);
-
-				this.sampleCount += channels[0].length;
-				return true;
-			}
-		},
-	);
 }

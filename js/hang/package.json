@@ -46,6 +46,7 @@
 		"solid-js": "^1.9.7"
 	},
 	"devDependencies": {
+		"@types/audioworklet": "^0.0.77",
 		"@typescript/lib-dom": "npm:@types/web@^0.0.241",
 		"fast-glob": "^3.3.3",
 		"typescript": "^5.8.3",

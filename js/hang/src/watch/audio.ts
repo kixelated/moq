@@ -1,17 +1,16 @@
+import { Buffer } from "buffer";
 import type * as Moq from "@kixelated/moq";
 import { type Computed, type Effect, Root, Signal } from "@kixelated/signals";
-import { Buffer } from "buffer";
 import type * as Catalog from "../catalog";
 import * as Container from "../container";
-
-// An annoying hack, but there's stuttering that we need to fix.
-const LATENCY = 50;
+import type * as Render from "../worklet/render";
 
 const MIN_GAIN = 0.001;
 const FADE_TIME = 0.2;
 
 export type AudioProps = {
 	enabled?: boolean;
+	latency?: DOMHighResTimeStamp;
 };
 
 // Downloads audio from a track and emits it to an AudioContext.
@@ -24,18 +23,16 @@ export class Audio {
 
 	// The root of the audio graph, which can be used for custom visualizations.
 	// You can access the audio context via `root.context`.
-	#root = new Signal<AudioNode | undefined>(undefined);
-	readonly root = this.#root.readonly();
+	#worklet = new Signal<AudioWorkletNode | undefined>(undefined);
+	// Downcast to AudioNode so it matches Publish.
+	readonly root = this.#worklet.readonly() as Computed<AudioNode | undefined>;
 
 	#sampleRate = new Signal<number | undefined>(undefined);
 	readonly sampleRate = this.#sampleRate.readonly();
 
-	// Reusable audio buffers.
-	#buffers: AudioBuffer[] = [];
-	#active: { node: AudioBufferSourceNode; timestamp: number }[] = [];
-
-	// Used to convert from timestamp units to AudioContext units.
-	#ref?: number;
+	// Not a signal because it updates constantly.
+	buffered: DOMHighResTimeStamp = 0;
+	latency: Signal<DOMHighResTimeStamp>;
 
 	#signals = new Root();
 
@@ -47,44 +44,59 @@ export class Audio {
 		this.broadcast = broadcast;
 		this.catalog = catalog;
 		this.enabled = new Signal(props?.enabled ?? false);
+		this.latency = new Signal(props?.latency ?? 100); // TODO Reduce this once fMP4 stuttering is fixed.
 
 		this.selected = this.#signals.computed((effect) => effect.get(this.catalog)?.audio?.[0]);
 
-		// Stop all active samples when disabled.
 		this.#signals.effect((effect) => {
 			const enabled = effect.get(this.enabled);
-			if (enabled) return;
+			if (!enabled) return;
 
-			for (const active of this.#active) {
-				active.node.stop();
-			}
-		});
+			const selected = effect.get(this.selected);
+			if (!selected) return;
 
-		this.#signals.effect((effect) => {
-			const enabled = effect.get(this.enabled);
-			if (!enabled) return undefined;
-
-			const sampleRate = effect.get(this.#sampleRate);
-			if (!sampleRate) return undefined;
+			const sampleRate = selected.config.sampleRate;
 
 			// NOTE: We still create an AudioContext even when muted.
 			// This way we can process the audio for visualizations.
 
 			const context = new AudioContext({ latencyHint: "interactive", sampleRate });
-			if (context.state === "suspended") {
-				// Force disabled if autoplay restrictions are preventing us from playing.
-				this.enabled.set(false);
-				return;
-			}
-
 			effect.cleanup(() => context.close());
 
-			// Make a dummy gain node that we can expose.
-			const node = new GainNode(context, { gain: 1 });
-			effect.cleanup(() => node.disconnect());
+			effect.spawn(async () => {
+				// Register the AudioWorklet processor
+				await context.audioWorklet.addModule(new URL("../worklet/render.ts", import.meta.url));
 
-			this.#root.set(node);
-			effect.cleanup(() => this.#root.set(undefined));
+				// Create the worklet node
+				const worklet = new AudioWorkletNode(context, "render");
+				effect.cleanup(() => worklet.disconnect());
+
+				// Listen for buffer status updates (optional, for monitoring)
+				worklet.port.onmessage = (event: MessageEvent<Render.Status>) => {
+					const { type, available } = event.data;
+					if (type === "status") {
+						this.buffered = (1000 * available) / sampleRate;
+					}
+				};
+
+				this.#worklet.set(worklet);
+				effect.cleanup(() => this.#worklet.set(undefined));
+			});
+		});
+
+		this.#signals.effect((effect) => {
+			const worklet = effect.get(this.#worklet);
+			if (!worklet) return;
+
+			const selected = effect.get(this.selected);
+			if (!selected) return;
+
+			const latency = effect.get(this.latency);
+
+			const channelCount = selected.config.numberOfChannels;
+			const sampleRate = selected.config.sampleRate;
+
+			worklet.port.postMessage({ type: "init", sampleRate, channelCount, latency });
 		});
 
 		this.#signals.effect(this.#init.bind(this));
@@ -138,106 +150,33 @@ export class Audio {
 	}
 
 	#emit(sample: AudioData) {
-		this.#sampleRate.set(sample.sampleRate);
-
-		const root = this.#root.peek();
-		if (!root) {
+		const worklet = this.#worklet.peek();
+		if (!worklet) {
 			sample.close();
 			return;
 		}
 
-		// Convert from microseconds to seconds.
-		const timestamp = sample.timestamp / 1_000_000;
-
-		// The maximum latency in seconds, including a full frame size.
-		const maxLatency = sample.numberOfFrames / sample.sampleRate + LATENCY / 1000;
-
-		if (!this.#ref) {
-			this.#ref = timestamp - root.context.currentTime - maxLatency;
-		}
-
-		// Determine when the sample should be played in AudioContext units.
-		let when = timestamp - this.#ref;
-		const latency = when - root.context.currentTime;
-		if (latency < 0) {
-			// Can't play in the past.
-			sample.close();
-			return;
-		}
-
-		if (latency > maxLatency) {
-			// We went over the max latency, so we need a new ref.
-			this.#ref = timestamp - root.context.currentTime - maxLatency;
-
-			// Cancel any active samples and let them reschedule themselves if needed.
-			for (const active of this.#active) {
-				active.node.stop();
-			}
-
-			// Schedule the sample to play at the max latency.
-			when = root.context.currentTime + maxLatency;
-		}
-
-		// Create an audio buffer for this sample.
-		const buffer = this.#createBuffer(sample, root.context);
-		this.#scheduleBuffer(root, buffer, timestamp, when);
-	}
-
-	#createBuffer(sample: AudioData, context: BaseAudioContext): AudioBuffer {
-		let buffer: AudioBuffer | undefined;
-
-		while (this.#buffers.length > 0) {
-			const reuse = this.#buffers.shift();
-			if (
-				reuse &&
-				reuse.sampleRate === sample.sampleRate &&
-				reuse.numberOfChannels === sample.numberOfChannels &&
-				reuse.length === sample.numberOfFrames
-			) {
-				buffer = reuse;
-				break;
-			}
-		}
-
-		if (!buffer) {
-			buffer = context.createBuffer(sample.numberOfChannels, sample.numberOfFrames, sample.sampleRate);
-		}
-
-		// Copy the sample data to the buffer.
+		const channelData: Float32Array[] = [];
 		for (let channel = 0; channel < sample.numberOfChannels; channel++) {
-			const channelData = new Float32Array(sample.numberOfFrames);
-			sample.copyTo(channelData, { format: "f32-planar", planeIndex: channel });
-			buffer.copyToChannel(channelData, channel);
+			const data = new Float32Array(sample.numberOfFrames);
+			sample.copyTo(data, { format: "f32-planar", planeIndex: channel });
+			channelData.push(data);
 		}
-		sample.close();
 
-		return buffer;
-	}
-
-	#scheduleBuffer(root: AudioNode, buffer: AudioBuffer, timestamp: number, when: number) {
-		const source = root.context.createBufferSource();
-		source.buffer = buffer;
-		source.connect(root);
-		source.onended = () => {
-			// Remove ourselves from the active list.
-			// This is super gross and probably wrong, but yolo.
-			this.#active.shift();
-
-			// Check if we need to reschedule this sample because it was cancelled.
-			if (this.#ref) {
-				const newWhen = timestamp - this.#ref;
-				if (newWhen > root.context.currentTime) {
-					// Reschedule the sample to play at the new time.
-					this.#scheduleBuffer(root, buffer, timestamp, newWhen);
-					return;
-				}
-			}
-
-			this.#buffers.push(buffer);
+		const msg: Render.Data = {
+			type: "data",
+			data: channelData,
+			timestamp: sample.timestamp,
 		};
-		source.start(when);
 
-		this.#active.push({ node: source, timestamp });
+		// Send audio data to worklet via postMessage
+		// TODO: At some point, use SharedArrayBuffer to avoid dropping samples.
+		worklet.port.postMessage(
+			msg,
+			msg.data.map((data) => data.buffer),
+		);
+
+		sample.close();
 	}
 
 	close() {
