@@ -7,7 +7,7 @@ import { AudioEmitter } from "./audio";
 import { Broadcast } from "./broadcast";
 import { VideoRenderer } from "./video";
 
-const OBSERVED = ["url", "path", "paused", "volume", "muted", "controls", "latency"] as const;
+const OBSERVED = ["url", "path", "paused", "volume", "muted", "controls"] as const;
 type Observed = (typeof OBSERVED)[number];
 
 // An optional web component that wraps a <canvas>
@@ -124,9 +124,6 @@ export default class HangWatch extends HTMLElement {
 			this.muted = newValue !== null;
 		} else if (name === "controls") {
 			this.controls = newValue !== null;
-		} else if (name === "latency") {
-			const latency = newValue ? Number.parseFloat(newValue) : 50;
-			this.latency = latency;
 		} else {
 			const exhaustive: never = name;
 			throw new Error(`Invalid attribute: ${exhaustive}`);
@@ -180,14 +177,6 @@ export default class HangWatch extends HTMLElement {
 
 	set controls(controls: boolean) {
 		this.#controls.set(controls);
-	}
-
-	get latency(): DOMHighResTimeStamp {
-		return this.broadcast.audio.latency.peek();
-	}
-
-	set latency(latency: DOMHighResTimeStamp) {
-		this.broadcast.audio.latency.set(latency);
 	}
 
 	// TODO Do this on disconnectedCallback?

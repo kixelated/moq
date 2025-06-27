@@ -1,6 +1,6 @@
+import { Buffer } from "buffer";
 import type * as Moq from "@kixelated/moq";
 import { type Accessor, type Computed, type Effect, Root, Signal } from "@kixelated/signals";
-import { Buffer } from "buffer";
 import type * as Catalog from "../catalog";
 import * as Container from "../container";
 import type * as Worklet from "../worklet";
@@ -34,7 +34,9 @@ export class Audio {
 
 	// Not a signal because it updates constantly.
 	buffered: DOMHighResTimeStamp = 0;
-	latency: Signal<DOMHighResTimeStamp>;
+
+	// Not a signal because I'm lazy.
+	latency: DOMHighResTimeStamp;
 
 	#signals = new Root();
 
@@ -46,66 +48,64 @@ export class Audio {
 		this.broadcast = broadcast;
 		this.catalog = catalog;
 		this.enabled = new Signal(props?.enabled ?? false);
-		this.latency = new Signal(props?.latency ?? 100); // TODO Reduce this once fMP4 stuttering is fixed.
+		this.latency = props?.latency ?? 100; // TODO Reduce this once fMP4 stuttering is fixed.
 
 		this.selected = this.#signals.unique((effect) => effect.get(this.catalog)?.audio?.[0]);
 
-		this.#signals.effect((effect) => {
-			const enabled = effect.get(this.enabled);
-			if (!enabled) return;
-
-			const selected = effect.get(this.selected);
-			if (!selected) return;
-
-			const sampleRate = selected.config.sampleRate;
-
-			// NOTE: We still create an AudioContext even when muted.
-			// This way we can process the audio for visualizations.
-
-			const context = new AudioContext({ latencyHint: "interactive", sampleRate });
-			effect.cleanup(() => context.close());
-
-			effect.spawn(async () => {
-				// Register the AudioWorklet processor
-				await context.audioWorklet.addModule(WORKLET_URL);
-
-				// Create the worklet node
-				const worklet = new AudioWorkletNode(context, "render");
-				effect.cleanup(() => worklet.disconnect());
-
-				// Listen for buffer status updates (optional, for monitoring)
-				worklet.port.onmessage = (event: MessageEvent<Worklet.Status>) => {
-					const { type, available } = event.data;
-					if (type === "status") {
-						this.buffered = (1000 * available) / sampleRate;
-					}
-				};
-
-				this.#worklet.set(worklet);
-				effect.cleanup(() => this.#worklet.set(undefined));
-			});
-		});
-
-		this.#signals.effect((effect) => {
-			const worklet = effect.get(this.#worklet);
-			if (!worklet) return;
-
-			const selected = effect.get(this.selected);
-			if (!selected) return;
-
-			const latency = effect.get(this.latency);
-
-			const channelCount = selected.config.numberOfChannels;
-			const sampleRate = selected.config.sampleRate;
-
-			worklet.port.postMessage({ type: "init", sampleRate, channelCount, latency });
-		});
-
-		this.#signals.effect(this.#init.bind(this));
+		this.#signals.effect(this.#runWorklet.bind(this));
+		this.#signals.effect(this.#runDecoder.bind(this));
 	}
 
-	#init(effect: Effect): void {
-		if (!effect.get(this.enabled)) return;
+	#runWorklet(effect: Effect): void {
+		const enabled = effect.get(this.enabled);
+		if (!enabled) return;
+
+		const selected = effect.get(this.selected);
+		if (!selected) return;
+
+		const sampleRate = selected.config.sampleRate;
+		const channelCount = selected.config.numberOfChannels;
+
+		// NOTE: We still create an AudioContext even when muted.
+		// This way we can process the audio for visualizations.
+
+		const context = new AudioContext({ latencyHint: "interactive", sampleRate });
+		effect.cleanup(() => context.close());
+
+		if (context.state === "suspended") {
+			// We can't create a worklet when the context is suspended.
+			// This happens due to autoplay policies.
+			// Turn ourselves off so there's at least some feedback to the end user.
+			this.enabled.set(false);
+			return;
+		}
+
+		effect.spawn(async () => {
+			// Register the AudioWorklet processor
+			await context.audioWorklet.addModule(WORKLET_URL);
+
+			// Create the worklet node
+			const worklet = new AudioWorkletNode(context, "render");
+			effect.cleanup(() => worklet.disconnect());
+
+			// Listen for buffer status updates (optional, for monitoring)
+			worklet.port.onmessage = (event: MessageEvent<Worklet.Status>) => {
+				const { type, available } = event.data;
+				if (type === "status") {
+					this.buffered = (1000 * available) / sampleRate;
+				}
+			};
+
+			worklet.port.postMessage({ type: "init", sampleRate, channelCount, latency: this.latency });
+
+			this.#worklet.set(worklet);
+			effect.cleanup(() => this.#worklet.set(undefined));
+		});
+	}
+
+	#runDecoder(effect: Effect): void {
+		const enabled = effect.get(this.enabled);
+		if (!enabled) return;
 
 		const selected = effect.get(this.selected);
 		if (!selected) return;
@@ -154,6 +154,7 @@ export class Audio {
 	#emit(sample: AudioData) {
 		const worklet = this.#worklet.peek();
 		if (!worklet) {
+			// We're probably in the process of closing.
 			sample.close();
 			return;
 		}

@@ -31,8 +31,9 @@ leaf: auth
 	cargo run --bin moq-relay moq-relay/leaf.toml
 
 # Generate a random secret key for authentication.
+# By default, this uses HMAC-SHA256, so it's symmetric.
+# If some one wants to contribute, public/private key pairs would be nice.
 auth:
-	# By default, this uses HMAC-SHA256.
 	if [ ! -f "dev/root.jwk" ]; then \
 		cargo run --bin moq-token -- --key "dev/root.jwk" generate; \
 	fi
