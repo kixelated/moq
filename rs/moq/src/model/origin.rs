@@ -116,27 +116,38 @@ type ConsumerUpdate = (String, Option<BroadcastConsumer>);
 
 struct ConsumerState {
 	prefix: String,
+	exact: bool,
 	updates: mpsc::UnboundedSender<ConsumerUpdate>,
 }
 
 impl ConsumerState {
 	// Returns true if the consuemr is still alive.
 	pub fn insert(&mut self, path: &str, consumer: &BroadcastConsumer) -> bool {
-		if let Some(suffix) = path.strip_prefix(&self.prefix) {
+		if self.exact {
+			if path == self.prefix {
+				let update = ("".to_string(), Some(consumer.clone()));
+				return self.updates.send(update).is_ok();
+			}
+		} else if let Some(suffix) = path.strip_prefix(&self.prefix) {
 			let update = (suffix.to_string(), Some(consumer.clone()));
-			self.updates.send(update).is_ok()
-		} else {
-			!self.updates.is_closed()
+			return self.updates.send(update).is_ok();
 		}
+
+		!self.updates.is_closed()
 	}
 
 	pub fn remove(&mut self, path: &str) -> bool {
-		if let Some(suffix) = path.strip_prefix(&self.prefix) {
+		if self.exact {
+			if path == self.prefix {
+				let update = ("".to_string(), None);
+				return self.updates.send(update).is_ok();
+			}
+		} else if let Some(suffix) = path.strip_prefix(&self.prefix) {
 			let update = (suffix.to_string(), None);
-			self.updates.send(update).is_ok()
-		} else {
-			!self.updates.is_closed()
+			return self.updates.send(update).is_ok();
 		}
+
+		!self.updates.is_closed()
 	}
 }
 
@@ -236,6 +247,26 @@ impl OriginProducer {
 		let (tx, rx) = mpsc::unbounded_channel();
 		let mut consumer = ConsumerState {
 			prefix: prefix.to_string(),
+			exact: false,
+			updates: tx,
+		};
+
+		for (prefix, broadcast) in &state.active {
+			consumer.insert(prefix, &broadcast.active);
+		}
+		state.consumers.push(consumer);
+
+		OriginConsumer::new(rx)
+	}
+
+	/// Wait for an exact broadcast to be announced.
+	pub fn consume_exact<S: ToString>(&self, path: S) -> OriginConsumer {
+		let mut state = self.state.lock();
+
+		let (tx, rx) = mpsc::unbounded_channel();
+		let mut consumer = ConsumerState {
+			prefix: path.to_string(),
+			exact: true,
 			updates: tx,
 		};
 

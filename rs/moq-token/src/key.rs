@@ -76,9 +76,9 @@ impl Key {
 		Ok(())
 	}
 
-	pub fn verify(&self, token: &str) -> anyhow::Result<Payload> {
+	pub fn verify(&self, token: &str, path: &str) -> anyhow::Result<Payload> {
 		if !self.operations.contains(&KeyOperation::Verify) {
-			return Err(anyhow::anyhow!("key does not support verification"));
+			anyhow::bail!("key does not support verification");
 		}
 
 		let decode = self.decode.get_or_init(|| match self.algorithm {
@@ -95,13 +95,22 @@ impl Key {
 		validation.required_spec_claims = Default::default(); // Don't require exp, but still validate it if present
 
 		let token = jsonwebtoken::decode::<Payload>(token, decode, &validation)?;
+
+		if token.claims.path != path {
+			anyhow::bail!("token path does not match provided path");
+		}
+
+		token.claims.validate()?;
+
 		Ok(token.claims)
 	}
 
 	pub fn sign(&self, payload: &Payload) -> anyhow::Result<String> {
 		if !self.operations.contains(&KeyOperation::Sign) {
-			return Err(anyhow::anyhow!("key does not support signing"));
+			anyhow::bail!("key does not support signing");
 		}
+
+		payload.validate()?;
 
 		let encode = self.encode.get_or_init(|| match self.algorithm {
 			Algorithm::HS256 | Algorithm::HS384 | Algorithm::HS512 => EncodingKey::from_secret(&self.secret),

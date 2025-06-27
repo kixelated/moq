@@ -212,6 +212,16 @@ impl Session {
 		self.subscriber.consume_prefix(prefix)
 	}
 
+	/// Discover and consume a specific broadcast.
+	///
+	/// This is different from `consume` because it waits for an announcement.
+	/// The returned OriginConsumer will ONLY announce a suffix="".
+	///
+	/// TODO: Make a special class for this.
+	pub fn consume_exact(&self, path: &str) -> OriginConsumer {
+		self.subscriber.consume_exact(path)
+	}
+
 	/// Close the underlying WebTransport session.
 	pub fn close(mut self, err: Error) {
 		self.webtransport.close(err.to_code(), &err.to_string());

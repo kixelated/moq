@@ -31,21 +31,19 @@ enum Commands {
 	},
 
 	/// Sign a token to stdout, reading the key from stdin.
-	// NOTE: This is a superset of payload because of limitations in clap.
 	Sign {
-		/// The base path. Any paths are relative to this path.
-		#[arg(long, default_value = "")]
+		/// The URL path that this token is valid for, minus the starting `/`.
+		///
+		/// This path is the root for all other publish/subscribe paths below.
+		/// If the combined path ends with a `/`, then it's treated as a prefix.
+		/// If the combined path does not end with a `/`, then it's treated as a specific broadcast.
+		#[arg(long)]
 		path: String,
 
-		/// If specified, the user can publish any broadcasts matching a prefix.
+		/// If specified, the user can publish any matching broadcasts.
+		/// If not specified, the user will not publish any broadcasts.
 		#[arg(long)]
 		publish: Option<String>,
-
-		/// If specified, the user will publish this path.
-		/// No announcement is needed, and the broadcast is considered active while the connection is active.
-		/// This is useful to avoid an RTT and informs all other clients that this user is connected.
-		#[arg(long)]
-		publish_force: Option<String>,
 
 		/// If true, then any broadcasts published by this user should be considered secondary.
 		/// This is primarily used for gossiping broadcasts between cluster nodes.
@@ -53,7 +51,8 @@ enum Commands {
 		#[arg(long)]
 		publish_secondary: bool,
 
-		/// If specified, the user can subscribe to any broadcasts matching a prefix.
+		/// If specified, the user can subscribe to any matching broadcasts.
+		/// If not specified, the user will not receive announcements and cannot subscribe to any broadcasts.
 		#[arg(long)]
 		subscribe: Option<String>,
 
@@ -73,7 +72,11 @@ enum Commands {
 	},
 
 	/// Verify a token from stdin, writing the payload to stdout.
-	Verify,
+	Verify {
+		/// The expected path of the token.
+		#[arg(long)]
+		path: String,
+	},
 }
 
 fn main() -> anyhow::Result<()> {
@@ -88,7 +91,6 @@ fn main() -> anyhow::Result<()> {
 		Commands::Sign {
 			path,
 			publish,
-			publish_force,
 			publish_secondary,
 			subscribe,
 			subscribe_primary,
@@ -100,22 +102,22 @@ fn main() -> anyhow::Result<()> {
 			let payload = moq_token::Payload {
 				path,
 				publish,
-				publish_force,
 				publish_secondary,
 				subscribe,
 				subscribe_primary,
 				expires,
 				issued,
 			};
+
 			let token = key.sign(&payload)?;
-			println!("{token}");
+			println!("{}", token);
 		}
 
-		Commands::Verify => {
+		Commands::Verify { path } => {
 			let key = moq_token::Key::from_file(cli.key)?;
 			let token = io::read_to_string(io::stdin())?;
+			let payload = key.verify(&token, &path)?;
 
-			let payload = key.verify(&token)?;
 			println!("{:#?}", payload);
 		}
 	}

@@ -26,8 +26,8 @@ pub struct ClusterConfig {
 	/// Defaults to "internal/origins".
 	///
 	/// WARNING: This should not be accessible by users unless authentication is disabled (YOLO).
-	#[arg(long = "cluster-prefix")]
-	pub prefix: Option<String>,
+	#[arg(long = "cluster-prefix", default_value = "internal/origins")]
+	pub prefix: String,
 }
 
 #[derive(Clone)]
@@ -43,8 +43,6 @@ pub struct Cluster {
 }
 
 impl Cluster {
-	const DEFAULT_PATH: &str = "internal/origins";
-
 	pub fn new(config: ClusterConfig, client: moq_native::Client) -> Self {
 		Cluster {
 			config,
@@ -73,20 +71,20 @@ impl Cluster {
 		// Create a "broadcast" with no tracks to announce ourselves.
 		let noop = BroadcastProducer::new();
 
-		// If the token is provided, read it from the disk and use it as the path.
+		// If the token is provided, read it from the disk and use it in the query parameter.
 		// TODO put this in an AUTH header once WebTransport supports it.
 		let token = match &self.config.token {
-			Some(path) => format!("{}.jwt", std::fs::read_to_string(path).context("failed to read token")?),
+			Some(path) => std::fs::read_to_string(path).context("failed to read token")?,
 			None => "".to_string(),
 		};
 
 		// If we're a node, then we need to announce ourselves as an origin.
 		// We do this by creating a "broadcast" with no tracks.
-		let prefix = self.config.prefix.as_deref().unwrap_or(Self::DEFAULT_PATH);
+		let prefix = &self.config.prefix;
 
 		tracing::info!(%prefix, %root, "connecting to root");
 
-		let root = Url::parse(&format!("https://{}/{}", root, token)).context("invalid root URL")?;
+		let root = Url::parse(&format!("https://{}/?jwt={}", root, token)).context("invalid root URL")?;
 
 		// Connect to the root node.
 		let root = self.client.connect(root).await.context("failed to connect to root")?;

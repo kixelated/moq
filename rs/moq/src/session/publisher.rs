@@ -153,11 +153,14 @@ impl Publisher {
 				Some(group) = track.next_group().transpose() => group,
 				Some(_) = async { Some(old_group.as_mut()?.await) } => {
 					old_group = None;
+					old_sequence = None;
 					continue;
 				},
 				Some(_) = async { Some(new_group.as_mut()?.await) } => {
 					new_group = old_group;
+					new_sequence = old_sequence;
 					old_group = None;
+					old_sequence = None;
 					continue;
 				},
 				else => return Ok(()),

@@ -17,28 +17,24 @@ relay: auth
 
 # Run a localhost leaf server, connecting to the relay server
 leaf: auth
+	# Generate a token that allows a cluster node to publish and subscribe to all paths.
+	# Obviously this needs to be secured in production.
+	cargo run --quiet --bin moq-token -- --key "dev/root.jwk" sign \
+		--path "" \
+		--subscribe "" \
+		--subscribe-primary \
+		--publish "" \
+		--publish-secondary \
+		> dev/leaf.jwt
+
+	# Run the leaf server with a special configuration file.
 	cargo run --bin moq-relay moq-relay/leaf.toml
 
-# Generate an authentication key and token for clustering, ensuring only clusters get root access.
-# You can use the same approach for user requests but scoped to specific paths.
+# Generate a random secret key for authentication.
 auth:
-	# Generate a random secret key for authentication.
 	# By default, this uses HMAC-SHA256.
 	if [ ! -f "dev/root.jwk" ]; then \
 		cargo run --bin moq-token -- --key "dev/root.jwk" generate; \
-	fi
-
-	# Generate a token that allows us to publish and subscribe to all paths.
-	# Obviously this needs to be secured in production.
-	# The primary/secondary flags are used to change what gets published based on the client.
-	if [ ! -f "dev/node.jwt" ]; then \
-		cargo run --quiet --bin moq-token -- --key "dev/root.jwk" sign \
-			--path "" \
-			--subscribe "" \
-			--subscribe-primary \
-			--publish "" \
-			--publish-secondary \
-			> dev/node.jwt; \
 	fi
 
 # Download the video and convert it to a fragmented MP4 that we can stream

@@ -46,7 +46,7 @@ impl Subscriber {
 	}
 
 	async fn run_announced(mut self, prefix: String, producer: OriginProducer) {
-		tracing::debug!(%prefix, "announced started");
+		tracing::debug!(?prefix, "announced started");
 
 		// Keep running until we don't care about the producer anymore.
 		let closed = producer.clone();
@@ -100,6 +100,23 @@ impl Subscriber {
 
 		// Close the writer.
 		stream.writer.finish().await
+	}
+
+	/// Discover and consume a specific broadcast.
+	///
+	/// This is different from `consume` because it waits for an announcement.
+	pub fn consume_exact<T: ToString>(&self, path: T) -> OriginConsumer {
+		let path = path.to_string();
+
+		let producer = OriginProducer::new();
+
+		// Consume an exact path, not a prefix.
+		let consumer = producer.consume_exact(path.clone());
+
+		// TODO: Optimize this, we don't need/want to download the entire prefix.
+		web_async::spawn(self.clone().run_announced(path, producer));
+
+		consumer
 	}
 
 	/// Subscribe to a specific broadcast.

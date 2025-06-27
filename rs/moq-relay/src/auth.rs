@@ -18,10 +18,18 @@ pub struct AuthConfig {
 
 	/// A map of paths to key files.
 	///
-	/// The .jwt token can be prepended with an optional path to use that key instead of the root key.
+	/// We'll use this k
 	#[serde(skip_serializing_if = "Option::is_none")]
 	#[arg(long = "auth-path", value_parser = parse_key_val)]
-	pub path: Option<HashMap<String, String>>,
+	pub path: Option<Vec<AuthPath>>,
+}
+
+#[serde_with::serde_as]
+#[derive(clap::Args, Clone, Debug, Serialize, Deserialize, Default)]
+#[serde(default)]
+pub struct AuthPath {
+	pub root: String,
+	pub key: String,
 }
 
 impl AuthConfig {
@@ -30,17 +38,24 @@ impl AuthConfig {
 	}
 }
 
-// Only support one key=value pair for now. If you want more, use a config file.
-fn parse_key_val(s: &str) -> Result<HashMap<String, String>, String> {
+// root=key,root=key,root=key
+fn parse_key_val(s: &str) -> Result<Vec<AuthPath>, String> {
 	if s.is_empty() {
-		return Ok(HashMap::new());
+		return Ok(vec![]);
 	}
-	let (k, v) = s
-		.split_once('=')
-		.ok_or_else(|| format!("invalid KEY=VALUE: no `=` in `{}`", s))?;
-	let mut map = HashMap::new();
-	map.insert(k.to_string(), v.to_string());
-	Ok(map)
+
+	let mut paths = vec![];
+	for part in s.split(",") {
+		let (root, key) = part
+			.split_once('=')
+			.ok_or_else(|| format!("invalid KEY=VALUE: no `=` in `{}`", s))?;
+		paths.push(AuthPath {
+			root: root.to_string(),
+			key: key.to_string(),
+		});
+	}
+
+	Ok(paths)
 }
 
 pub struct Auth {
@@ -67,8 +82,8 @@ impl Auth {
 			}
 		};
 
-		for (path, file) in config.path.unwrap_or_default() {
-			let key = match file.as_ref() {
+		for path in config.path.unwrap_or_default() {
+			let key = match path.key.as_ref() {
 				"" => None,
 				path => {
 					let key = moq_token::Key::from_file(path)?;
@@ -80,7 +95,7 @@ impl Auth {
 				}
 			};
 
-			paths.insert(path, key);
+			paths.insert(path.root, key);
 		}
 
 		Ok(Self {
@@ -91,28 +106,38 @@ impl Auth {
 
 	// Parse/validate a user provided URL.
 	pub fn validate(&self, url: &Url) -> anyhow::Result<moq_token::Payload> {
-		tracing::debug!(path = url.path(), "validating URL");
+		// Find the token in the query parameters.
+		// ?jwt=...
+		let token = url.query_pairs().find(|(k, _)| k == "jwt").map(|(_, v)| v);
 
 		let path = url.path().trim_start_matches('/');
-		let (prefix, suffix) = path.rsplit_once("/").unwrap_or(("", path));
 
-		let auth = self.paths.get(prefix).unwrap_or(&self.key);
+		// Default to requiring a token if there's a root key configured.
+		let mut key = &self.key;
 
-		if let Some(token) = suffix.strip_suffix(".jwt") {
-			let auth = auth
-				.as_ref()
-				.context(format!("no authentication configured for prefix: {}", prefix))?;
+		// Keep removing / until we find a configured key.
+		let mut remain = path;
 
-			// Verify the token and return the payload.
-			let mut token = auth.verify(token)?;
+		while let Some((prefix, _)) = remain.rsplit_once("/") {
+			if let Some(matches) = self.paths.get(prefix) {
+				key = matches;
+				break;
+			}
 
-			// Add the key ID back to the path.
-			token.path = format!("{}{}", prefix, token.path);
-			return Ok(token);
+			remain = prefix;
 		}
 
-		if auth.is_some() {
-			return Err(anyhow::anyhow!("token required for prefix: {}", prefix));
+		if let Some(token) = token {
+			// If there's a token, make sure there's also a key configured.
+			// We don't want to accidentally publish to an unauthorized path.
+			let key = key.as_ref().context("no authentication configured")?;
+
+			// Verify the token and return the payload.
+			return key.verify(&token, path);
+		}
+
+		if key.is_some() {
+			anyhow::bail!("token required");
 		}
 
 		// No auth required, so create a dummy token that allows accessing everything.
