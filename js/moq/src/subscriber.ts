@@ -17,9 +17,6 @@ export class Subscriber {
 	#subscribes = new Map<bigint, TrackProducer>();
 	#subscribeNext = 0n;
 
-	// A cache of active subscriptions that can be tee'd.
-	#broadcasts = new Map<string, BroadcastConsumer>();
-
 	/**
 	 * Creates a new Subscriber instance.
 	 * @param quic - The WebTransport session to use
@@ -81,15 +78,15 @@ export class Subscriber {
 
 	/**
 	 * Consumes a broadcast from the connection.
+	 *
+	 * NOTE: This is not automatically deduplicated.
+	 * If to consume the same broadcast twice, and subscribe to the same tracks twice, then network usage is doubled.
+	 * However, you can call `clone()` on the consumer to deduplicate and share the same handle.
+	 *
 	 * @param path - The path of the broadcast to consume
 	 * @returns A BroadcastConsumer instance
 	 */
 	consume(path: string): BroadcastConsumer {
-		const existing = this.#broadcasts.get(path);
-		if (existing) {
-			return existing.clone();
-		}
-
 		const producer = new BroadcastProducer();
 		const consumer = producer.consume();
 
@@ -110,12 +107,9 @@ export class Subscriber {
 			});
 		});
 
-		this.#broadcasts.set(path, consumer.clone());
-
 		// Close when the producer has no more consumers.
 		producer.unused().finally(() => {
 			producer.close();
-			this.#broadcasts.delete(path);
 		});
 
 		return consumer;
