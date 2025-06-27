@@ -1,6 +1,6 @@
-import { Buffer } from "buffer";
 import type * as Moq from "@kixelated/moq";
 import { type Accessor, type Computed, type Effect, Root, Signal } from "@kixelated/signals";
+import { Buffer } from "buffer";
 import type * as Catalog from "../catalog";
 import * as Container from "../container";
 import type * as Worklet from "../worklet";
