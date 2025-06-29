@@ -11,20 +11,20 @@ setup:
 	cargo install cargo-shear cargo-sort cargo-upgrades cargo-edit cargo-audit
 
 # Run a localhost relay server
-relay: auth
+relay: root
 	# Run the relay server overriding the provided configuration file.
 	cargo run --bin moq-relay moq-relay/dev.toml
 
 # Run a localhost leaf server, connecting to the relay server
-leaf: auth
+leaf: root
 	# Generate a token that allows a cluster node to publish and subscribe to all paths.
 	# Obviously this needs to be secured in production.
+	# WARN: The --cluster flag subtly changes publishing behavior.
 	cargo run --quiet --bin moq-token -- --key "dev/root.jwk" sign \
 		--path "" \
 		--subscribe "" \
-		--subscribe-primary \
 		--publish "" \
-		--publish-secondary \
+		--cluster \
 		> dev/leaf.jwt
 
 	# Run the leaf server with a special configuration file.
@@ -33,7 +33,7 @@ leaf: auth
 # Generate a random secret key for authentication.
 # By default, this uses HMAC-SHA256, so it's symmetric.
 # If some one wants to contribute, public/private key pairs would be nice.
-auth:
+root:
 	if [ ! -f "dev/root.jwk" ]; then \
 		cargo run --bin moq-token -- --key "dev/root.jwk" generate; \
 	fi
@@ -43,7 +43,7 @@ download name:
 	@mkdir -p dev
 
 	if [ ! -f dev/{{name}}.mp4 ]; then \
-		wget -q $(just download-url {{name}}) -O dev/{{name}}.mp4; \
+		curl -fsSL $(just download-url {{name}}) -o dev/{{name}}.mp4; \
 	fi
 
 	if [ ! -f dev/{{name}}.fmp4 ]; then \
@@ -64,7 +64,9 @@ download-url name:
 	esac
 
 # Publish a video using ffmpeg to the localhost relay server
-pub name addr='http://localhost:4443/demo':
+# NOTE: The `http` means that we perform insecure certificate verification.
+# Switch it to `https` when you're ready to use a real certificate.
+pub name url='http://localhost:4443/demo':
 	# Download the sample media.
 	just download {{name}}
 
@@ -77,10 +79,10 @@ pub name addr='http://localhost:4443/demo':
 		-i "dev/{{name}}.fmp4" \
 		-c copy \
 		-f mp4 -movflags cmaf+separate_moof+delay_moov+skip_trailer+frag_every_frame \
-		- | cargo run --bin hang -- publish "{{addr}}/{{name}}.hang"
+		- | cargo run --bin hang -- publish "{{url}}/{{name}}.hang"
 
 # Publish a video using gstreamer to the localhost relay server
-pub-gst name addr='http://localhost:4443/demo':
+pub-gst name url='http://localhost:4443/demo':
 	# Download the sample media.
 	just download {{name}}
 
@@ -90,18 +92,19 @@ pub-gst name addr='http://localhost:4443/demo':
 	# Run gstreamer and pipe the output to our plugin
 	GST_PLUGIN_PATH="${PWD}/target/debug${GST_PLUGIN_PATH:+:$GST_PLUGIN_PATH}" \
 	gst-launch-1.0 -v -e multifilesrc location="dev/{{name}}.fmp4" loop=true ! qtdemux name=demux \
-		demux.video_0 ! h264parse ! queue ! identity sync=true ! isofmp4mux name=mux chunk-duration=1 fragment-duration=1 ! hangsink url="{{addr}}/{{name}}.hang" tls-disable-verify=true \
+		demux.video_0 ! h264parse ! queue ! identity sync=true ! isofmp4mux name=mux chunk-duration=1 fragment-duration=1 ! \
+		hangsink url="{{url}}/{{name}}.hang" tls-disable-verify=true \
 		demux.audio_0 ! aacparse ! queue ! mux.
 
 # Subscribe to a video using gstreamer
-sub name addr='http://localhost:4443/demo':
+sub name url='http://localhost:4443/demo':
 	# Build the plugins
 	cargo build -p hang-gst
 
 	# Run gstreamer and pipe the output to our plugin
 	# This will render the video to the screen
 	GST_PLUGIN_PATH="${PWD}/target/debug${GST_PLUGIN_PATH:+:$GST_PLUGIN_PATH}" \
-	gst-launch-1.0 -v -e hangsrc url="{{addr}}/{{name}}.hang" tls-disable-verify=true ! decodebin ! videoconvert ! autovideosink
+	gst-launch-1.0 -v -e hangsrc url="{{url}}/{{name}}.hang" tls-disable-verify=true ! decodebin ! videoconvert ! autovideosink
 
 # Publish a video using ffmpeg directly from hang to the localhost
 serve name:
@@ -121,13 +124,13 @@ serve name:
 
 # Publish the clock broadcast
 # `action` is either `publish` or `subscribe`
-clock action:
+clock action url='http://localhost:4443/demo/clock':
 	if [ "{{action}}" != "publish" ] && [ "{{action}}" != "subscribe" ]; then \
 		echo "Error: action must be 'publish' or 'subscribe', got '{{action}}'" >&2; \
 		exit 1; \
 	fi
 
-	cargo run --bin moq-clock -- "http://localhost:4443" {{action}}
+	cargo run --bin moq-clock -- "{{url}}" {{action}}
 
 # Run the CI checks
 check flags="":

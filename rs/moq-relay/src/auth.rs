@@ -1,35 +1,60 @@
-use std::{collections::HashMap, sync::Arc};
+use std::collections::{hash_map, HashMap};
 
 use anyhow::Context;
 use serde::{Deserialize, Serialize};
+use serde_with::skip_serializing_none;
 use url::Url;
 
-#[serde_with::serde_as]
 #[derive(clap::Args, Clone, Debug, Serialize, Deserialize, Default)]
 #[serde(default)]
 pub struct AuthConfig {
-	/// The root key to use for all connections.
+	/// The configuration for the root path.
+	#[serde(flatten)]
+	#[command(flatten)]
+	pub root: AuthRoot,
+
+	/// Configuration overrides based on the path.
 	///
-	/// This is the fallback if a path does not exist in the `path` map below.
-	/// If this is missing, then authentication is completely disabled, even if a path is configured below.
-	#[serde(skip_serializing_if = "Option::is_none")]
+	/// WARNING: Nested paths cannot have more strict rules than the root path.
+	/// Authentication is currently based on the prefix at connection time.
+	/// If you allow public access to root but try to lock down a nested path, IT WILL NOT WORK.
+	#[serde(skip_serializing_if = "HashMap::is_empty")]
+	#[arg(skip)] // It's too difficult to handle this in clap; use TOML.
+	pub path: HashMap<String, AuthRoot>,
+}
+
+#[skip_serializing_none]
+#[derive(clap::Args, Clone, Debug, Serialize, Deserialize, Default)]
+pub struct AuthRoot {
+	/// If specified, this key will override the root key for this path.
+	/// If not specified, the root key will be used.
 	#[arg(long = "auth-key")]
 	pub key: Option<String>,
 
-	/// A map of paths to key files.
-	///
-	/// We'll use this k
-	#[serde(skip_serializing_if = "Option::is_none")]
-	#[arg(long = "auth-path", value_parser = parse_key_val)]
-	pub path: Option<Vec<AuthPath>>,
+	/// Public access configuration.
+	#[serde(default)]
+	#[command(flatten)]
+	pub public: AuthPublic,
 }
 
-#[serde_with::serde_as]
 #[derive(clap::Args, Clone, Debug, Serialize, Deserialize, Default)]
-#[serde(default)]
-pub struct AuthPath {
-	pub root: String,
-	pub key: String,
+pub struct AuthPublic {
+	/// If specified, this path will either require or not require a token for reading.
+	/// If None, the default depends on if a key is configured otherwise the root config will be used.
+	#[arg(long = "auth-public-read")]
+	pub read: Option<bool>,
+
+	/// If specified, this path will either require or not require a token for writing.
+	/// If None, the default depends on if a key is configured otherwise the root config will be used.
+	#[arg(long = "auth-public-write")]
+	pub write: Option<bool>,
+}
+
+// Similar to AuthRoot, but fully qualified.
+struct AuthPath {
+	pub key: Option<moq_token::Key>,
+	pub public_read: bool,
+	pub public_write: bool,
 }
 
 impl AuthConfig {
@@ -38,89 +63,138 @@ impl AuthConfig {
 	}
 }
 
-// root=key,root=key,root=key
-fn parse_key_val(s: &str) -> Result<Vec<AuthPath>, String> {
-	if s.is_empty() {
-		return Ok(vec![]);
-	}
-
-	let mut paths = vec![];
-	for part in s.split(",") {
-		let (root, key) = part
-			.split_once('=')
-			.ok_or_else(|| format!("invalid KEY=VALUE: no `=` in `{}`", s))?;
-		paths.push(AuthPath {
-			root: root.to_string(),
-			key: key.to_string(),
-		});
-	}
-
-	Ok(paths)
-}
-
 pub struct Auth {
-	key: Option<moq_token::Key>,
-	paths: Arc<HashMap<String, Option<moq_token::Key>>>,
+	root: AuthPath,
+	paths: HashMap<String, AuthPath>,
 }
 
 impl Auth {
 	pub fn new(config: AuthConfig) -> anyhow::Result<Self> {
 		let mut paths = HashMap::new();
 
-		let key = match config.key.as_deref() {
+		// Most of this validation is just to avoid accidental security holes.
+		let path = match config.root.key.as_deref() {
 			None | Some("") => {
-				tracing::warn!("connection authentication is disabled; users can publish/subscribe to any path");
-				None
+				tracing::warn!("no root key configured; all paths will be public");
+
+				let read = config.root.public.read.unwrap_or(true);
+				let write = config.root.public.write.unwrap_or(true);
+
+				anyhow::ensure!(read || write, "no root key configured, but no public access either");
+
+				for auth in config.path.values() {
+					anyhow::ensure!(
+						auth.key.is_none(),
+						"no root key configured, but individual paths are configured"
+					);
+
+					if (read && auth.public.read == Some(false)) || (write && auth.public.write == Some(false)) {
+						anyhow::bail!("nested path cannot be more strict than root");
+					}
+				}
+
+				return Ok(Self {
+					root: AuthPath {
+						key: None,
+						public_read: read,
+						public_write: write,
+					},
+					paths,
+				});
 			}
-			Some(path) => {
-				let key = moq_token::Key::from_file(path)?;
-				anyhow::ensure!(
-					key.operations.contains(&moq_token::KeyOperation::Verify),
-					"key does not support verification"
-				);
-				Some(key)
-			}
+			Some(path) => path,
 		};
 
-		for path in config.path.unwrap_or_default() {
-			let key = match path.key.as_ref() {
-				"" => None,
-				path => {
-					let key = moq_token::Key::from_file(path)?;
-					anyhow::ensure!(
-						key.operations.contains(&moq_token::KeyOperation::Verify),
-						"key does not support verification"
-					);
-					Some(key)
-				}
+		// We have a key, so we default to no public access.
+		let root_public_read = config.root.public.read.unwrap_or(false);
+		let root_public_write = config.root.public.write.unwrap_or(false);
+
+		anyhow::ensure!(
+			!root_public_read && !root_public_write,
+			"root key configured, but access is public"
+		);
+
+		let root_key = moq_token::Key::from_file(path)?;
+		anyhow::ensure!(
+			root_key.operations.contains(&moq_token::KeyOperation::Verify),
+			"key does not support verification"
+		);
+
+		for (path, auth) in config.path {
+			let path_key = match auth.key.as_deref() {
+				// Inherit from the root config if no key is configured.
+				None => Some(root_key.clone()),
+
+				// Disable authentication if an empty string is configured.
+				Some("") => None,
+
+				// Load the key from the file.
+				Some(path) => Some(moq_token::Key::from_file(path)?),
 			};
 
-			paths.insert(path.root, key);
+			let path_public_read = match path_key.is_some() {
+				// If a key is configured, then default to the root config.
+				true => auth.public.read.unwrap_or(root_public_read),
+
+				// If no key is configured, then default to public unless explicitly disabled.
+				false => auth.public.read.unwrap_or(true),
+			};
+
+			let path_public_write = match path_key.is_some() {
+				true => auth.public.write.unwrap_or(root_public_write),
+				false => auth.public.write.unwrap_or(true),
+			};
+
+			// TODO We should do a similar check for all sub-paths.
+			if (root_public_read && !path_public_read) || (root_public_write && !path_public_write) {
+				anyhow::bail!("nested path cannot be more strict than root");
+			}
+
+			anyhow::ensure!(
+				path_key.is_some() || (path_public_read && path_public_write),
+				"no key configured, but no public access either"
+			);
+
+			match paths.entry(path) {
+				hash_map::Entry::Vacant(e) => {
+					e.insert(AuthPath {
+						key: path_key,
+						public_read: path_public_read,
+						public_write: path_public_write,
+					});
+				}
+				hash_map::Entry::Occupied(e) => anyhow::bail!("duplicate path: {}", e.key()),
+			}
 		}
 
 		Ok(Self {
-			key,
-			paths: Arc::new(paths),
+			root: AuthPath {
+				key: Some(root_key),
+				public_read: root_public_read,
+				public_write: root_public_write,
+			},
+			paths,
 		})
 	}
 
 	// Parse/validate a user provided URL.
-	pub fn validate(&self, url: &Url) -> anyhow::Result<moq_token::Payload> {
+	pub fn validate(&self, url: &Url) -> anyhow::Result<moq_token::Permissions> {
 		// Find the token in the query parameters.
 		// ?jwt=...
 		let token = url.query_pairs().find(|(k, _)| k == "jwt").map(|(_, v)| v);
 
+		// Remove the leading / from the path; it's required for URLs.
 		let path = url.path().trim_start_matches('/');
 
 		// Default to requiring a token if there's a root key configured.
-		let mut key = &self.key;
-
-		// Keep removing / until we find a configured key.
+		let mut auth = &self.root;
 		let mut remain = path;
 
+		// Keep removing / until we find a configured key.
 		while let Some((prefix, _)) = remain.rsplit_once("/") {
-			if let Some(matches) = self.paths.get(prefix) {
-				key = matches;
+			if let Some(path_auth) = self.paths.get(prefix) {
+				// We found the longest configured path.
+				auth = path_auth;
 				break;
 			}
 
@@ -128,23 +202,24 @@ impl Auth {
 		}
 
 		if let Some(token) = token {
-			// If there's a token, make sure there's also a key configured.
-			// We don't want to accidentally publish to an unauthorized path.
-			let key = key.as_ref().context("no authentication configured")?;
+			let key = auth.key.as_ref().context("token used for public path")?;
 
 			// Verify the token and return the payload.
-			return key.verify(&token, path);
-		}
+			let mut permissions = key.verify(&token, path)?;
 
-		if key.is_some() {
-			anyhow::bail!("token required");
+			// Modify the permissions to allow public access if configured.
+			// We still use the token's permissions if they exist.
+			permissions.publish = permissions.publish.or(auth.public_write.then_some("".to_string()));
+			permissions.subscribe = permissions.subscribe.or(auth.public_read.then_some("".to_string()));
+
+			return Ok(permissions);
 		}
 
 		// No auth required, so create a dummy token that allows accessing everything.
-		Ok(moq_token::Payload {
+		Ok(moq_token::Permissions {
 			path: path.to_string(),
-			publish: Some("".to_string()),
-			subscribe: Some("".to_string()),
+			publish: auth.public_write.then_some("".to_string()),
+			subscribe: auth.public_read.then_some("".to_string()),
 			..Default::default()
 		})
 	}

@@ -62,7 +62,6 @@ tls.disable_verify = true
 key = "dev/root.jwk"
 
 # Special auth logic based on the path.
+[auth.path.demo]
 # In this case, we're disabling authentication for paths that start with `demo/` to make it easier to test.
-[[auth.path]]
-root = "demo"
 key = ""

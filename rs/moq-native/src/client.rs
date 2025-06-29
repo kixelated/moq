@@ -149,6 +149,8 @@ impl Client {
 			// Perform a HTTP request to fetch the certificate fingerprint.
 			let mut fingerprint = url.clone();
 			fingerprint.set_path("/certificate.sha256");
+			fingerprint.set_query(None);
+			fingerprint.set_fragment(None);
 
 			tracing::warn!(url = %fingerprint, "performing insecure HTTP request for certificate");
 

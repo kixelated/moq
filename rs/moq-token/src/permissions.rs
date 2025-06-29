@@ -9,7 +9,7 @@ fn is_false(value: &bool) -> bool {
 #[derive(Debug, Serialize, Deserialize, Default)]
 #[serde_with::skip_serializing_none]
 #[serde(default)]
-pub struct Payload {
+pub struct Permissions {
 	/// The URL path that this token is valid for, minus the starting `/`.
 	///
 	/// This path is the root for all other publish/subscribe paths below.
@@ -26,22 +26,16 @@ pub struct Payload {
 	#[serde(rename = "pub")]
 	pub publish: Option<String>,
 
-	/// If true, then any broadcasts published by this user should be considered secondary.
-	/// This is primarily used for gossiping broadcasts between cluster nodes.
-	/// They will only gossip primary broadcasts, and use each other as secondaries.
-	#[serde(default, rename = "pub?", skip_serializing_if = "is_false")]
-	pub publish_secondary: bool,
+	/// If true, then this client is considered a cluster node.
+	/// Both the client and server will only announce broadcasts from non-cluster clients.
+	/// This avoids convoluted routing, as only the primary origin will announce.
+	#[serde(default, rename = "cluster", skip_serializing_if = "is_false")]
+	pub cluster: bool,
 
 	/// If specified, the user can subscribe to any matching broadcasts.
 	/// If not specified, the user will not receive announcements and cannot subscribe to any broadcasts.
 	#[serde(rename = "sub")]
 	pub subscribe: Option<String>,
-
-	/// If specified, then this session will only receive primary broadcasts.
-	/// This is primarily used for gossiping broadcasts between cluster nodes.
-	/// We don't want nodes gossiping themselves as origins if they're just a middle node.
-	#[serde(default, rename = "sub?", skip_serializing_if = "is_false")]
-	pub subscribe_primary: bool,
 
 	/// The expiration time of the token as a unix timestamp.
 	#[serde(rename = "exp")]
@@ -54,7 +48,7 @@ pub struct Payload {
 	pub issued: Option<std::time::SystemTime>,
 }
 
-impl Payload {
+impl Permissions {
 	pub fn validate(&self) -> anyhow::Result<()> {
 		if self.publish.is_none() && self.subscribe.is_none() {
 			anyhow::bail!("no publish or subscribe paths specified; token is useless");
@@ -73,14 +67,6 @@ impl Payload {
 					anyhow::bail!("path is not a prefix, so subscribe can't be relative");
 				}
 			}
-		}
-
-		if self.publish.is_none() && self.publish_secondary {
-			anyhow::bail!("publish_secondary requires publish to be specified");
-		}
-
-		if self.subscribe.is_none() && self.subscribe_primary {
-			anyhow::bail!("subscribe_primary requires subscribe to be specified");
 		}
 
 		Ok(())

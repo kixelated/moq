@@ -15,10 +15,6 @@ pub struct Config {
 	#[command(flatten)]
 	pub client: moq_native::ClientConfig,
 
-	/// The path of the clock broadcast.
-	#[arg(long, default_value = "clock")]
-	pub broadcast: String,
-
 	/// The name of the clock track.
 	#[arg(long, default_value = "seconds")]
 	pub track: String,
@@ -61,11 +57,13 @@ async fn main() -> anyhow::Result<()> {
 			let track = broadcast.create(track);
 			let clock = clock::Publisher::new(track);
 
-			session.publish(config.broadcast, broadcast.consume());
+			// The broadcast name is empty because the URL contains the name.
+			session.publish("", broadcast.consume());
 			clock.run().await
 		}
 		Command::Subscribe => {
-			let broadcast = session.consume(&config.broadcast);
+			// The broadcast name is empty because the URL contains the name.
+			let broadcast = session.consume("");
 			let track = broadcast.subscribe(&track);
 			let clock = clock::Subscriber::new(track);
 

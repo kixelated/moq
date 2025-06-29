@@ -1,7 +1,7 @@
 mod algorithm;
 mod key;
-mod payload;
+mod permissions;
 
 pub use algorithm::*;
 pub use key::*;
-pub use payload::*;
+pub use permissions::*;

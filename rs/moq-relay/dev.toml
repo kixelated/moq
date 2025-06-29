@@ -66,11 +66,12 @@ tls.generate = ["localhost"]
 # However, they would lose the ability to subscribe to other broadcasts in the room, but that may be intentional (write-only).
 [auth]
 # `just leaf` will generate a root key and set this value via the CLI
+# If you want to disable authentication, set the key to "".
 key = "dev/root.jwk"
 
 # Special auth logic based on the path.
-# In this case, we're disabling authentication for paths that start with `demo/` to make it easier to test.
-[[auth.path]]
-# NOTE: This automatically has a trailing `/` added so it doesn't match `/demo123/foo`
-root = "demo"
+[auth.path.demo]
+# This rule matches any broadcast path that starts with "demo/".
+
+# We disable authentication for this path by unsetting the key.
 key = ""

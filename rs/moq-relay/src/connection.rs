@@ -4,7 +4,7 @@ pub struct Connection {
 	pub id: u64,
 	pub session: web_transport::Session,
 	pub cluster: Cluster,
-	pub token: moq_token::Payload,
+	pub token: moq_token::Permissions,
 }
 
 impl Connection {
@@ -32,8 +32,8 @@ impl Connection {
 
 			session.publish_prefix(&subscribe, primary);
 
-			// Only publish primary broadcasts if the client is a cluster node.
-			if !self.token.subscribe_primary {
+			// Cluster nodes don't consume secondary broadcasts, only primaries.
+			if !self.token.cluster {
 				// TODO prefer primary broadcasts if there's a tie?
 				let secondary = if full.is_empty() || full.ends_with("/") {
 					self.cluster.secondary.consume_prefix(&full)
@@ -49,7 +49,10 @@ impl Connection {
 		// TODO These need to be published to remotes if it's a relay.
 		if let Some(publish) = self.token.publish {
 			let full = format!("{}{}", self.token.path, publish);
-			let cluster = match self.token.publish_secondary {
+
+			// If this client is a cluster node, then we mark their broadcasts as secondary.
+			// We don't announce secondary broadcasts to other cluster nodes.
+			let cluster = match self.token.cluster {
 				true => &mut self.cluster.secondary,
 				false => &mut self.cluster.primary,
 			};

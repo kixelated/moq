@@ -45,22 +45,16 @@ enum Commands {
 		#[arg(long)]
 		publish: Option<String>,
 
-		/// If true, then any broadcasts published by this user should be considered secondary.
-		/// This is primarily used for gossiping broadcasts between cluster nodes.
-		/// They will only gossip primary broadcasts, and use each other as secondaries.
+		/// If true, then this client is considered a cluster node.
+		/// Both the client and server will only announce broadcasts from non-cluster clients.
+		/// This avoids convoluted routing, as only the primary origin will announce.
 		#[arg(long)]
-		publish_secondary: bool,
+		cluster: bool,
 
 		/// If specified, the user can subscribe to any matching broadcasts.
 		/// If not specified, the user will not receive announcements and cannot subscribe to any broadcasts.
 		#[arg(long)]
 		subscribe: Option<String>,
-
-		/// If true, then this session will only receive primary broadcasts.
-		/// This is primarily used for gossiping broadcasts between cluster nodes.
-		/// We don't want nodes gossiping themselves as origins if they're just a middle node.
-		#[arg(long)]
-		subscribe_primary: bool,
 
 		/// The expiration time of the token as a unix timestamp.
 		#[arg(long, value_parser = parse_unix_timestamp)]
@@ -91,20 +85,18 @@ fn main() -> anyhow::Result<()> {
 		Commands::Sign {
 			path,
 			publish,
-			publish_secondary,
+			cluster,
 			subscribe,
-			subscribe_primary,
 			expires,
 			issued,
 		} => {
 			let key = moq_token::Key::from_file(cli.key)?;
 
-			let payload = moq_token::Payload {
+			let payload = moq_token::Permissions {
 				path,
 				publish,
-				publish_secondary,
+				cluster,
 				subscribe,
-				subscribe_primary,
 				expires,
 				issued,
 			};
