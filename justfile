@@ -52,15 +52,15 @@ leaf:
 
 # Publish a video using ffmpeg to the localhost relay server
 pub name url='http://localhost:4443/demo':
-	just --justfile rs/justfile pub {{name}}
+	just --justfile rs/justfile pub {{name}} {{url}}
 
 # Publish a video using gstreamer to the localhost relay server
 pub-gst name url='http://localhost:4443/demo':
-	just --justfile rs/justfile pub-gst {{name}}
+	just --justfile rs/justfile pub-gst {{name}} {{url}}
 
 # Subscribe to a video using gstreamer
 sub name url='http://localhost:4443/demo':
-	just --justfile rs/justfile sub-gst {{name}}
+	just --justfile rs/justfile sub-gst {{name}} {{url}}
 
 # Publish a video using ffmpeg directly from hang to the localhost
 serve name:
