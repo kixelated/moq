@@ -6,6 +6,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.5](https://github.com/kixelated/moq/compare/moq-clock-v0.6.4...moq-clock-v0.6.5) - 2025-06-29
+
+### Other
+
+- Revamp auth one last time... for now. ([#453](https://github.com/kixelated/moq/pull/453))
+
 ## [0.6.4](https://github.com/kixelated/moq/compare/moq-clock-v0.6.3...moq-clock-v0.6.4) - 2025-06-25
 
 ### Other
