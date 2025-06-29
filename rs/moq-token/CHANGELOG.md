@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.0](https://github.com/kixelated/moq/compare/moq-token-v0.2.0...moq-token-v0.3.0) - 2025-06-29
+
+### Other
+
+- Revamp auth one last time... for now. ([#453](https://github.com/kixelated/moq/pull/453))
+- Revampt some JWT stuff. ([#451](https://github.com/kixelated/moq/pull/451))
+
 ## [0.2.0](https://github.com/kixelated/moq/compare/moq-token-v0.1.0...moq-token-v0.2.0) - 2025-06-25
 
 ### Other

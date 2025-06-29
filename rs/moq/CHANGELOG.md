@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.4](https://github.com/kixelated/moq/compare/moq-lite-v0.3.3...moq-lite-v0.3.4) - 2025-06-29
+
+### Other
+
+- Revampt some JWT stuff. ([#451](https://github.com/kixelated/moq/pull/451))
+
 ## [0.3.3](https://github.com/kixelated/moq/compare/moq-lite-v0.3.2...moq-lite-v0.3.3) - 2025-06-25
 
 ### Other

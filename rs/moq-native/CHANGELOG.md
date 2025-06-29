@@ -6,6 +6,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.7.2](https://github.com/kixelated/moq/compare/moq-native-v0.7.1...moq-native-v0.7.2) - 2025-06-29
+
+### Other
+
+- Revamp auth one last time... for now. ([#453](https://github.com/kixelated/moq/pull/453))
+
 ## [0.7.1](https://github.com/kixelated/moq/compare/moq-native-v0.7.0...moq-native-v0.7.1) - 2025-06-16
 
 ### Fixed

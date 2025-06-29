@@ -31,7 +31,7 @@ resolver = "2"
 hang = { version = "0.4", path = "hang" }
 moq-lite = { version = "0.3", path = "moq" }
 moq-native = { version = "0.7", path = "moq-native" }
-moq-token = { version = "0.2", path = "moq-token" }
+moq-token = { version = "0.3", path = "moq-token" }
 
 serde = { version = "1", features = ["derive"] }
 tokio = "1.45"
