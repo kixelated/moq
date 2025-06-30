@@ -64,9 +64,7 @@ in
       serviceConfig = {
         User = cfg.user;
         Group = cfg.group;
-        ExecStart = builtins.concatStringsSep " " ([
-          "${pkgs.moq-relay}/bin/moq-relay --bind [::]:${builtins.toString cfg.port}"
-        ] ++ lib.optionals cfg.dev.enable [ "--dev --tls-self-sign ${cfg.dev.tls_url} --cluster-node ${cfg.dev.tls_url} --tls-disable-verify" ]);
+        ExecStart = "${pkgs.moq-relay}/bin/moq-relay --bind [::]:${builtins.toString cfg.port}";
         Restart = "on-failure";
         RestartSec = "1";
 
