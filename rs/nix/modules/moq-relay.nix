@@ -70,7 +70,6 @@ in
 
         # hardening
         RemoveIPC = true;
-        CapabilityBoundingSet = [ "" ];
         DynamicUser = true;
         NoNewPrivileges = true;
         PrivateDevices = true;
