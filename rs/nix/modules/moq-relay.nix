@@ -19,7 +19,7 @@ in
     };
     port = lib.mkOption {
       type = lib.types.port;
-      default = 443;
+      default = 8443;
       description = "Relay server port";
     };
     user = lib.mkOption {
