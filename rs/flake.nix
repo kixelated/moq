@@ -16,7 +16,14 @@
       flake-utils,
       naersk,
     }:
-    flake-utils.lib.eachDefaultSystem (
+    {
+      nixosModules = {
+        moq-relay = import ./nix/modules/moq-relay.nix;
+      };
+      
+      overlays.default = import ./nix/overlay.nix;
+    }
+    // flake-utils.lib.eachDefaultSystem (
       system:
       let
         pkgs = import nixpkgs {
