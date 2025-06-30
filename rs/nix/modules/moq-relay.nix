@@ -45,8 +45,20 @@ in
   };
 
   config = lib.mkIf cfg.enable {
+    # Log that Gordy's module is being used
+    systemd.services.moq-relay-notice = {
+      description = "Gordy's MoQ Relay Module Notice";
+      wantedBy = [ "multi-user.target" ];
+      serviceConfig = {
+        Type = "oneshot";
+        ExecStart = "${pkgs.coreutils}/bin/echo 'Using Gordy''s MoQ NixOS Module for moq-relay service'";
+        StandardOutput = "journal";
+      };
+      before = [ "moq-relay.service" ];
+    };
+
     systemd.services.moq-relay = {
-      description = "Media over QUIC relay server";
+      description = "Media over QUIC relay server (Gordy's Module)";
       wantedBy = [ "multi-user.target" ];
 
       serviceConfig = {

@@ -28,6 +28,9 @@
           rs.devShells.${system}.default
           js.devShells.${system}.default
         ];
+        shellHook = ''
+          echo "🎯 Using Gordy's Top-Level MoQ Flake (combines Rust + JS environments)"
+        '';
       };
       packages = {
         inherit (rs.packages.${system}) moq-relay moq-clock hang;

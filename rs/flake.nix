@@ -96,6 +96,12 @@
           # Environment variables from moq-rs
           shellHook = ''
             export LIBCLANG_PATH="${pkgs.libclang.lib}/lib"
+            
+            # Indicator that this flake is being used
+            echo "🚀 Using Gordy's MoQ Development Environment"
+            echo "📦 Flake: $(pwd)/flake.nix"
+            echo "🔧 Rust toolchain, GStreamer, FFmpeg, and MoQ tools loaded"
+            echo ""
           '';
         };
       }
