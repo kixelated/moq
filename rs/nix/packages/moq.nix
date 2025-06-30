@@ -1,4 +1,4 @@
-{ lib, fenix, naersk }: system:
+{ fenix, naersk, ... }:
 let
   rust = with fenix.packages.${system}; combine [
     stable.rustc
