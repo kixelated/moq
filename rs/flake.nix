@@ -1,22 +1,34 @@
-{
-  description = "MoQ";
-
-  inputs = {
-    nixpkgs.url      = "github:NixOS/nixpkgs/nixos-unstable";
-    flake-utils.url  = "github:numtide/flake-utils";
-    fenix.url        = "github:nix-community/fenix";
-    crate2nix.url    = "github:nix-community/crate2nix";
-  };
-
-  outputs = inputs@{ flake-utils, crate2nix, ... }:
-    {
-      nixosModules = {
-        moq-relay = import ./nix/modules/moq-relay.nix;
-      };
-      overlays.default = import ./nix/overlay.nix;
-    }
-    // flake-utils.lib.meld inputs [
-      ./nix/packages/moq.nix
-      ./nix/shell.nix
+{ fenix, naersk, flake-utils, ... }:
+  flake-utils.lib.eachDefaultSystem (system:
+  let
+    rust = with fenix.packages.${system}; combine [
+      stable.rustc
+      stable.cargo
+      stable.clippy
+      stable.rustfmt
+      targets.wasm32-unknown-unknown.stable.rust-std
     ];
-}
+
+    naersk' = naersk.lib.${system}.override {
+      cargo = rust;
+      rustc = rust;
+    };
+  in
+  {
+    packages = {
+      moq-relay = naersk'.buildPackage {
+        pname = "moq-relay";
+        src = ../../.;
+      };
+
+      moq-clock = naersk'.buildPackage {
+        pname = "moq-clock";
+        src = ../../.;
+      };
+
+      hang = naersk'.buildPackage {
+        pname = "hang";
+        src = ../../.;
+      };
+    };
+  })
