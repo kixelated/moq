@@ -64,7 +64,8 @@ in
       serviceConfig = {
         User = cfg.user;
         Group = cfg.group;
-        ExecStart = "${pkgs.moq-relay}/bin/moq-relay --bind [::]:${builtins.toString cfg.port}";
+        ExecStart = "${pkgs.moq-relay}/bin/moq-relay --bind [::]:${builtins.toString cfg.port}" + 
+          (if cfg.dev.enable then " --tls-generate ${cfg.dev.tls_url}" else "");
         Restart = "on-failure";
         RestartSec = "1";
 
