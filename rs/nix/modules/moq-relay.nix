@@ -62,41 +62,10 @@ in
       wantedBy = [ "multi-user.target" ];
 
       serviceConfig = {
-        User = cfg.user;
-        Group = cfg.group;
         ExecStart = "${pkgs.moq-relay}/bin/moq-relay --bind [::]:${builtins.toString cfg.port}" + 
           (if cfg.dev.enable then " --tls-generate ${cfg.dev.tls_url}" else "");
         Restart = "on-failure";
         RestartSec = "1";
-
-        # hardening
-        RemoveIPC = true;
-        DynamicUser = true;
-        NoNewPrivileges = true;
-        PrivateDevices = true;
-        ProtectClock = true;
-        ProtectKernelLogs = true;
-        ProtectControlGroups = true;
-        ProtectKernelModules = true;
-        SystemCallArchitectures = "native";
-        SystemCallFilter = "@system-service";
-        RestrictNamespaces = true;
-        RestrictSUIDSGID = true;
-        ProtectHostname = true;
-        LockPersonality = true;
-        ProtectKernelTunables = true;
-        RestrictAddressFamilies = [
-          "AF_INET"
-          "AF_INET6"
-          "AF_UNIX"
-        ];
-        RestrictRealtime = true;
-        ProtectSystem = "strict";
-        ProtectProc = "invisible";
-        ProcSubset = "pid";
-        ProtectHome = true;
-        PrivateUsers = true;
-        PrivateTmp = true;
       };
     };
   };
