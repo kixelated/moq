@@ -70,7 +70,7 @@ in
 
         # hardening
         RemoveIPC = true;
-        CapabilityBoundingSet = [ "" ];
+        CapabilityBoundingSet = [ "CAP_NET_BIND_SERVICE" ];
         DynamicUser = true;
         NoNewPrivileges = true;
         PrivateDevices = true;
