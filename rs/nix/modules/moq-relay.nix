@@ -19,7 +19,7 @@ in
     };
     port = lib.mkOption {
       type = lib.types.port;
-      default = 8443;
+      default = 443;
       description = "Relay server port";
     };
     user = lib.mkOption {
@@ -70,7 +70,7 @@ in
 
         # hardening
         RemoveIPC = true;
-        CapabilityBoundingSet = [ "CAP_NET_BIND_SERVICE" ];
+        CapabilityBoundingSet = [ "" ];
         DynamicUser = true;
         NoNewPrivileges = true;
         PrivateDevices = true;
