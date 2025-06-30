@@ -59,6 +59,8 @@
           pkgs.just
           pkgs.pkg-config
           pkgs.glib
+          pkgs.libressl
+          pkgs.ffmpeg
         ] ++ gst-deps;
 
       in
@@ -90,6 +92,11 @@
             pkgs.cargo-shear
             pkgs.cargo-audit
           ];
+          
+          # Environment variables from moq-rs
+          shellHook = ''
+            export LIBCLANG_PATH="${pkgs.libclang.lib}/lib"
+          '';
         };
       }
     );
