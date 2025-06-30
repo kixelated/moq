@@ -5,7 +5,7 @@
     nixpkgs.url = "github:NixOS/nixpkgs/nixpkgs-unstable";
     flake-utils.url = "github:numtide/flake-utils";
 
-    js.url = "./js";
+    # js.url = "./js";  # Commented out to fix PSM build issues
     rs.url = "./rs";
   };
 
@@ -14,7 +14,7 @@
       self,
       nixpkgs,
       flake-utils,
-      js,
+      # js,  # Commented out
       rs,
       ...
     }:
@@ -26,10 +26,10 @@
       devShells.default = nixpkgs.legacyPackages.${system}.mkShell {
         inputsFrom = [
           rs.devShells.${system}.default
-          js.devShells.${system}.default
+          # js.devShells.${system}.default  # Commented out
         ];
         shellHook = ''
-          echo "🎯 Using Gordy's Top-Level MoQ Flake (combines Rust + JS environments)"
+          echo "🎯 Using Gordy's Top-Level MoQ Flake (Rust environment only)"
         '';
       };
       packages = {
