@@ -4,7 +4,7 @@ use std::{collections::HashSet, fmt, fs::File, io::BufReader, path::Path, sync::
 use jsonwebtoken::{DecodingKey, EncodingKey, Header};
 use serde::{Deserialize, Serialize};
 
-use crate::{Algorithm, Permissions};
+use crate::{Algorithm, Claims};
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
 #[serde(rename_all = "camelCase")]
@@ -76,7 +76,7 @@ impl Key {
 		Ok(())
 	}
 
-	pub fn verify(&self, token: &str, path: &str) -> anyhow::Result<Permissions> {
+	pub fn verify(&self, token: &str, path: &str) -> anyhow::Result<Claims> {
 		if !self.operations.contains(&KeyOperation::Verify) {
 			anyhow::bail!("key does not support verification");
 		}
@@ -94,8 +94,7 @@ impl Key {
 		let mut validation = jsonwebtoken::Validation::new(self.algorithm.into());
 		validation.required_spec_claims = Default::default(); // Don't require exp, but still validate it if present
 
-		let token = jsonwebtoken::decode::<Permissions>(token, decode, &validation)?;
-
+		let token = jsonwebtoken::decode::<Claims>(token, decode, &validation)?;
 		if token.claims.path != path {
 			anyhow::bail!("token path does not match provided path");
 		}
@@ -105,7 +104,7 @@ impl Key {
 		Ok(token.claims)
 	}
 
-	pub fn sign(&self, payload: &Permissions) -> anyhow::Result<String> {
+	pub fn sign(&self, payload: &Claims) -> anyhow::Result<String> {
 		if !self.operations.contains(&KeyOperation::Sign) {
 			anyhow::bail!("key does not support signing");
 		}

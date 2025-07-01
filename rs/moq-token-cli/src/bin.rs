@@ -92,7 +92,7 @@ fn main() -> anyhow::Result<()> {
 		} => {
 			let key = moq_token::Key::from_file(cli.key)?;
 
-			let payload = moq_token::Permissions {
+			let payload = moq_token::Claims {
 				path,
 				publish,
 				cluster,

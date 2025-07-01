@@ -9,7 +9,7 @@ fn is_false(value: &bool) -> bool {
 #[derive(Debug, Serialize, Deserialize, Default)]
 #[serde_with::skip_serializing_none]
 #[serde(default)]
-pub struct Permissions {
+pub struct Claims {
 	/// The URL path that this token is valid for, minus the starting `/`.
 	///
 	/// This path is the root for all other publish/subscribe paths below.
@@ -48,7 +48,7 @@ pub struct Permissions {
 	pub issued: Option<std::time::SystemTime>,
 }
 
-impl Permissions {
+impl Claims {
 	pub fn validate(&self) -> anyhow::Result<()> {
 		if self.publish.is_none() && self.subscribe.is_none() {
 			anyhow::bail!("no publish or subscribe paths specified; token is useless");
