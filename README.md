@@ -1,142 +1,230 @@
 ![License](https://img.shields.io/badge/license-MIT%2FApache--2.0-blue)
 [![Discord](https://img.shields.io/discord/1124083992740761730)](https://discord.gg/FCYF3p99mr)
+[![Crates.io](https://img.shields.io/crates/v/moq-lite)](https://crates.io/crates/moq-lite)
+[![npm](https://img.shields.io/npm/v/@kixelated/moq)](https://www.npmjs.com/package/@kixelated/moq)
 
 <p align="center">
 	<img height="128px" src="https://github.com/kixelated/moq/blob/main/.github/logo.svg" alt="Media over QUIC">
 </p>
 
-Media over QUIC (MoQ) is a live (media) delivery protocol utilizing QUIC.
-It utilizes new browser technologies such as [WebTransport](https://developer.mozilla.org/en-US/docs/Web/API/WebTransport_API) and [WebCodecs](https://developer.mozilla.org/en-US/docs/Web/API/WebCodecs_API) to provide WebRTC-like functionality.
-Despite the focus on media, the transport is generic and designed to scale to enormous viewership via clustered relay servers (aka a CDN).
-See [quic.video](https://quic.video) for more information.
+# Media over QUIC
 
-**Note:** this project is a [fork](https://quic.video/blog/transfork) of the [IETF specification](https://datatracker.ietf.org/group/moq/documents/).
-The principles are the same but the implementation is exponentially simpler given a narrower focus (and no politics).
+[Media over QUIC](https://quic.video) (MoQ) is a next-generation live media delivery protocol that provides **real-time latency** at **massive scale**.
+Built on modern web technologies like [WebTransport](https://developer.mozilla.org/en-US/docs/Web/API/WebTransport_API) and [WebCodecs](https://developer.mozilla.org/en-US/docs/Web/API/WebCodecs_API), MoQ delivers WebRTC-like performance with CDN-like distribution.
+
+**Key Features:**
+- 🚀 **Real-time latency** via QUIC stream priotization and partial reliability.
+- 📈 **Massive scale** via edge caching, fanout, and multi-region clustering.
+- 🌐 **Browser support** via WebTransport and WebCodecs.
+- 🔧 **Generic transport** for any live data, not just media
+- 🎯 **Simple API** with both Rust and TypeScript implementations
+
+> **Note:** This project is a [fork](https://quic.video/blog/transfork) of the [IETF MoQ specification](https://datatracker.ietf.org/group/moq/documents/). The focus is narrower, focusing on simplicity and practicality.
+
+
+## Architecture
+
+MoQ is designed as a layered protocol stack.
+
+**Rule 1**: The CDN MUST NOT know anything about your application, media codecs, or even the available tracks.
+Everything could be fully E2EE and the CDN wouldn't care; no business logic here.
+
+Instead, [`moq-relay`](rs/moq-relay) operates on rules encoded in the [`moq-lite`](https://docs.rs/moq-lite) header.
+These rules are based on video encoding but not really and can be used for really any live data.
+The goal is to keep the server as dumb as possible and unlock economies of scale.
+
+The media logic is split into another protocol called [`hang`](https://docs.rs/hang).
+It's pretty simple and only intended to be used by clients or media servers.
+If you want to do something more custom, then you can always extend it provided you control both clients.
+
+Think of `hang` as like HLS/DASH, while `moq-lite` is like HTTP.
+
+
+```
+┌─────────────────┐
+│   Application   │   🏢 Your business logic
+│                 │    - authentication, non-media tracks, etc.
+├─────────────────┤
+│      hang       │   🎬 Media-specific encoding/streaming
+│                 │     - codecs, containers, catalog
+├─────────────────├
+│    moq-lite     │  🚌 Generic pub/sub transport
+│                 │     - broadcasts, tracks, groups, frames
+├─────────────────┤
+│  WebTransport   │  🌐 Browser-compatible QUIC
+│      QUIC       │     - HTTP/3 handshake, multiplexing, etc.
+└─────────────────┘
+```
 
 ## Quick Start
-Too many words, here's a quick start:
 
 **Requirements:**
-- [Rustup](https://www.rust-lang.org/tools/install)
-- [Just](https://github.com/casey/just?tab=readme-ov-file#installation)
-- [Node + NPM](https://nodejs.org/)
+- [Nix](https://nixos.org/download.html)
+- [Direnv](https://direnv.net/)
 
+Or if you don't like Nix, you can install dependencies manually:
+
+- [Rust](https://www.rust-lang.org/tools/install)
+- [Node.js](https://nodejs.org/)
+- [Just](https://github.com/casey/just)
+- [pnpm](https://pnpm.io/)
+- `just setup`
+
+**Run it:**
 ```sh
-just setup
+# Run everything (relay + demo + web server)
 just all
 ```
 
-Or if you're feeling superior, you can use the [Nix](https://nixos.org/download.html) [Flake](https://nixos.wiki/wiki/Flakes) instead:
-
-```sh
-nix develop --command just all
-```
-
-## Design
-For the non-vibe coders, let's talk about how the protocol works.
-Unlike WebRTC, MoQ is purposely split into multiple layers to allow for maximum flexibility:
-
-- **QUIC**: The network layer, providing a semi-reliable transport over UDP.
-- **WebTransport**: QUIC but with a HTTP/3 handshake for browser compatibility.
-- **moq-lite**: A pub/sub protocol used to serve "broadcasts", "tracks", "groups", and "frames".
-- **hang**: Media-specific encoding based on the [WebCodecs API](https://developer.mozilla.org/en-US/docs/Web/API/WebCodecs_API). It's designed primarily for real-time conferencing.
-- **application**: Any stuff you want to build on top of moq/hang.
-
-For more information, check out [the blog](https://quic.video/blog/moq-onion).
-If you're extra curious, check out the [specification](https://github.com/kixelated/moq-drafts).
-If you want to make changes (or argue about anything), ping `@kixelated` on [Discord](https://discord.gg/FCYF3p99mr).
+Then visit [https://localhost:8080](https://localhost:8080) to see the demo.
 
 
-## Languages
-This repository is split based on the language and environment:
-- [rs](rs): Rust libraries for native platforms. (and WASM)
-- [js](js): Typescript libraries for web only. (not node)
+## Libraries
 
-Unfortunately, this means that there are two implementations of `moq` and `hang`.
-They use the same concepts and have a similar API but of course there are language differences.
+This repository provides both **Rust** and **TypeScript** implementations with similar APIs but language-specific optimizations.
 
-Originally, this repository was called `moq-rs` with the aim of using Rust to target all platforms.
-Unfortunately, it turns out that much of the code is platform specific, so it resulted in a tiny Rust core and a lot of convoluted wrappers.
+### Rust Libraries
 
-For example, a MoQ web player MUST use browser APIs for networking, encoding, decoding, rendering, capture, etc.
-The web is a sandbox, and with no low level hardware access we have to jump through the APIs designed for Javascript.
-[wasm-bindgen](https://rustwasm.github.io/wasm-bindgen/) and [web-sys](https://rustwasm.github.io/wasm-bindgen/api/web_sys/) help, and you can see an example in [hang-wasm](rs/hang-wasm), but it's a lot of boilerplate and language juggling for little gain.
+| Crate                       | Description                     | Docs                                                                           |
+|-----------------------------|---------------------------------|--------------------------------------------------------------------------------|
+| **[moq-lite](rs/moq)**      | Core pub/sub transport protocol | [![docs.rs](https://docs.rs/moq-lite/badge.svg)](https://docs.rs/moq-lite)     |
+| **[hang](rs/hang)**         | Media streaming components      | [![docs.rs](https://docs.rs/hang/badge.svg)](https://docs.rs/hang)             |
+| [moq-relay](rs/moq-relay)   | Clusterable relay server        |                                                                                |
+| [moq-native](rs/moq-native) | Helpers to configure QUIC       | [![docs.rs](https://docs.rs/moq-native/badge.svg)](https://docs.rs/moq-native) |
+| [hang-cli](rs/hang-cli)     | Command-line media tools        |                                                                                |
 
-Anyway, enough ranting, let's get to the code.
+**Example - Chat track:**
+```rust
+	// Optional: Use moq_native to make a QUIC client.
+    let config = moq_native::ClientConfig::default(); // See documentation
+	let client = moq_native::Client::new(config);
 
-### Rust (Native)
-- [moq](https://docs.rs/moq-lite): The underlying pub/sub protocol providing real-time latency and scale. This is a simplified fork of the IETF [moq-transport draft](https://datatracker.ietf.org/doc/draft-ietf-moq-transport/) called `moq-lite`.
-- [moq-relay](rs/moq-relay): A server that forwards content from publishers to any interested subscribers. It can be clustered, allowing multiple servers to be run (around the world!) that will proxy content to each other.
-- [moq-clock](rs/moq-clock): A dumb clock client/server just to prove MoQ can be used for more than media.
-- [moq-native](rs/moq-native): Helpers to configure QUIC on native platforms.
-- [hang](https://docs.rs/hang): Media-specific components built on top of MoQ.
-- [hang-cli](rs/hang-cli): A CLI for publishing and subscribing to media.
-- [hang-gst](rs/hang-gst): A gstreamer plugin for publishing and subscribing to media.
-- [web-transport](https://github.com/kixelated/web-transport-rs): A Rust implementation of the WebTransport API powered by [Quinn](https://github.com/quinn-rs/quinn).
+	// For local development, use: http://localhost:4443/
+	// Feel free to use the `anon` path for testing; no authentication required.
+	let url = url::Url::parse("https://relay.quic.video:443/anon/").unwrap();
 
-The [hang-wasm](rs/hang-wasm) crate is currently unmaintained and depends on some other unmaintained crates. Notably:
-- [web-transport-wasm](https://github.com/kixelated/web-transport-rs/tree/main/web-transport-wasm): A wrapper around the WebTransport API.
-- [web-codecs](https://docs.rs/web-codecs/latest/web_codecs/): A wrapper around the WebCodecs API.
-- [web-streams](https://docs.rs/web-streams/latest/web_streams/): A wrapper around the WebStreams API.
-- You get the idea; it's wrappers all the way down.
+	// Establish a WebTransport/QUIC connection.
+	let connection = client.connect(url).await?;
 
+	// Perform the MoQ handshake.
+	let mut session = moq_lite::Session::connect(connection).await?;
 
-### Typescript (Web)
-- [@kixelated/moq](https://www.npmjs.com/package/@kixelated/moq): The underlying pub/sub protocol providing real-time latency and scale.
-- [@kixelated/hang](https://www.npmjs.com/package/@kixelated/hang): Media-specific components built on top of MoQ. Can be embedded on a web page via a Web Component.
+	// Create a broadcast.
+	// A broadcast is a collection of tracks, but in this example there's just one.
+	let broadcast = moq_lite::BroadcastProducer::new();
 
-Documentation is sparse as the API is still a work in progress.
-Check out the [demos](js/hang-demo) and [quic.video](https://github.com/kixelated/quic.video/blob/main/src/components/watch.tsx) for examples.
+	// Create a track that we'll insert into the broadcast.
+	// A track is a series of groups representing a live stream.
+	let track = broadcast.create(moq_lite::Track {
+		name: "chat".to_string(),
+		priority: 0,
+	});
 
+	// Create a group.
+	// Each group is independent and the newest group(s) will be prioritized.
+	let group = track.append_group();
 
-# Development
-We use [just](https://github.com/casey/just) to simplify the development process.
-Check out the [justfile](justfile) or run `just` to see the available commands.
+	// Write frames to the group.
+	// Each frame is dependent on the previous frame, so older frames are prioritized.
+	group.append_frame(b"Hello");
+	group.append_frame(b"World");
 
-## Requirements
-- [Rustup](https://www.rust-lang.org/tools/install)
-- [Node](https://nodejs.org/)
-- [Just](https://github.com/casey/just?tab=readme-ov-file#installation)
+	// Finally, publish the broadcast to the session.
+	// You can provide a broadcast path which gets appended to the URL.
+	session.publish("my-broadcast", broadcast.consume());
 
-Install any other required tools:
-```sh
-just setup
+	// NOTE: You can create multiple consumer instances of any `XxxProducer`
+	// Each which will receive a (ref-counted) copy of the data.
+	let _broadcast = broadcast.consume();
+	let _track = track.consume();
+	let _group = group.consume();
 ```
 
 
-## Building
+### TypeScript Libraries
 
-```sh
-# Run the relay, a demo movie, and web server:
-just all
+| Package                        | Description                     | NPM                                                                                                   |
+|--------------------------------|---------------------------------|-------------------------------------------------------------------------------------------------------|
+| **[@kixelated/moq](js/moq)**   | Core pub/sub transport protocol | [![npm](https://img.shields.io/npm/v/@kixelated/moq)](https://www.npmjs.com/package/@kixelated/moq)   |
+| **[@kixelated/hang](js/hang)** | Media streaming components      | [![npm](https://img.shields.io/npm/v/@kixelated/hang)](https://www.npmjs.com/package/@kixelated/hang) |
 
-# Or run each individually in separate terminals:
-just relay
-just pub bbb
-just web
+**Example - Web Components:**
+```html
+<script type="module">
+	import "@kixelated/hang/publish/element";
+	import "@kixelated/hang/watch/element";
+</script>
+
+<!-- Publish camera/microphone -->
+<hang-publish url="https://relay.example.com/demo/alice" audio video controls>
+	<!-- Optional: Add a video element to preview the stream locally -->
+    <video muted autoplay></video>
+</hang-publish>
+
+<!-- Watch live stream -->
+<hang-watch url="https://relay.example.com/demo/alice" controls>
+	<!-- Optional: Add a canvas element to style it as you like -->
+    <canvas style="border: 1px solid red;"></canvas>
+</hang-watch>
 ```
 
-Then, visit [https://localhost:8080](localhost:8080) to watch the simple demo.
+**Example - Chat Track:**
+```typescript
+import { Connection } from "@kixelated/moq";
 
-### Contributing
-When you're ready to submit a PR, make sure the tests pass or face the wrath of CI.
-The normal `check` command skips over `hang-gst` and `hang-wasm` to simplify setup, so you'll need the `--workspace` flag to test everything:
+// Connect and discover streams
+const conn = await Connection.connect("https://relay.example.com");
+const announced = conn.announced("demo/");
 
-```sh
-just check --workspace
+for await (const announce of announced) {
+    console.log("new broadcast:", announce.path);
 
-# Optional: Automatically fix easy lint issues.
-just fix --workspace
+    // Subscribe to stream
+    const broadcast = conn.consume(announce.path);
+    const track = broadcast.subscribe("chat");
+
+    // Process media data
+    for await (const group of track) {
+        for await (const frame of group) {
+            console.log("new frame:", frame.payload());
+        }
+    }
+}
 ```
 
-If CI is failing for some mysterious reason, you can use [Nix](https://nixos.org/download.html) to run pinned versions of the tools:
+## Protocol Design
+Read the specifications:
+- [moq-lite](https://kixelated.github.io/moq-drafts/draft-lcurley-moq-lite.html)
+- [hang](https://kixelated.github.io/moq-drafts/draft-lcurley-hang.html)
+- [use-cases](https://kixelated.github.io/moq-drafts/draft-lcurley-moq-use-cases.html)
+
+
+## Development
+
+We use [Just](https://github.com/casey/just) as a slightly better `make`.
+
 ```sh
-nix develop --command just check --workspace
+# See all available commands
+just
+
+# Build everything
+just build
+
+# Run tests and linting
+just check
+
+# Automatically fix some linting errors
+just fix
+
+# Run the demo manually
+just relay    # Terminal 1: Start relay server
+just pub bbb  # Terminal 2: Publish demo video
+just web      # Terminal 3: Start web server
 ```
 
 
-# License
+## License
 
 Licensed under either:
--   Apache License, Version 2.0, ([LICENSE-APACHE](LICENSE-APACHE) or http://www.apache.org/licenses/LICENSE-2.0)
+-   Apache License, Version 2.0 ([LICENSE-APACHE](LICENSE-APACHE) or http://www.apache.org/licenses/LICENSE-2.0)
 -   MIT license ([LICENSE-MIT](LICENSE-MIT) or http://opensource.org/licenses/MIT)

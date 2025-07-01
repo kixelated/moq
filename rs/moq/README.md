@@ -4,7 +4,12 @@
 
 # moq-lite
 
-A Rust implementation of (a fork of) the proposed IETF standard.
+A Rust implementation of the [Media over QUIC](https://quic.video) transport.
 
-[Specification](https://datatracker.ietf.org/doc/draft-lcurley-moq-lite/)
-[Github](https://github.com/kixelated/moq-drafts)
+This crate provides the core networking layer, implementing the [moq-lite specification](https://datatracker.ietf.org/doc/draft-lcurley-moq-lite/).
+Live media is built on top of this layer using something like [hang](../hang).
+
+- **Broadcasts**: Discoverable collections of tracks.
+- **Tracks**: Named streams of data, split into groups.
+- **Groups**: A sequential collection of frames, usually starting with a keyframe.
+- **Frame**: A timed chunk of data.

@@ -4,6 +4,13 @@ use serde::{Deserialize, Serialize};
 
 use crate::model::Position;
 
+/// Live location information for spatial audio positioning.
+///
+/// This struct describes the spatial position of a broadcaster or viewer
+/// for implementing spatial audio features like panning and 3D positioning.
+///
+/// It also contains a mechanism for peers to request position updates.
+/// It's up to the broadcaster to fetch the catalog of other peers, detect if their handle is present, and subscribe to those updates.
 #[serde_with::serde_as]
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Default)]
 #[serde(default, rename_all = "camelCase")]

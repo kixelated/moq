@@ -9,6 +9,10 @@ use bytes::Bytes;
 use serde::{Deserialize, Serialize};
 use serde_with::{hex::Hex, DisplayFromStr};
 
+/// Information about an audio track in the catalog.
+///
+/// This struct combines MoQ track information with audio-specific configuration
+/// including codec details, sample rate, and channel information.
 #[serde_with::serde_as]
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 #[serde(rename_all = "camelCase")]
@@ -20,12 +24,16 @@ pub struct Audio {
 	pub config: AudioConfig,
 }
 
+/// Audio decoder configuration based on WebCodecs AudioDecoderConfig.
+///
+/// This struct contains all the information needed to initialize an audio decoder,
+/// including codec-specific parameters, sample rate, and channel configuration.
+///
+/// Reference: <https://www.w3.org/TR/webcodecs/#audio-decoder-config>
 #[serde_with::serde_as]
 #[serde_with::skip_serializing_none]
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 #[serde(rename_all = "camelCase")]
-/// AudioDecoderConfig from WebCodecs
-/// https://www.w3.org/TR/webcodecs/#audio-decoder-config
 pub struct AudioConfig {
 	// The codec, see the registry for details:
 	// https://w3c.github.io/webcodecs/codec_registry.html

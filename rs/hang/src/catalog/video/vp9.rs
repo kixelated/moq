@@ -2,15 +2,27 @@ use serde::{Deserialize, Serialize};
 
 use crate::Error;
 
+/// VP9 codec configuration.
+///
+/// This struct contains profile, level, bit depth, and color space information
+/// for VP9 video streams. VP9 supports flexible color formats and bit depths.
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
 pub struct VP9 {
+	/// VP9 profile (0-3, determines feature support)
 	pub profile: u8,
+	/// VP9 level (determines resolution and bitrate constraints)
 	pub level: u8,
+	/// Bit depth (8, 10, or 12 bits per sample)
 	pub bit_depth: u8,
+	/// Chroma subsampling format
 	pub chroma_subsampling: u8,
+	/// Color primaries specification
 	pub color_primaries: u8,
+	/// Transfer characteristics (gamma curve)
 	pub transfer_characteristics: u8,
+	/// Matrix coefficients for color conversion
 	pub matrix_coefficients: u8,
+	/// Whether video uses full range (true) or limited range (false)
 	pub full_range: bool,
 }
 

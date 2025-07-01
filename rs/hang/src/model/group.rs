@@ -5,6 +5,18 @@ use crate::Result;
 
 use moq_lite::coding::Decode;
 
+/// A consumer for a group of frames.
+
+/// Groups represent collections of frames that belong together, typically
+/// bounded by keyframes in video streams. The first frame in a group is
+/// automatically marked as a keyframe.
+///
+/// This wraps a `moq_lite::GroupConsumer` and provides hang-specific functionality:
+/// - Timestamp decoding from frame headers.
+/// - Keyframe detection based on frame position
+/// - Frame buffering for latency management
+/// - Maximum timestamp tracking for group boundaries
+///
 pub struct GroupConsumer {
 	// The group.
 	group: moq_lite::GroupConsumer,
@@ -20,6 +32,7 @@ pub struct GroupConsumer {
 }
 
 impl GroupConsumer {
+	/// Create a new group consumer from a MoQ group consumer.
 	pub fn new(group: moq_lite::GroupConsumer) -> Self {
 		Self {
 			group,
@@ -29,6 +42,15 @@ impl GroupConsumer {
 		}
 	}
 
+	/// Read the next frame from the group.
+	///
+	/// This method automatically:
+	/// - Decodes timestamps from frame headers
+	/// - Marks the first frame as a keyframe
+	/// - Returns buffered frames when available
+	/// - Tracks the maximum timestamp seen
+	///
+	/// Returns `None` when the group has ended.
 	pub async fn read_frame(&mut self) -> Result<Option<Frame>> {
 		if let Some(frame) = self.buffered.pop_front() {
 			Ok(Some(frame))
@@ -76,6 +98,9 @@ impl GroupConsumer {
 		}
 	}
 
+	/// Get the maximum timestamp seen in this group so far.
+	///
+	/// Returns `None` if no frames have been read yet.
 	pub fn max_timestamp(&self) -> Option<Timestamp> {
 		self.max_timestamp
 	}

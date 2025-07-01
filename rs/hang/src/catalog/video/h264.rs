@@ -4,11 +4,19 @@ use serde::{Deserialize, Serialize};
 
 use crate::Error;
 
+/// H.264/AVC codec mimetype.
+///
+/// This struct contains the profile, constraints, and level information
+/// needed to identify a specific H.264 variant. These parameters determine
+/// the features and complexity allowed in the encoded stream.
 #[serde_with::serde_as]
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
 pub struct H264 {
+	/// The H.264 profile (e.g., 0x42 for Baseline, 0x4D for Main, 0x64 for High)
 	pub profile: u8,
+	/// Profile compatibility flags and constraints
 	pub constraints: u8,
+	/// The H.264 level (e.g., 0x1F for Level 3.1, 0x28 for Level 4.0)
 	pub level: u8,
 }
 

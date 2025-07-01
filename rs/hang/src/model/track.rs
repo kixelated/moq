@@ -6,6 +6,17 @@ use futures::{stream::FuturesUnordered, StreamExt};
 
 use moq_lite::coding::*;
 
+/// A producer for media tracks.
+///
+/// This wraps a `moq_lite::TrackProducer` and adds hang-specific functionality
+/// like automatic timestamp encoding and keyframe-based group management.
+///
+/// ## Group Management
+///
+/// Groups are automatically created and managed based on keyframes:
+/// - When a keyframe is written, the current group is finished and a new one begins.
+/// - Non-keyframes are appended to the current group.
+/// - Each frame includes a timestamp header for proper playback timing.
 #[derive(Clone)]
 pub struct TrackProducer {
 	pub inner: moq_lite::TrackProducer,
@@ -13,10 +24,20 @@ pub struct TrackProducer {
 }
 
 impl TrackProducer {
+	/// Create a new TrackProducer wrapping the given moq-lite producer.
 	pub fn new(inner: moq_lite::TrackProducer) -> Self {
 		Self { inner, group: None }
 	}
 
+	/// Write a frame to the track.
+	///
+	/// The frame's timestamp is automatically encoded as a header, and keyframes
+	/// trigger the creation of new groups for efficient seeking and caching.
+	///
+	/// All frames should be in *decode order*.
+	///
+	/// The timestamp is usually monotonically increasing, but it depends on the encoding.
+	/// For example, H.264 B-frames will introduce jitter and reordering.
 	pub fn write(&mut self, frame: Frame) {
 		let timestamp = frame.timestamp.as_micros() as u64;
 		let mut header = BytesMut::with_capacity(timestamp.encode_size());
@@ -42,6 +63,10 @@ impl TrackProducer {
 		self.group.replace(group);
 	}
 
+	/// Create a consumer for this track.
+	///
+	/// Multiple consumers can be created from the same producer, each receiving
+	/// a copy of all data written to the track.
 	pub fn consume(&self) -> TrackConsumer {
 		TrackConsumer::new(self.inner.consume())
 	}
@@ -53,6 +78,15 @@ impl From<moq_lite::TrackProducer> for TrackProducer {
 	}
 }
 
+/// A consumer for hang-formatted media tracks.
+///
+/// This wraps a `moq_lite::TrackConsumer` and adds hang-specific functionality
+/// like timestamp decoding, latency management, and frame buffering.
+///
+/// ## Latency Management
+///
+/// The consumer can skip groups that are too far behind to maintain low latency.
+/// Use [`set_latency`](Self::set_latency) to configure the maximum acceptable delay.
 pub struct TrackConsumer {
 	pub inner: moq_lite::TrackConsumer,
 
@@ -70,6 +104,7 @@ pub struct TrackConsumer {
 }
 
 impl TrackConsumer {
+	/// Create a new TrackConsumer wrapping the given moq-lite consumer.
 	pub fn new(inner: moq_lite::TrackConsumer) -> Self {
 		Self {
 			inner,
@@ -80,6 +115,13 @@ impl TrackConsumer {
 		}
 	}
 
+	/// Read the next frame from the track.
+	///
+	/// This method handles timestamp decoding, group ordering, and latency management
+	/// automatically. It will skip groups that are too far behind to maintain the
+	/// configured latency target.
+	///
+	/// Returns `None` when the track has ended.
 	pub async fn read(&mut self) -> Result<Option<Frame>, Error> {
 		loop {
 			let cutoff = self.max_timestamp + self.latency;
@@ -146,10 +188,14 @@ impl TrackConsumer {
 		}
 	}
 
+	/// Set the maximum latency tolerance for this consumer.
+	///
+	/// Groups with timestamps older than `max_timestamp - latency` will be skipped.
 	pub fn set_latency(&mut self, max: std::time::Duration) {
 		self.latency = max;
 	}
 
+	/// Wait until the track is closed.
 	pub async fn closed(&self) -> Result<(), Error> {
 		Ok(self.inner.closed().await?)
 	}

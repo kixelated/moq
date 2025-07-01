@@ -2,9 +2,15 @@ use crate::Error;
 
 use serde::{Deserialize, Serialize};
 
+/// AAC codec mimetype.
+///
+/// This struct contains the profile information for AAC audio streams.
+/// AAC supports multiple profiles with different complexity and quality levels.
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
 pub struct AAC {
+	/// AAC profile (e.g., 2 for LC, 5 for HE-AAC, 29 for HE-AACv2)
 	pub profile: u8,
+	// TODO:
 	// freq_index
 	// chan_conf
 }
