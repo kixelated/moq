@@ -44,6 +44,7 @@
           gst-plugins-good
           gst-plugins-bad
           gst-plugins-ugly
+          gst-plugins-rs
           gst-libav
         ];
 

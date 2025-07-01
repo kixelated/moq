@@ -13,3 +13,8 @@ max_line_length = 120
 [**.yml]
 indent_style = space
 indent_size = 2
+
+# Nix defaults to spaces
+[**.nix]
+indent_style = space
+indent_size = 2

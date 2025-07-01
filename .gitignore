@@ -15,6 +15,7 @@ dist
 out
 result
 *.tsbuildinfo
+/.direnv
 
 # Don't leak dev stuff
 *.mp4
