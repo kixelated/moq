@@ -6,7 +6,7 @@ use crate::Result;
 use moq_lite::coding::Decode;
 
 /// A consumer for a group of frames.
-
+///
 /// Groups represent collections of frames that belong together, typically
 /// bounded by keyframes in video streams. The first frame in a group is
 /// automatically marked as a keyframe.
@@ -16,7 +16,6 @@ use moq_lite::coding::Decode;
 /// - Keyframe detection based on frame position
 /// - Frame buffering for latency management
 /// - Maximum timestamp tracking for group boundaries
-///
 pub struct GroupConsumer {
 	// The group.
 	group: moq_lite::GroupConsumer,
