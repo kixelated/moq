@@ -20,7 +20,9 @@ const name = urlParams.get("name") ?? "jwt-test/bbb";
 // bum-unified.jwt (both publish+subscribe): eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJwYXRoIjoiYnVtLyIsInB1YiI6IiIsInN1YiI6IiIsImV4cCI6bnVsbCwiaWF0IjpudWxsfQ.BtegviJ-sp0k-akB-Yd9mXMByRXp5WZWBb_2SyqNf8o
 
 //JWT STREAM - SUBSCRIBER TOKEN (updated)
-watch.setAttribute("url", `http://localhost:4443/bum/?jwt=eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJwYXRoIjoiYnVtLyIsInB1YiI6bnVsbCwic3ViIjoiIiwiZXhwIjpudWxsLCJpYXQiOm51bGx9.beFdsuOQE-re0vEfAHleJkhBLbp49nHIYwNa2Ycy2J0`);
+// Connect to remote server with demo path for webcam streaming
+watch.setAttribute("url", 'http://gordy-ssh.sim.fleet.saronicsw.com:4443/bum/');
+// Your publisher is publishing to 'demo' namespace, so subscribe to that
 watch.setAttribute("path", ``);
 
 // ON-JWT DEMO

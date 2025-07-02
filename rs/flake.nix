@@ -81,6 +81,13 @@
             src = ./.;
           };
 
+          moq-token = naersk'.buildPackage {
+            pname = "moq-token-cli";
+            src = ./.;
+            cargoBuildOptions = opts: opts ++ [ "-p" "moq-token-cli" ];
+            cargoTestOptions = opts: opts ++ [ "-p" "moq-token-cli" ];
+          };
+
           default = naersk'.buildPackage {
             src = ./.;
           };

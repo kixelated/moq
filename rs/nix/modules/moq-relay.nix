@@ -7,8 +7,11 @@
 let
   cfg = config.services.moq-relay;
   
-  # Convert Nix config to TOML format
-  configFile = pkgs.writeText "moq-relay.toml" (lib.generators.toINI {} {
+  # Use TOML format for configuration
+  tomlFormat = pkgs.formats.toml {};
+  
+  # Build the configuration
+  configData = {
     log = {
       level = cfg.logLevel;
     };
@@ -17,9 +20,11 @@ let
       listen = "[::]:${toString cfg.port}";
     } // lib.optionalAttrs (cfg.tls.generate != []) {
       "tls.generate" = cfg.tls.generate;
+    } // lib.optionalAttrs (cfg.tls.certs != []) {
+      "tls.cert" = cfg.tls.certs;
     };
-    
-    auth = lib.optionalAttrs cfg.auth.enable {
+  } // lib.optionalAttrs cfg.auth.enable {
+    auth = {
       key = cfg.auth.keyFile;
     } // lib.optionalAttrs (cfg.auth.publicRead || cfg.auth.publicWrite) {
       public = {
@@ -29,7 +34,10 @@ let
     };
   } // lib.optionalAttrs (cfg.auth.paths != {}) {
     "auth.path" = cfg.auth.paths;
-  });
+  };
+  
+  # Generate the config file
+  configFile = tomlFormat.generate "moq-relay.toml" configData;
 in
 {
   options.services.moq-relay = {
