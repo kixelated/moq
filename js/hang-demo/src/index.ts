@@ -14,17 +14,5 @@ const watch = document.querySelector("hang-watch") as HangWatch;
 const urlParams = new URLSearchParams(window.location.search);
 const name = urlParams.get("name") ?? "jwt-test/bbb";
 
-// TOKENS FOR TESTING (updated for new cluster model):
-// bum-subscriber.jwt (subscribe only): eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJwYXRoIjoiYnVtLyIsInB1YiI6bnVsbCwic3ViIjoiIiwiZXhwIjpudWxsLCJpYXQiOm51bGx9.beFdsuOQE-re0vEfAHleJkhBLbp49nHIYwNa2Ycy2J0
-// bum-publisher.jwt (publish only): eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJwYXRoIjoiYnVtLyIsInB1YiI6IiIsInN1YiI6bnVsbCwiZXhwIjpudWxsLCJpYXQiOm51bGx9.9NlWwUd6MUin1iH49YnauNIHSBqhrDd22HlD42f_rCQ
-// bum-unified.jwt (both publish+subscribe): eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJwYXRoIjoiYnVtLyIsInB1YiI6IiIsInN1YiI6IiIsImV4cCI6bnVsbCwiaWF0IjpudWxsfQ.BtegviJ-sp0k-akB-Yd9mXMByRXp5WZWBb_2SyqNf8o
-
-//JWT STREAM - SUBSCRIBER TOKEN (updated)
-// Connect to remote server with demo path for webcam streaming
-watch.setAttribute("url", 'http://gordy-ssh.sim.fleet.saronicsw.com:4443/bum/');
-// Your publisher is publishing to 'demo' namespace, so subscribe to that
+watch.setAttribute("url", `http://localhost:4443/demo/`);
 watch.setAttribute("path", ``);
-
-// ON-JWT DEMO
-// watch.setAttribute("url", `http://localhost:4443/demo/`);
-// watch.setAttribute("path", ``);
