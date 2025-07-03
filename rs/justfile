@@ -37,13 +37,41 @@ root:
 	if [ ! -f "dev/root.jwk" ]; then \
 		cargo run --bin moq-token -- --key "dev/root.jwk" generate; \
 	fi
+	
+	# Generate publisher-only token
+	if [ ! -f "dev/bum-publisher.jwt" ]; then \
+		cargo run --quiet --bin moq-token -- --key "dev/root.jwk" sign \
+			--path "bum/" \
+			--publish "" \
+			> dev/bum-publisher.jwt; \
+		echo "Generated publisher-only token"; \
+	fi
+	
+	# Generate subscriber-only token
+	if [ ! -f "dev/bum-subscriber.jwt" ]; then \
+		cargo run --quiet --bin moq-token -- --key "dev/root.jwk" sign \
+			--path "bum/" \
+			--subscribe "" \
+			> dev/bum-subscriber.jwt; \
+		echo "Generated subscriber-only token"; \
+	fi
+	
+	# Generate unified token (both publish and subscribe)
+	if [ ! -f "dev/bum-unified.jwt" ]; then \
+		cargo run --quiet --bin moq-token -- --key "dev/root.jwk" sign \
+			--path "bum/" \
+			--publish "" \
+			--subscribe "" \
+			> dev/bum-unified.jwt; \
+		echo "Generated unified token (publish + subscribe)"; \
+	fi
 
 # Download the video and convert it to a fragmented MP4 that we can stream
 download name:
 	@mkdir -p dev
 
 	if [ ! -f dev/{{name}}.mp4 ]; then \
-		curl -fsSL $(just download-url {{name}}) -o dev/{{name}}.mp4; \
+		curl -s $(just download-url {{name}}) -o dev/{{name}}.mp4; \
 	fi
 
 	if [ ! -f dev/{{name}}.fmp4 ]; then \

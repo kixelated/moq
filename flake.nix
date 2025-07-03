@@ -18,12 +18,17 @@
       rs,
       ...
     }:
-    flake-utils.lib.eachDefaultSystem (system: {
+    {
+      nixosModules = rs.nixosModules;
+      overlays = rs.overlays;
+    }
+    // flake-utils.lib.eachDefaultSystem (system: {
       devShells.default = nixpkgs.legacyPackages.${system}.mkShell {
         inputsFrom = [
           rs.devShells.${system}.default
           js.devShells.${system}.default
         ];
+        shellHook = "";
       };
       packages = {
         inherit (rs.packages.${system}) moq-relay moq-clock hang;
