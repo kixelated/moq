@@ -53,6 +53,8 @@
           pkgs.just
           pkgs.pkg-config
           pkgs.glib
+          pkgs.ffmpeg
+          pkgs.curl
         ] ++ gst-deps;
 
       in

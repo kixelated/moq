@@ -1,0 +1,19 @@
+{
+	"recommendations": [
+		// General
+		"jnoortheen.nix-ide",
+		"EditorConfig.EditorConfig",
+
+		// Rust
+		"rust-lang.rust-analyzer",
+		"tamasfe.even-better-toml",
+
+		// Javascript
+		"ms-vscode.vscode-json",
+		"biomejs.biome",
+		"ms-vscode.vscode-pnpm",
+
+		// Demo Only
+		"bradlc.vscode-tailwindcss",
+	]
+}
