@@ -1,11 +1,11 @@
 {
-  description = "My reproducible Rust dev environment with naersk";
+  description = "MoQ";
 
   inputs = {
-    fenix.url = "github:nix-community/fenix";
-    nixpkgs.url = "github:NixOS/nixpkgs/nixpkgs-unstable";
-    flake-utils.url = "github:numtide/flake-utils";
-    naersk.url = "github:nmattia/naersk";
+    nixpkgs.url      = "github:NixOS/nixpkgs/nixos-unstable";
+    flake-utils.url  = "github:numtide/flake-utils";
+    fenix.url        = "github:nix-community/fenix";
+    naersk.url       = "github:nmattia/naersk";
   };
 
   outputs =
@@ -16,7 +16,14 @@
       flake-utils,
       naersk,
     }:
-    flake-utils.lib.eachDefaultSystem (
+    {
+      nixosModules = {
+        moq-relay = import ./nix/modules/moq-relay.nix;
+      };
+      
+      overlays.default = import ./nix/overlay.nix;
+    }
+    // flake-utils.lib.eachDefaultSystem (
       system:
       let
         pkgs = import nixpkgs {
@@ -53,6 +60,8 @@
           pkgs.just
           pkgs.pkg-config
           pkgs.glib
+          pkgs.libressl
+          pkgs.ffmpeg
         ] ++ gst-deps;
 
       in
@@ -73,6 +82,13 @@
             src = ./.;
           };
 
+          moq-token = naersk'.buildPackage {
+            pname = "moq-token-cli";
+            src = ./.;
+            cargoBuildOptions = opts: opts ++ [ "-p" "moq-token-cli" ];
+            cargoTestOptions = opts: opts ++ [ "-p" "moq-token-cli" ];
+          };
+
           default = naersk'.buildPackage {
             src = ./.;
           };
@@ -84,6 +100,11 @@
             pkgs.cargo-shear
             pkgs.cargo-audit
           ];
+          
+          # Environment variables from moq-rs
+          shellHook = ''
+            export LIBCLANG_PATH="${pkgs.libclang.lib}/lib"
+          '';
         };
       }
     );
