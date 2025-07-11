@@ -20,16 +20,22 @@ in
   moq-relay = naersk'.buildPackage {
     pname = "moq-relay";
     src = ../.;
+    cargoBuildOptions = opts: opts ++ [ "-p" "moq-relay" ];
+    cargoTestOptions = opts: opts ++ [ "-p" "moq-relay" ];
   };
 
   moq-clock = naersk'.buildPackage {
     pname = "moq-clock";
     src = ../.;
+    cargoBuildOptions = opts: opts ++ [ "-p" "moq-clock" ];
+    cargoTestOptions = opts: opts ++ [ "-p" "moq-clock" ];
   };
 
   hang = naersk'.buildPackage {
     pname = "hang";
     src = ../.;
+    cargoBuildOptions = opts: opts ++ [ "-p" "hang" ];
+    cargoTestOptions = opts: opts ++ [ "-p" "hang" ];
   };
 
   moq-token = naersk'.buildPackage {
