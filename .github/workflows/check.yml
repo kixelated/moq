@@ -1,4 +1,4 @@
-name: Rust
+name: Check
 
 permissions:
   id-token: write
@@ -26,6 +26,14 @@ jobs:
       - name: Enable flakes
         run: echo "experimental-features = nix-command flakes" | sudo tee -a /etc/nix/nix.conf
 
+      - name: Set up pnpm cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.pnpm-store
+          key: pnpm-${{ runner.os }}-${{ hashFiles('js/pnpm-lock.yaml') }}
+          restore-keys: |
+            pnpm-${{ runner.os }}-
+
       - name: Set up a Rust cache
         uses: actions/cache@v4
         with:
@@ -38,4 +46,4 @@ jobs:
             rust-${{ runner.os }}-
 
       - name: Check
-        run: cd rs && nix develop --command just check --workspace
+        run: nix develop --command just check
