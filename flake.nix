@@ -32,6 +32,7 @@
       };
       packages = {
         inherit (rs.packages.${system}) moq-relay moq-clock hang;
+        default = rs.packages.${system}.default;
       };
     });
 }

@@ -1,4 +1,3 @@
-import { Buffer } from "buffer";
 import type { AnnouncedConsumer } from "./announced";
 import type { BroadcastConsumer } from "./broadcast";
 import { Publisher } from "./publisher";
@@ -58,6 +57,20 @@ export class Connection {
 			requireUnreliable: true,
 		};
 
+		const hexToBytes = (hex: string) => {
+			hex = hex.startsWith("0x") ? hex.slice(2) : hex;
+			if (hex.length % 2) {
+				throw new Error("invalid hex string length");
+			}
+
+			const matches = hex.match(/.{2}/g);
+			if (!matches) {
+				throw new Error("invalid hex string format");
+			}
+
+			return new Uint8Array(matches.map((byte) => parseInt(byte, 16)));
+		};
+
 		let adjustedUrl = url;
 
 		if (url.protocol === "http:") {
@@ -70,12 +83,11 @@ export class Connection {
 
 			// Fetch the fingerprint from the server.
 			const fingerprint = await fetch(fingerprintUrl);
-			const bytes = Buffer.from(await fingerprint.text(), "hex");
 
 			options.serverCertificateHashes = [
 				{
 					algorithm: "sha-256",
-					value: bytes,
+					value: hexToBytes(await fingerprint.text()),
 				},
 			];
 

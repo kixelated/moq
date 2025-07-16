@@ -6,17 +6,24 @@ use derive_more::{Display, From};
 
 use crate::Error;
 
+/// Supported video codec mimetypes.
 // TODO implement serde for convience
 #[derive(Debug, Clone, PartialEq, Eq, Display, From)]
 pub enum VideoCodec {
+	/// H.264/AVC codec with profile and level information
 	H264(H264),
+	/// H.265/HEVC codec with profile and level information
 	H265(H265),
+	/// VP9 codec with profile and color information
 	VP9(VP9),
+	/// AV1 codec with profile and level information
 	AV1(AV1),
 
+	/// VP8 codec (no additional parameters)
 	#[display("vp8")]
 	VP8,
 
+	/// Unknown or unsupported codec with original string
 	#[display("{_0}")]
 	Unknown(String),
 }

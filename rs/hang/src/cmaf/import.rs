@@ -7,7 +7,23 @@ use mp4_atom::{Any, AsyncReadFrom, Atom, DecodeMaybe, Mdat, Moof, Moov, Tfdt, Tr
 use std::{collections::HashMap, time::Duration};
 use tokio::io::{AsyncRead, AsyncReadExt};
 
-/// Converts fMP4 -> Karp
+/// Converts fMP4/CMAF files into hang broadcast streams.
+///
+/// This struct processes fragmented MP4 (fMP4) files and converts them into hang broadcasts.
+/// Not all MP4 features are supported.
+///
+/// ## Supported Codecs
+///
+/// **Video:**
+/// - H.264 (AVC1)
+/// - H.265 (HEVC/HEV1/HVC1)
+/// - VP8
+/// - VP9
+/// - AV1
+///
+/// **Audio:**
+/// - AAC (MP4A)
+/// - Opus
 pub struct Import {
 	// Any partial data in the input buffer
 	buffer: BytesMut,
@@ -30,6 +46,10 @@ pub struct Import {
 }
 
 impl Import {
+	/// Create a new CMAF importer that will write to the given broadcast.
+	///
+	/// The broadcast will be populated with tracks as they're discovered in the
+	/// fMP4 file and the catalog will be automatically generated.
 	pub fn new(broadcast: BroadcastProducer) -> Self {
 		Self {
 			buffer: BytesMut::new(),
@@ -42,6 +62,11 @@ impl Import {
 		}
 	}
 
+	/// Parse incremental fMP4 data.
+	///
+	/// This method can be called multiple times with chunks of fMP4 data as they
+	/// become available. It will buffer partial atoms internally and process
+	/// complete atoms as they arrive.
 	pub fn parse(&mut self, data: &[u8]) -> Result<()> {
 		if !self.buffer.is_empty() {
 			let mut buffer = std::mem::replace(&mut self.buffer, BytesMut::new());
@@ -328,14 +353,28 @@ impl Import {
 		Ok(track)
 	}
 
-	// Read the media from a stream until processing the moov atom.
+	/// Initialize the importer by reading the fMP4 header from an async stream.
+	///
+	/// This method reads the `ftyp` and `moov` atoms from the beginning of an fMP4 file
+	/// to extract track information and codec parameters. It automatically creates
+	/// the hang catalog and sets up track producers.
+	///
+	/// This should be called before [`read_from`](Self::read_from) to process the
+	/// initialization section of the fMP4 file.
 	pub async fn init_from<T: AsyncRead + Unpin>(&mut self, input: &mut T) -> Result<()> {
 		let _ftyp = mp4_atom::Ftyp::read_from(input).await?;
 		let moov = Moov::read_from(input).await?;
 		self.init(moov)
 	}
 
-	// Read the media from a stream, processing moof and mdat atoms.
+	/// Read and process media fragments from an async stream.
+	///
+	/// This method reads `moof`/`mdat` atom pairs from the input stream and converts
+	/// them into hang frames. It handles frame timing, keyframe detection, and
+	/// automatic track writing.
+	///
+	/// This should be called after [`init_from`](Self::init_from) has processed
+	/// the file header.
 	pub async fn read_from<T: AsyncReadExt + Unpin>(&mut self, input: &mut T) -> Result<()> {
 		let mut buffer = BytesMut::new();
 

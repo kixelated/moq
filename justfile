@@ -60,7 +60,7 @@ pub-gst name url='http://localhost:4443/demo':
 
 # Subscribe to a video using gstreamer
 sub name url='http://localhost:4443/demo':
-	just --justfile rs/justfile sub-gst {{name}} {{url}}
+	just --justfile rs/justfile sub {{name}} {{url}}
 
 # Publish a video using ffmpeg directly from hang to the localhost
 serve name:

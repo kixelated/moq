@@ -4,7 +4,7 @@ pub struct Connection {
 	pub id: u64,
 	pub session: web_transport::Session,
 	pub cluster: Cluster,
-	pub token: moq_token::Permissions,
+	pub token: moq_token::Claims,
 }
 
 impl Connection {

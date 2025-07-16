@@ -2,20 +2,38 @@ use serde::{Deserialize, Serialize};
 
 use crate::Error;
 
-// https://aomediacodec.github.io/av1-isobmff/#codecsparam
+/// AV1 codec mimetype.
+///
+/// This struct contains profile, level, tier, bit depth, and color space information
+/// for AV1 video streams. AV1 is a modern codec supporting high efficiency and
+/// advanced features like HDR and wide color gamuts.
+///
+/// Reference: <https://aomediacodec.github.io/av1-isobmff/#codecsparam>
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
 pub struct AV1 {
+	/// AV1 profile (0-2, determines feature support)
 	pub profile: u8,
+	/// AV1 level (determines resolution and bitrate constraints)
 	pub level: u8,
+	/// Tier ('M' for Main, 'H' for High)
 	pub tier: char,
+	/// Bit depth (8, 10, or 12 bits per sample)
 	pub bitdepth: u8,
+	/// Whether the stream is monochrome (grayscale)
 	pub mono_chrome: bool,
+	/// Horizontal chroma subsampling
 	pub chroma_subsampling_x: bool,
+	/// Vertical chroma subsampling
 	pub chroma_subsampling_y: bool,
+	/// Chroma sample position
 	pub chroma_sample_position: u8,
+	/// Color primaries specification
 	pub color_primaries: u8,
+	/// Transfer characteristics (gamma curve)
 	pub transfer_characteristics: u8,
+	/// Matrix coefficients for color conversion
 	pub matrix_coefficients: u8,
+	/// Whether video uses full range (true) or limited range (false)
 	pub full_range: bool,
 }
 

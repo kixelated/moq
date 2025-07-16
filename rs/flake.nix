@@ -2,10 +2,10 @@
   description = "MoQ";
 
   inputs = {
-    nixpkgs.url      = "github:NixOS/nixpkgs/nixos-unstable";
-    flake-utils.url  = "github:numtide/flake-utils";
-    fenix.url        = "github:nix-community/fenix";
-    naersk.url       = "github:nmattia/naersk";
+    nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
+    flake-utils.url = "github:numtide/flake-utils";
+    fenix.url = "github:nix-community/fenix";
+    naersk.url = "github:nmattia/naersk";
   };
 
   outputs =
@@ -20,7 +20,7 @@
       nixosModules = {
         moq-relay = import ./nix/modules/moq-relay.nix;
       };
-      
+
       overlays.default = import ./nix/overlay.nix;
     }
     // flake-utils.lib.eachDefaultSystem (
@@ -51,16 +51,21 @@
           gst-plugins-good
           gst-plugins-bad
           gst-plugins-ugly
+          gst-plugins-rs
           gst-libav
         ];
 
-        common-deps = [
+        shell-deps = [
           rust
           pkgs.just
           pkgs.pkg-config
           pkgs.glib
           pkgs.libressl
           pkgs.ffmpeg
+          pkgs.curl
+          pkgs.cargo-sort
+          pkgs.cargo-shear
+          pkgs.cargo-audit
         ] ++ gst-deps;
 
       in
@@ -84,8 +89,20 @@
           moq-token = naersk'.buildPackage {
             pname = "moq-token-cli";
             src = ./.;
-            cargoBuildOptions = opts: opts ++ [ "-p" "moq-token-cli" ];
-            cargoTestOptions = opts: opts ++ [ "-p" "moq-token-cli" ];
+            cargoBuildOptions =
+              opts:
+              opts
+              ++ [
+                "-p"
+                "moq-token-cli"
+              ];
+            cargoTestOptions =
+              opts:
+              opts
+              ++ [
+                "-p"
+                "moq-token-cli"
+              ];
           };
 
           default = naersk'.buildPackage {
@@ -94,12 +111,8 @@
         };
 
         devShells.default = pkgs.mkShell {
-          packages = common-deps ++ [
-            pkgs.cargo-sort
-            pkgs.cargo-shear
-            pkgs.cargo-audit
-          ];
-          
+          packages = shell-deps;
+
           # Environment variables from moq-rs
           shellHook = ''
             export LIBCLANG_PATH="${pkgs.libclang.lib}/lib"

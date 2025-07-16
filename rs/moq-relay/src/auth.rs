@@ -178,7 +178,7 @@ impl Auth {
 	}
 
 	// Parse/validate a user provided URL.
-	pub fn validate(&self, url: &Url) -> anyhow::Result<moq_token::Permissions> {
+	pub fn validate(&self, url: &Url) -> anyhow::Result<moq_token::Claims> {
 		// Find the token in the query parameters.
 		// ?jwt=...
 		let token = url.query_pairs().find(|(k, _)| k == "jwt").map(|(_, v)| v);
@@ -216,7 +216,7 @@ impl Auth {
 		}
 
 		// No auth required, so create a dummy token that allows accessing everything.
-		Ok(moq_token::Permissions {
+		Ok(moq_token::Claims {
 			path: path.to_string(),
 			publish: auth.public_write.then_some("".to_string()),
 			subscribe: auth.public_read.then_some("".to_string()),

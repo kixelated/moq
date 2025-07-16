@@ -14,11 +14,14 @@ use bytes::Bytes;
 use serde::{Deserialize, Serialize};
 use serde_with::{hex::Hex, DisplayFromStr};
 
+/// Information about a video track in the catalog.
+///
+/// This struct combines MoQ track information with video-specific configuration
+/// including codec details, resolution, and encoding parameters.
 #[serde_with::serde_as]
 #[serde_with::skip_serializing_none]
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 #[serde(rename_all = "camelCase")]
-/// Information about a video track.
 pub struct Video {
 	/// MoQ specific track information
 	pub track: moq_lite::Track,
@@ -27,12 +30,16 @@ pub struct Video {
 	pub config: VideoConfig,
 }
 
+/// Video decoder configuration based on WebCodecs VideoDecoderConfig.
+///
+/// This struct contains all the information needed to initialize a video decoder,
+/// including codec-specific parameters, resolution, and optional metadata.
+///
+/// Reference: <https://w3c.github.io/webcodecs/#video-decoder-config>
 #[serde_with::serde_as]
 #[serde_with::skip_serializing_none]
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 #[serde(rename_all = "camelCase")]
-/// VideoDecoderConfig from WebCodecs
-/// https://w3c.github.io/webcodecs/#video-decoder-config
 pub struct VideoConfig {
 	/// The codec, see the registry for details:
 	/// https://w3c.github.io/webcodecs/codec_registry.html

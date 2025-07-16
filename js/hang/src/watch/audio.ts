@@ -72,14 +72,6 @@ export class Audio {
 		const context = new AudioContext({ latencyHint: "interactive", sampleRate });
 		effect.cleanup(() => context.close());
 
-		if (context.state === "suspended") {
-			// We can't create a worklet when the context is suspended.
-			// This happens due to autoplay policies.
-			// Turn ourselves off so there's at least some feedback to the end user.
-			this.enabled.set(false);
-			return;
-		}
-
 		effect.spawn(async () => {
 			// Register the AudioWorklet processor
 			await context.audioWorklet.addModule(WORKLET_URL);

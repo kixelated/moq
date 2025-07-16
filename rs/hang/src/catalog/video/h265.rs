@@ -4,24 +4,35 @@ use serde::{Deserialize, Serialize};
 
 use crate::Error;
 
+/// H.265/HEVC codec mimetype.
+///
+/// This struct contains the profile, tier, level, and constraint information
+/// needed to identify a specific H.265 variant. The `in_band` flag determines
+/// whether parameter sets are included in-band (hev1) or out-of-band (hvc1).
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
 pub struct H265 {
-	// If true (hev1), then the SPS/PPS/etc are in the same NAL unit as the IDR.
-	// If false (hvc1), then the SPS/PPS/etc are in the description.
+	/// If true (hev1), then the SPS/PPS/etc are in the same NAL unit as the IDR.
+	/// If false (hvc1), then the SPS/PPS/etc are in the description.
 	pub in_band: bool,
 
-	// If 0, then no character. Otherwise, A for 1, B for 2, C for 3, etc.
+	/// Profile space (0 for main profile space, 1-3 for other spaces)
+	/// If 0, then no character. Otherwise, A for 1, B for 2, C for 3, etc.
 	pub profile_space: u8,
+	/// Profile IDC identifying the profile
 	pub profile_idc: u8,
 
-	// Hex encoded and in reverse bit order? Leading zeros may be omitted.
+	/// Profile compatibility flags (hex encoded and in reverse bit order)
+	/// Hex encoded and in reverse bit order? Leading zeros may be omitted.
 	pub profile_compatibility_flags: [u8; 4],
 
-	// 0 = 'L', 1 = 'H'
+	/// Tier flag: false = 'L' (Low), true = 'H' (High)
+	/// 0 = 'L', 1 = 'H'
 	pub tier_flag: bool,
+	/// Level IDC identifying the level
 	pub level_idc: u8,
 
-	// Hex encoded, trailing zeros may be omitted.
+	/// Constraint indicator flags (hex encoded, trailing zeros may be omitted)
+	/// Hex encoded, trailing zeros may be omitted.
 	pub constraint_flags: [u8; 6],
 }
 

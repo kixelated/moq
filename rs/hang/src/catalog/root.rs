@@ -14,9 +14,23 @@ use super::Location;
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Default)]
 #[serde(default, rename_all = "camelCase")]
 pub struct Catalog {
+	/// A list of video tracks for the same content.
+	///
+	/// The viewer is expected to choose one of them based on their preferences, such as:
+	/// - resolution
+	/// - bitrate
+	/// - codec
+	/// - etc
 	#[serde(default, skip_serializing_if = "Vec::is_empty")]
 	pub video: Vec<Video>,
 
+	/// A list of audio tracks for the same content.
+	///
+	/// The viewer is expected to choose one of them based on their preferences, such as:
+	/// - codec
+	/// - bitrate
+	/// - language
+	/// - etc
 	#[serde(default, skip_serializing_if = "Vec::is_empty")]
 	pub audio: Vec<Audio>,
 
@@ -27,37 +41,46 @@ pub struct Catalog {
 }
 
 impl Catalog {
+	/// The default name for the catalog track.
 	pub const DEFAULT_NAME: &str = "catalog.json";
 
+	/// Parse a catalog from a string.
 	#[allow(clippy::should_implement_trait)]
 	pub fn from_str(s: &str) -> Result<Self> {
 		Ok(serde_json::from_str(s)?)
 	}
 
+	/// Parse a catalog from a slice of bytes.
 	pub fn from_slice(v: &[u8]) -> Result<Self> {
 		Ok(serde_json::from_slice(v)?)
 	}
 
+	/// Parse a catalog from a reader.
 	pub fn from_reader(reader: impl std::io::Read) -> Result<Self> {
 		Ok(serde_json::from_reader(reader)?)
 	}
 
+	/// Serialize the catalog to a string.
 	pub fn to_string(&self) -> Result<String> {
 		Ok(serde_json::to_string(self)?)
 	}
 
+	/// Serialize the catalog to a pretty string.
 	pub fn to_string_pretty(&self) -> Result<String> {
 		Ok(serde_json::to_string_pretty(self)?)
 	}
 
+	/// Serialize the catalog to a vector of bytes.
 	pub fn to_vec(&self) -> Result<Vec<u8>> {
 		Ok(serde_json::to_vec(self)?)
 	}
 
+	/// Serialize the catalog to a writer.
 	pub fn to_writer(&self, writer: impl std::io::Write) -> Result<()> {
 		Ok(serde_json::to_writer(writer, self)?)
 	}
 
+	/// Produce a catalog track that describes the available media tracks.
 	pub fn produce(self) -> CatalogProducer {
 		let track = moq_lite::Track {
 			name: Catalog::DEFAULT_NAME.to_string(),
@@ -69,13 +92,19 @@ impl Catalog {
 	}
 }
 
+/// Produces a catalog track that describes the available media tracks.
+///
+/// The JSON catalog is updated when tracks are added/removed but is *not* automatically published.
+/// You'll have to call [`publish`](Self::publish) once all updates are complete.
 #[derive(Clone)]
 pub struct CatalogProducer {
+	/// Access to the underlying track producer.
 	pub track: moq_lite::TrackProducer,
 	current: Arc<Mutex<Catalog>>,
 }
 
 impl CatalogProducer {
+	/// Create a new catalog producer with the given track and initial catalog.
 	pub fn new(track: moq_lite::TrackProducer, init: Catalog) -> Self {
 		Self {
 			current: Arc::new(Mutex::new(init)),
@@ -83,37 +112,46 @@ impl CatalogProducer {
 		}
 	}
 
+	/// Add a video track to the catalog.
 	pub fn add_video(&mut self, video: Video) {
 		let mut current = self.current.lock().unwrap();
 		current.video.push(video);
 	}
 
+	/// Add an audio track to the catalog.
 	pub fn add_audio(&mut self, audio: Audio) {
 		let mut current = self.current.lock().unwrap();
 		current.audio.push(audio);
 	}
 
+	/// Set the location information in the catalog.
 	pub fn set_location(&mut self, location: Option<Location>) {
 		let mut current = self.current.lock().unwrap();
 		current.location = location;
 	}
 
+	/// Remove a video track from the catalog.
 	pub fn remove_video(&mut self, video: &Video) {
 		let mut current = self.current.lock().unwrap();
 		current.video.retain(|v| v != video);
 	}
 
+	/// Remove an audio track from the catalog.
 	pub fn remove_audio(&mut self, audio: &Audio) {
 		let mut current = self.current.lock().unwrap();
 		current.audio.retain(|a| a != audio);
 	}
 
-	// Just grab a lock to the current catalog, so you can update it manually.
+	/// Get mutable access to the catalog for manual updates.
+	/// Remember to call [`publish`](Self::publish) after making changes.
 	pub fn update(&mut self) -> MutexGuard<'_, Catalog> {
 		self.current.lock().unwrap()
 	}
 
-	/// Publish any changes to the catalog.
+	/// Publish the current catalog to all subscribers.
+	///
+	/// This serializes the catalog to JSON and sends it as a new group on the
+	/// catalog track. All changes made since the last publish will be included.
 	pub fn publish(&mut self) {
 		let current = self.current.lock().unwrap();
 		let mut group = self.track.append_group();
@@ -124,10 +162,12 @@ impl CatalogProducer {
 		group.finish();
 	}
 
+	/// Create a consumer for this catalog, receiving updates as they're [published](Self::publish).
 	pub fn consume(&self) -> CatalogConsumer {
 		CatalogConsumer::new(self.track.consume())
 	}
 
+	/// Finish publishing to this catalog and close the track.
 	pub fn finish(self) {
 		self.track.finish();
 	}
@@ -151,17 +191,27 @@ impl Default for CatalogProducer {
 	}
 }
 
+/// A catalog consumer, used to receive catalog updates and discover tracks.
+///
+/// This wraps a `moq_lite::TrackConsumer` and automatically deserializes JSON
+/// catalog data to discover available audio and video tracks in a broadcast.
 #[derive(Clone)]
 pub struct CatalogConsumer {
+	/// Access to the underlying track consumer.
 	pub track: moq_lite::TrackConsumer,
 	group: Option<moq_lite::GroupConsumer>,
 }
 
 impl CatalogConsumer {
+	/// Create a new catalog consumer from a MoQ track consumer.
 	pub fn new(track: moq_lite::TrackConsumer) -> Self {
 		Self { track, group: None }
 	}
 
+	/// Get the next catalog update.
+	///
+	/// This method waits for the next catalog publication and returns the
+	/// catalog data. If there are no more updates, `None` is returned.
 	pub async fn next(&mut self) -> Result<Option<Catalog>> {
 		loop {
 			tokio::select! {
@@ -171,10 +221,8 @@ impl CatalogConsumer {
 							// Use the new group.
 							self.group = Some(group);
 						}
-						None => {
-							// The track has ended, so we should return None.
-							return Ok(None);
-						}
+						// The track has ended, so we should return None.
+						None => return Ok(None),
 					}
 				},
 				Some(frame) = async { self.group.as_mut()?.read_frame().await.transpose() } => {
@@ -186,6 +234,7 @@ impl CatalogConsumer {
 		}
 	}
 
+	/// Wait until the catalog track is closed.
 	pub async fn closed(&self) -> Result<()> {
 		Ok(self.track.closed().await?)
 	}
