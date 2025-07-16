@@ -18,15 +18,25 @@
       rs,
       ...
     }:
-    flake-utils.lib.eachDefaultSystem (system: {
+    {
+      nixosModules = rs.nixosModules;
+      overlays = rs.overlays;
+    }
+    // flake-utils.lib.eachDefaultSystem (system: {
       devShells.default = nixpkgs.legacyPackages.${system}.mkShell {
         inputsFrom = [
           rs.devShells.${system}.default
           js.devShells.${system}.default
         ];
+        shellHook = "";
       };
       packages = {
-        inherit (rs.packages.${system}) moq-relay moq-clock hang;
+        inherit (rs.packages.${system})
+          moq-relay
+          moq-clock
+          moq-token
+          hang
+          ;
         default = rs.packages.${system}.default;
       };
       formatter = nixpkgs.legacyPackages.${system}.nixfmt-tree;

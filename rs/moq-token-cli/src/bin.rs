@@ -107,7 +107,7 @@ fn main() -> anyhow::Result<()> {
 
 		Commands::Verify { path } => {
 			let key = moq_token::Key::from_file(cli.key)?;
-			let token = io::read_to_string(io::stdin())?;
+			let token = io::read_to_string(io::stdin())?.trim().to_string();
 			let payload = key.verify(&token, &path)?;
 
 			println!("{payload:#?}");
