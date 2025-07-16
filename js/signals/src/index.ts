@@ -41,7 +41,12 @@ export class Unique<T> implements Accessor<T> {
 	// Receive a notification when the value changes AND with the current value.
 	watch(fn: Subscriber<T>): Dispose {
 		const dispose = this.subscribe(fn);
-		fn(this.#value);
+		try {
+			fn(this.#value);
+		} catch (e) {
+			dispose();
+			throw e;
+		}
 		return dispose;
 	}
 
@@ -100,7 +105,12 @@ export class Signal<T> implements Accessor<T> {
 	// Receive a notification when the value changes AND with the current value.
 	watch(fn: Subscriber<T>): Dispose {
 		const dispose = this.subscribe(fn);
-		fn(this.#value);
+		try {
+			fn(this.#value);
+		} catch (e) {
+			dispose();
+			throw e;
+		}
 		return dispose;
 	}
 }
