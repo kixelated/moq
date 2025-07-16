@@ -39,5 +39,6 @@
           ;
         default = rs.packages.${system}.default;
       };
+      formatter = nixpkgs.legacyPackages.${system}.nixfmt-tree;
     });
 }
