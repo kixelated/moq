@@ -37,7 +37,7 @@ root:
 	if [ ! -f "dev/root.jwk" ]; then \
 		cargo run --bin moq-token -- --key "dev/root.jwk" generate; \
 	fi
-	
+
 # Download the video and convert it to a fragmented MP4 that we can stream
 download name:
 	@mkdir -p dev

@@ -1,13 +1,20 @@
-{ fenix, naersk, flake-utils, ... }:
-  flake-utils.lib.eachDefaultSystem (system:
+{
+  fenix,
+  naersk,
+  flake-utils,
+  ...
+}:
+flake-utils.lib.eachDefaultSystem (
+  system:
   let
-    rust = with fenix.packages.${system}; combine [
-      stable.rustc
-      stable.cargo
-      stable.clippy
-      stable.rustfmt
-      targets.wasm32-unknown-unknown.stable.rust-std
-    ];
+    rust =
+      with fenix.packages.${system};
+      combine [
+        stable.rustc
+        stable.cargo
+        stable.clippy
+        stable.rustfmt
+      ];
 
     naersk' = naersk.lib.${system}.override {
       cargo = rust;
@@ -26,9 +33,15 @@
         src = ../../.;
       };
 
+      moq-token = naersk'.buildPackage {
+        pname = "moq-token-cli";
+        src = ../../.;
+      };
+
       hang = naersk'.buildPackage {
         pname = "hang";
         src = ../../.;
       };
     };
-  })
+  }
+)

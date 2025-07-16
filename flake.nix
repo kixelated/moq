@@ -31,7 +31,12 @@
         shellHook = "";
       };
       packages = {
-        inherit (rs.packages.${system}) moq-relay moq-clock hang;
+        inherit (rs.packages.${system})
+          moq-relay
+          moq-clock
+          moq-token
+          hang
+          ;
         default = rs.packages.${system}.default;
       };
     });

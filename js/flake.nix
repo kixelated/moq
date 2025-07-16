@@ -19,8 +19,8 @@
         pkgs = import nixpkgs { inherit system; };
 
         jsTools = [
-          pkgs.nodejs_20
-          pkgs.nodePackages.pnpm
+          pkgs.nodejs_24
+          pkgs.pnpm_10
           pkgs.just
         ];
       in
