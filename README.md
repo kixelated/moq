@@ -37,7 +37,7 @@ In production, you'll need a proper domain and a matching TLS certificate via [L
 
 ```sh
 # Runs a relay, demo media, and the web server
-nix shell -c just dev
+nix develop -c just dev
 ```
 
 Then visit [https://localhost:8080](https://localhost:8080) to see the demo.
