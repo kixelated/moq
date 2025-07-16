@@ -91,7 +91,7 @@ impl Subscriber {
 
 			while let Some(object) = group.read_frame().await? {
 				let str = String::from_utf8_lossy(&object);
-				println!("{}{}", base, str);
+				println!("{base}{str}");
 			}
 		}
 

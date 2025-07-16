@@ -197,7 +197,7 @@ impl Server {
 			// A bit of a hack to pretend like we're a WebTransport session
 			moq_lite::ALPN => {
 				// Fake a URL to so we can treat it like a WebTransport session.
-				let url = Url::parse(format!("moql://{}", host).as_str()).unwrap();
+				let url = Url::parse(format!("moql://{host}").as_str()).unwrap();
 				web_transport::quinn::Session::raw(conn, url)
 			}
 			_ => anyhow::bail!("unsupported ALPN: {}", alpn),

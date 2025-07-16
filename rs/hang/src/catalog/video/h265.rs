@@ -43,7 +43,7 @@ impl fmt::Display for H265 {
 			.iter()
 			.rev()
 			.skip_while(|b| **b == 0)
-			.map(|b| format!("{:X}", b))
+			.map(|b| format!("{b:X}"))
 			.collect::<Vec<_>>()
 			.join("");
 
@@ -53,7 +53,7 @@ impl fmt::Display for H265 {
 			.constraint_flags
 			.iter()
 			.take(skip)
-			.map(|b| format!("{:X}", b))
+			.map(|b| format!("{b:X}"))
 			.collect::<Vec<_>>()
 			.join(".");
 
