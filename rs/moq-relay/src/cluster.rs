@@ -84,7 +84,7 @@ impl Cluster {
 
 		tracing::info!(%prefix, %root, "connecting to root");
 
-		let root = Url::parse(&format!("https://{}/?jwt={}", root, token)).context("invalid root URL")?;
+		let root = Url::parse(&format!("https://{root}/?jwt={token}")).context("invalid root URL")?;
 
 		// Connect to the root node.
 		let root = self.client.connect(root).await.context("failed to connect to root")?;
@@ -96,7 +96,7 @@ impl Cluster {
 		// Announce ourselves as an origin to the root node.
 		if let Some(myself) = self.config.advertise.as_ref() {
 			tracing::info!(%prefix, %myself, "announcing as origin");
-			let path = format!("{}/{}", prefix, myself);
+			let path = format!("{prefix}/{myself}");
 			root.publish(path, noop.consume());
 		}
 
@@ -111,7 +111,7 @@ impl Cluster {
 		self.secondary.publish_all(remotes);
 
 		// Subscribe to available origins.
-		let mut origins = root.consume_prefix(format!("{}/", prefix));
+		let mut origins = root.consume_prefix(format!("{prefix}/"));
 
 		// Cancel tasks when the origin is closed.
 		let mut active: HashMap<String, tokio::task::AbortHandle> = HashMap::new();
@@ -166,7 +166,7 @@ impl Cluster {
 
 	#[tracing::instrument("remote", skip_all, err, fields(%node))]
 	async fn run_remote(mut self, node: &str, token: String, origin: BroadcastConsumer) -> anyhow::Result<()> {
-		let url = Url::parse(&format!("https://{}/{}", node, token))?;
+		let url = Url::parse(&format!("https://{node}/{token}"))?;
 
 		loop {
 			let res = tokio::select! {

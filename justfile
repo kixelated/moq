@@ -15,8 +15,11 @@ default:
 setup:
 	just --justfile rs/justfile setup
 
+# Alias for dev.
+all: dev
+
 # Run the relay, web server, and publish bbb.
-all:
+dev:
 	# We use pnpm for concurrently, unfortunately, so make sure it's installed.
 	cd js && pnpm i
 

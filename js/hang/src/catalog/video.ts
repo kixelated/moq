@@ -22,7 +22,7 @@ export const VideoConfigSchema = z.object({
 	displayRatioHeight: z.optional(z.uint32()),
 
 	// The frame rate of the video in frames per second
-	framerate: z.optional(z.uint32()),
+	framerate: z.optional(z.number()),
 
 	// The bitrate of the video in bits per second
 	// TODO: Support up to Number.MAX_SAFE_INTEGER

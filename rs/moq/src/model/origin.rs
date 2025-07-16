@@ -219,7 +219,7 @@ impl OriginProducer {
 				};
 
 				let path = match &prefix {
-					Some(prefix) => format!("{}{}", prefix, suffix),
+					Some(prefix) => format!("{prefix}{suffix}"),
 					None => suffix,
 				};
 

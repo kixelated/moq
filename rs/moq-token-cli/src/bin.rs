@@ -102,7 +102,7 @@ fn main() -> anyhow::Result<()> {
 			};
 
 			let token = key.sign(&payload)?;
-			println!("{}", token);
+			println!("{token}");
 		}
 
 		Commands::Verify { path } => {
@@ -110,7 +110,7 @@ fn main() -> anyhow::Result<()> {
 			let token = io::read_to_string(io::stdin())?.trim().to_string();
 			let payload = key.verify(&token, &path)?;
 
-			println!("{:#?}", payload);
+			println!("{payload:#?}");
 		}
 	}
 

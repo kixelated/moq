@@ -38,6 +38,18 @@ export class Unique<T> implements Accessor<T> {
 		return () => this.#subscribers.delete(fn);
 	}
 
+	// Receive a notification when the value changes AND with the current value.
+	watch(fn: Subscriber<T>): Dispose {
+		const dispose = this.subscribe(fn);
+		try {
+			fn(this.#value);
+		} catch (e) {
+			dispose();
+			throw e;
+		}
+		return dispose;
+	}
+
 	readonly(): Computed<T> {
 		return new Computed(this);
 	}
@@ -84,9 +96,22 @@ export class Signal<T> implements Accessor<T> {
 		return new Computed(this);
 	}
 
+	// Receive a notification when the value changes.
 	subscribe(fn: Subscriber<T>): Dispose {
 		this.#subscribers.add(fn);
 		return () => this.#subscribers.delete(fn);
+	}
+
+	// Receive a notification when the value changes AND with the current value.
+	watch(fn: Subscriber<T>): Dispose {
+		const dispose = this.subscribe(fn);
+		try {
+			fn(this.#value);
+		} catch (e) {
+			dispose();
+			throw e;
+		}
+		return dispose;
 	}
 }
 

@@ -37,13 +37,13 @@ In production, you'll need a proper domain and a matching TLS certificate via [L
 
 ```sh
 # Runs a relay, demo media, and the web server
-nix shell -c just all
+nix develop -c just dev
 ```
 
 Then visit [https://localhost:8080](https://localhost:8080) to see the demo.
 Note that this uses an insecure HTTP fetch for local development only; in production you'll need a proper domain + TLS certificate.
 
-*TIP:* If you've installed [nix-direnv](https://github.com/nix-community/nix-direnv), then only `just all` is required.
+*TIP:* If you've installed [nix-direnv](https://github.com/nix-community/nix-direnv), then only `just dev` is required.
 
 
 ### Full Setup
@@ -64,7 +64,7 @@ If you don't like Nix, or just want things install globally, then you can instal
 just setup
 
 # Runs a relay, demo media, and the web server
-just all
+just dev
 ```
 
 Then visit [https://localhost:8080](https://localhost:8080) to see the demo.
@@ -117,7 +117,6 @@ This repository provides both [Rust](/rs) and [TypeScript](/js) libraries with s
 | [moq-native](rs/moq-native) | Opinionated helpers to configure a Quinn QUIC endpoint. It's harder than it should be.                                                | [![docs.rs](https://docs.rs/moq-native/badge.svg)](https://docs.rs/moq-native) |
 | [hang](rs/hang)             | Media-specific encoding/streaming layered on top of `moq-lite`. Can be used as a library or [a CLI](rs/hang-cli).                     | [![docs.rs](https://docs.rs/hang/badge.svg)](https://docs.rs/hang)             |
 | [hang-gst](rs/hang-gst)     | A simple gstreamer plugin for publishing or consuming hang broadcasts.                                                                |                                                                                |
-| [hang-wasm](rs/hang-wasm)   | A deprecated web player using WASM. Use the Typescript implementation instead.                                                        |                                                                                |
 
 
 ### TypeScript

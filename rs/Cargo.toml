@@ -2,8 +2,7 @@
 members = [
     "hang",
     "hang-cli",
-    "hang-gst",
-    "hang-wasm",
+    #"hang-gst",
     "moq",
     "moq-clock",
     "moq-native",
@@ -13,7 +12,6 @@ members = [
 ]
 
 # without hang-gst because it requires gstreamer to be installed
-# and without hang-wasm because it's deprecated and weird
 default-members = [
     "hang",
     "hang-cli",
@@ -37,7 +35,3 @@ serde = { version = "1", features = ["derive"] }
 tokio = "1.45"
 web-async = { version = "0.1.1", features = ["tracing"] }
 web-transport = "0.9.3"
-
-[profile.release.package.hang-wasm]
-# Tell `rustc` to optimize for small code size.
-opt-level = "s"
