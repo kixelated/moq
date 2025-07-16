@@ -6,6 +6,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.7.3](https://github.com/kixelated/moq/compare/moq-native-v0.7.2...moq-native-v0.7.3) - 2025-07-16
+
+### Other
+
+- Remove hang-wasm and fix some minor things. ([#465](https://github.com/kixelated/moq/pull/465))
+
 ## [0.7.2](https://github.com/kixelated/moq/compare/moq-native-v0.7.1...moq-native-v0.7.2) - 2025-06-29
 
 ### Other
