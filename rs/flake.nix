@@ -21,7 +21,7 @@
         moq-relay = import ./nix/modules/moq-relay.nix;
       };
 
-      overlays.default = import ./nix/overlay.nix;
+      overlays.default = import ./nix/overlay.nix { inherit fenix naersk; };
     }
     // flake-utils.lib.eachDefaultSystem (
       system:

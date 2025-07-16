@@ -1,8 +1,7 @@
+# Accept fenix and naersk as arguments to the overlay
+{ fenix, naersk }:
 final: prev:
 let
-  fenix = builtins.getFlake "github:nix-community/fenix";
-  naersk = builtins.getFlake "github:nmattia/naersk";
-
   rust =
     with fenix.packages.${final.system};
     combine [

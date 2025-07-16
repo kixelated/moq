@@ -43,7 +43,7 @@ download name:
 	@mkdir -p dev
 
 	if [ ! -f dev/{{name}}.mp4 ]; then \
-		curl -s $(just download-url {{name}}) -o dev/{{name}}.mp4; \
+		curl -fsSL $(just download-url {{name}}) -o dev/{{name}}.mp4; \
 	fi
 
 	if [ ! -f dev/{{name}}.fmp4 ]; then \
