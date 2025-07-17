@@ -40,7 +40,7 @@ import { Connection, BroadcastProducer } from "@kixelated/moq";
 
 const connection = await Connection.connect("https://relay.quic.video/anon/");
 
-// Create a broadcast, not associated with any connection/path yet.
+// Create a broadcast, not associated with any connection/name yet.
 const broadcast = new BroadcastProducer();
 
 // Create a track within the broadcast
@@ -95,10 +95,10 @@ const connection = await Connection.connect("https://relay.quic.video/anon/");
 const announced = connection.announced("");
 
 for await (const announcement of announced) {
-    console.log("New stream available:", announcement.path);
+    console.log("New stream available:", announcement.name);
 
     // Subscribe to new streams
-    const broadcast = connection.consume(announcement.path);
+    const broadcast = connection.consume(announcement.name);
     // ... handle the broadcast
 }
 ```

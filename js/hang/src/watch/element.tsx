@@ -7,7 +7,7 @@ import { AudioEmitter } from "./audio";
 import { Broadcast } from "./broadcast";
 import { VideoRenderer } from "./video";
 
-const OBSERVED = ["url", "path", "paused", "volume", "muted", "controls"] as const;
+const OBSERVED = ["url", "name", "paused", "volume", "muted", "controls"] as const;
 type Observed = (typeof OBSERVED)[number];
 
 // An optional web component that wraps a <canvas>
@@ -59,11 +59,11 @@ export default class HangWatch extends HTMLElement {
 		});
 
 		this.#signals.effect((effect) => {
-			const path = effect.get(this.broadcast.path);
-			if (path) {
-				this.setAttribute("path", path);
+			const broadcast = effect.get(this.broadcast.name);
+			if (broadcast) {
+				this.setAttribute("broadcast", broadcast);
 			} else {
-				this.removeAttribute("path");
+				this.removeAttribute("broadcast");
 			}
 		});
 
@@ -113,8 +113,8 @@ export default class HangWatch extends HTMLElement {
 
 		if (name === "url") {
 			this.url = newValue ? new URL(newValue) : undefined;
-		} else if (name === "path") {
-			this.path = newValue ?? "";
+		} else if (name === "name") {
+			this.name = newValue ?? undefined;
 		} else if (name === "paused") {
 			this.paused = newValue !== null;
 		} else if (name === "volume") {
@@ -139,12 +139,12 @@ export default class HangWatch extends HTMLElement {
 		this.connection.url.set(url);
 	}
 
-	get path(): string {
-		return this.broadcast.path.peek();
+	get name(): string | undefined {
+		return this.broadcast.name.peek();
 	}
 
-	set path(path: string) {
-		this.broadcast.path.set(path);
+	set name(name: string | undefined) {
+		this.broadcast.name.set(name);
 	}
 
 	get paused(): boolean {

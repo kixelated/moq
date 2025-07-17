@@ -15,13 +15,9 @@ class State {
  * @public
  */
 export class BroadcastProducer {
-	/** The path identifier for this broadcast */
 	#state: WatchProducer<State>;
 
 	/**
-	 * Creates a new BroadcastProducer with the specified path and state.
-	 * @param state - The state producer
-	 *
 	 * @internal
 	 */
 	constructor() {
@@ -127,10 +123,6 @@ export class BroadcastConsumer {
 	#state: WatchConsumer<State>;
 
 	/**
-	 * Creates a new BroadcastConsumer with the specified path and state.
-	 * @param path - The path identifier
-	 * @param state - The state consumer
-	 *
 	 * @internal
 	 */
 	constructor(state: WatchConsumer<State>) {

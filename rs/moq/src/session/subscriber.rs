@@ -4,18 +4,17 @@ use std::{
 };
 
 use crate::{
-	message,
-	model::{BroadcastConsumer, BroadcastProducer},
-	Error, Frame, FrameProducer, Group, GroupProducer, OriginProducer, TrackProducer,
+	message, model::BroadcastProducer, Error, Frame, FrameProducer, Group, GroupProducer, OriginProducer, TrackProducer,
 };
 
 use web_async::{spawn, Lock};
 
-use super::{OriginConsumer, Reader, Stream};
+use super::{Reader, Stream};
 
 #[derive(Clone)]
 pub(super) struct Subscriber {
 	session: web_transport::Session,
+	origin: Option<OriginProducer>,
 
 	broadcasts: Lock<HashMap<String, BroadcastProducer>>,
 	subscribes: Lock<HashMap<u64, TrackProducer>>,
@@ -23,52 +22,36 @@ pub(super) struct Subscriber {
 }
 
 impl Subscriber {
-	pub fn new(session: web_transport::Session) -> Self {
+	pub fn new(session: web_transport::Session, origin: Option<OriginProducer>) -> Self {
 		Self {
 			session,
-
+			origin,
 			broadcasts: Default::default(),
 			subscribes: Default::default(),
 			next_id: Default::default(),
 		}
 	}
 
-	/// Consume any broadcasts matching a prefix.
-	pub fn consume_prefix<T: ToString>(&self, prefix: T) -> OriginConsumer {
-		let prefix = prefix.to_string();
-
-		let producer = OriginProducer::new();
-		let consumer = producer.consume_prefix(prefix.clone());
-
-		web_async::spawn(self.clone().run_announced(prefix, producer));
-
-		consumer
-	}
-
-	async fn run_announced(mut self, prefix: String, producer: OriginProducer) {
-		tracing::debug!(?prefix, "announced started");
-
+	pub async fn run(self) -> Result<(), Error> {
 		// Keep running until we don't care about the producer anymore.
-		let closed = producer.clone();
-
-		// Wait until the producer is no longer needed or the stream is closed.
-		let res = tokio::select! {
-			_ = closed.unused() => Err(Error::Cancel),
-			res = self.run_broadcasts(&prefix, producer) => res,
+		// TODO Don't clone the origin this many times, it's not needed.
+		let closed = match self.origin.clone() {
+			Some(origin) => origin,
+			None => return Ok(()),
 		};
 
-		match res {
-			Err(Error::Cancel) => tracing::trace!(%prefix, "announced cancelled"),
-			Err(err) => tracing::trace!(?err, %prefix, "announced error"),
-			_ => tracing::trace!(%prefix, "announced complete"),
+		// Wait until the producer is no longer needed or the stream is closed.
+		tokio::select! {
+			_ = closed.unused() => Err(Error::Cancel),
+			res = self.run_inner() => res,
 		}
 	}
 
-	async fn run_broadcasts(&mut self, prefix: &str, mut announced: OriginProducer) -> Result<(), Error> {
+	async fn run_inner(mut self) -> Result<(), Error> {
 		let mut stream = Stream::open(&mut self.session, message::ControlType::Announce).await?;
 
 		let msg = message::AnnounceRequest {
-			prefix: prefix.to_string(),
+			prefix: self.origin.as_ref().unwrap().prefix.clone(),
 		};
 		stream.writer.encode(&msg).await?;
 
@@ -83,7 +66,7 @@ impl Subscriber {
 					let consumer = producer.consume();
 
 					// Run the broadcast in the background until all consumers are dropped.
-					announced.publish(suffix.clone(), consumer);
+					self.origin.as_mut().unwrap().publish(suffix.clone(), consumer);
 					producers.insert(suffix.clone(), producer.clone());
 
 					spawn(self.clone().run_broadcast(suffix, producer));
@@ -102,42 +85,7 @@ impl Subscriber {
 		stream.writer.finish().await
 	}
 
-	/// Discover and consume a specific broadcast.
-	///
-	/// This is different from `consume` because it waits for an announcement.
-	pub fn consume_exact<T: ToString>(&self, path: T) -> OriginConsumer {
-		let path = path.to_string();
-
-		let producer = OriginProducer::new();
-
-		// Consume an exact path, not a prefix.
-		let consumer = producer.consume_exact(path.clone());
-
-		// TODO: Optimize this, we don't need/want to download the entire prefix.
-		web_async::spawn(self.clone().run_announced(path, producer));
-
-		consumer
-	}
-
-	/// Subscribe to a specific broadcast.
-	///
-	/// TODO: This BroadcastConsumer may not be active and is never closed because it doesn't rely on announce.
-	pub fn consume(&self, path: &str) -> BroadcastConsumer {
-		if let Some(producer) = self.broadcasts.lock().get(path) {
-			return producer.consume();
-		}
-
-		let path = path.to_string();
-		let producer = BroadcastProducer::new();
-		let consumer = producer.consume();
-
-		// Run the broadcast in the background until all consumers are dropped.
-		spawn(self.clone().run_broadcast(path, producer));
-
-		consumer
-	}
-
-	async fn run_broadcast(self, path: String, mut broadcast: BroadcastProducer) {
+	async fn run_broadcast(self, name: String, mut broadcast: BroadcastProducer) {
 		// Actually start serving subscriptions.
 		loop {
 			// Keep serving requests until there are no more consumers.
@@ -152,17 +100,17 @@ impl Subscriber {
 			};
 
 			let id = self.next_id.fetch_add(1, atomic::Ordering::Relaxed);
-			let path = path.clone();
+			let name = name.clone();
 			let mut this = self.clone();
 
 			spawn(async move {
-				this.run_subscribe(id, path, track).await;
+				this.run_subscribe(id, name, track).await;
 				this.subscribes.lock().remove(&id);
 			});
 		}
 
 		// Remove the broadcast from the lookup.
-		self.broadcasts.lock().remove(&path);
+		self.broadcasts.lock().remove(&name);
 	}
 
 	async fn run_subscribe(&mut self, id: u64, broadcast: String, track: TrackProducer) {

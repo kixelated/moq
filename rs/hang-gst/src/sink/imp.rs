@@ -55,6 +55,10 @@ impl ObjectImpl for HangSink {
 					.nick("Source URL")
 					.blurb("Connect to the given URL")
 					.build(),
+				glib::ParamSpecString::builder("broadcast")
+					.nick("Broadcast")
+					.blurb("The name of the broadcast to publish")
+					.build(),
 				glib::ParamSpecBoolean::builder("tls-disable-verify")
 					.nick("TLS disable verify")
 					.blurb("Disable TLS verification")
@@ -70,6 +74,7 @@ impl ObjectImpl for HangSink {
 
 		match pspec.name() {
 			"url" => settings.url = value.get().unwrap(),
+			"broadcast" => settings.broadcast = value.get().unwrap(),
 			"tls-disable-verify" => settings.tls_disable_verify = value.get().unwrap(),
 			_ => unimplemented!(),
 		}
@@ -80,6 +85,7 @@ impl ObjectImpl for HangSink {
 
 		match pspec.name() {
 			"url" => settings.url.to_value(),
+			"broadcast" => settings.broadcast.to_value(),
 			"tls-disable-verify" => settings.tls_disable_verify.to_value(),
 			_ => unimplemented!(),
 		}
@@ -165,7 +171,7 @@ impl HangSink {
 			let mut session = moq_lite::Session::connect(session).await.expect("failed to connect");
 
 			let broadcast = hang::BroadcastProducer::new();
-			session.publish("", broadcast.inner.consume());
+			session.publish(settings.broadcast, broadcast.inner.consume());
 
 			let media = hang::cmaf::Import::new(broadcast);
 

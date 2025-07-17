@@ -11,7 +11,7 @@ export type Device = "screen" | "camera";
 
 export type BroadcastProps = {
 	enabled?: boolean;
-	path?: string;
+	name?: string;
 	audio?: AudioProps;
 	video?: VideoProps;
 	location?: LocationProps;
@@ -26,7 +26,7 @@ export type BroadcastProps = {
 export class Broadcast {
 	connection: Connection;
 	enabled: Signal<boolean>;
-	path: Signal<string>;
+	name: Signal<string | undefined>;
 
 	audio: Audio;
 	video: Video;
@@ -47,7 +47,7 @@ export class Broadcast {
 	constructor(connection: Connection, props?: BroadcastProps) {
 		this.connection = connection;
 		this.enabled = new Signal(props?.enabled ?? false);
-		this.path = new Signal(props?.path ?? "");
+		this.name = new Signal(props?.name);
 
 		this.audio = new Audio(this.#broadcast, props?.audio);
 		this.video = new Video(this.#broadcast, props?.video);
@@ -65,15 +65,15 @@ export class Broadcast {
 			const connection = effect.get(this.connection.established);
 			if (!connection) return;
 
-			const path = effect.get(this.path);
-			if (path === undefined) return;
+			const name = effect.get(this.name);
+			if (!name) return;
 
 			// Publish the broadcast to the connection.
 			const consume = this.#broadcast.consume();
 
 			// Unpublish the broadcast by closing the consumer but not the publisher.
 			effect.cleanup(() => consume.close());
-			connection.publish(path, consume);
+			connection.publish(name, consume);
 
 			this.#published.set(true);
 			effect.cleanup(() => this.#published.set(false));
@@ -191,7 +191,7 @@ export class Broadcast {
 		catalogGroup.writeFrame(encoded);
 		catalogGroup.close();
 
-		console.debug("published catalog", this.path.peek(), catalog);
+		console.debug("published catalog", this.name.peek(), catalog);
 	}
 
 	close() {

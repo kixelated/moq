@@ -5,17 +5,17 @@ use web_async::Lock;
 use crate::model::{BroadcastConsumer, BroadcastProducer};
 
 pub struct Room {
-	pub path: String,
+	pub prefix: String,
 	broadcasts: moq_lite::OriginConsumer,
 	session: moq_lite::Session,
 	publishing: Lock<HashSet<String>>,
 }
 
 impl Room {
-	pub fn new(session: moq_lite::Session, path: String) -> Self {
+	pub fn new(session: moq_lite::Session, prefix: String) -> Self {
 		Self {
-			broadcasts: session.consume_prefix(&path),
-			path,
+			broadcasts: session.consume_prefix(&prefix),
+			prefix,
 			session,
 			publishing: Default::default(),
 		}
@@ -25,7 +25,7 @@ impl Room {
 	pub fn publish(&mut self, name: String, broadcast: BroadcastProducer) {
 		self.publishing.lock().insert(name.clone());
 
-		let path = format!("{}{}", self.path, name);
+		let path = format!("{}{}", self.prefix, name);
 		self.session.publish(path, broadcast.inner.consume());
 
 		let consumer = broadcast.inner.consume();
@@ -41,7 +41,7 @@ impl Room {
 	/// Returns the next broadcaster in the room (not including ourselves).
 	///
 	/// If None is returned, then the broadcaster with that name has stopped broadcasting or is being reannounced.
-	/// When reannounced, the old BroadcastConsumer won't necessarily be closed, so you might have two broadcasts with the same path.
+	/// When reannounced, the old BroadcastConsumer won't necessarily be closed, so you might have two broadcasts with the same name.
 	pub async fn watch(&mut self) -> Option<(String, Option<BroadcastConsumer>)> {
 		loop {
 			let (suffix, broadcast) = self.broadcasts.next().await?;

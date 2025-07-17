@@ -228,7 +228,7 @@ in
         # Generate cluster token for leaf nodes
         ${lib.optionalString (cfg.cluster.mode == "leaf" && cfg.auth.enable) ''
           ${pkgs.moq-token}/bin/moq-token --key "${cfg.stateDir}/root.jwk" sign \
-            --path "" --subscribe "" --publish "" --cluster \
+            --subscribe "" --publish "" --cluster \
             > "${cfg.stateDir}/cluster.jwt"
           chown ${cfg.user}:${cfg.group} "${cfg.stateDir}/cluster.jwt"
         ''}

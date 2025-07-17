@@ -1,74 +1,42 @@
-use crate::Cluster;
+use crate::{Auth, Cluster};
 
 pub struct Connection {
 	pub id: u64,
 	pub session: web_transport::Session,
 	pub cluster: Cluster,
-	pub token: moq_token::Claims,
+	pub auth: Auth,
 }
 
 impl Connection {
-	#[tracing::instrument("conn", skip_all, fields(id = self.id, path = %self.token.path))]
-	pub async fn run(mut self) {
-		let mut session = match moq_lite::Session::accept(self.session).await {
-			Ok(session) => session,
-			Err(err) => {
-				tracing::warn!(?err, "failed to accept session");
-				return;
-			}
-		};
+	#[tracing::instrument("conn", skip_all, fields(id = self.id))]
+	pub async fn run(&mut self) -> anyhow::Result<()> {
+		let token = self.auth.verify(self.session.url())?;
 
-		// Publish all primary and secondary broadcasts to the session.
-		if let Some(subscribe) = self.token.subscribe {
-			let full = format!("{}{}", self.token.path, subscribe);
-
-			// If the path ends with a /, then this is a folder and is treated as a prefix.
-			let primary = if full.is_empty() || full.ends_with("/") {
-				self.cluster.primary.consume_prefix(&full)
-			} else {
-				// Otherwise this is a specific broadcast.
-				self.cluster.primary.consume_exact(&full)
-			};
-
-			session.publish_prefix(&subscribe, primary);
-
-			// Cluster nodes don't consume secondary broadcasts, only primaries.
-			if !self.token.cluster {
-				// TODO prefer primary broadcasts if there's a tie?
-				let secondary = if full.is_empty() || full.ends_with("/") {
-					self.cluster.secondary.consume_prefix(&full)
-				} else {
-					self.cluster.secondary.consume_exact(&full)
-				};
-
-				session.publish_prefix(&subscribe, secondary);
-			}
+		// Publish these broadcasts to the session.
+		let mut publish = None;
+		if let Some(prefix) = token.subscribe {
+			let prefix = format!("{}{}", token.root, prefix);
+			publish = Some(match token.cluster {
+				true => self.cluster.primary.consume_prefix(&prefix),
+				false => self.cluster.combined.consume_prefix(&prefix),
+			});
 		}
 
-		// Publish all broadcasts produced by the session to the local origin.
-		// TODO These need to be published to remotes if it's a relay.
-		if let Some(publish) = self.token.publish {
-			let full = format!("{}{}", self.token.path, publish);
-
-			// If this client is a cluster node, then we mark their broadcasts as secondary.
-			// We don't announce secondary broadcasts to other cluster nodes.
-			let cluster = match self.token.cluster {
-				true => &mut self.cluster.secondary,
-				false => &mut self.cluster.primary,
-			};
-
-			if full.is_empty() || full.ends_with("/") {
-				let produced = session.consume_prefix(&publish);
-				cluster.publish_prefix(&full, produced);
-			} else {
-				let produced = session.consume_exact(&publish);
-				cluster.publish_prefix(&full, produced);
-			}
+		// Consume these broadcasts from the session.
+		let mut consume = None;
+		if let Some(prefix) = token.publish {
+			// If this is a cluster node, then add its broadcasts to the secondary origin.
+			// That way we won't publish them to other cluster nodes.
+			let prefix = format!("{}{}", token.root, prefix);
+			consume = Some(match token.cluster {
+				true => self.cluster.secondary.publish_prefix(&prefix),
+				false => self.cluster.primary.publish_prefix(&prefix),
+			});
 		}
+
+		let session = moq_lite::SessionOrigin::accept(self.session.clone(), consume, publish).await?;
 
 		// Wait until the session is closed.
-		let err = session.closed().await;
-
-		tracing::info!(?err, "connection terminated");
+		Err(session.closed().await.into())
 	}
 }

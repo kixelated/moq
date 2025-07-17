@@ -54,6 +54,9 @@ pub enum Error {
 
 	#[error("protocol violation")]
 	ProtocolViolation,
+
+	#[error("unauthorized")]
+	Unauthorized,
 }
 
 impl Error {
@@ -73,6 +76,7 @@ impl Error {
 			Self::NotFound => 13,
 			Self::WrongSize => 14,
 			Self::ProtocolViolation => 15,
+			Self::Unauthorized => 16,
 			Self::App(app) => *app + 64,
 		}
 	}

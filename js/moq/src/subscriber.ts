@@ -53,7 +53,7 @@ export class Subscriber {
 					const full = prefix.concat(announce.suffix);
 
 					console.debug(`announced: broadcast=${full} active=${announce.active}`);
-					producer.write({ path: full, active: announce.active });
+					producer.write({ name: full, active: announce.active });
 
 					// Just for logging
 					if (announce.active) {
@@ -83,10 +83,10 @@ export class Subscriber {
 	 * If to consume the same broadcast twice, and subscribe to the same tracks twice, then network usage is doubled.
 	 * However, you can call `clone()` on the consumer to deduplicate and share the same handle.
 	 *
-	 * @param path - The path of the broadcast to consume
+	 * @param name - The name of the broadcast to consume
 	 * @returns A BroadcastConsumer instance
 	 */
-	consume(path: string): BroadcastConsumer {
+	consume(name: string): BroadcastConsumer {
 		const producer = new BroadcastProducer();
 		const consumer = producer.consume();
 
@@ -97,7 +97,7 @@ export class Subscriber {
 			producer.insertTrack(track.consume());
 
 			// Perform the subscription in the background.
-			this.#runSubscribe(path, track).finally(() => {
+			this.#runSubscribe(name, track).finally(() => {
 				try {
 					producer.removeTrack(track.name);
 				} catch {
@@ -115,26 +115,26 @@ export class Subscriber {
 		return consumer;
 	}
 
-	async #runSubscribe(path: string, track: TrackProducer) {
+	async #runSubscribe(name: string, track: TrackProducer) {
 		const id = this.#subscribeNext++;
 
 		// Save the writer so we can append groups to it.
 		this.#subscribes.set(id, track);
 
-		const msg = new Wire.Subscribe(id, path, track.name, track.priority);
+		const msg = new Wire.Subscribe(id, name, track.name, track.priority);
 
 		const stream = await Wire.Stream.open(this.#quic, msg);
 		try {
 			await Wire.SubscribeOk.decode(stream.reader);
-			console.debug(`subscribe ok: id=${id} broadcast=${path} track=${track.name}`);
+			console.debug(`subscribe ok: id=${id} broadcast=${name} track=${track.name}`);
 
 			await Promise.race([stream.reader.closed(), track.unused()]);
 
 			track.close();
-			console.debug(`subscribe close: id=${id} broadcast=${path} track=${track.name}`);
+			console.debug(`subscribe close: id=${id} broadcast=${name} track=${track.name}`);
 		} catch (err) {
 			track.abort(error(err));
-			console.warn(`subscribe error: id=${id} broadcast=${path} track=${track.name} error=${error(err)}`);
+			console.warn(`subscribe error: id=${id} broadcast=${name} track=${track.name} error=${error(err)}`);
 		} finally {
 			this.#subscribes.delete(id);
 			stream.close();

@@ -45,8 +45,8 @@ cluster:
 	js/node_modules/.bin/concurrently --kill-others --names root,leaf,bbb,tos,web --prefix-colors auto \
 		"just relay" \
 		"sleep 1 && just leaf" \
-		"sleep 2 && just pub bbb http://localhost:4443/demo" \
-		"sleep 3 && just pub tos http://localhost:4444/demo" \
+		"sleep 2 && just pub bbb http://localhost:4443/" \
+		"sleep 3 && just pub tos http://localhost:4444/" \
 		"sleep 4 && just web"
 
 # Run a leaf node
@@ -54,15 +54,15 @@ leaf:
 	just --justfile rs/justfile leaf
 
 # Publish a video using ffmpeg to the localhost relay server
-pub name url='http://localhost:4443/demo':
+pub name url='http://localhost:4443/':
 	just --justfile rs/justfile pub {{name}} {{url}}
 
 # Publish a video using gstreamer to the localhost relay server
-pub-gst name url='http://localhost:4443/demo':
+pub-gst name url='http://localhost:4443/':
 	just --justfile rs/justfile pub-gst {{name}} {{url}}
 
 # Subscribe to a video using gstreamer
-sub name url='http://localhost:4443/demo':
+sub name url='http://localhost:4443/':
 	just --justfile rs/justfile sub {{name}} {{url}}
 
 # Publish a video using ffmpeg directly from hang to the localhost

@@ -24,6 +24,10 @@ pub enum Command {
 		#[command(flatten)]
 		config: moq_native::ServerConfig,
 
+		/// The name of the broadcast to serve.
+		#[arg(long)]
+		broadcast: String,
+
 		/// Optionally serve static files from the given directory.
 		#[arg(long)]
 		dir: Option<PathBuf>,
@@ -37,11 +41,18 @@ pub enum Command {
 		///
 		/// The URL must start with `https://` or `http://`.
 		/// - If `http` is used, a HTTP fetch to "/certificate.sha256" is first made to get the TLS certificiate fingerprint (insecure).
-		///   The URL is then upgraded to `https`.
-		///
 		/// - If `https` is used, then A WebTransport connection is made via QUIC to the provided host/port.
-		///   The path is used to identify the broadcast, with the rest of the URL (ex. query/fragment) currently ignored.
+		///
+		/// The `?jwt=` query parameter is used to provide a JWT token from moq-token-cli.
+		/// Otherwise, the public path (if any) is used instead.
+		///
+		/// The path currently must be `/` or you'll get an error on connect.
+		#[arg(long)]
 		url: Url,
+
+		/// The name of the broadcast to publish.
+		#[arg(long)]
+		broadcast: String,
 	},
 }
 
@@ -51,7 +62,7 @@ async fn main() -> anyhow::Result<()> {
 	cli.log.init();
 
 	match cli.command {
-		Command::Serve { config, dir } => server(config, dir, &mut tokio::io::stdin()).await,
-		Command::Publish { config, url } => client(config, url, &mut tokio::io::stdin()).await,
+		Command::Serve { config, dir, broadcast } => server(config, broadcast, dir, &mut tokio::io::stdin()).await,
+		Command::Publish { config, url, broadcast } => client(config, url, broadcast, &mut tokio::io::stdin()).await,
 	}
 }

@@ -51,7 +51,8 @@ There's also a Javascript API for more advanced use cases; see below.
 <body>
     <!-- Publish camera/microphone -->
     <hang-publish
-        url="https://relay.example.com/demo/me"
+        url="https://relay.example.com/"
+		name="me"
         audio
         video
         controls>
@@ -61,7 +62,8 @@ There's also a Javascript API for more advanced use cases; see below.
 
     <!-- Watch live stream the live stream we're publishing -->
     <hang-watch
-        url="https://relay.example.com/demo/me"
+        url="https://relay.example.com/"
+		name="me"
         controls>
         <!-- Optional: canvas for rendering video, otherwise only audio will play -->
         <canvas style="width: 100%; border-radius: 8px;"></canvas>
@@ -102,8 +104,8 @@ But it's also useful because you can use the `.subscribe` method to receive an e
 Subscribes to a hang broadcast and renders it.
 
 **Attributes:**
-- `url` (required): The URL of the server, optionally including the path of the broadcast. Nothing is loaded until set.
-- `path` (optional): The broadcast path relative to the URL.
+- `url` (required): The URL of the server, potentially authenticated via a `?jwt` token.
+- `name` (required): The name of the broadcast.
 - `controls`: Show simple playback controls.
 - `paused`: Pause playback.
 - `muted`: Mute audio playback.
@@ -115,8 +117,10 @@ Subscribes to a hang broadcast and renders it.
     import "@kixelated/hang/watch/element";
 </script>
 
+<!-- NOTE: You'll also need to publish a broadcast with the same name. See below. -->
 <hang-watch
-    url="https://relay.quic.video/demo/bbb.hang"
+    url="https://relay.quic.video/"
+	name="room123/me"
     controls>
 	<!-- canvas for rendering, otherwise video element will be disabled -->
     <canvas></canvas>
@@ -129,8 +133,8 @@ Subscribes to a hang broadcast and renders it.
 Publishes a microphone/camera or screen as a hang broadcast.
 
 **Attributes:**
-- `url` (required): The URL of the server, optionally including the path of the broadcast. Nothing is published until set.
-- `path` (optional): The broadcast path relative to the URL.
+- `url` (required): The URL of the server, potentially authenticated via a `?jwt` token.
+- `name` (required): The name of the broadcast.
 - `device`: "camera" or "screen".
 - `audio`: Enable audio capture.
 - `video`: Enable video capture
@@ -142,7 +146,7 @@ Publishes a microphone/camera or screen as a hang broadcast.
 </script>
 
 <hang-publish
-    url="https://relay.quic.video/demo/me.hang" audio video controls>
+    url="https://relay.quic.video/" name="room123/me" audio video controls>
     <!-- Optional: video element for preview -->
     <video autoplay muted></video>
 </hang-publish>
@@ -159,13 +163,14 @@ Very crude and best as an example; use the JS API instead.
 </script>
 
 <hang-meet
-    url="https://relay.quic.video/demo/"
+    url="https://relay.quic.video/"
+	name="room123/"
     audio video
     controls>
 </hang-meet>
 ```
 
-This will discover any broadcasts that start with `demo/` and render them.
+This will discover any broadcasts that start with `room123/` and render them.
 You can also specify a `<hang-publish>` child element to publish your own broadcast, using a local preview instead of downloading it.
 
 ### `<hang-support>`
@@ -191,24 +196,24 @@ You're on your own when it comes to documentation... for now.
 import * as Hang from "@kixelated/hang";
 
 // Create a new connection, available via `.established`
-const connection = new Hang.Connection("https://relay.quic.video");
+const connection = new Hang.Connection("https://relay.quic.video/");
 
 // Publishing media, with (optional) initial settings
 const publish = new Hang.Publish.Broadcast(connection, {
 	enabled: true,
-	path: "demo/bbb",
+	name: "bob",
     video: { enabled: true, device: "camera" },
 });
 
 // Subscribing to media, with (optional) initial settings
 const watch = new Hang.Watch.Broadcast(connection, {
 	enabled: true,
-	path: "demo/bbb",
+	name: "bob",
 	video: { enabled: true },
 });
 
 // Note that virtually everything is reactive, so you can change settings at any time.
-publish.path.set("demo/alice");
+publish.name.set("alice");
 watch.audio.enabled.set(true);
 ```
 

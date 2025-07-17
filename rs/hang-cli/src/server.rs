@@ -14,6 +14,7 @@ use tower_http::services::ServeDir;
 
 pub async fn server<T: AsyncRead + Unpin>(
 	config: moq_native::ServerConfig,
+	broadcast: String,
 	public: Option<PathBuf>,
 	input: &mut T,
 ) -> anyhow::Result<()> {
@@ -31,13 +32,13 @@ pub async fn server<T: AsyncRead + Unpin>(
 	let consumer = producer.consume();
 
 	tokio::select! {
-		res = accept(server, consumer) => res,
+		res = accept(server, broadcast, consumer) => res,
 		res = publish(producer, input) => res,
 		res = web(listen, fingerprints, public) => res,
 	}
 }
 
-async fn accept(mut server: moq_native::Server, consumer: BroadcastConsumer) -> anyhow::Result<()> {
+async fn accept(mut server: moq_native::Server, broadcast: String, consumer: BroadcastConsumer) -> anyhow::Result<()> {
 	let mut conn_id = 0;
 
 	tracing::info!(addr = ?server.local_addr(), "listening");
@@ -47,6 +48,7 @@ async fn accept(mut server: moq_native::Server, consumer: BroadcastConsumer) -> 
 		conn_id += 1;
 
 		let consumer = consumer.clone();
+		let broadcast = broadcast.clone();
 
 		// Handle the connection in a new task.
 		tokio::spawn(async move {
@@ -57,8 +59,7 @@ async fn accept(mut server: moq_native::Server, consumer: BroadcastConsumer) -> 
 
 			tracing::info!(?id, "accepted session");
 
-			// The path is relative to the URL, so it's empty because we only publish one broadcast.
-			session.publish("", consumer.inner.clone());
+			session.publish(broadcast, consumer.inner.clone());
 		});
 	}
 

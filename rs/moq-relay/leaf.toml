@@ -61,7 +61,5 @@ tls.disable_verify = true
 # `just leaf` will populate this file.
 key = "dev/root.jwk"
 
-# Special auth logic based on the path.
-[auth.path.demo]
-# In this case, we're disabling authentication for paths that start with `demo/` to make it easier to test.
-key = ""
+# Allow anonymous users, transparently putting them under this prefix.
+public = "anon/"

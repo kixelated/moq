@@ -6,7 +6,7 @@ import { type WatchConsumer, WatchProducer } from "./util/watch";
  * @public
  */
 export interface Announce {
-	path: string;
+	name: string;
 	active: boolean;
 }
 
@@ -97,11 +97,11 @@ export class AnnouncedConsumer {
 
 			while (this.#index < queue.length) {
 				const announce = queue.at(this.#index++);
-				if (!announce?.path.startsWith(this.prefix)) continue;
+				if (!announce?.name.startsWith(this.prefix)) continue;
 
 				// We have to remove the prefix so we only return our suffix.
 				return {
-					path: announce.path.slice(this.prefix.length),
+					name: announce.name.slice(this.prefix.length),
 					active: announce.active,
 				};
 			}

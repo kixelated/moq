@@ -32,44 +32,44 @@ export class Publisher {
 
 	/**
 	 * Gets a broadcast reader for the specified broadcast.
-	 * @param broadcast - The name of the broadcast to consume
+	 * @param name - The name of the broadcast to consume
 	 * @returns A BroadcastConsumer instance or undefined if not found
 	 */
-	consume(path: string): BroadcastConsumer | undefined {
-		return this.#broadcasts.get(path)?.clone();
+	consume(name: string): BroadcastConsumer | undefined {
+		return this.#broadcasts.get(name)?.clone();
 	}
 
 	/**
 	 * Publishes a broadcast with any associated tracks.
-	 * @param broadcast - The broadcast to publish
+	 * @param name - The broadcast to publish
 	 */
-	publish(path: string, broadcast: BroadcastConsumer) {
-		this.#broadcasts.set(path, broadcast);
-		void this.#runPublish(path, broadcast);
+	publish(name: string, broadcast: BroadcastConsumer) {
+		this.#broadcasts.set(name, broadcast);
+		void this.#runPublish(name, broadcast);
 	}
 
-	async #runPublish(path: string, broadcast: BroadcastConsumer) {
+	async #runPublish(name: string, broadcast: BroadcastConsumer) {
 		try {
 			this.#announced.write({
-				path,
+				name,
 				active: true,
 			});
 
-			console.debug(`announce: broadcast=${path} active=true`);
+			console.debug(`announce: broadcast=${name} active=true`);
 
 			// Wait until the broadcast is closed, then remove it from the lookup.
 			await broadcast.closed();
 
-			console.debug(`announce: broadcast=${path} active=false`);
+			console.debug(`announce: broadcast=${name} active=false`);
 		} catch (err: unknown) {
-			console.warn(`announce: broadcast=${path} error=${error(err)}`);
+			console.warn(`announce: broadcast=${name} error=${error(err)}`);
 		} finally {
 			broadcast.close();
 
-			this.#broadcasts.delete(path);
+			this.#broadcasts.delete(name);
 
 			this.#announced.write({
-				path,
+				name,
 				active: false,
 			});
 		}
@@ -89,7 +89,7 @@ export class Publisher {
 			const announcement = await consumer.next();
 			if (!announcement) break;
 
-			const wire = new Wire.Announce(announcement.path, announcement.active);
+			const wire = new Wire.Announce(announcement.name, announcement.active);
 			await wire.encode(stream.writer);
 		}
 	}

@@ -40,24 +40,21 @@ async fn main() -> anyhow::Result<()> {
 	let mut conn_id = 0;
 
 	while let Some(conn) = server.accept().await {
-		let token = match auth.validate(conn.url()) {
-			Ok(token) => token,
-			Err(err) => {
-				tracing::warn!(?err, "failed to validate token");
-				conn.close(1, b"invalid token");
-				continue;
-			}
-		};
-
-		let conn = Connection {
+		let mut conn = Connection {
 			id: conn_id,
 			session: conn.into(),
 			cluster: cluster.clone(),
-			token,
+			auth: auth.clone(),
 		};
 
 		conn_id += 1;
-		tokio::spawn(conn.run());
+		tokio::spawn(async move {
+			let err = conn.run().await;
+			if let Err(err) = err {
+				tracing::warn!(?err, "connection closed");
+				conn.session.close(1, err.to_string().as_str());
+			}
+		});
 	}
 
 	Ok(())

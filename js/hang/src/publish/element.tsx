@@ -5,7 +5,7 @@ import { render } from "solid-js/web";
 import { Connection } from "../connection";
 import { Broadcast, type Device } from "./broadcast";
 
-const OBSERVED = ["url", "path", "device", "audio", "video", "controls"] as const;
+const OBSERVED = ["url", "name", "device", "audio", "video", "controls"] as const;
 type Observed = (typeof OBSERVED)[number];
 
 export default class HangPublish extends HTMLElement {
@@ -57,8 +57,8 @@ export default class HangPublish extends HTMLElement {
 	attributeChangedCallback(name: Observed, _oldValue: string | null, newValue: string | null) {
 		if (name === "url") {
 			this.url = newValue ? new URL(newValue) : undefined;
-		} else if (name === "path") {
-			this.path = newValue ?? "";
+		} else if (name === "name") {
+			this.name = newValue ?? undefined;
 		} else if (name === "device") {
 			if (newValue === "camera" || newValue === "screen" || newValue === null) {
 				this.device = newValue ?? undefined;
@@ -85,12 +85,12 @@ export default class HangPublish extends HTMLElement {
 		this.connection.url.set(url);
 	}
 
-	get path(): string {
-		return this.broadcast.path.peek();
+	get name(): string | undefined {
+		return this.broadcast.name.peek();
 	}
 
-	set path(path: string) {
-		this.broadcast.path.set(path);
+	set name(name: string | undefined) {
+		this.broadcast.name.set(name);
 	}
 
 	get device(): Device | undefined {

@@ -9,6 +9,7 @@ use url::Url;
 pub async fn client<T: AsyncRead + Unpin>(
 	config: moq_native::ClientConfig,
 	url: Url,
+	broadcast: String,
 	input: &mut T,
 ) -> anyhow::Result<()> {
 	let producer = BroadcastProducer::new();
@@ -18,19 +19,24 @@ pub async fn client<T: AsyncRead + Unpin>(
 
 	// Connect to the remote and start parsing stdin in parallel.
 	tokio::select! {
-		res = connect(client, url, consumer) => res,
+		res = connect(client, url, broadcast, consumer) => res,
 		res = publish(producer, input) => res,
 	}
 }
 
-async fn connect(client: moq_native::Client, url: Url, consumer: BroadcastConsumer) -> anyhow::Result<()> {
+async fn connect(
+	client: moq_native::Client,
+	url: Url,
+	broadcast: String,
+	consumer: BroadcastConsumer,
+) -> anyhow::Result<()> {
 	tracing::info!(%url, "connecting");
 
 	let session = client.connect(url).await?;
 	let mut session = Session::connect(session).await?;
 
 	// The path is relative to the URL, so it's empty because we only publish one broadcast.
-	session.publish("", consumer.inner.clone());
+	session.publish(broadcast, consumer.inner.clone());
 
 	tokio::select! {
 		// On ctrl-c, close the session and exit.

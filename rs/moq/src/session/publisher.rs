@@ -1,64 +1,57 @@
 use web_async::FuturesExt;
 
-use crate::{
-	message, model::GroupConsumer, BroadcastConsumer, Error, OriginConsumer, OriginProducer, Track, TrackConsumer,
-};
+use crate::{message, model::GroupConsumer, Error, OriginConsumer, Track, TrackConsumer};
 
 use super::{Stream, Writer};
 
 #[derive(Clone)]
 pub(super) struct Publisher {
 	session: web_transport::Session,
-	broadcasts: OriginProducer,
+	// If None, then error on every request.
+	origin: Option<OriginConsumer>,
 }
 
 impl Publisher {
-	pub fn new(session: web_transport::Session) -> Self {
-		Self {
-			session,
-			broadcasts: OriginProducer::new(),
-		}
+	pub fn new(session: web_transport::Session, origin: Option<OriginConsumer>) -> Self {
+		Self { session, origin }
 	}
 
-	/// Publish a broadcast.
-	pub fn publish<T: ToString>(&mut self, path: T, broadcast: BroadcastConsumer) {
-		self.broadcasts.publish(path, broadcast);
-	}
+	/*
+	pub async fn run(self) -> Result<(), Error> {
+		let origin = match self.origin {
+			Some(origin) => origin,
+			None => return Ok(()),
+		};
 
-	/// Publish all broadcasts from the given origin with a prefix.
-	pub fn publish_prefix(&mut self, prefix: &str, broadcast: OriginConsumer) {
-		self.broadcasts.publish_prefix(prefix, broadcast);
+		// TODO await origin.closed()
 	}
-
-	/// Publish all broadcasts from the given origin
-	pub fn publish_all(&mut self, broadcasts: OriginConsumer) {
-		self.broadcasts.publish_all(broadcasts);
-	}
+	*/
 
 	pub async fn recv_announce(&mut self, stream: &mut Stream) -> Result<(), Error> {
 		let interest = stream.reader.decode::<message::AnnounceRequest>().await?;
+
 		let prefix = interest.prefix;
 
 		tracing::trace!(%prefix, "announce started");
 
 		let res = self.run_announce(stream, &prefix).await;
 		match res {
-			Err(Error::Cancel) => {
-				tracing::trace!(%prefix, "announce cancelled");
-			}
-			Err(err) => {
-				tracing::debug!(?err, %prefix, "announce error");
-			}
-			_ => {
-				tracing::trace!(%prefix, "announce complete");
-			}
+			Err(Error::Cancel) => tracing::trace!(%prefix, "announce cancelled"),
+			Err(err) => tracing::debug!(?err, %prefix, "announce error"),
+			_ => tracing::trace!(%prefix, "announce complete"),
 		}
 
 		Ok(())
 	}
 
 	async fn run_announce(&mut self, stream: &mut Stream, prefix: &str) -> Result<(), Error> {
-		let mut announced = self.broadcasts.consume_prefix(prefix);
+		let origin = self.origin.as_ref().ok_or(Error::Unauthorized)?;
+
+		if !prefix.starts_with(&origin.prefix) {
+			return Err(Error::Unauthorized);
+		}
+
+		let mut announced = origin.consume_prefix(prefix);
 
 		// Flush any synchronously announced paths
 		loop {
@@ -108,13 +101,19 @@ impl Publisher {
 	}
 
 	async fn run_subscribe(&mut self, stream: &mut Stream, subscribe: &mut message::Subscribe) -> Result<(), Error> {
+		let origin = self.origin.as_ref().ok_or(Error::Unauthorized)?;
+
+		if !subscribe.broadcast.starts_with(&origin.prefix) {
+			return Err(Error::Unauthorized);
+		}
+
 		let broadcast = subscribe.broadcast.clone();
 		let track = Track {
 			name: subscribe.track.clone(),
 			priority: subscribe.priority,
 		};
 
-		let broadcast = self.broadcasts.consume(&broadcast).ok_or(Error::NotFound)?;
+		let broadcast = origin.consume(&broadcast).ok_or(Error::NotFound)?;
 		let track = broadcast.subscribe(&track);
 
 		// TODO wait until track.info() to get the *real* priority
