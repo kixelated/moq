@@ -1,7 +1,7 @@
 import * as jose from "jose";
-import { z } from "zod/mini";
-import { algorithmSchema } from "./algorithm.js";
-import { type Claims, claimsSchema } from "./claims.js";
+import { z } from "zod";
+import { algorithmSchema } from "./algorithm";
+import { type Claims, claimsSchema, validateClaims } from "./claims";
 
 /**
  * Key operations that can be performed
@@ -10,31 +10,74 @@ export const operationSchema = z.enum(["sign", "verify", "decrypt", "encrypt"]);
 export type Operation = z.infer<typeof operationSchema>;
 
 /**
- * Key interface for JWT operations
+ * Key interface for JWT operations - matches Rust implementation
  */
 export const keySchema = z.object({
-	algorithm: algorithmSchema,
-	operations: z.array(operationSchema),
-	secret: z.string(),
+	alg: algorithmSchema,
+	key_ops: z.array(operationSchema),
+	k: z
+		.string()
+		.refine(
+			(secret) => {
+				// Validate base64url encoding
+				const base64urlRegex = /^[A-Za-z0-9_-]+$/;
+				return base64urlRegex.test(secret);
+			},
+			{
+				message: "Secret must be valid base64url encoded",
+			},
+		)
+		.refine(
+			(secret) => {
+				// Validate minimum length (at least 32 bytes when decoded)
+				try {
+					const decoded = Buffer.from(secret, "base64url");
+					return decoded.length >= 32;
+				} catch {
+					return false;
+				}
+			},
+			{
+				message: "Secret must be at least 32 bytes when decoded",
+			},
+		),
 	kid: z.optional(z.string()),
 });
 export type Key = z.infer<typeof keySchema>;
 
 export function load(jwk: string): Key {
-	const data = JSON.parse(jwk);
-	const key = keySchema.parse(data);
-	return key;
+	let data: unknown;
+	try {
+		data = JSON.parse(jwk);
+	} catch {
+		throw new Error("Failed to parse JWK: invalid JSON format");
+	}
+
+	try {
+		const key = keySchema.parse(data);
+		return key;
+	} catch (error) {
+		throw new Error(`Failed to validate JWK: ${error instanceof Error ? error.message : "unknown error"}`);
+	}
 }
 
 export async function sign(key: Key, claims: Claims): Promise<string> {
-	if (!key.operations.includes("sign")) {
-		throw new Error("Key does not support signing");
+	if (!key.key_ops.includes("sign")) {
+		throw new Error("Key does not support signing operation");
 	}
 
-	const secret = Buffer.from(key.secret, "base64url");
+	// Validate claims before signing
+	try {
+		claimsSchema.parse(claims);
+		validateClaims(claims);
+	} catch (error) {
+		throw new Error(`Invalid claims: ${error instanceof Error ? error.message : "unknown error"}`);
+	}
+
+	const secret = Buffer.from(key.k, "base64url");
 	const jwt = await new jose.SignJWT(claims)
 		.setProtectedHeader({
-			alg: key.algorithm,
+			alg: key.alg,
 			typ: "JWT",
 			...(key.kid && { kid: key.kid }),
 		})
@@ -44,17 +87,30 @@ export async function sign(key: Key, claims: Claims): Promise<string> {
 	return jwt;
 }
 
-export async function verify(key: Key, token: string): Promise<Claims> {
-	if (!key.operations.includes("verify")) {
-		throw new Error("Key does not support verification");
+export async function verify(key: Key, token: string, path: string): Promise<Claims> {
+	if (!key.key_ops.includes("verify")) {
+		throw new Error("Key does not support verification operation");
 	}
 
-	const secret = Buffer.from(key.secret, "base64url");
+	const secret = Buffer.from(key.k, "base64url");
 	const { payload } = await jose.jwtVerify(token, secret, {
-		algorithms: [key.algorithm],
+		algorithms: [key.alg],
 	});
 
-	const claims = claimsSchema.parse(payload);
+	let claims: Claims;
+	try {
+		claims = claimsSchema.parse(payload);
+	} catch (error) {
+		throw new Error(`Failed to parse token claims: ${error instanceof Error ? error.message : "unknown error"}`);
+	}
+
+	// Validate path matches
+	if (claims.path !== path) {
+		throw new Error("Token path does not match provided path");
+	}
+
+	// Validate claims structure and business rules
+	validateClaims(claims);
 
 	return claims;
 }

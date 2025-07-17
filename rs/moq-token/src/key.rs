@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{Algorithm, Claims};
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash, PartialOrd, Ord)]
 #[serde(rename_all = "camelCase")]
 pub enum KeyOperation {
 	Sign,
@@ -43,6 +43,7 @@ pub struct Key {
 	#[serde(skip)]
 	pub(crate) encode: OnceLock<EncodingKey>,
 }
+
 
 impl fmt::Debug for Key {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -174,4 +175,337 @@ fn generate_hmac_key<const SIZE: usize>() -> Vec<u8> {
 	let mut key = [0u8; SIZE];
 	aws_lc_rs::rand::fill(&mut key).unwrap();
 	key.to_vec()
+}
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+	use std::time::{Duration, SystemTime};
+
+	fn create_test_key() -> Key {
+		Key {
+			algorithm: Algorithm::HS256,
+			operations: [KeyOperation::Sign, KeyOperation::Verify].into(),
+			secret: b"test-secret-that-is-long-enough-for-hmac-sha256".to_vec(),
+			kid: Some("test-key-1".to_string()),
+			decode: Default::default(),
+			encode: Default::default(),
+		}
+	}
+
+	fn create_test_claims() -> Claims {
+		Claims {
+			path: "test-path/".to_string(),
+			publish: Some("test-pub".to_string()),
+			cluster: false,
+			subscribe: Some("test-sub".to_string()),
+			expires: Some(SystemTime::now() + Duration::from_secs(3600)),
+			issued: Some(SystemTime::now()),
+		}
+	}
+
+	#[test]
+	fn test_key_from_str_valid() {
+		let key = create_test_key();
+		let json = key.to_str().unwrap();
+		let loaded_key = Key::from_str(&json).unwrap();
+
+		assert_eq!(loaded_key.algorithm, key.algorithm);
+		assert_eq!(loaded_key.operations, key.operations);
+		assert_eq!(loaded_key.secret, key.secret);
+		assert_eq!(loaded_key.kid, key.kid);
+	}
+
+	#[test]
+	fn test_key_from_str_invalid_json() {
+		let result = Key::from_str("invalid json");
+		assert!(result.is_err());
+	}
+
+	#[test]
+	fn test_key_to_str() {
+		let key = create_test_key();
+		let json = key.to_str().unwrap();
+		assert!(json.contains("\"alg\":\"HS256\""));
+		assert!(json.contains("\"key_ops\""));
+		assert!(json.contains("\"sign\""));
+		assert!(json.contains("\"verify\""));
+		assert!(json.contains("\"kid\":\"test-key-1\""));
+	}
+
+	#[test]
+	fn test_key_sign_success() {
+		let key = create_test_key();
+		let claims = create_test_claims();
+		let token = key.sign(&claims).unwrap();
+
+		assert!(!token.is_empty());
+		assert_eq!(token.matches('.').count(), 2); // JWT format: header.payload.signature
+	}
+
+	#[test]
+	fn test_key_sign_no_permission() {
+		let mut key = create_test_key();
+		key.operations = [KeyOperation::Verify].into();
+		let claims = create_test_claims();
+
+		let result = key.sign(&claims);
+		assert!(result.is_err());
+		assert!(result.unwrap_err().to_string().contains("key does not support signing"));
+	}
+
+	#[test]
+	fn test_key_sign_invalid_claims() {
+		let key = create_test_key();
+		let invalid_claims = Claims {
+			path: "test-path/".to_string(),
+			publish: None,
+			subscribe: None,
+			cluster: false,
+			expires: None,
+			issued: None,
+		};
+
+		let result = key.sign(&invalid_claims);
+		assert!(result.is_err());
+		assert!(result
+			.unwrap_err()
+			.to_string()
+			.contains("no publish or subscribe paths specified"));
+	}
+
+	#[test]
+	fn test_key_verify_success() {
+		let key = create_test_key();
+		let claims = create_test_claims();
+		let token = key.sign(&claims).unwrap();
+
+		let verified_claims = key.verify(&token, &claims.path).unwrap();
+		assert_eq!(verified_claims.path, claims.path);
+		assert_eq!(verified_claims.publish, claims.publish);
+		assert_eq!(verified_claims.subscribe, claims.subscribe);
+		assert_eq!(verified_claims.cluster, claims.cluster);
+	}
+
+	#[test]
+	fn test_key_verify_no_permission() {
+		let mut key = create_test_key();
+		key.operations = [KeyOperation::Sign].into();
+
+		let result = key.verify("some.jwt.token", "test-path");
+		assert!(result.is_err());
+		assert!(result
+			.unwrap_err()
+			.to_string()
+			.contains("key does not support verification"));
+	}
+
+	#[test]
+	fn test_key_verify_invalid_token() {
+		let key = create_test_key();
+		let result = key.verify("invalid-token", "test-path");
+		assert!(result.is_err());
+	}
+
+	#[test]
+	fn test_key_verify_path_mismatch() {
+		let key = create_test_key();
+		let claims = create_test_claims();
+		let token = key.sign(&claims).unwrap();
+
+		let result = key.verify(&token, "different-path");
+		assert!(result.is_err());
+		assert!(result
+			.unwrap_err()
+			.to_string()
+			.contains("token path does not match provided path"));
+	}
+
+	#[test]
+	fn test_key_verify_expired_token() {
+		let key = create_test_key();
+		let mut claims = create_test_claims();
+		claims.expires = Some(SystemTime::now() - Duration::from_secs(3600)); // 1 hour ago
+		let token = key.sign(&claims).unwrap();
+
+		let result = key.verify(&token, &claims.path);
+		assert!(result.is_err());
+	}
+
+	#[test]
+	fn test_key_verify_token_without_exp() {
+		let key = create_test_key();
+		let claims = Claims {
+			path: "test-path/".to_string(),
+			publish: Some("test-pub".to_string()),
+			subscribe: None,
+			cluster: false,
+			expires: None,
+			issued: None,
+		};
+		let token = key.sign(&claims).unwrap();
+
+		let verified_claims = key.verify(&token, &claims.path).unwrap();
+		assert_eq!(verified_claims.path, claims.path);
+		assert_eq!(verified_claims.publish, claims.publish);
+		assert_eq!(verified_claims.expires, None);
+	}
+
+	#[test]
+	fn test_key_round_trip() {
+		let key = create_test_key();
+		let original_claims = Claims {
+			path: "test-path/".to_string(),
+			publish: Some("test-pub".to_string()),
+			subscribe: Some("test-sub".to_string()),
+			cluster: true,
+			expires: Some(SystemTime::now() + Duration::from_secs(3600)),
+			issued: Some(SystemTime::now()),
+		};
+
+		let token = key.sign(&original_claims).unwrap();
+		let verified_claims = key.verify(&token, &original_claims.path).unwrap();
+
+		assert_eq!(verified_claims.path, original_claims.path);
+		assert_eq!(verified_claims.publish, original_claims.publish);
+		assert_eq!(verified_claims.subscribe, original_claims.subscribe);
+		assert_eq!(verified_claims.cluster, original_claims.cluster);
+	}
+
+	#[test]
+	fn test_key_generate_hs256() {
+		let key = Key::generate(Algorithm::HS256, Some("test-id".to_string()));
+		assert_eq!(key.algorithm, Algorithm::HS256);
+		assert_eq!(key.kid, Some("test-id".to_string()));
+		assert_eq!(key.operations, [KeyOperation::Sign, KeyOperation::Verify].into());
+		assert_eq!(key.secret.len(), 32);
+	}
+
+	#[test]
+	fn test_key_generate_hs384() {
+		let key = Key::generate(Algorithm::HS384, Some("test-id".to_string()));
+		assert_eq!(key.algorithm, Algorithm::HS384);
+		assert_eq!(key.secret.len(), 48);
+	}
+
+	#[test]
+	fn test_key_generate_hs512() {
+		let key = Key::generate(Algorithm::HS512, Some("test-id".to_string()));
+		assert_eq!(key.algorithm, Algorithm::HS512);
+		assert_eq!(key.secret.len(), 64);
+	}
+
+	#[test]
+	fn test_key_generate_without_id() {
+		let key = Key::generate(Algorithm::HS256, None);
+		assert_eq!(key.algorithm, Algorithm::HS256);
+		assert_eq!(key.kid, None);
+		assert_eq!(key.operations, [KeyOperation::Sign, KeyOperation::Verify].into());
+	}
+
+	#[test]
+	fn test_key_generate_sign_verify_cycle() {
+		let key = Key::generate(Algorithm::HS256, Some("test-id".to_string()));
+		let claims = create_test_claims();
+
+		let token = key.sign(&claims).unwrap();
+		let verified_claims = key.verify(&token, &claims.path).unwrap();
+
+		assert_eq!(verified_claims.path, claims.path);
+		assert_eq!(verified_claims.publish, claims.publish);
+		assert_eq!(verified_claims.subscribe, claims.subscribe);
+		assert_eq!(verified_claims.cluster, claims.cluster);
+	}
+
+	#[test]
+	fn test_key_debug_no_secret() {
+		let key = create_test_key();
+		let debug_str = format!("{key:?}");
+
+		assert!(debug_str.contains("algorithm: HS256"));
+		assert!(debug_str.contains("operations"));
+		assert!(debug_str.contains("kid: Some(\"test-key-1\")"));
+		assert!(!debug_str.contains("secret")); // Should not contain secret
+	}
+
+	#[test]
+	fn test_key_operations_enum() {
+		let sign_op = KeyOperation::Sign;
+		let verify_op = KeyOperation::Verify;
+		let decrypt_op = KeyOperation::Decrypt;
+		let encrypt_op = KeyOperation::Encrypt;
+
+		assert_eq!(sign_op, KeyOperation::Sign);
+		assert_eq!(verify_op, KeyOperation::Verify);
+		assert_eq!(decrypt_op, KeyOperation::Decrypt);
+		assert_eq!(encrypt_op, KeyOperation::Encrypt);
+
+		assert_ne!(sign_op, verify_op);
+		assert_ne!(decrypt_op, encrypt_op);
+	}
+
+	#[test]
+	fn test_key_operations_serde() {
+		let operations = [KeyOperation::Sign, KeyOperation::Verify];
+		let json = serde_json::to_string(&operations).unwrap();
+		assert!(json.contains("\"sign\""));
+		assert!(json.contains("\"verify\""));
+
+		let deserialized: Vec<KeyOperation> = serde_json::from_str(&json).unwrap();
+		assert_eq!(deserialized, operations);
+	}
+
+	#[test]
+	fn test_key_serde() {
+		let key = create_test_key();
+		let json = serde_json::to_string(&key).unwrap();
+		let deserialized: Key = serde_json::from_str(&json).unwrap();
+
+		assert_eq!(deserialized.algorithm, key.algorithm);
+		assert_eq!(deserialized.operations, key.operations);
+		assert_eq!(deserialized.secret, key.secret);
+		assert_eq!(deserialized.kid, key.kid);
+	}
+
+	#[test]
+	fn test_key_clone() {
+		let key = create_test_key();
+		let cloned = key.clone();
+
+		assert_eq!(cloned.algorithm, key.algorithm);
+		assert_eq!(cloned.operations, key.operations);
+		assert_eq!(cloned.secret, key.secret);
+		assert_eq!(cloned.kid, key.kid);
+	}
+
+
+
+	#[test]
+	fn test_different_algorithms() {
+		let key_256 = Key::generate(Algorithm::HS256, Some("test-id".to_string()));
+		let key_384 = Key::generate(Algorithm::HS384, Some("test-id".to_string()));
+		let key_512 = Key::generate(Algorithm::HS512, Some("test-id".to_string()));
+
+		let claims = create_test_claims();
+
+		// Test that each algorithm can sign and verify
+		for key in [key_256, key_384, key_512] {
+			let token = key.sign(&claims).unwrap();
+			let verified_claims = key.verify(&token, &claims.path).unwrap();
+			assert_eq!(verified_claims.path, claims.path);
+		}
+	}
+
+	#[test]
+	fn test_cross_algorithm_verification_fails() {
+		let key_256 = Key::generate(Algorithm::HS256, Some("test-id".to_string()));
+		let key_384 = Key::generate(Algorithm::HS384, Some("test-id".to_string()));
+
+		let claims = create_test_claims();
+		let token = key_256.sign(&claims).unwrap();
+
+		// Different algorithm should fail verification
+		let result = key_384.verify(&token, &claims.path);
+		assert!(result.is_err());
+	}
 }
