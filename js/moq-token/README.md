@@ -25,8 +25,8 @@ const key = load(jwkString);
 // Create claims
 const claims: Claims = {
 	root: 'demo/',
-	publish: 'bbb',
-	subscribe: 'bbb',
+	publish: 'bbb', // Only `demo/bbb`
+	subscribe: '',  // Any broadcast starting with `demo/`
 	expires: new Date(Date.now() + 3600000), // 1 hour from now
 	issued: new Date()
 };
