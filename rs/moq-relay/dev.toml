@@ -69,5 +69,5 @@ tls.generate = ["localhost"]
 # If you want to disable authentication, don't specify a key.
 key = "dev/root.jwk"
 
-# Allow anonymous users, transparently putting them under this prefix.
-public = "anon/"
+# Allow anonymous publishing and subscribing for this prefix.
+public = "demo/"

@@ -78,7 +78,7 @@ pub name url='http://localhost:4443/':
 		-i "dev/{{name}}.fmp4" \
 		-c copy \
 		-f mp4 -movflags cmaf+separate_moof+delay_moov+skip_trailer+frag_every_frame \
-		- | cargo run --bin hang -- publish --url "{{url}}" --broadcast "{{name}}"
+		- | cargo run --bin hang -- publish --url "{{url}}" --broadcast "demo/{{name}}"
 
 # Publish a video using gstreamer to the localhost relay server
 pub-gst name url='http://localhost:4443/':
@@ -119,7 +119,7 @@ serve name:
 		-i "dev/{{name}}.fmp4" \
 		-c copy \
 		-f mp4 -movflags cmaf+separate_moof+delay_moov+skip_trailer+frag_every_frame \
-		- | cargo run --bin hang -- serve --listen "[::]:4443" --tls-generate "localhost" --broadcast "{{name}}"
+		- | cargo run --bin hang -- serve --listen "[::]:4443" --tls-generate "localhost" --broadcast "demo/{{name}}"
 
 # Publish the clock broadcast
 # `action` is either `publish` or `subscribe`
@@ -129,7 +129,7 @@ clock action url='http://localhost:4443/':
 		exit 1; \
 	fi
 
-	cargo run --bin moq-clock -- "{{url}}" --broadcast "clock" {{action}}
+	cargo run --bin moq-clock -- "{{url}}" --broadcast "demo/clock" {{action}}
 
 # Run the CI checks
 check flags="":

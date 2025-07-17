@@ -61,5 +61,5 @@ tls.disable_verify = true
 # `just leaf` will populate this file.
 key = "dev/root.jwk"
 
-# Allow anonymous users, transparently putting them under this prefix.
-public = "anon/"
+# Allow anonymous publishing and subscribing for this prefix.
+public = "demo/"
