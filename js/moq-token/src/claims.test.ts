@@ -309,7 +309,7 @@ test("claims schema - additional properties ignored", () => {
 	const result = claimsSchema.parse(claims);
 	assert.strictEqual(result.path, claims.path);
 	assert.strictEqual(result.pub, claims.pub);
-	assert.strictEqual((result as any).unexpectedField, undefined);
+	assert.strictEqual((result as Record<string, unknown>).unexpectedField, undefined);
 });
 
 test("claims schema - optional fields default to undefined", () => {

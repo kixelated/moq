@@ -44,7 +44,6 @@ pub struct Key {
 	pub(crate) encode: OnceLock<EncodingKey>,
 }
 
-
 impl fmt::Debug for Key {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
 		f.debug_struct("Key")
@@ -477,8 +476,6 @@ mod tests {
 		assert_eq!(cloned.secret, key.secret);
 		assert_eq!(cloned.kid, key.kid);
 	}
-
-
 
 	#[test]
 	fn test_different_algorithms() {
