@@ -21,6 +21,7 @@ leaf: root
 	# Obviously this needs to be secured in production.
 	# WARN: The --cluster flag subtly changes publishing behavior; don't reuse this token for other purposes.
 	cargo run --quiet --bin moq-token -- --key "dev/root.jwk" sign \
+	 	--root "" \
 		--subscribe "" \
 		--publish "" \
 		--cluster \
@@ -65,7 +66,7 @@ download-url name:
 # Publish a video using ffmpeg to the localhost relay server
 # NOTE: The `http` means that we perform insecure certificate verification.
 # Switch it to `https` when you're ready to use a real certificate.
-pub name url='http://localhost:4443/':
+pub name url='http://localhost:4443/demo':
 	# Download the sample media.
 	just download {{name}}
 
@@ -78,10 +79,10 @@ pub name url='http://localhost:4443/':
 		-i "dev/{{name}}.fmp4" \
 		-c copy \
 		-f mp4 -movflags cmaf+separate_moof+delay_moov+skip_trailer+frag_every_frame \
-		- | cargo run --bin hang -- publish --url "{{url}}" --broadcast "demo/{{name}}"
+		- | cargo run --bin hang -- publish --url "{{url}}" --name "{{name}}"
 
 # Publish a video using gstreamer to the localhost relay server
-pub-gst name url='http://localhost:4443/':
+pub-gst name url='http://localhost:4443/demo':
 	# Download the sample media.
 	just download {{name}}
 
@@ -92,18 +93,18 @@ pub-gst name url='http://localhost:4443/':
 	GST_PLUGIN_PATH="${PWD}/target/debug${GST_PLUGIN_PATH:+:$GST_PLUGIN_PATH}" \
 	gst-launch-1.0 -v -e multifilesrc location="dev/{{name}}.fmp4" loop=true ! qtdemux name=demux \
 		demux.video_0 ! h264parse ! queue ! identity sync=true ! isofmp4mux name=mux chunk-duration=1 fragment-duration=1 ! \
-		hangsink url="{{url}}" tls-disable-verify=true broadcast="{{name}}" \
+		hangsink url="{{url}}" tls-disable-verify=true name="{{name}}" \
 		demux.audio_0 ! aacparse ! queue ! mux.
 
 # Subscribe to a video using gstreamer
-sub name url='http://localhost:4443/':
+sub name url='http://localhost:4443/demo':
 	# Build the plugins
 	cargo build -p hang-gst
 
 	# Run gstreamer and pipe the output to our plugin
 	# This will render the video to the screen
 	GST_PLUGIN_PATH="${PWD}/target/debug${GST_PLUGIN_PATH:+:$GST_PLUGIN_PATH}" \
-	gst-launch-1.0 -v -e hangsrc url="{{url}}" broadcast="{{name}}" tls-disable-verify=true ! decodebin ! videoconvert ! autovideosink
+	gst-launch-1.0 -v -e hangsrc url="{{url}}" name="{{name}}" tls-disable-verify=true ! decodebin ! videoconvert ! autovideosink
 
 # Publish a video using ffmpeg directly from hang to the localhost
 serve name:
@@ -119,17 +120,17 @@ serve name:
 		-i "dev/{{name}}.fmp4" \
 		-c copy \
 		-f mp4 -movflags cmaf+separate_moof+delay_moov+skip_trailer+frag_every_frame \
-		- | cargo run --bin hang -- serve --listen "[::]:4443" --tls-generate "localhost" --broadcast "demo/{{name}}"
+		- | cargo run --bin hang -- serve --listen "[::]:4443" --tls-generate "localhost" --name "{{name}}"
 
 # Publish the clock broadcast
 # `action` is either `publish` or `subscribe`
-clock action url='http://localhost:4443/':
+clock action url='http://localhost:4443/demo':
 	if [ "{{action}}" != "publish" ] && [ "{{action}}" != "subscribe" ]; then \
 		echo "Error: action must be 'publish' or 'subscribe', got '{{action}}'" >&2; \
 		exit 1; \
 	fi
 
-	cargo run --bin moq-clock -- "{{url}}" --broadcast "demo/clock" {{action}}
+	cargo run --bin moq-clock -- "{{url}}" --name "clock" {{action}}
 
 # Run the CI checks
 check flags="":

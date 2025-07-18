@@ -1,18 +1,18 @@
 use num_enum::{IntoPrimitive, TryFromPrimitive};
 
-use crate::{coding::*, Prefix, Suffix};
+use crate::{coding::*, Path};
 
 /// Sent by the publisher to announce the availability of a track.
 /// The payload contains the contents of the wildcard.
 #[derive(Clone, Debug, PartialEq, Eq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum Announce {
-	Active { suffix: Suffix },
-	Ended { suffix: Suffix },
+	Active { suffix: Path },
+	Ended { suffix: Path },
 }
 
 impl Announce {
-	pub fn suffix(&self) -> &Suffix {
+	pub fn suffix(&self) -> &Path {
 		match self {
 			Announce::Active { suffix } => suffix,
 			Announce::Ended { suffix } => suffix,
@@ -24,10 +24,10 @@ impl Decode for Announce {
 	fn decode<R: bytes::Buf>(r: &mut R) -> Result<Self, DecodeError> {
 		Ok(match AnnounceStatus::decode(r)? {
 			AnnounceStatus::Active => Self::Active {
-				suffix: Suffix::decode(r)?,
+				suffix: Path::decode(r)?,
 			},
 			AnnounceStatus::Ended => Self::Ended {
-				suffix: Suffix::decode(r)?,
+				suffix: Path::decode(r)?,
 			},
 		})
 	}
@@ -52,12 +52,12 @@ impl Encode for Announce {
 #[derive(Clone, Debug)]
 pub struct AnnounceRequest {
 	// Request tracks with this prefix.
-	pub prefix: Prefix,
+	pub prefix: Path,
 }
 
 impl Decode for AnnounceRequest {
 	fn decode<R: bytes::Buf>(r: &mut R) -> Result<Self, DecodeError> {
-		let prefix = Prefix::decode(r)?;
+		let prefix = Path::decode(r)?;
 		Ok(Self { prefix })
 	}
 }

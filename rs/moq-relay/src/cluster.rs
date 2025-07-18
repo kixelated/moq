@@ -1,7 +1,7 @@
 use std::{collections::HashMap, path::PathBuf};
 
 use anyhow::Context;
-use moq_lite::{BroadcastConsumer, BroadcastProducer, OriginProducer};
+use moq_lite::{BroadcastConsumer, BroadcastProducer, OriginProducer, OriginUpdate};
 use tracing::Instrument;
 use url::Url;
 
@@ -27,7 +27,7 @@ pub struct ClusterConfig {
 	///
 	/// WARNING: This should not be accessible by users unless authentication is disabled (YOLO).
 	#[arg(long = "cluster-prefix", default_value = "internal/origins")]
-	pub prefix: String,
+	pub prefix: moq_lite::Path,
 }
 
 #[derive(Clone)]
@@ -56,8 +56,8 @@ impl Cluster {
 		// Announce ourselves as an origin to the root node.
 		if let Some(myself) = config.advertise.as_ref() {
 			tracing::info!(%config.prefix, %myself, "announcing as origin");
-			let name = format!("{}/{}", config.prefix, myself);
-			primary.publish(name, noop.consume());
+			let name = config.prefix.join(myself);
+			primary.publish(&name, noop.consume());
 		}
 
 		Cluster {
@@ -109,7 +109,10 @@ impl Cluster {
 		let mut secondary = self.secondary.consume_all();
 
 		loop {
-			let (name, broadcast) = tokio::select! {
+			let OriginUpdate {
+				suffix: name,
+				active: broadcast,
+			} = tokio::select! {
 				biased;
 				Some(primary) = primary.next() => primary,
 				Some(secondary) = secondary.next() => secondary,
@@ -117,16 +120,14 @@ impl Cluster {
 			};
 
 			if let Some(broadcast) = broadcast {
-				self.combined.publish(name, broadcast);
+				self.combined.publish(&name, broadcast);
 			}
 		}
 	}
 
 	async fn run_remotes(self, token: String) -> anyhow::Result<()> {
-		let prefix = &self.config.prefix;
-
 		// Subscribe to available origins.
-		let mut origins = self.secondary.consume_prefix(format!("{prefix}/"));
+		let mut origins = self.secondary.consume_prefix(&self.config.prefix);
 
 		// Cancel tasks when the origin is closed.
 		let mut active: HashMap<String, tokio::task::AbortHandle> = HashMap::new();
@@ -134,7 +135,11 @@ impl Cluster {
 		// Discover other origins.
 		// NOTE: The root node will connect to all other nodes as a client, ignoring the existing (server) connection.
 		// This ensures that nodes are advertising a valid hostname before any tracks get announced.
-		while let Some((node, origin)) = origins.next().await {
+		while let Some(OriginUpdate {
+			suffix: node,
+			active: origin,
+		}) = origins.next().await
+		{
 			if Some(node.as_str()) == self.config.advertise.as_deref() {
 				// Skip ourselves.
 				continue;

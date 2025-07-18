@@ -13,7 +13,7 @@ pub struct Claims {
 	/// The root for the publish/subscribe options below.
 	/// It's mostly for compression and is optional, defaulting to the empty string.
 	#[serde(default, rename = "root", skip_serializing_if = "String::is_empty")]
-	pub path: String,
+	pub root: String,
 
 	/// If specified, the user can publish any matching broadcasts.
 	/// If not specified, the user will not publish any broadcasts.
@@ -59,7 +59,7 @@ mod tests {
 
 	fn create_test_claims() -> Claims {
 		Claims {
-			path: "test-path/".to_string(),
+			root: "test-path/".to_string(),
 			publish: Some("test-pub".to_string()),
 			cluster: false,
 			subscribe: Some("test-sub".to_string()),
@@ -77,7 +77,7 @@ mod tests {
 	#[test]
 	fn test_claims_validation_no_publish_or_subscribe() {
 		let claims = Claims {
-			path: "test-path/".to_string(),
+			root: "test-path/".to_string(),
 			publish: None,
 			subscribe: None,
 			cluster: false,
@@ -96,7 +96,7 @@ mod tests {
 	#[test]
 	fn test_claims_validation_only_publish() {
 		let claims = Claims {
-			path: "test-path/".to_string(),
+			root: "test-path/".to_string(),
 			publish: Some("test-pub".to_string()),
 			subscribe: None,
 			cluster: false,
@@ -110,7 +110,7 @@ mod tests {
 	#[test]
 	fn test_claims_validation_only_subscribe() {
 		let claims = Claims {
-			path: "test-path/".to_string(),
+			root: "test-path/".to_string(),
 			publish: None,
 			subscribe: Some("test-sub".to_string()),
 			cluster: false,
@@ -124,7 +124,7 @@ mod tests {
 	#[test]
 	fn test_claims_validation_path_not_prefix_relative_publish() {
 		let claims = Claims {
-			path: "test-path".to_string(),             // no trailing slash
+			root: "test-path".to_string(),             // no trailing slash
 			publish: Some("relative-pub".to_string()), // relative path without leading slash
 			subscribe: None,
 			cluster: false,
@@ -143,7 +143,7 @@ mod tests {
 	#[test]
 	fn test_claims_validation_path_not_prefix_relative_subscribe() {
 		let claims = Claims {
-			path: "test-path".to_string(), // no trailing slash
+			root: "test-path".to_string(), // no trailing slash
 			publish: None,
 			subscribe: Some("relative-sub".to_string()), // relative path without leading slash
 			cluster: false,
@@ -162,7 +162,7 @@ mod tests {
 	#[test]
 	fn test_claims_validation_path_not_prefix_absolute_publish() {
 		let claims = Claims {
-			path: "test-path".to_string(),              // no trailing slash
+			root: "test-path".to_string(),              // no trailing slash
 			publish: Some("/absolute-pub".to_string()), // absolute path with leading slash
 			subscribe: None,
 			cluster: false,
@@ -176,7 +176,7 @@ mod tests {
 	#[test]
 	fn test_claims_validation_path_not_prefix_absolute_subscribe() {
 		let claims = Claims {
-			path: "test-path".to_string(), // no trailing slash
+			root: "test-path".to_string(), // no trailing slash
 			publish: None,
 			subscribe: Some("/absolute-sub".to_string()), // absolute path with leading slash
 			cluster: false,
@@ -190,7 +190,7 @@ mod tests {
 	#[test]
 	fn test_claims_validation_path_not_prefix_empty_publish() {
 		let claims = Claims {
-			path: "test-path".to_string(), // no trailing slash
+			root: "test-path".to_string(), // no trailing slash
 			publish: Some("".to_string()), // empty string
 			subscribe: None,
 			cluster: false,
@@ -204,7 +204,7 @@ mod tests {
 	#[test]
 	fn test_claims_validation_path_not_prefix_empty_subscribe() {
 		let claims = Claims {
-			path: "test-path".to_string(), // no trailing slash
+			root: "test-path".to_string(), // no trailing slash
 			publish: None,
 			subscribe: Some("".to_string()), // empty string
 			cluster: false,
@@ -218,7 +218,7 @@ mod tests {
 	#[test]
 	fn test_claims_validation_path_is_prefix() {
 		let claims = Claims {
-			path: "test-path/".to_string(),              // with trailing slash
+			root: "test-path/".to_string(),              // with trailing slash
 			publish: Some("relative-pub".to_string()),   // relative path is ok when path is prefix
 			subscribe: Some("relative-sub".to_string()), // relative path is ok when path is prefix
 			cluster: false,
@@ -232,7 +232,7 @@ mod tests {
 	#[test]
 	fn test_claims_validation_empty_path() {
 		let claims = Claims {
-			path: "".to_string(), // empty path
+			root: "".to_string(), // empty path
 			publish: Some("test-pub".to_string()),
 			subscribe: None,
 			cluster: false,
@@ -249,7 +249,7 @@ mod tests {
 		let json = serde_json::to_string(&claims).unwrap();
 		let deserialized: Claims = serde_json::from_str(&json).unwrap();
 
-		assert_eq!(deserialized.path, claims.path);
+		assert_eq!(deserialized.root, claims.root);
 		assert_eq!(deserialized.publish, claims.publish);
 		assert_eq!(deserialized.subscribe, claims.subscribe);
 		assert_eq!(deserialized.cluster, claims.cluster);
@@ -258,7 +258,7 @@ mod tests {
 	#[test]
 	fn test_claims_default() {
 		let claims = Claims::default();
-		assert_eq!(claims.path, "");
+		assert_eq!(claims.root, "");
 		assert_eq!(claims.publish, None);
 		assert_eq!(claims.subscribe, None);
 		assert!(!claims.cluster);

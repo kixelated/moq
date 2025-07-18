@@ -26,7 +26,7 @@ pub enum Command {
 
 		/// The name of the broadcast to serve.
 		#[arg(long)]
-		broadcast: String,
+		name: String,
 
 		/// Optionally serve static files from the given directory.
 		#[arg(long)]
@@ -52,7 +52,7 @@ pub enum Command {
 
 		/// The name of the broadcast to publish.
 		#[arg(long)]
-		broadcast: String,
+		name: String,
 	},
 }
 
@@ -62,7 +62,7 @@ async fn main() -> anyhow::Result<()> {
 	cli.log.init();
 
 	match cli.command {
-		Command::Serve { config, dir, broadcast } => server(config, broadcast, dir, &mut tokio::io::stdin()).await,
-		Command::Publish { config, url, broadcast } => client(config, url, broadcast, &mut tokio::io::stdin()).await,
+		Command::Serve { config, dir, name } => server(config, name, dir, &mut tokio::io::stdin()).await,
+		Command::Publish { config, url, name } => client(config, url, name, &mut tokio::io::stdin()).await,
 	}
 }

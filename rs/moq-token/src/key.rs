@@ -110,7 +110,12 @@ impl Key {
 		let mut validation = jsonwebtoken::Validation::new(self.algorithm.into());
 		validation.required_spec_claims = Default::default(); // Don't require exp, but still validate it if present
 
-		let token = jsonwebtoken::decode::<Claims>(token, decode, &validation)?;
+		let mut token = jsonwebtoken::decode::<Claims>(token, decode, &validation)?;
+		// For backwards compatibility, we trim any slashes from the paths.
+		// They will be automatically added when joining the path with the publish/subscribe roots.
+		token.claims.root = token.claims.root.trim_matches('/').to_string();
+		token.claims.publish = token.claims.publish.map(|r| r.trim_matches('/').to_string());
+		token.claims.subscribe = token.claims.subscribe.map(|r| r.trim_matches('/').to_string());
 		token.claims.validate()?;
 
 		Ok(token.claims)
@@ -232,7 +237,7 @@ mod tests {
 
 	fn create_test_claims() -> Claims {
 		Claims {
-			path: "test-path/".to_string(),
+			root: "test-path/".to_string(),
 			publish: Some("test-pub".to_string()),
 			cluster: false,
 			subscribe: Some("test-sub".to_string()),
@@ -295,7 +300,7 @@ mod tests {
 	fn test_key_sign_invalid_claims() {
 		let key = create_test_key();
 		let invalid_claims = Claims {
-			path: "test-path/".to_string(),
+			root: "test-path/".to_string(),
 			publish: None,
 			subscribe: None,
 			cluster: false,
@@ -318,7 +323,7 @@ mod tests {
 		let token = key.encode(&claims).unwrap();
 
 		let verified_claims = key.decode(&token).unwrap();
-		assert_eq!(verified_claims.path, claims.path);
+		assert_eq!(verified_claims.root, claims.root);
 		assert_eq!(verified_claims.publish, claims.publish);
 		assert_eq!(verified_claims.subscribe, claims.subscribe);
 		assert_eq!(verified_claims.cluster, claims.cluster);
@@ -373,7 +378,7 @@ mod tests {
 	fn test_key_verify_token_without_exp() {
 		let key = create_test_key();
 		let claims = Claims {
-			path: "test-path/".to_string(),
+			root: "test-path/".to_string(),
 			publish: Some("test-pub".to_string()),
 			subscribe: None,
 			cluster: false,
@@ -383,7 +388,7 @@ mod tests {
 		let token = key.encode(&claims).unwrap();
 
 		let verified_claims = key.decode(&token).unwrap();
-		assert_eq!(verified_claims.path, claims.path);
+		assert_eq!(verified_claims.root, claims.root);
 		assert_eq!(verified_claims.publish, claims.publish);
 		assert_eq!(verified_claims.expires, None);
 	}
@@ -392,7 +397,7 @@ mod tests {
 	fn test_key_round_trip() {
 		let key = create_test_key();
 		let original_claims = Claims {
-			path: "test-path/".to_string(),
+			root: "test-path/".to_string(),
 			publish: Some("test-pub".to_string()),
 			subscribe: Some("test-sub".to_string()),
 			cluster: true,
@@ -403,7 +408,7 @@ mod tests {
 		let token = key.encode(&original_claims).unwrap();
 		let verified_claims = key.decode(&token).unwrap();
 
-		assert_eq!(verified_claims.path, original_claims.path);
+		assert_eq!(verified_claims.root, original_claims.root);
 		assert_eq!(verified_claims.publish, original_claims.publish);
 		assert_eq!(verified_claims.subscribe, original_claims.subscribe);
 		assert_eq!(verified_claims.cluster, original_claims.cluster);
@@ -448,7 +453,7 @@ mod tests {
 		let token = key.encode(&claims).unwrap();
 		let verified_claims = key.decode(&token).unwrap();
 
-		assert_eq!(verified_claims.path, claims.path);
+		assert_eq!(verified_claims.root, claims.root);
 		assert_eq!(verified_claims.publish, claims.publish);
 		assert_eq!(verified_claims.subscribe, claims.subscribe);
 		assert_eq!(verified_claims.cluster, claims.cluster);
@@ -527,7 +532,7 @@ mod tests {
 		for key in [key_256, key_384, key_512] {
 			let token = key.encode(&claims).unwrap();
 			let verified_claims = key.decode(&token).unwrap();
-			assert_eq!(verified_claims.path, claims.path);
+			assert_eq!(verified_claims.root, claims.root);
 		}
 	}
 

@@ -4,29 +4,29 @@ use web_async::Lock;
 
 use crate::model::{BroadcastConsumer, BroadcastProducer};
 
-use moq_lite::{OriginConsumer, OriginProducer, Prefix, Suffix};
+use moq_lite::{OriginConsumer, OriginProducer, OriginUpdate, Path};
 
 pub struct Room {
-	pub prefix: Prefix,
+	pub name: Path,
 	broadcasts: OriginConsumer,
 	publisher: OriginProducer,
-	publishing: Lock<HashSet<Suffix>>,
+	publishing: Lock<HashSet<Path>>,
 }
 
 impl Room {
-	pub fn new(publisher: OriginProducer, subscriber: OriginConsumer, prefix: Prefix) -> Self {
+	pub fn new(publisher: OriginProducer, subscriber: OriginConsumer, name: Path) -> Self {
 		Self {
 			broadcasts: subscriber,
 			publisher,
-			prefix,
+			name,
 			publishing: Default::default(),
 		}
 	}
 
 	/// Joins the room, publishing the broadcast.
-	pub fn publish(&mut self, name: Suffix, broadcast: BroadcastProducer) {
+	pub fn publish(&mut self, name: Path, broadcast: BroadcastProducer) {
 		self.publishing.lock().insert(name.clone());
-		self.publisher.publish(name.clone(), broadcast.inner.consume());
+		self.publisher.publish(&name, broadcast.inner.consume());
 
 		let consumer = broadcast.inner.consume();
 		let publishing = self.publishing.clone();
@@ -42,9 +42,12 @@ impl Room {
 	///
 	/// If None is returned, then the broadcaster with that name has stopped broadcasting or is being reannounced.
 	/// When reannounced, the old BroadcastConsumer won't necessarily be closed, so you might have two broadcasts with the same name.
-	pub async fn watch(&mut self) -> Option<(Suffix, Option<BroadcastConsumer>)> {
+	pub async fn watch(&mut self) -> Option<(Path, Option<BroadcastConsumer>)> {
 		loop {
-			let (suffix, broadcast) = self.broadcasts.next().await?;
+			let OriginUpdate {
+				suffix,
+				active: broadcast,
+			} = self.broadcasts.next().await?;
 
 			if self.publishing.lock().contains(&suffix) {
 				// We're publishing this broadcast, so skip it.

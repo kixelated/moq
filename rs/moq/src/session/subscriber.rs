@@ -46,25 +46,22 @@ impl SessionSubscriber {
 	async fn run_inner(mut self, mut origin: OriginProducer) -> Result<(), Error> {
 		let mut stream = Stream::open(&mut self.session, message::ControlType::Announce).await?;
 
-		let msg = message::AnnounceRequest {
-			prefix: origin.prefix().clone(),
-		};
+		let msg = message::AnnounceRequest { prefix: "".into() };
 		stream.writer.encode(&msg).await?;
 
 		let mut producers = HashMap::new();
 
 		while let Some(announce) = stream.reader.decode_maybe::<message::Announce>().await? {
 			match announce {
-				message::Announce::Active { suffix } => {
-					let path = origin.prefix().join(&suffix);
+				message::Announce::Active { suffix: path } => {
 					tracing::debug!(broadcast = %path, "received announce");
 
 					let producer = BroadcastProducer::new();
 					let consumer = producer.consume();
 
 					// Run the broadcast in the background until all consumers are dropped.
-					origin.publish(suffix.clone(), consumer);
-					producers.insert(suffix.clone(), producer.clone());
+					origin.publish(&path, consumer);
+					producers.insert(path.clone(), producer.clone());
 
 					spawn(self.clone().run_broadcast(path, producer));
 				}

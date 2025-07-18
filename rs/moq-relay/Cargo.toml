@@ -21,7 +21,7 @@ http-body = "1"
 hyper-serve = { version = "0.6", features = [
 	"tls-rustls",
 ] } # fork of axum-server
-moq-lite = { workspace = true }
+moq-lite = { workspace = true, features = ["serde"] }
 moq-native = { workspace = true }
 moq-token = { workspace = true }
 serde = { version = "1", features = ["derive"] }

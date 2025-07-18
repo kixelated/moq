@@ -29,7 +29,7 @@ yarn add @kixelated/moq
 import { Connection } from "@kixelated/moq";
 
 // Connect to a MoQ relay server
-const connection = await Connection.connect("https://relay.quic.video/");
+const connection = await Connection.connect("https://relay.quic.video/anon");
 console.log("Connected to MoQ relay!");
 ```
 
@@ -38,7 +38,7 @@ console.log("Connected to MoQ relay!");
 ```typescript
 import { Connection, BroadcastProducer } from "@kixelated/moq";
 
-const connection = await Connection.connect("https://relay.quic.video/anon/");
+const connection = await Connection.connect("https://relay.quic.video/anon");
 
 // Create a broadcast, not associated with any connection/name yet.
 const broadcast = new BroadcastProducer();
@@ -61,7 +61,7 @@ console.log("Published data to my-broadcast");
 ```typescript
 import { Connection, BroadcastConsumer } from "@kixelated/moq";
 
-const connection = await Connection.connect("https://relay.quic.video/anon/");
+const connection = await Connection.connect("https://relay.quic.video/anon");
 
 // Subscribe to a broadcast
 const broadcast = connection.consume("my-broadcast");
@@ -89,7 +89,7 @@ for (;;) {
 ```typescript
 import { Connection } from "@kixelated/moq";
 
-const connection = await Connection.connect("https://relay.quic.video/anon/");
+const connection = await Connection.connect("https://relay.quic.video/anon");
 
 // Discover streams with an optional prefix
 const announced = connection.announced("");

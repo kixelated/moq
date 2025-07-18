@@ -15,6 +15,7 @@ use axum::{
 use bytes::Bytes;
 use futures::FutureExt;
 use hyper_serve::accept::DefaultAcceptor;
+use moq_lite::OriginUpdate;
 use std::future::Future;
 use tower_http::cors::{Any, CorsLayer};
 
@@ -77,17 +78,13 @@ impl Web {
 
 /// Serve the announced broadcasts for a given prefix.
 async fn serve_announced(Path(prefix): Path<String>, cluster: Cluster) -> impl IntoResponse {
-	let mut local = cluster.primary.consume_prefix(&prefix);
-	let mut remote = cluster.secondary.consume_prefix(&prefix);
-
+	let mut origin = cluster.combined.consume_prefix(&prefix);
 	let mut broadcasts = Vec::new();
 
-	while let Some(Some((prefix, _))) = local.next().now_or_never() {
-		broadcasts.push(prefix);
-	}
-
-	while let Some(Some((prefix, _))) = remote.next().now_or_never() {
-		broadcasts.push(prefix);
+	while let Some(Some(OriginUpdate { suffix, active })) = origin.next().now_or_never() {
+		if active.is_some() {
+			broadcasts.push(suffix);
+		}
 	}
 
 	broadcasts.iter().map(|p| p.to_string()).collect::<Vec<_>>().join("\n")

@@ -14,7 +14,7 @@ use tower_http::services::ServeDir;
 
 pub async fn server<T: AsyncRead + Unpin>(
 	config: moq_native::ServerConfig,
-	broadcast: String,
+	name: String,
 	public: Option<PathBuf>,
 	input: &mut T,
 ) -> anyhow::Result<()> {
@@ -32,13 +32,13 @@ pub async fn server<T: AsyncRead + Unpin>(
 	let consumer = producer.consume();
 
 	tokio::select! {
-		res = accept(server, broadcast, consumer) => res,
+		res = accept(server, name, consumer) => res,
 		res = publish(producer, input) => res,
 		res = web(listen, fingerprints, public) => res,
 	}
 }
 
-async fn accept(mut server: moq_native::Server, broadcast: String, consumer: BroadcastConsumer) -> anyhow::Result<()> {
+async fn accept(mut server: moq_native::Server, name: String, consumer: BroadcastConsumer) -> anyhow::Result<()> {
 	let mut conn_id = 0;
 
 	tracing::info!(addr = ?server.local_addr(), "listening");
@@ -48,7 +48,7 @@ async fn accept(mut server: moq_native::Server, broadcast: String, consumer: Bro
 		conn_id += 1;
 
 		let consumer = consumer.clone();
-		let broadcast = broadcast.clone();
+		let name = name.clone();
 
 		// Handle the connection in a new task.
 		tokio::spawn(async move {
@@ -63,7 +63,7 @@ async fn accept(mut server: moq_native::Server, broadcast: String, consumer: Bro
 
 			tracing::info!(?id, "accepted session");
 
-			publisher.publish(broadcast, consumer.inner.clone());
+			publisher.publish(&name, consumer.inner.clone());
 
 			session.closed().await;
 		});

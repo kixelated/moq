@@ -23,20 +23,20 @@ tls.generate = ["localhost"]
 #
 # All authentication is performed at connection time and is based on the broadcast path.
 # A client can either:
-#   - connect to `/?jwt=...` using a JWT token scoped to a path within the token.
-#   - connect to `/` using no token and defaulting to the configured public path, if any.
+#   - connect to `/path?jwt=...` using a JWT token scoped to a path within the token.
+#   - connect to `/path` only if the path is configured as a public path.
 #
 # The expectation is that some API server will generate a JWT token for each user.
 # This is the easiest way to divest the relay from any business logic in regards to authentication.
 # Both the relay and API server will need to be configured with the same root key; currently it's symmetric.
 #
 # Authorization is split into separate publishing and subscribing permissions.
-# If you're authenticated to publish to `foo/`, then you can publish `foo/bar` or `foo/baz`.
-# Likewise, if you're authenticated to subscribe to `foo/`, then you can subscribe to `foo/bar` or `foo/baz`.
+# If you're authenticated to publish to `foo`, then you can publish `foo/bar` or `foo/baz`.
+# Likewise, if you're authenticated to subscribe to `foo`, then you can subscribe to `foo/bar` or `foo/baz`.
 #
-# **Note** the slash is not special, only the string prefix is checked.
-# If you're authenticated to publish to `foo`, then it's (currently) valid to publish to `foo/bar` and `foobar` (!).
-# If you want to avoid this, make sure all paths end with delimiter... like a slash.
+# **Note** slashes are automatically added as delimiters.
+# If you're authenticated to publish to `foo`, then you can't publish `foobar`.
+# It has to be just `foo` or `foo/bar`.
 #
 # ## JWT Token
 # The `?jwt=` query parameter contains a base64 JSON token that is signed with the root key.
@@ -50,13 +50,13 @@ tls.generate = ["localhost"]
 # If the connection attempts to publish or subscribe to a path that is not allowed, then an Unauthorized error will be returned.
 #
 # A practical example:
-# - root: "hang/meeting-abc/"
+# - root: "hang/meeting-abc"
 # - subscribe: ""
-# - publish: "alice/"
+# - publish: "alice"
 #
-# This user would connect to `https://relay.quic.video/?jwt=...`
-# They could then publish `hang/meeting-abc/alice/camera` and subscribe to `hang/meeting-abc/bob/camera`.
-# It would be an error if they tried to publish to `hang/meeting-abc/bob/camera` or subscribe to `hang/meeting-ZYX/bob/camera`.
+# This user would connect to `https://relay.quic.video/hang/meeting-abc?jwt=...`
+# They could then publish `alice/camera` and subscribe to `bob/camera`.
+# It would be an error if they tried to publish to `bob/camera` or subscribe to `alice/camera`.
 #
 # ## Public Path
 # If no token is provided, then the connection will default to the public path, if any.

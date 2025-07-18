@@ -151,7 +151,6 @@ export class Connection {
 	 * @param broadcast - The broadcast to publish
 	 */
 	publish(name: string, broadcast: BroadcastConsumer) {
-		if (!name) throw new Error("name is empty");
 		this.#publisher.publish(name, broadcast);
 	}
 
@@ -174,7 +173,6 @@ export class Connection {
 	 * @returns A BroadcastConsumer instance
 	 */
 	consume(broadcast: string): BroadcastConsumer {
-		if (!broadcast) throw new Error("name is empty");
 		return this.#subscriber.consume(broadcast);
 	}
 

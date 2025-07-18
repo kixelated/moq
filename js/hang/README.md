@@ -119,7 +119,7 @@ Subscribes to a hang broadcast and renders it.
 
 <!-- NOTE: You'll also need to publish a broadcast with the same name. See below. -->
 <hang-watch
-    url="https://relay.quic.video/"
+    url="https://relay.quic.video/anon"
 	name="room123/me"
     controls>
 	<!-- canvas for rendering, otherwise video element will be disabled -->
@@ -146,7 +146,7 @@ Publishes a microphone/camera or screen as a hang broadcast.
 </script>
 
 <hang-publish
-    url="https://relay.quic.video/" name="room123/me" audio video controls>
+    url="https://relay.quic.video/anon" name="room123/me" audio video controls>
     <!-- Optional: video element for preview -->
     <video autoplay muted></video>
 </hang-publish>
@@ -163,8 +163,8 @@ Very crude and best as an example; use the JS API instead.
 </script>
 
 <hang-meet
-    url="https://relay.quic.video/"
-	name="room123/"
+    url="https://relay.quic.video/anon"
+	name="room123"
     audio video
     controls>
 </hang-meet>

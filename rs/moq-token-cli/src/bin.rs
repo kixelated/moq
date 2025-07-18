@@ -32,10 +32,11 @@ enum Commands {
 
 	/// Sign a token to stdout, reading the key from stdin.
 	Sign {
-		/// Appended to the publish/subscribe options to form the full name.
-		/// It's mostly for compression and is optional, defaulting to the empty string.
+		/// The root path for the token.
+		/// The user MUST connect to this WebTransport path and any broadcasts are relative to it.
+		/// Any trailing/leading slashes are ignored.
 		#[arg(long, default_value = "")]
-		path: String,
+		root: String,
 
 		/// If specified, the user can publish any matching broadcasts.
 		/// If not specified, the user will not publish any broadcasts.
@@ -78,7 +79,7 @@ fn main() -> anyhow::Result<()> {
 		}
 
 		Commands::Sign {
-			path,
+			root,
 			publish,
 			cluster,
 			subscribe,
@@ -88,7 +89,7 @@ fn main() -> anyhow::Result<()> {
 			let key = moq_token::Key::from_file(cli.key)?;
 
 			let payload = moq_token::Claims {
-				path,
+				root,
 				publish,
 				cluster,
 				subscribe,

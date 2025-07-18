@@ -17,15 +17,15 @@
 	<!--
 	 	This is a simple element to render each broadcast in a grid.
 		It will discover any published broadcasts and render them.
-		You can also use `name=meeting-abc/` to only render broadcasts matching that prefix.
+		You can also use `name=meeting-abc` to only match broadcasts matching that prefix.
 	-->
-	<hang-meet url="http://localhost:4443/" name="demo/">
+	<hang-meet url="http://localhost:4443/demo">
 		<!--
 			If a `hang-publish` element is nested, then it will inherit the `url` attribute.
 			It also won't be downloaded, instead rendered in the grid if `preview` is set.
 			This is rather limited but so is this Web Component; use the JS API for more control.
 		-->
-		<hang-publish name="demo/me" audio video controls preview></hang-publish>
+		<hang-publish name="me" audio video controls preview></hang-publish>
 	</hang-meet>
 
 	<h3>Other demos:</h3>

@@ -40,9 +40,11 @@ impl Auth {
 			}
 		};
 
+		let public = config.public.map(|p| p.trim_matches('/').to_string());
+
 		Ok(Self {
 			key: key.map(Arc::new),
-			public: config.public,
+			public,
 		})
 	}
 
@@ -51,30 +53,33 @@ impl Auth {
 	pub fn verify(&self, url: &Url) -> anyhow::Result<moq_token::Claims> {
 		// Find the token in the query parameters.
 		// ?jwt=...
-		if let Some((_, token)) = url.query_pairs().find(|(k, _)| k == "jwt") {
+		let claims = if let Some((_, token)) = url.query_pairs().find(|(k, _)| k == "jwt") {
 			if let Some(key) = self.key.as_ref() {
-				return key.decode(&token);
+				key.decode(&token)?
+			} else {
+				anyhow::bail!("token provided, but no key configured");
 			}
-
-			anyhow::bail!("token provided, but no key configured");
-		}
-
-		let path = url.path().strip_prefix('/').unwrap_or_default();
-		if !path.is_empty() {
-			// TODO Remove this in a future version.
-			tracing::warn!("BREAKING CHANGE: The URL path is no longer used to (potentially) select a broadcast. Use the `broadcast` parameter instead. Sorry for the inconvenience, but now it's much easier to debug.");
-			anyhow::bail!("path is not empty: {}", path);
-		}
-
-		if let Some(public) = &self.public {
-			return Ok(moq_token::Claims {
-				path: public.clone(),
+		} else if let Some(public) = &self.public {
+			moq_token::Claims {
+				root: public.clone(),
 				subscribe: Some("".to_string()),
 				publish: Some("".to_string()),
 				..Default::default()
-			});
-		}
+			}
+		} else {
+			anyhow::bail!("no token provided and no public path configured");
+		};
 
-		anyhow::bail!("no token provided and no public path configured");
+		// Get the path from the URL, removing any leading or trailing slashes.
+		// We will automatically add a trailing slash when joining the path with the subscribe/publish roots.
+		let path = url.path().trim_matches('/');
+
+		Ok(match path.strip_prefix(&claims.root) {
+			// Exact match, the claims are valid.
+			Some("") => claims,
+			// Our connection is more specific than the claims
+			// TODO: We could handle this one day, but it's not worth the mental overhead.
+			Some(_) | None => anyhow::bail!("path does not match the root: {} != {}", path, claims.root),
+		})
 	}
 }

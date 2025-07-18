@@ -24,7 +24,7 @@ pub use error::*;
 pub use model::*;
 pub use session::*;
 
-pub use message::{Path, Prefix, Suffix};
+pub use message::{Path, PathRef};
 
 /// The ALPN used when connecting via QUIC directly.
 pub const ALPN: &str = message::Alpn::CURRENT.0;

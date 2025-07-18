@@ -21,7 +21,7 @@ Live media is built on top of this layer using something like [hang](../hang).
 	let client = moq_native::Client::new(config);
 
 	// For local development, use: http://localhost:4443/
-	let url = url::Url::parse("https://relay.quic.video/").unwrap();
+	let url = url::Url::parse("https://relay.quic.video/anon").unwrap();
 
 	// Establish a WebTransport/QUIC connection.
 	let connection = client.connect(url).await?;

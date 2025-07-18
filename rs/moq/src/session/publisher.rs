@@ -1,6 +1,6 @@
 use web_async::FuturesExt;
 
-use crate::{message, model::GroupConsumer, Error, OriginConsumer, Prefix, Track, TrackConsumer};
+use crate::{message, model::GroupConsumer, Error, OriginConsumer, OriginUpdate, Path, Track, TrackConsumer};
 
 use super::{Stream, Writer};
 
@@ -30,7 +30,12 @@ impl SessionPublisher {
 	pub async fn recv_announce(&mut self, stream: &mut Stream) -> Result<(), Error> {
 		let interest = stream.reader.decode::<message::AnnounceRequest>().await?;
 
-		let prefix = interest.prefix;
+		let prefix = self
+			.origin
+			.as_ref()
+			.ok_or(Error::Unauthorized)?
+			.prefix()
+			.join(&interest.prefix);
 
 		tracing::trace!(%prefix, "announce started");
 
@@ -44,7 +49,7 @@ impl SessionPublisher {
 		Ok(())
 	}
 
-	async fn run_announce(&mut self, stream: &mut Stream, prefix: &Prefix) -> Result<(), Error> {
+	async fn run_announce(&mut self, stream: &mut Stream, prefix: &Path) -> Result<(), Error> {
 		let origin = self.origin.as_ref().ok_or(Error::Unauthorized)?;
 
 		// Check if the requested prefix is within the client's authorized prefix
@@ -59,8 +64,8 @@ impl SessionPublisher {
 				res = stream.reader.finished() => return res,
 				announced = announced.next() => {
 					match announced {
-						Some((suffix, broadcast)) => {
-							if broadcast.is_some() {
+						Some(OriginUpdate { suffix, active }) => {
+							if active.is_some() {
 								tracing::debug!(broadcast = %prefix.join(&suffix), "announce");
 								let msg = message::Announce::Active { suffix };
 								stream.writer.encode(&msg).await?;
@@ -102,17 +107,12 @@ impl SessionPublisher {
 	async fn run_subscribe(&mut self, stream: &mut Stream, subscribe: &mut message::Subscribe) -> Result<(), Error> {
 		let origin = self.origin.as_ref().ok_or(Error::Unauthorized)?;
 
-		let suffix = subscribe
-			.broadcast
-			.strip_prefix(origin.prefix())
-			.ok_or(Error::Unauthorized)?;
-
 		let track = Track {
 			name: subscribe.track.clone(),
 			priority: subscribe.priority,
 		};
 
-		let broadcast = origin.consume(&suffix).ok_or(Error::NotFound)?;
+		let broadcast = origin.consume(&subscribe.broadcast).ok_or(Error::NotFound)?;
 		let track = broadcast.subscribe(&track);
 
 		// TODO wait until track.info() to get the *real* priority

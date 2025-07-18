@@ -3,7 +3,7 @@ use tokio::sync::mpsc;
 use web_async::{Lock, LockWeak};
 
 use super::BroadcastConsumer;
-use crate::{Path, Prefix, Suffix};
+use crate::{Path, PathRef};
 
 // If there are multiple broadcasts with the same path, we use the most recent one but keep the others around.
 struct BroadcastState {
@@ -112,30 +112,44 @@ fn retain_mut_unordered<T, F: Fn(&mut T) -> bool>(vec: &mut Vec<T>, f: F) {
 	}
 }
 
-/// A broadcast suffix and its associated consumer, or None if closed.
-pub type OriginUpdate = (Suffix, Option<BroadcastConsumer>);
+/// A broadcast path and its associated consumer, or None if closed.
+/// The returned path is relative to the consumer's prefix.
+pub struct OriginUpdate {
+	pub suffix: Path,
+	pub active: Option<BroadcastConsumer>,
+}
 
 struct ConsumerState {
-	prefix: Prefix,
+	prefix: Path,
 	updates: mpsc::UnboundedSender<OriginUpdate>,
 }
 
 impl ConsumerState {
 	// Returns true if the consumer is still alive.
-	pub fn insert(&mut self, path: &Path, consumer: &BroadcastConsumer) -> bool {
-		if let Some(suffix) = path.strip_prefix(&self.prefix) {
+	pub fn insert<'a>(&mut self, path: impl Into<PathRef<'a>>, consumer: &BroadcastConsumer) -> bool {
+		let path_ref = path.into();
+
+		if let Some(suffix) = path_ref.to_path().strip_prefix(&self.prefix) {
 			// Send the absolute path, not the relative suffix
-			let update = (suffix, Some(consumer.clone()));
+			let update = OriginUpdate {
+				suffix: suffix.into(),
+				active: Some(consumer.clone()),
+			};
 			return self.updates.send(update).is_ok();
 		}
 
 		!self.updates.is_closed()
 	}
 
-	pub fn remove(&mut self, path: &Path) -> bool {
-		if let Some(suffix) = path.strip_prefix(&self.prefix) {
+	pub fn remove<'a>(&mut self, path: impl Into<PathRef<'a>>) -> bool {
+		let path_ref = path.into();
+
+		if let Some(suffix) = path_ref.to_path().strip_prefix(&self.prefix) {
 			// Send the absolute path, not the relative suffix
-			let update = (suffix, None);
+			let update = OriginUpdate {
+				suffix: suffix.into(),
+				active: None,
+			};
 			return self.updates.send(update).is_ok();
 		}
 
@@ -146,13 +160,13 @@ impl ConsumerState {
 /// Announces broadcasts to consumers over the network.
 #[derive(Clone, Default)]
 pub struct OriginProducer {
-	prefix: Prefix,
+	prefix: Path,
 	state: Lock<ProducerState>,
 }
 
 impl OriginProducer {
-	/// Create a new origin producer with an optional prefix.
-	pub fn new<T: Into<Prefix>>(prefix: T) -> Self {
+	/// Create a new origin producer with an optional prefix applied to all broadcasts.
+	pub fn new<T: Into<Path>>(prefix: T) -> Self {
 		let prefix = prefix.into();
 		Self {
 			state: Lock::new(ProducerState {
@@ -169,8 +183,8 @@ impl OriginProducer {
 	/// If there is already a broadcast with the same path, then it will be replaced and reannounced.
 	/// If the old broadcast is closed before the new one, then nothing will happen.
 	/// If the new broadcast is closed before the old one, then the old broadcast will be reannounced.
-	pub fn publish<S: Into<Suffix>>(&mut self, suffix: S, broadcast: BroadcastConsumer) {
-		let path = self.prefix.join(&suffix.into());
+	pub fn publish<'a>(&mut self, suffix: impl Into<PathRef<'a>>, broadcast: BroadcastConsumer) {
+		let path = self.prefix.join(suffix.into());
 
 		if !self.state.lock().publish(path.clone(), broadcast.clone()) {
 			// This is not a big deal, but we want to avoid spawning additional cleanup tasks.
@@ -190,9 +204,9 @@ impl OriginProducer {
 	}
 
 	/// Create a new origin producer for the given sub-prefix.
-	pub fn publish_prefix<S: Into<Suffix>>(&mut self, suffix: S) -> OriginProducer {
+	pub fn publish_prefix<'a>(&mut self, prefix: impl Into<PathRef<'a>>) -> OriginProducer {
 		OriginProducer {
-			prefix: self.prefix.join_prefix(&suffix.into()),
+			prefix: self.prefix.join(prefix.into()),
 			state: self.state.clone(),
 		}
 	}
@@ -200,8 +214,8 @@ impl OriginProducer {
 	/// Get a specific broadcast by path.
 	///
 	/// The most recent, non-closed broadcast will be returned if there are duplicates.
-	pub fn consume<S: Into<Suffix>>(&self, suffix: S) -> Option<BroadcastConsumer> {
-		let path = self.prefix.join(&suffix.into());
+	pub fn consume<'a>(&self, suffix: impl Into<PathRef<'a>>) -> Option<BroadcastConsumer> {
+		let path = self.prefix.join(suffix.into());
 		self.state.lock().active.get(&path).map(|b| b.active.clone())
 	}
 
@@ -214,10 +228,9 @@ impl OriginProducer {
 	///
 	/// NOTE: This takes a Suffix because it's appended to the existing prefix to get a new prefix.
 	/// Confusing I know, but it means that we don't have to return a Result.
-	pub fn consume_prefix<S: Into<Suffix>>(&self, prefix: S) -> OriginConsumer {
+	pub fn consume_prefix<'a>(&self, prefix: impl Into<PathRef<'a>>) -> OriginConsumer {
 		// Combine the consumer's prefix with the publisher's prefix.
-		let suffix = prefix.into();
-		let prefix = self.prefix.join_prefix(&suffix);
+		let prefix = self.prefix.join(prefix.into());
 
 		let mut state = self.state.lock();
 
@@ -264,7 +277,7 @@ impl OriginProducer {
 		None
 	}
 
-	pub fn prefix(&self) -> &Prefix {
+	pub fn prefix(&self) -> &Path {
 		&self.prefix
 	}
 }
@@ -274,7 +287,7 @@ pub struct OriginConsumer {
 	// We need a weak reference to the producer so that we can clone it.
 	producer: LockWeak<ProducerState>,
 	updates: mpsc::UnboundedReceiver<OriginUpdate>,
-	prefix: Prefix,
+	prefix: Path,
 }
 
 impl OriginConsumer {
@@ -288,8 +301,11 @@ impl OriginConsumer {
 		self.updates.recv().await
 	}
 
-	pub fn consume<S: Into<Suffix>>(&self, suffix: S) -> Option<BroadcastConsumer> {
-		let path = self.prefix.join(&suffix.into());
+	/// Get a specific broadcast by path.
+	///
+	/// This is relative to the consumer's prefix.
+	pub fn consume<'a>(&self, suffix: impl Into<PathRef<'a>>) -> Option<BroadcastConsumer> {
+		let path = self.prefix.join(suffix.into());
 
 		let state = self.producer.upgrade()?;
 		let state = state.lock();
@@ -300,10 +316,9 @@ impl OriginConsumer {
 		self.consume_prefix("")
 	}
 
-	pub fn consume_prefix<S: Into<Suffix>>(&self, suffix: S) -> OriginConsumer {
+	pub fn consume_prefix<'a>(&self, prefix: impl Into<PathRef<'a>>) -> OriginConsumer {
 		// Combine the consumer's prefix with the existing consumer's prefix.
-		let suffix = suffix.into();
-		let prefix = self.prefix.join_prefix(&suffix);
+		let prefix = self.prefix.join(prefix.into());
 
 		let (tx, rx) = mpsc::unbounded_channel();
 
@@ -330,7 +345,7 @@ impl OriginConsumer {
 		}
 	}
 
-	pub fn prefix(&self) -> &Prefix {
+	pub fn prefix(&self) -> &Path {
 		&self.prefix
 	}
 }
@@ -348,14 +363,14 @@ use futures::FutureExt;
 impl OriginConsumer {
 	pub fn assert_next(&mut self, path: &str, broadcast: &BroadcastConsumer) {
 		let next = self.next().now_or_never().expect("next blocked").expect("no next");
-		assert_eq!(next.0.as_str(), path, "wrong path");
-		assert!(next.1.unwrap().is_clone(broadcast), "should be the same broadcast");
+		assert_eq!(next.suffix.as_str(), path, "wrong path");
+		assert!(next.active.unwrap().is_clone(broadcast), "should be the same broadcast");
 	}
 
 	pub fn assert_next_none(&mut self, path: &str) {
 		let next = self.next().now_or_never().expect("next blocked").expect("no next");
-		assert_eq!(next.0.as_str(), path, "wrong path");
-		assert!(next.1.is_none(), "should be unannounced");
+		assert_eq!(next.suffix.as_str(), path, "wrong path");
+		assert!(next.active.is_none(), "should be unannounced");
 	}
 
 	pub fn assert_next_wait(&mut self) {
@@ -501,25 +516,5 @@ mod tests {
 		// Wait for the async task to run.
 		tokio::time::sleep(tokio::time::Duration::from_millis(1)).await;
 		assert!(producer.consume("test").is_none());
-	}
-
-	#[tokio::test]
-	#[should_panic(expected = "Publisher can only publish broadcasts matching its prefix")]
-	async fn test_publish_mismatched_prefix() {
-		let mut producer = OriginProducer::new("foo/");
-		let broadcast = BroadcastProducer::new();
-
-		// This should panic because "bar/test" doesn't start with "foo/"
-		producer.publish("bar/test", broadcast.consume());
-	}
-
-	#[tokio::test]
-	#[should_panic(expected = "Subscriber can only consume broadcasts matching its prefix")]
-	async fn test_consume_mismatched_prefix() {
-		let producer = OriginProducer::new("foo/");
-		let consumer = producer.consume_all();
-
-		// This should panic because "bar/test" doesn't start with "foo/"
-		consumer.consume("bar/test");
 	}
 }
