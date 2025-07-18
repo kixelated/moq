@@ -46,24 +46,11 @@ impl SessionPublisher {
 
 	async fn run_announce(&mut self, stream: &mut Stream, prefix: &Prefix) -> Result<(), Error> {
 		let origin = self.origin.as_ref().ok_or(Error::Unauthorized)?;
-		println!("origin: {:?}", origin.prefix);
-		println!("prefix: {:?}", prefix);
-		println!(
-			"prefix.has_prefix(&origin.prefix): {:?}",
-			prefix.has_prefix(&origin.prefix)
-		);
-		println!(
-			"prefix.join_prefix(&origin.prefix): {:?}",
-			prefix.join_prefix(&origin.prefix)
-		);
 
 		// Check if the requested prefix is within the client's authorized prefix
-		if !prefix.has_prefix(&origin.prefix) {
-			return Err(Error::Unauthorized);
-		}
+		let suffix = prefix.strip_prefix(origin.prefix()).ok_or(Error::Unauthorized)?;
 
-		// prefix of a prefix
-		let mut announced = origin.consume_prefix(prefix.clone());
+		let mut announced = origin.consume_prefix(suffix);
 
 		// Flush any synchronously announced paths
 		loop {
@@ -117,7 +104,7 @@ impl SessionPublisher {
 
 		let suffix = subscribe
 			.broadcast
-			.strip_prefix(&origin.prefix)
+			.strip_prefix(origin.prefix())
 			.ok_or(Error::Unauthorized)?;
 
 		let track = Track {

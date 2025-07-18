@@ -43,15 +43,15 @@ impl Path {
 	///
 	/// # Examples
 	/// ```
-	/// use moq_lite::{Path, PathPrefix};
+	/// use moq_lite::{Path, Prefix};
 	///
 	/// let path = Path::new("foo/bar");
-	/// assert!(path.has_prefix(&PathPrefix::new("foo")));
-	/// assert!(path.has_prefix(&PathPrefix::new("foo/")));
-	/// assert!(!path.has_prefix(&PathPrefix::new("fo")));
+	/// assert!(path.has_prefix(&Prefix::new("foo")));
+	/// assert!(path.has_prefix(&Prefix::new("foo/")));
+	/// assert!(!path.has_prefix(&Prefix::new("fo")));
 	///
 	/// let path = Path::new("foobar");
-	/// assert!(!path.has_prefix(&PathPrefix::new("foo")));
+	/// assert!(!path.has_prefix(&Prefix::new("foo")));
 	/// ```
 	pub fn has_prefix(&self, prefix: &Prefix) -> bool {
 		if prefix.0.is_empty() {
@@ -82,13 +82,13 @@ impl Path {
 	///
 	/// # Examples
 	/// ```
-	/// use moq_lite::{Path, PathPrefix};
+	/// use moq_lite::{Path, Prefix};
 	///
 	/// let path = Path::new("foo/bar/baz");
-	/// let suffix = path.strip_prefix(&PathPrefix::new("foo")).unwrap();
+	/// let suffix = path.strip_prefix(&Prefix::new("foo")).unwrap();
 	/// assert_eq!(suffix.as_str(), "/bar/baz");
 	///
-	/// let suffix = path.strip_prefix(&PathPrefix::new("foo/")).unwrap();
+	/// let suffix = path.strip_prefix(&Prefix::new("foo/")).unwrap();
 	/// assert_eq!(suffix.as_str(), "bar/baz");
 	/// ```
 	pub fn strip_prefix(&self, prefix: &Prefix) -> Option<Suffix> {
@@ -150,15 +150,15 @@ impl Prefix {
 	///
 	/// # Examples
 	/// ```
-	/// use moq_lite::{PathPrefix, PathSuffix};
+	/// use moq_lite::{Prefix, Suffix};
 	///
-	/// let prefix = PathPrefix::new("foo");
-	/// let suffix = PathSuffix::new("bar/baz");
+	/// let prefix = Prefix::new("foo");
+	/// let suffix = Suffix::new("bar/baz");
 	/// let path = prefix.join(&suffix);
 	/// assert_eq!(path.as_str(), "foo/bar/baz");
 	///
-	/// let prefix = PathPrefix::new("foo/");
-	/// let suffix = PathSuffix::new("bar/baz");
+	/// let prefix = Prefix::new("foo/");
+	/// let suffix = Suffix::new("bar/baz");
 	/// let path = prefix.join(&suffix);
 	/// assert_eq!(path.as_str(), "foo/bar/baz");
 	/// ```
@@ -174,34 +174,69 @@ impl Prefix {
 		}
 	}
 
-	/// Join this prefix with another prefix.
+	/// Join this prefix with a suffix to create a new prefix.
+	///
+	/// This method intelligently handles path separators to avoid double slashes
+	/// and ensures proper path formatting.
 	///
 	/// # Examples
 	/// ```
-	/// use moq_lite::{PathPrefix, PathPrefix};
+	/// use moq_lite::{Prefix, Suffix};
 	///
-	/// let prefix = PathPrefix::new("foo");
-	/// let joined = prefix.join_prefix(&PathPrefix::new("bar"));
+	/// let prefix = Prefix::new("foo");
+	/// let suffix = Suffix::new("bar");
+	/// let joined = prefix.join_prefix(&suffix);
 	/// assert_eq!(joined.as_str(), "foo/bar");
 	///
-	/// let prefix = PathPrefix::new("foo/");
-	/// let joined = prefix.join_prefix(&PathPrefix::new("bar"));
+	/// let prefix = Prefix::new("foo/");
+	/// let suffix = Suffix::new("bar");
+	/// let joined = prefix.join_prefix(&suffix);
 	/// assert_eq!(joined.as_str(), "foo/bar");
+	///
+	/// // Handles double slashes
+	/// let prefix = Prefix::new("foo/");
+	/// let suffix = Suffix::new("/bar");
+	/// let joined = prefix.join_prefix(&suffix);
+	/// assert_eq!(joined.as_str(), "foo/bar");
+	///
+	/// // Empty cases
+	/// let prefix = Prefix::new("foo");
+	/// let suffix = Suffix::new("");
+	/// let joined = prefix.join_prefix(&suffix);
+	/// assert_eq!(joined.as_str(), "foo");
 	/// ```
-	pub fn join_prefix(&self, prefix: &Prefix) -> Prefix {
-		if prefix.0.is_empty() {
+	pub fn join_prefix(&self, suffix: &Suffix) -> Prefix {
+		if suffix.0.is_empty() {
 			self.clone()
 		} else if self.0.is_empty() {
-			prefix.clone()
-		} else if self.0.ends_with('/') {
-			Prefix::new(format!("{}{}", self.0, prefix.0))
-		} else if prefix.0.starts_with('/') {
-			Prefix::new(format!("{}{}", self.0, prefix.0))
+			Prefix::new(suffix.0.clone())
+		} else if self.0.ends_with('/') && suffix.0.starts_with('/') {
+			// Avoid double slashes
+			Prefix::new(format!("{}{}", self.0, &suffix.0[1..]))
+		} else if self.0.ends_with('/') || suffix.0.starts_with('/') {
+			Prefix::new(format!("{}{}", self.0, suffix.0))
 		} else {
-			Prefix::new(format!("{}/{}", self.0, prefix.0))
+			Prefix::new(format!("{}/{}", self.0, suffix.0))
 		}
 	}
 
+	/// Check if this prefix has the given prefix, respecting path boundaries.
+	///
+	/// Similar to `Path::has_prefix`, this ensures proper path component matching
+	/// where "foo" does not match "foobar".
+	///
+	/// # Examples
+	/// ```
+	/// use moq_lite::Prefix;
+	///
+	/// let prefix = Prefix::new("foo/bar");
+	/// assert!(prefix.has_prefix(&Prefix::new("foo")));
+	/// assert!(prefix.has_prefix(&Prefix::new("foo/")));
+	/// assert!(!prefix.has_prefix(&Prefix::new("fo")));
+	///
+	/// let prefix = Prefix::new("foobar");
+	/// assert!(!prefix.has_prefix(&Prefix::new("foo")));
+	/// ```
 	pub fn has_prefix(&self, prefix: &Prefix) -> bool {
 		if prefix.0.is_empty() {
 			return true;
@@ -223,6 +258,40 @@ impl Prefix {
 
 		// Otherwise, ensure the character after the prefix is a delimiter
 		self.0.chars().nth(prefix.0.len()) == Some('/')
+	}
+
+	/// Strip a prefix from this prefix, returning the remaining suffix.
+	///
+	/// Returns `None` if this prefix doesn't start with the given prefix
+	/// according to path boundary rules (same as `has_prefix`).
+	///
+	/// # Examples
+	/// ```
+	/// use moq_lite::{Prefix, Suffix};
+	///
+	/// let prefix = Prefix::new("foo/bar/baz");
+	/// 
+	/// // Valid prefix stripping
+	/// let suffix = prefix.strip_prefix(&Prefix::new("foo")).unwrap();
+	/// assert_eq!(suffix.as_str(), "/bar/baz");
+	///
+	/// let suffix = prefix.strip_prefix(&Prefix::new("foo/")).unwrap();
+	/// assert_eq!(suffix.as_str(), "bar/baz");
+	///
+	/// let suffix = prefix.strip_prefix(&Prefix::new("foo/bar")).unwrap();
+	/// assert_eq!(suffix.as_str(), "/baz");
+	///
+	/// // Invalid prefix - returns None
+	/// assert!(prefix.strip_prefix(&Prefix::new("fo")).is_none());
+	/// assert!(prefix.strip_prefix(&Prefix::new("bar")).is_none());
+	/// ```
+	pub fn strip_prefix(&self, prefix: &Prefix) -> Option<Suffix> {
+		if !self.has_prefix(prefix) {
+			return None;
+		}
+
+		let suffix = &self.0[prefix.0.len()..];
+		Some(Suffix(suffix.to_string()))
 	}
 
 	/// Get the prefix as a string slice.
@@ -575,7 +644,7 @@ mod tests {
 		// Test exact matches
 		let prefix = Prefix::new("foo/bar");
 		assert!(prefix.has_prefix(&Prefix::new("foo/bar")));
-		
+
 		// Test valid prefixes
 		assert!(prefix.has_prefix(&Prefix::new("foo")));
 		assert!(prefix.has_prefix(&Prefix::new("foo/")));
@@ -614,48 +683,92 @@ mod tests {
 	#[test]
 	fn test_prefix_join_prefix() {
 		// Basic joining
-		let prefix1 = Prefix::new("foo");
-		let prefix2 = Prefix::new("bar");
-		assert_eq!(prefix1.join_prefix(&prefix2).as_str(), "foo/bar");
+		let prefix = Prefix::new("foo");
+		let suffix = Suffix::new("bar");
+		assert_eq!(prefix.join_prefix(&suffix).as_str(), "foo/bar");
 
-		// Trailing slash on first prefix
-		let prefix1 = Prefix::new("foo/");
-		let prefix2 = Prefix::new("bar");
-		assert_eq!(prefix1.join_prefix(&prefix2).as_str(), "foo/bar");
+		// Trailing slash on prefix
+		let prefix = Prefix::new("foo/");
+		let suffix = Suffix::new("bar");
+		assert_eq!(prefix.join_prefix(&suffix).as_str(), "foo/bar");
 
-		// Trailing slash on second prefix
-		let prefix1 = Prefix::new("foo");
-		let prefix2 = Prefix::new("bar/");
-		assert_eq!(prefix1.join_prefix(&prefix2).as_str(), "foo/bar/");
+		// Leading slash on suffix
+		let prefix = Prefix::new("foo");
+		let suffix = Suffix::new("/bar");
+		assert_eq!(prefix.join_prefix(&suffix).as_str(), "foo/bar");
 
-		// Both have trailing slashes
-		let prefix1 = Prefix::new("foo/");
-		let prefix2 = Prefix::new("bar/");
-		assert_eq!(prefix1.join_prefix(&prefix2).as_str(), "foo/bar/");
+		// Trailing slash on suffix
+		let prefix = Prefix::new("foo");
+		let suffix = Suffix::new("bar/");
+		assert_eq!(prefix.join_prefix(&suffix).as_str(), "foo/bar/");
 
-		// Empty second prefix
-		let prefix1 = Prefix::new("foo");
-		let prefix2 = Prefix::new("");
-		assert_eq!(prefix1.join_prefix(&prefix2).as_str(), "foo");
+		// Both have slashes
+		let prefix = Prefix::new("foo/");
+		let suffix = Suffix::new("/bar");
+		assert_eq!(prefix.join_prefix(&suffix).as_str(), "foo/bar");
 
-		// Empty first prefix
-		let prefix1 = Prefix::new("");
-		let prefix2 = Prefix::new("bar");
-		assert_eq!(prefix1.join_prefix(&prefix2).as_str(), "bar");
+		// Empty suffix
+		let prefix = Prefix::new("foo");
+		let suffix = Suffix::new("");
+		assert_eq!(prefix.join_prefix(&suffix).as_str(), "foo");
+
+		// Empty prefix
+		let prefix = Prefix::new("");
+		let suffix = Suffix::new("bar");
+		assert_eq!(prefix.join_prefix(&suffix).as_str(), "bar");
 
 		// Both empty
-		let prefix1 = Prefix::new("");
-		let prefix2 = Prefix::new("");
-		assert_eq!(prefix1.join_prefix(&prefix2).as_str(), "");
+		let prefix = Prefix::new("");
+		let suffix = Suffix::new("");
+		assert_eq!(prefix.join_prefix(&suffix).as_str(), "");
 
 		// Complex paths
-		let prefix1 = Prefix::new("foo/bar");
-		let prefix2 = Prefix::new("baz/qux");
-		assert_eq!(prefix1.join_prefix(&prefix2).as_str(), "foo/bar/baz/qux");
+		let prefix = Prefix::new("foo/bar");
+		let suffix = Suffix::new("baz/qux");
+		assert_eq!(prefix.join_prefix(&suffix).as_str(), "foo/bar/baz/qux");
 
-		// Complex paths with trailing slashes
-		let prefix1 = Prefix::new("foo/bar/");
-		let prefix2 = Prefix::new("baz/qux/");
-		assert_eq!(prefix1.join_prefix(&prefix2).as_str(), "foo/bar/baz/qux/");
+		// Complex paths with slashes
+		let prefix = Prefix::new("foo/bar/");
+		let suffix = Suffix::new("/baz/qux/");
+		assert_eq!(prefix.join_prefix(&suffix).as_str(), "foo/bar/baz/qux/");
+	}
+
+	#[test]
+	fn test_prefix_strip_prefix() {
+		// Test basic stripping
+		let prefix = Prefix::new("foo/bar/baz");
+		assert_eq!(prefix.strip_prefix(&Prefix::new("")).unwrap().as_str(), "foo/bar/baz");
+		assert_eq!(prefix.strip_prefix(&Prefix::new("foo")).unwrap().as_str(), "/bar/baz");
+		assert_eq!(prefix.strip_prefix(&Prefix::new("foo/")).unwrap().as_str(), "bar/baz");
+		assert_eq!(prefix.strip_prefix(&Prefix::new("foo/bar")).unwrap().as_str(), "/baz");
+		assert_eq!(prefix.strip_prefix(&Prefix::new("foo/bar/")).unwrap().as_str(), "baz");
+		assert_eq!(prefix.strip_prefix(&Prefix::new("foo/bar/baz")).unwrap().as_str(), "");
+
+		// Test invalid prefixes
+		assert!(prefix.strip_prefix(&Prefix::new("fo")).is_none());
+		assert!(prefix.strip_prefix(&Prefix::new("bar")).is_none());
+		assert!(prefix.strip_prefix(&Prefix::new("foo/ba")).is_none());
+
+		// Test edge cases
+		let prefix = Prefix::new("foobar");
+		assert!(prefix.strip_prefix(&Prefix::new("foo")).is_none());
+		assert_eq!(prefix.strip_prefix(&Prefix::new("foobar")).unwrap().as_str(), "");
+
+		// Test empty prefix
+		let prefix = Prefix::new("");
+		assert_eq!(prefix.strip_prefix(&Prefix::new("")).unwrap().as_str(), "");
+		assert!(prefix.strip_prefix(&Prefix::new("foo")).is_none());
+
+		// Test single component
+		let prefix = Prefix::new("foo");
+		assert_eq!(prefix.strip_prefix(&Prefix::new("foo")).unwrap().as_str(), "");
+		assert!(prefix.strip_prefix(&Prefix::new("foo/")).is_none());
+
+		// Test trailing slash handling
+		let prefix = Prefix::new("foo/bar/");
+		assert_eq!(prefix.strip_prefix(&Prefix::new("foo")).unwrap().as_str(), "/bar/");
+		assert_eq!(prefix.strip_prefix(&Prefix::new("foo/")).unwrap().as_str(), "bar/");
+		assert_eq!(prefix.strip_prefix(&Prefix::new("foo/bar")).unwrap().as_str(), "/");
+		assert_eq!(prefix.strip_prefix(&Prefix::new("foo/bar/")).unwrap().as_str(), "");
 	}
 }

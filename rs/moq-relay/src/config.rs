@@ -43,7 +43,6 @@ impl Config {
 		// If a file is provided, load it and merge the CLI arguments.
 		if let Some(file) = config.file {
 			config = toml::from_str(&std::fs::read_to_string(file)?)?;
-			println!("config: {:?}", config);
 			config.update_from(std::env::args());
 		}
 

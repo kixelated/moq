@@ -47,7 +47,7 @@ impl SessionSubscriber {
 		let mut stream = Stream::open(&mut self.session, message::ControlType::Announce).await?;
 
 		let msg = message::AnnounceRequest {
-			prefix: origin.prefix.clone(),
+			prefix: origin.prefix().clone(),
 		};
 		stream.writer.encode(&msg).await?;
 
@@ -56,7 +56,7 @@ impl SessionSubscriber {
 		while let Some(announce) = stream.reader.decode_maybe::<message::Announce>().await? {
 			match announce {
 				message::Announce::Active { suffix } => {
-					let path = origin.prefix.join(&suffix);
+					let path = origin.prefix().join(&suffix);
 					tracing::debug!(broadcast = %path, "received announce");
 
 					let producer = BroadcastProducer::new();
