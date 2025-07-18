@@ -4,15 +4,17 @@ use web_async::Lock;
 
 use crate::model::{BroadcastConsumer, BroadcastProducer};
 
+use moq_lite::{OriginConsumer, OriginProducer, Path, Prefix, Suffix};
+
 pub struct Room {
-	pub prefix: String,
-	broadcasts: moq_lite::OriginConsumer,
-	publisher: moq_lite::OriginProducer,
-	publishing: Lock<HashSet<String>>,
+	pub prefix: Prefix,
+	broadcasts: OriginConsumer,
+	publisher: OriginProducer,
+	publishing: Lock<HashSet<Suffix>>,
 }
 
 impl Room {
-	pub fn new(publisher: moq_lite::OriginProducer, subscriber: moq_lite::OriginConsumer, prefix: String) -> Self {
+	pub fn new(publisher: OriginProducer, subscriber: OriginConsumer, prefix: Prefix) -> Self {
 		Self {
 			broadcasts: subscriber,
 			publisher,
@@ -22,11 +24,9 @@ impl Room {
 	}
 
 	/// Joins the room, publishing the broadcast.
-	pub fn publish(&mut self, name: String, broadcast: BroadcastProducer) {
+	pub fn publish(&mut self, name: Suffix, broadcast: BroadcastProducer) {
 		self.publishing.lock().insert(name.clone());
-
-		let path = format!("{}{}", self.prefix, name);
-		self.publisher.publish(path, broadcast.inner.consume());
+		self.publisher.publish(name.clone(), broadcast.inner.consume());
 
 		let consumer = broadcast.inner.consume();
 		let publishing = self.publishing.clone();
@@ -42,23 +42,16 @@ impl Room {
 	///
 	/// If None is returned, then the broadcaster with that name has stopped broadcasting or is being reannounced.
 	/// When reannounced, the old BroadcastConsumer won't necessarily be closed, so you might have two broadcasts with the same name.
-	pub async fn watch(&mut self) -> Option<(String, Option<BroadcastConsumer>)> {
+	pub async fn watch(&mut self) -> Option<(Suffix, Option<BroadcastConsumer>)> {
 		loop {
-			let (absolute_path, broadcast) = self.broadcasts.next().await?;
+			let (suffix, broadcast) = self.broadcasts.next().await?;
 
-			// Convert absolute path to relative path for comparison
-			// This should always succeed since Subscriber filters by prefix
-			let suffix = absolute_path
-				.strip_prefix(&moq_lite::Path::from(&self.prefix))
-				.expect("Subscriber should only return broadcasts matching its prefix");
-			let relative_path = suffix.to_string();
-
-			if self.publishing.lock().contains(&relative_path) {
+			if self.publishing.lock().contains(&suffix) {
 				// We're publishing this broadcast, so skip it.
 				continue;
 			}
 
-			return Some((relative_path, broadcast.map(BroadcastConsumer::new)));
+			return Some((suffix, broadcast.map(BroadcastConsumer::new)));
 		}
 	}
 

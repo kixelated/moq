@@ -1,6 +1,6 @@
 use web_async::FuturesExt;
 
-use crate::{message, model::GroupConsumer, Error, OriginConsumer, Track, TrackConsumer};
+use crate::{message, model::GroupConsumer, Error, OriginConsumer, Prefix, Track, TrackConsumer};
 
 use super::{Stream, Writer};
 
@@ -44,15 +44,25 @@ impl SessionPublisher {
 		Ok(())
 	}
 
-	async fn run_announce(&mut self, stream: &mut Stream, prefix: &str) -> Result<(), Error> {
+	async fn run_announce(&mut self, stream: &mut Stream, prefix: &Prefix) -> Result<(), Error> {
 		let origin = self.origin.as_ref().ok_or(Error::Unauthorized)?;
-		let prefix = crate::Path::from(prefix);
+		println!("origin: {:?}", origin.prefix);
+		println!("prefix: {:?}", prefix);
+		println!(
+			"prefix.has_prefix(&origin.prefix): {:?}",
+			prefix.has_prefix(&origin.prefix)
+		);
+		println!(
+			"prefix.join_prefix(&origin.prefix): {:?}",
+			prefix.join_prefix(&origin.prefix)
+		);
 
 		// Check if the requested prefix is within the client's authorized prefix
 		if !prefix.has_prefix(&origin.prefix) {
 			return Err(Error::Unauthorized);
 		}
 
+		// prefix of a prefix
 		let mut announced = origin.consume_prefix(prefix.clone());
 
 		// Flush any synchronously announced paths
@@ -62,16 +72,14 @@ impl SessionPublisher {
 				res = stream.reader.finished() => return res,
 				announced = announced.next() => {
 					match announced {
-						Some((path, broadcast)) => {
-							let suffix = path.strip_prefix(&prefix).expect("returned wrong prefix");
-
+						Some((suffix, broadcast)) => {
 							if broadcast.is_some() {
-								tracing::debug!(broadcast = %path, "announce");
-								let msg = message::Announce::Active { suffix: suffix.to_string() };
+								tracing::debug!(broadcast = %prefix.join(&suffix), "announce");
+								let msg = message::Announce::Active { suffix };
 								stream.writer.encode(&msg).await?;
 							} else {
-								tracing::debug!(broadcast = %path, "unannounce");
-								let msg = message::Announce::Ended { suffix: suffix.to_string() };
+								tracing::debug!(broadcast = %prefix.join(&suffix), "unannounce");
+								let msg = message::Announce::Ended { suffix };
 								stream.writer.encode(&msg).await?;
 							}
 						},
@@ -106,19 +114,18 @@ impl SessionPublisher {
 
 	async fn run_subscribe(&mut self, stream: &mut Stream, subscribe: &mut message::Subscribe) -> Result<(), Error> {
 		let origin = self.origin.as_ref().ok_or(Error::Unauthorized)?;
-		let broadcast_path = crate::Path::from(&subscribe.broadcast);
 
-		if !broadcast_path.has_prefix(&origin.prefix) {
-			return Err(Error::Unauthorized);
-		}
+		let suffix = subscribe
+			.broadcast
+			.strip_prefix(&origin.prefix)
+			.ok_or(Error::Unauthorized)?;
 
-		let broadcast = subscribe.broadcast.clone();
 		let track = Track {
 			name: subscribe.track.clone(),
 			priority: subscribe.priority,
 		};
 
-		let broadcast = origin.consume(&broadcast).ok_or(Error::NotFound)?;
+		let broadcast = origin.consume(&suffix).ok_or(Error::NotFound)?;
 		let track = broadcast.subscribe(&track);
 
 		// TODO wait until track.info() to get the *real* priority

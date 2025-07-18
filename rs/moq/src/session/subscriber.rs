@@ -47,7 +47,7 @@ impl SessionSubscriber {
 		let mut stream = Stream::open(&mut self.session, message::ControlType::Announce).await?;
 
 		let msg = message::AnnounceRequest {
-			prefix: origin.prefix.to_string(),
+			prefix: origin.prefix.clone(),
 		};
 		stream.writer.encode(&msg).await?;
 
@@ -63,7 +63,7 @@ impl SessionSubscriber {
 					let consumer = producer.consume();
 
 					// Run the broadcast in the background until all consumers are dropped.
-					origin.publish(path.clone(), consumer);
+					origin.publish(suffix.clone(), consumer);
 					producers.insert(suffix.clone(), producer.clone());
 
 					spawn(self.clone().run_broadcast(path, producer));
@@ -115,12 +115,12 @@ impl SessionSubscriber {
 
 		let msg = message::Subscribe {
 			id,
-			broadcast: broadcast.to_string(),
+			broadcast: broadcast.clone(),
 			track: track.info.name.clone(),
 			priority: track.info.priority,
 		};
 
-		tracing::debug!(broadcast = %broadcast, track = %track.info.name, id, "subscribe started");
+		tracing::debug!(%broadcast, track = %track.info.name, id, "subscribe started");
 
 		let res = tokio::select! {
 			_ = track.unused() => Err(Error::Cancel),
