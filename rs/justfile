@@ -149,8 +149,8 @@ check flags="":
 
 # Automatically fix some issues.
 fix flags="":
-	cargo fix --allow-staged --all-targets --all-features {{flags}}
-	cargo clippy --fix --allow-staged --all-targets --all-features {{flags}}
+	cargo fix --allow-staged --allow-dirty --all-targets --all-features {{flags}}
+	cargo clippy --fix --allow-staged --allow-dirty --all-targets --all-features {{flags}}
 	cargo fmt --all
 
 	# requires: cargo install cargo-shear

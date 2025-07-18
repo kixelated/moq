@@ -1419,6 +1419,7 @@ version = "0.4.0"
 dependencies = [
  "anyhow",
  "aws-lc-rs",
+ "base64",
  "jsonwebtoken",
  "serde",
  "serde_json",

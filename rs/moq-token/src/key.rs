@@ -1,8 +1,8 @@
-use serde_with::base64::{Base64, UrlSafe};
-use std::{collections::HashSet, fmt, fs::File, io::BufReader, path::Path, sync::OnceLock};
+use std::{collections::HashSet, fmt, path::Path, sync::OnceLock};
 
+use base64::Engine;
 use jsonwebtoken::{DecodingKey, EncodingKey, Header};
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 use crate::{Algorithm, Claims};
 
@@ -16,7 +16,6 @@ pub enum KeyOperation {
 }
 
 /// Similar to JWK but not quite the same because it's annoying to implement.
-#[serde_with::serde_as]
 #[derive(Clone, Serialize, Deserialize)]
 pub struct Key {
 	/// The algorithm used by the key.
@@ -27,9 +26,12 @@ pub struct Key {
 	#[serde(rename = "key_ops")]
 	pub operations: HashSet<KeyOperation>,
 
-	/// The secret key as base64.
-	#[serde(rename = "k")]
-	#[serde_as(as = "Base64<UrlSafe>")]
+	/// The secret key as base64url (unpadded).
+	#[serde(
+		rename = "k",
+		serialize_with = "serialize_base64url",
+		deserialize_with = "deserialize_base64url"
+	)]
 	pub secret: Vec<u8>,
 
 	/// The key ID, useful for rotating keys.
@@ -61,9 +63,20 @@ impl Key {
 	}
 
 	pub fn from_file<P: AsRef<Path>>(path: P) -> anyhow::Result<Self> {
-		let file = File::open(path)?;
-		let reader = BufReader::new(file);
-		Ok(serde_json::from_reader(reader)?)
+		// TODO: Remove this once all keys are migrated to base64url format
+		// First try to read as JSON (backwards compatibility)
+		let contents = std::fs::read_to_string(&path)?;
+		if contents.trim_start().starts_with('{') {
+			// It's JSON format
+			Ok(serde_json::from_str(&contents)?)
+		} else {
+			// It's base64url encoded
+			let decoded = base64::engine::general_purpose::URL_SAFE_NO_PAD
+				.decode(contents.trim())
+				.or_else(|_| base64::engine::general_purpose::URL_SAFE.decode(contents.trim()))?;
+			let json = String::from_utf8(decoded)?;
+			Ok(serde_json::from_str(&json)?)
+		}
 	}
 
 	pub fn to_str(&self) -> anyhow::Result<String> {
@@ -71,8 +84,11 @@ impl Key {
 	}
 
 	pub fn to_file<P: AsRef<Path>>(&self, path: P) -> anyhow::Result<()> {
-		let file = File::create(path)?;
-		serde_json::to_writer(file, self)?;
+		// Serialize to JSON first
+		let json = serde_json::to_string(self)?;
+		// Then encode as base64url
+		let encoded = base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(json.as_bytes());
+		std::fs::write(path, encoded)?;
 		Ok(())
 	}
 
@@ -168,6 +184,32 @@ impl Key {
 		(private_key, public_key)
 		*/
 	}
+}
+
+/// Serialize bytes as base64url without padding
+fn serialize_base64url<S>(bytes: &[u8], serializer: S) -> Result<S::Ok, S::Error>
+where
+	S: Serializer,
+{
+	let encoded = base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(bytes);
+	serializer.serialize_str(&encoded)
+}
+
+/// Deserialize base64url string to bytes, supporting both padded and unpadded formats for backwards compatibility
+fn deserialize_base64url<'de, D>(deserializer: D) -> Result<Vec<u8>, D::Error>
+where
+	D: Deserializer<'de>,
+{
+	let s = String::deserialize(deserializer)?;
+
+	// Try to decode as unpadded base64url first
+	base64::engine::general_purpose::URL_SAFE_NO_PAD
+		.decode(&s)
+		.or_else(|_| {
+			// Fall back to padded base64url for backwards compatibility
+			base64::engine::general_purpose::URL_SAFE.decode(&s)
+		})
+		.map_err(serde::de::Error::custom)
 }
 
 fn generate_hmac_key<const SIZE: usize>() -> Vec<u8> {
@@ -504,5 +546,104 @@ mod tests {
 		// Different algorithm should fail verification
 		let result = key_384.verify(&token, &claims.path);
 		assert!(result.is_err());
+	}
+
+	#[test]
+	fn test_base64url_serialization() {
+		let key = create_test_key();
+		let json = serde_json::to_string(&key).unwrap();
+
+		// Check that the secret is base64url encoded without padding
+		let parsed: serde_json::Value = serde_json::from_str(&json).unwrap();
+		let k_value = parsed["k"].as_str().unwrap();
+
+		// Base64url should not contain padding characters
+		assert!(!k_value.contains('='));
+		assert!(!k_value.contains('+'));
+		assert!(!k_value.contains('/'));
+
+		// Verify it decodes correctly
+		let decoded = base64::engine::general_purpose::URL_SAFE_NO_PAD
+			.decode(k_value)
+			.unwrap();
+		assert_eq!(decoded, key.secret);
+	}
+
+	#[test]
+	fn test_backwards_compatibility_padded_base64url() {
+		// Create a JSON with padded base64url (old format)
+		let padded_json = r#"{"alg":"HS256","key_ops":["sign","verify"],"k":"dGVzdC1zZWNyZXQtdGhhdC1pcy1sb25nLWVub3VnaC1mb3ItaG1hYy1zaGEyNTY=","kid":"test-key-1"}"#;
+
+		// Should be able to deserialize old format
+		let key: Key = serde_json::from_str(padded_json).unwrap();
+		assert_eq!(key.secret, b"test-secret-that-is-long-enough-for-hmac-sha256");
+		assert_eq!(key.algorithm, Algorithm::HS256);
+		assert_eq!(key.kid, Some("test-key-1".to_string()));
+	}
+
+	#[test]
+	fn test_backwards_compatibility_unpadded_base64url() {
+		// Create a JSON with unpadded base64url (new format)
+		let unpadded_json = r#"{"alg":"HS256","key_ops":["sign","verify"],"k":"dGVzdC1zZWNyZXQtdGhhdC1pcy1sb25nLWVub3VnaC1mb3ItaG1hYy1zaGEyNTY","kid":"test-key-1"}"#;
+
+		// Should be able to deserialize new format
+		let key: Key = serde_json::from_str(unpadded_json).unwrap();
+		assert_eq!(key.secret, b"test-secret-that-is-long-enough-for-hmac-sha256");
+		assert_eq!(key.algorithm, Algorithm::HS256);
+		assert_eq!(key.kid, Some("test-key-1".to_string()));
+	}
+
+	#[test]
+	fn test_file_io_base64url() {
+		let key = create_test_key();
+		let temp_dir = std::env::temp_dir();
+		let temp_path = temp_dir.join("test_jwk.key");
+
+		// Write key to file
+		key.to_file(&temp_path).unwrap();
+
+		// Read file contents
+		let contents = std::fs::read_to_string(&temp_path).unwrap();
+
+		// Should be base64url encoded
+		assert!(!contents.contains('{'));
+		assert!(!contents.contains('}'));
+		assert!(!contents.contains('"'));
+
+		// Decode and verify it's valid JSON
+		let decoded = base64::engine::general_purpose::URL_SAFE_NO_PAD
+			.decode(&contents)
+			.unwrap();
+		let json_str = String::from_utf8(decoded).unwrap();
+		let _: serde_json::Value = serde_json::from_str(&json_str).unwrap();
+
+		// Read key back from file
+		let loaded_key = Key::from_file(&temp_path).unwrap();
+		assert_eq!(loaded_key.algorithm, key.algorithm);
+		assert_eq!(loaded_key.operations, key.operations);
+		assert_eq!(loaded_key.secret, key.secret);
+		assert_eq!(loaded_key.kid, key.kid);
+
+		// Clean up
+		std::fs::remove_file(temp_path).ok();
+	}
+
+	#[test]
+	fn test_file_io_backwards_compatibility_json() {
+		let temp_dir = std::env::temp_dir();
+		let temp_path = temp_dir.join("test_jwk_json.key");
+
+		// Write old JSON format to file
+		let old_json = r#"{"alg":"HS256","key_ops":["sign","verify"],"k":"dGVzdC1zZWNyZXQtdGhhdC1pcy1sb25nLWVub3VnaC1mb3ItaG1hYy1zaGEyNTY=","kid":"test-key-1"}"#;
+		std::fs::write(&temp_path, old_json).unwrap();
+
+		// Should be able to read old format
+		let key = Key::from_file(&temp_path).unwrap();
+		assert_eq!(key.secret, b"test-secret-that-is-long-enough-for-hmac-sha256");
+		assert_eq!(key.algorithm, Algorithm::HS256);
+		assert_eq!(key.kid, Some("test-key-1".to_string()));
+
+		// Clean up
+		std::fs::remove_file(temp_path).ok();
 	}
 }
