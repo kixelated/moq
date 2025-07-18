@@ -35,7 +35,7 @@ enum Commands {
 		/// Appended to the publish/subscribe options to form the full name.
 		/// It's mostly for compression and is optional, defaulting to the empty string.
 		#[arg(long, default_value = "")]
-		root: String,
+		path: String,
 
 		/// If specified, the user can publish any matching broadcasts.
 		/// If not specified, the user will not publish any broadcasts.
@@ -78,7 +78,7 @@ fn main() -> anyhow::Result<()> {
 		}
 
 		Commands::Sign {
-			root,
+			path,
 			publish,
 			cluster,
 			subscribe,
@@ -88,7 +88,7 @@ fn main() -> anyhow::Result<()> {
 			let key = moq_token::Key::from_file(cli.key)?;
 
 			let payload = moq_token::Claims {
-				root,
+				path,
 				publish,
 				cluster,
 				subscribe,

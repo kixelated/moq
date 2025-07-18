@@ -46,14 +46,14 @@ impl SessionPublisher {
 
 	async fn run_announce(&mut self, stream: &mut Stream, prefix: &str) -> Result<(), Error> {
 		let origin = self.origin.as_ref().ok_or(Error::Unauthorized)?;
-		let prefix_path = crate::Path::from(prefix);
+		let prefix = crate::Path::from(prefix);
 
 		// Check if the requested prefix is within the client's authorized prefix
-		if !prefix_path.has_prefix(&origin.prefix) {
+		if !prefix.has_prefix(&origin.prefix) {
 			return Err(Error::Unauthorized);
 		}
 
-		let mut announced = origin.consume_prefix(prefix);
+		let mut announced = origin.consume_prefix(prefix.clone());
 
 		// Flush any synchronously announced paths
 		loop {
@@ -62,13 +62,15 @@ impl SessionPublisher {
 				res = stream.reader.finished() => return res,
 				announced = announced.next() => {
 					match announced {
-						Some((suffix, broadcast)) => {
+						Some((path, broadcast)) => {
+							let suffix = path.strip_prefix(&prefix).expect("returned wrong prefix");
+
 							if broadcast.is_some() {
-								tracing::debug!(?suffix, "announce");
+								tracing::debug!(broadcast = %path, "announce");
 								let msg = message::Announce::Active { suffix: suffix.to_string() };
 								stream.writer.encode(&msg).await?;
 							} else {
-								tracing::debug!(?suffix, "unannounce");
+								tracing::debug!(broadcast = %path, "unannounce");
 								let msg = message::Announce::Ended { suffix: suffix.to_string() };
 								stream.writer.encode(&msg).await?;
 							}

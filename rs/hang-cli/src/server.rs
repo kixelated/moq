@@ -54,8 +54,8 @@ async fn accept(mut server: moq_native::Server, broadcast: String, consumer: Bro
 		tokio::spawn(async move {
 			let session: web_transport::Session = session.into();
 
-			// Create an origin producer that can publish under any prefix
-			let mut publisher = moq_lite::OriginProducer::new(broadcast.clone());
+			// Create an origin producer to publish to the broadcast.
+			let mut publisher = moq_lite::OriginProducer::default();
 
 			let session = moq_lite::Session::accept(session, publisher.consume_all(), None)
 				.await

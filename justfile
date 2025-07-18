@@ -45,8 +45,8 @@ cluster:
 	js/node_modules/.bin/concurrently --kill-others --names root,leaf,bbb,tos,web --prefix-colors auto \
 		"just relay" \
 		"sleep 1 && just leaf" \
-		"sleep 2 && just pub bbb http://localhost:4443/" \
-		"sleep 3 && just pub tos http://localhost:4444/" \
+		"sleep 2 && just pub bbb http://localhost:4444/" \
+		"sleep 3 && just pub tos http://localhost:4443/" \
 		"sleep 4 && just web"
 
 # Run a leaf node

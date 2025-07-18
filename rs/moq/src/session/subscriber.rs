@@ -4,7 +4,8 @@ use std::{
 };
 
 use crate::{
-	message, model::BroadcastProducer, Error, Frame, FrameProducer, Group, GroupProducer, OriginProducer, TrackProducer,
+	message, model::BroadcastProducer, Error, Frame, FrameProducer, Group, GroupProducer, OriginProducer, Path,
+	TrackProducer,
 };
 
 use web_async::{spawn, Lock};
@@ -14,44 +15,39 @@ use super::{Reader, Stream};
 #[derive(Clone)]
 pub(super) struct SessionSubscriber {
 	session: web_transport::Session,
-	origin: Option<OriginProducer>,
 
-	broadcasts: Lock<HashMap<String, BroadcastProducer>>,
+	broadcasts: Lock<HashMap<Path, BroadcastProducer>>,
 	subscribes: Lock<HashMap<u64, TrackProducer>>,
 	next_id: Arc<atomic::AtomicU64>,
 }
 
 impl SessionSubscriber {
-	pub fn new(session: web_transport::Session, origin: Option<OriginProducer>) -> Self {
+	pub fn new(session: web_transport::Session) -> Self {
 		Self {
 			session,
-			origin,
 			broadcasts: Default::default(),
 			subscribes: Default::default(),
 			next_id: Default::default(),
 		}
 	}
 
-	pub async fn run(self) -> Result<(), Error> {
-		// Keep running until we don't care about the producer anymore.
-		// TODO Don't clone the origin this many times, it's not needed.
-		let closed = match self.origin.clone() {
-			Some(origin) => origin,
-			None => return Ok(()),
-		};
+	pub async fn run(self, origin: OriginProducer) -> Result<(), Error> {
+		let closed = origin.clone();
 
 		// Wait until the producer is no longer needed or the stream is closed.
 		tokio::select! {
+			biased; // avoid run_inner if we're already unused
+			// Nobody wants to consume from this origin anymore.
 			_ = closed.unused() => Err(Error::Cancel),
-			res = self.run_inner() => res,
+			res = self.run_inner(origin) => res,
 		}
 	}
 
-	async fn run_inner(mut self) -> Result<(), Error> {
+	async fn run_inner(mut self, mut origin: OriginProducer) -> Result<(), Error> {
 		let mut stream = Stream::open(&mut self.session, message::ControlType::Announce).await?;
 
 		let msg = message::AnnounceRequest {
-			prefix: self.origin.as_ref().unwrap().prefix.to_string(),
+			prefix: origin.prefix.to_string(),
 		};
 		stream.writer.encode(&msg).await?;
 
@@ -60,24 +56,17 @@ impl SessionSubscriber {
 		while let Some(announce) = stream.reader.decode_maybe::<message::Announce>().await? {
 			match announce {
 				message::Announce::Active { suffix } => {
-					tracing::debug!(%suffix, "received announce");
-
-					// Construct absolute path by joining prefix with suffix
-					let prefix = &self.origin.as_ref().unwrap().prefix;
-					let absolute_path = if suffix.is_empty() {
-						prefix.clone()
-					} else {
-						prefix.join(&suffix)
-					};
+					let path = origin.prefix.join(&suffix);
+					tracing::debug!(broadcast = %path, "received announce");
 
 					let producer = BroadcastProducer::new();
 					let consumer = producer.consume();
 
 					// Run the broadcast in the background until all consumers are dropped.
-					self.origin.as_mut().unwrap().publish(absolute_path.clone(), consumer);
+					origin.publish(path.clone(), consumer);
 					producers.insert(suffix.clone(), producer.clone());
 
-					spawn(self.clone().run_broadcast(suffix, producer));
+					spawn(self.clone().run_broadcast(path, producer));
 				}
 				message::Announce::Ended { suffix } => {
 					tracing::debug!(%suffix, "received unannounce");
@@ -93,7 +82,7 @@ impl SessionSubscriber {
 		stream.writer.finish().await
 	}
 
-	async fn run_broadcast(self, name: String, mut broadcast: BroadcastProducer) {
+	async fn run_broadcast(self, path: Path, mut broadcast: BroadcastProducer) {
 		// Actually start serving subscriptions.
 		loop {
 			// Keep serving requests until there are no more consumers.
@@ -108,30 +97,30 @@ impl SessionSubscriber {
 			};
 
 			let id = self.next_id.fetch_add(1, atomic::Ordering::Relaxed);
-			let name = name.clone();
 			let mut this = self.clone();
 
+			let path = path.clone();
 			spawn(async move {
-				this.run_subscribe(id, name, track).await;
+				this.run_subscribe(id, path, track).await;
 				this.subscribes.lock().remove(&id);
 			});
 		}
 
 		// Remove the broadcast from the lookup.
-		self.broadcasts.lock().remove(&name);
+		self.broadcasts.lock().remove(&path);
 	}
 
-	async fn run_subscribe(&mut self, id: u64, broadcast: String, track: TrackProducer) {
+	async fn run_subscribe(&mut self, id: u64, broadcast: Path, track: TrackProducer) {
 		self.subscribes.lock().insert(id, track.clone());
 
 		let msg = message::Subscribe {
 			id,
-			broadcast: broadcast.clone(),
+			broadcast: broadcast.to_string(),
 			track: track.info.name.clone(),
 			priority: track.info.priority,
 		};
 
-		tracing::debug!(%broadcast, track = %track.info.name, id, "subscribe started");
+		tracing::debug!(broadcast = %broadcast, track = %track.info.name, id, "subscribe started");
 
 		let res = tokio::select! {
 			_ = track.unused() => Err(Error::Cancel),
@@ -140,15 +129,15 @@ impl SessionSubscriber {
 
 		match res {
 			Err(Error::Cancel) | Err(Error::WebTransport(_)) => {
-				tracing::debug!(broadcast = %broadcast, track = %track.info.name, id, "subscribe cancelled");
+				tracing::debug!(%broadcast, track = %track.info.name, id, "subscribe cancelled");
 				track.abort(Error::Cancel);
 			}
 			Err(err) => {
-				tracing::warn!(?err, broadcast = %broadcast, track = %track.info.name, id, "subscribe error");
+				tracing::warn!(?err, %broadcast, track = %track.info.name, id, "subscribe error");
 				track.abort(err);
 			}
 			_ => {
-				tracing::debug!(broadcast = %broadcast, track = %track.info.name, id, "subscribe complete");
+				tracing::debug!(%broadcast, track = %track.info.name, id, "subscribe complete");
 				track.finish();
 			}
 		}

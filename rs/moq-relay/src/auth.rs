@@ -68,7 +68,7 @@ impl Auth {
 
 		if let Some(public) = &self.public {
 			return Ok(moq_token::Claims {
-				root: public.clone(),
+				path: public.clone(),
 				subscribe: Some("".to_string()),
 				publish: Some("".to_string()),
 				..Default::default()

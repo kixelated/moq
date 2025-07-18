@@ -20,7 +20,7 @@
 		"noImplicitOverride": true,
 		"noImplicitReturns": true,
 		"noImplicitThis": true,
-		"noPropertyAccessFromIndexSignature": true,
+		"noPropertyAccessFromIndexSignature": false, // Allows . notation
 		"noUncheckedIndexedAccess": false, // Allows [0] access to arrays
 		"noUnusedLocals": true,
 		"noUnusedParameters": true,

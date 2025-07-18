@@ -1,0 +1,28 @@
+{
+	"name": "moq-token",
+	"type": "module",
+	"version": "0.1.0",
+	"description": "Media over QUIC - Token Generation and Validation",
+	"license": "(MIT OR Apache-2.0)",
+	"repository": "github:kixelated/moq",
+	"exports": {
+		".": "./src/index.ts"
+	},
+	"files": [
+		"./src"
+	],
+	"scripts": {
+		"build": "tsc -b",
+		"check": "tsc --noEmit",
+		"test": "node --test --import tsx/esm src/*.test.ts",
+		"release": "tsx ../scripts/release.ts"
+	},
+	"dependencies": {
+		"jose": "^6.0.12",
+		"zod": "^4.0.5"
+	},
+	"devDependencies": {
+		"typescript": "^5.8.3",
+		"tsx": "^4.20.1"
+	}
+}

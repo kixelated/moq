@@ -33,7 +33,7 @@ impl Session {
 		tracing::info!("session started");
 
 		let publisher = SessionPublisher::new(session.clone(), publish);
-		let subscriber = SessionSubscriber::new(session.clone(), subscribe);
+		let subscriber = SessionSubscriber::new(session.clone());
 
 		let this = Self {
 			webtransport: session.clone(),
@@ -45,7 +45,8 @@ impl Session {
 				res = Self::run_bi(session.clone(), publisher.clone()) => res,
 				res = Self::run_uni(session.clone(), subscriber.clone()) => res,
 				//res = publisher.run() => res,
-				res = subscriber.run() => res,
+				// Ignore Ok (unused) or when subscribe is None.
+				Some(Err(res)) = async move { Some(subscriber.run(subscribe?).await) } => Err(res),
 			};
 
 			match res {

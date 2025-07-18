@@ -33,8 +33,8 @@ async fn connect(
 
 	let session = client.connect(url).await?;
 
-	// Create an origin producer that can only publish this specific broadcast.
-	let mut publisher = moq_lite::OriginProducer::new(broadcast.clone());
+	// Create an origin producer to publish to the broadcast.
+	let mut publisher = moq_lite::OriginProducer::default();
 
 	// Establish the connection, not providing a subscriber.
 	let session = moq_lite::Session::connect(session, publisher.consume_all(), None).await?;

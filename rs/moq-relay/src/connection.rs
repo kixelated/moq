@@ -15,7 +15,7 @@ impl Connection {
 		// These broadcasts will be served to the session (when it subscribes).
 		let mut publish = None;
 		if let Some(prefix) = token.subscribe {
-			let prefix = format!("{}{}", token.root, prefix);
+			let prefix = format!("{}{}", token.path, prefix);
 			publish = Some(match token.cluster {
 				true => self.cluster.primary.consume_prefix(&prefix),
 				false => self.cluster.combined.consume_prefix(&prefix),
@@ -27,7 +27,7 @@ impl Connection {
 		if let Some(prefix) = token.publish {
 			// If this is a cluster node, then add its broadcasts to the secondary origin.
 			// That way we won't publish them to other cluster nodes.
-			let prefix = format!("{}{}", token.root, prefix);
+			let prefix = format!("{}{}", token.path, prefix);
 			subscribe = Some(match token.cluster {
 				true => self.cluster.secondary.publish_prefix(&prefix),
 				false => self.cluster.primary.publish_prefix(&prefix),

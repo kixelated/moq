@@ -1,12 +1,12 @@
-use serde_with::base64::{Base64, UrlSafe};
-use std::{collections::HashSet, fmt, fs::File, io::BufReader, path::Path, sync::OnceLock};
+use std::{collections::HashSet, fmt, path::Path, sync::OnceLock};
 
+use base64::Engine;
 use jsonwebtoken::{DecodingKey, EncodingKey, Header};
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 use crate::{Algorithm, Claims};
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash, PartialOrd, Ord)]
 #[serde(rename_all = "camelCase")]
 pub enum KeyOperation {
 	Sign,
@@ -16,7 +16,6 @@ pub enum KeyOperation {
 }
 
 /// Similar to JWK but not quite the same because it's annoying to implement.
-#[serde_with::serde_as]
 #[derive(Clone, Serialize, Deserialize)]
 pub struct Key {
 	/// The algorithm used by the key.
@@ -27,9 +26,12 @@ pub struct Key {
 	#[serde(rename = "key_ops")]
 	pub operations: HashSet<KeyOperation>,
 
-	/// The secret key as base64.
-	#[serde(rename = "k")]
-	#[serde_as(as = "Base64<UrlSafe>")]
+	/// The secret key as base64url (unpadded).
+	#[serde(
+		rename = "k",
+		serialize_with = "serialize_base64url",
+		deserialize_with = "deserialize_base64url"
+	)]
 	pub secret: Vec<u8>,
 
 	/// The key ID, useful for rotating keys.
@@ -61,9 +63,20 @@ impl Key {
 	}
 
 	pub fn from_file<P: AsRef<Path>>(path: P) -> anyhow::Result<Self> {
-		let file = File::open(path)?;
-		let reader = BufReader::new(file);
-		Ok(serde_json::from_reader(reader)?)
+		// TODO: Remove this once all keys are migrated to base64url format
+		// First try to read as JSON (backwards compatibility)
+		let contents = std::fs::read_to_string(&path)?;
+		if contents.trim_start().starts_with('{') {
+			// It's JSON format
+			Ok(serde_json::from_str(&contents)?)
+		} else {
+			// It's base64url encoded
+			let decoded = base64::engine::general_purpose::URL_SAFE_NO_PAD
+				.decode(contents.trim())
+				.or_else(|_| base64::engine::general_purpose::URL_SAFE.decode(contents.trim()))?;
+			let json = String::from_utf8(decoded)?;
+			Ok(serde_json::from_str(&json)?)
+		}
 	}
 
 	pub fn to_str(&self) -> anyhow::Result<String> {
@@ -71,8 +84,11 @@ impl Key {
 	}
 
 	pub fn to_file<P: AsRef<Path>>(&self, path: P) -> anyhow::Result<()> {
-		let file = File::create(path)?;
-		serde_json::to_writer(file, self)?;
+		// Serialize to JSON first
+		let json = serde_json::to_string(self)?;
+		// Then encode as base64url
+		let encoded = base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(json.as_bytes());
+		std::fs::write(path, encoded)?;
 		Ok(())
 	}
 
@@ -166,8 +182,464 @@ impl Key {
 	}
 }
 
+/// Serialize bytes as base64url without padding
+fn serialize_base64url<S>(bytes: &[u8], serializer: S) -> Result<S::Ok, S::Error>
+where
+	S: Serializer,
+{
+	let encoded = base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(bytes);
+	serializer.serialize_str(&encoded)
+}
+
+/// Deserialize base64url string to bytes, supporting both padded and unpadded formats for backwards compatibility
+fn deserialize_base64url<'de, D>(deserializer: D) -> Result<Vec<u8>, D::Error>
+where
+	D: Deserializer<'de>,
+{
+	let s = String::deserialize(deserializer)?;
+
+	// Try to decode as unpadded base64url first
+	base64::engine::general_purpose::URL_SAFE_NO_PAD
+		.decode(&s)
+		.or_else(|_| {
+			// Fall back to padded base64url for backwards compatibility
+			base64::engine::general_purpose::URL_SAFE.decode(&s)
+		})
+		.map_err(serde::de::Error::custom)
+}
+
 fn generate_hmac_key<const SIZE: usize>() -> Vec<u8> {
 	let mut key = [0u8; SIZE];
 	aws_lc_rs::rand::fill(&mut key).unwrap();
 	key.to_vec()
+}
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+	use std::time::{Duration, SystemTime};
+
+	fn create_test_key() -> Key {
+		Key {
+			algorithm: Algorithm::HS256,
+			operations: [KeyOperation::Sign, KeyOperation::Verify].into(),
+			secret: b"test-secret-that-is-long-enough-for-hmac-sha256".to_vec(),
+			kid: Some("test-key-1".to_string()),
+			decode: Default::default(),
+			encode: Default::default(),
+		}
+	}
+
+	fn create_test_claims() -> Claims {
+		Claims {
+			path: "test-path/".to_string(),
+			publish: Some("test-pub".to_string()),
+			cluster: false,
+			subscribe: Some("test-sub".to_string()),
+			expires: Some(SystemTime::now() + Duration::from_secs(3600)),
+			issued: Some(SystemTime::now()),
+		}
+	}
+
+	#[test]
+	fn test_key_from_str_valid() {
+		let key = create_test_key();
+		let json = key.to_str().unwrap();
+		let loaded_key = Key::from_str(&json).unwrap();
+
+		assert_eq!(loaded_key.algorithm, key.algorithm);
+		assert_eq!(loaded_key.operations, key.operations);
+		assert_eq!(loaded_key.secret, key.secret);
+		assert_eq!(loaded_key.kid, key.kid);
+	}
+
+	#[test]
+	fn test_key_from_str_invalid_json() {
+		let result = Key::from_str("invalid json");
+		assert!(result.is_err());
+	}
+
+	#[test]
+	fn test_key_to_str() {
+		let key = create_test_key();
+		let json = key.to_str().unwrap();
+		assert!(json.contains("\"alg\":\"HS256\""));
+		assert!(json.contains("\"key_ops\""));
+		assert!(json.contains("\"sign\""));
+		assert!(json.contains("\"verify\""));
+		assert!(json.contains("\"kid\":\"test-key-1\""));
+	}
+
+	#[test]
+	fn test_key_sign_success() {
+		let key = create_test_key();
+		let claims = create_test_claims();
+		let token = key.encode(&claims).unwrap();
+
+		assert!(!token.is_empty());
+		assert_eq!(token.matches('.').count(), 2); // JWT format: header.payload.signature
+	}
+
+	#[test]
+	fn test_key_sign_no_permission() {
+		let mut key = create_test_key();
+		key.operations = [KeyOperation::Verify].into();
+		let claims = create_test_claims();
+
+		let result = key.encode(&claims);
+		assert!(result.is_err());
+		assert!(result.unwrap_err().to_string().contains("key does not support signing"));
+	}
+
+	#[test]
+	fn test_key_sign_invalid_claims() {
+		let key = create_test_key();
+		let invalid_claims = Claims {
+			path: "test-path/".to_string(),
+			publish: None,
+			subscribe: None,
+			cluster: false,
+			expires: None,
+			issued: None,
+		};
+
+		let result = key.encode(&invalid_claims);
+		assert!(result.is_err());
+		assert!(result
+			.unwrap_err()
+			.to_string()
+			.contains("no publish or subscribe paths specified"));
+	}
+
+	#[test]
+	fn test_key_verify_success() {
+		let key = create_test_key();
+		let claims = create_test_claims();
+		let token = key.encode(&claims).unwrap();
+
+		let verified_claims = key.decode(&token).unwrap();
+		assert_eq!(verified_claims.path, claims.path);
+		assert_eq!(verified_claims.publish, claims.publish);
+		assert_eq!(verified_claims.subscribe, claims.subscribe);
+		assert_eq!(verified_claims.cluster, claims.cluster);
+	}
+
+	#[test]
+	fn test_key_verify_no_permission() {
+		let mut key = create_test_key();
+		key.operations = [KeyOperation::Sign].into();
+
+		let result = key.decode("some.jwt.token");
+		assert!(result.is_err());
+		assert!(result
+			.unwrap_err()
+			.to_string()
+			.contains("key does not support verification"));
+	}
+
+	#[test]
+	fn test_key_verify_invalid_token() {
+		let key = create_test_key();
+		let result = key.decode("invalid-token");
+		assert!(result.is_err());
+	}
+
+	#[test]
+	fn test_key_verify_path_mismatch() {
+		let key = create_test_key();
+		let claims = create_test_claims();
+		let token = key.encode(&claims).unwrap();
+
+		let result = key.decode(&token);
+		assert!(result.is_err());
+		assert!(result
+			.unwrap_err()
+			.to_string()
+			.contains("token path does not match provided path"));
+	}
+
+	#[test]
+	fn test_key_verify_expired_token() {
+		let key = create_test_key();
+		let mut claims = create_test_claims();
+		claims.expires = Some(SystemTime::now() - Duration::from_secs(3600)); // 1 hour ago
+		let token = key.encode(&claims).unwrap();
+
+		let result = key.decode(&token);
+		assert!(result.is_err());
+	}
+
+	#[test]
+	fn test_key_verify_token_without_exp() {
+		let key = create_test_key();
+		let claims = Claims {
+			path: "test-path/".to_string(),
+			publish: Some("test-pub".to_string()),
+			subscribe: None,
+			cluster: false,
+			expires: None,
+			issued: None,
+		};
+		let token = key.encode(&claims).unwrap();
+
+		let verified_claims = key.decode(&token).unwrap();
+		assert_eq!(verified_claims.path, claims.path);
+		assert_eq!(verified_claims.publish, claims.publish);
+		assert_eq!(verified_claims.expires, None);
+	}
+
+	#[test]
+	fn test_key_round_trip() {
+		let key = create_test_key();
+		let original_claims = Claims {
+			path: "test-path/".to_string(),
+			publish: Some("test-pub".to_string()),
+			subscribe: Some("test-sub".to_string()),
+			cluster: true,
+			expires: Some(SystemTime::now() + Duration::from_secs(3600)),
+			issued: Some(SystemTime::now()),
+		};
+
+		let token = key.encode(&original_claims).unwrap();
+		let verified_claims = key.decode(&token).unwrap();
+
+		assert_eq!(verified_claims.path, original_claims.path);
+		assert_eq!(verified_claims.publish, original_claims.publish);
+		assert_eq!(verified_claims.subscribe, original_claims.subscribe);
+		assert_eq!(verified_claims.cluster, original_claims.cluster);
+	}
+
+	#[test]
+	fn test_key_generate_hs256() {
+		let key = Key::generate(Algorithm::HS256, Some("test-id".to_string()));
+		assert_eq!(key.algorithm, Algorithm::HS256);
+		assert_eq!(key.kid, Some("test-id".to_string()));
+		assert_eq!(key.operations, [KeyOperation::Sign, KeyOperation::Verify].into());
+		assert_eq!(key.secret.len(), 32);
+	}
+
+	#[test]
+	fn test_key_generate_hs384() {
+		let key = Key::generate(Algorithm::HS384, Some("test-id".to_string()));
+		assert_eq!(key.algorithm, Algorithm::HS384);
+		assert_eq!(key.secret.len(), 48);
+	}
+
+	#[test]
+	fn test_key_generate_hs512() {
+		let key = Key::generate(Algorithm::HS512, Some("test-id".to_string()));
+		assert_eq!(key.algorithm, Algorithm::HS512);
+		assert_eq!(key.secret.len(), 64);
+	}
+
+	#[test]
+	fn test_key_generate_without_id() {
+		let key = Key::generate(Algorithm::HS256, None);
+		assert_eq!(key.algorithm, Algorithm::HS256);
+		assert_eq!(key.kid, None);
+		assert_eq!(key.operations, [KeyOperation::Sign, KeyOperation::Verify].into());
+	}
+
+	#[test]
+	fn test_key_generate_sign_verify_cycle() {
+		let key = Key::generate(Algorithm::HS256, Some("test-id".to_string()));
+		let claims = create_test_claims();
+
+		let token = key.encode(&claims).unwrap();
+		let verified_claims = key.decode(&token).unwrap();
+
+		assert_eq!(verified_claims.path, claims.path);
+		assert_eq!(verified_claims.publish, claims.publish);
+		assert_eq!(verified_claims.subscribe, claims.subscribe);
+		assert_eq!(verified_claims.cluster, claims.cluster);
+	}
+
+	#[test]
+	fn test_key_debug_no_secret() {
+		let key = create_test_key();
+		let debug_str = format!("{key:?}");
+
+		assert!(debug_str.contains("algorithm: HS256"));
+		assert!(debug_str.contains("operations"));
+		assert!(debug_str.contains("kid: Some(\"test-key-1\")"));
+		assert!(!debug_str.contains("secret")); // Should not contain secret
+	}
+
+	#[test]
+	fn test_key_operations_enum() {
+		let sign_op = KeyOperation::Sign;
+		let verify_op = KeyOperation::Verify;
+		let decrypt_op = KeyOperation::Decrypt;
+		let encrypt_op = KeyOperation::Encrypt;
+
+		assert_eq!(sign_op, KeyOperation::Sign);
+		assert_eq!(verify_op, KeyOperation::Verify);
+		assert_eq!(decrypt_op, KeyOperation::Decrypt);
+		assert_eq!(encrypt_op, KeyOperation::Encrypt);
+
+		assert_ne!(sign_op, verify_op);
+		assert_ne!(decrypt_op, encrypt_op);
+	}
+
+	#[test]
+	fn test_key_operations_serde() {
+		let operations = [KeyOperation::Sign, KeyOperation::Verify];
+		let json = serde_json::to_string(&operations).unwrap();
+		assert!(json.contains("\"sign\""));
+		assert!(json.contains("\"verify\""));
+
+		let deserialized: Vec<KeyOperation> = serde_json::from_str(&json).unwrap();
+		assert_eq!(deserialized, operations);
+	}
+
+	#[test]
+	fn test_key_serde() {
+		let key = create_test_key();
+		let json = serde_json::to_string(&key).unwrap();
+		let deserialized: Key = serde_json::from_str(&json).unwrap();
+
+		assert_eq!(deserialized.algorithm, key.algorithm);
+		assert_eq!(deserialized.operations, key.operations);
+		assert_eq!(deserialized.secret, key.secret);
+		assert_eq!(deserialized.kid, key.kid);
+	}
+
+	#[test]
+	fn test_key_clone() {
+		let key = create_test_key();
+		let cloned = key.clone();
+
+		assert_eq!(cloned.algorithm, key.algorithm);
+		assert_eq!(cloned.operations, key.operations);
+		assert_eq!(cloned.secret, key.secret);
+		assert_eq!(cloned.kid, key.kid);
+	}
+
+	#[test]
+	fn test_different_algorithms() {
+		let key_256 = Key::generate(Algorithm::HS256, Some("test-id".to_string()));
+		let key_384 = Key::generate(Algorithm::HS384, Some("test-id".to_string()));
+		let key_512 = Key::generate(Algorithm::HS512, Some("test-id".to_string()));
+
+		let claims = create_test_claims();
+
+		// Test that each algorithm can sign and verify
+		for key in [key_256, key_384, key_512] {
+			let token = key.encode(&claims).unwrap();
+			let verified_claims = key.decode(&token).unwrap();
+			assert_eq!(verified_claims.path, claims.path);
+		}
+	}
+
+	#[test]
+	fn test_cross_algorithm_verification_fails() {
+		let key_256 = Key::generate(Algorithm::HS256, Some("test-id".to_string()));
+		let key_384 = Key::generate(Algorithm::HS384, Some("test-id".to_string()));
+
+		let claims = create_test_claims();
+		let token = key_256.encode(&claims).unwrap();
+
+		// Different algorithm should fail verification
+		let result = key_384.decode(&token);
+		assert!(result.is_err());
+	}
+
+	#[test]
+	fn test_base64url_serialization() {
+		let key = create_test_key();
+		let json = serde_json::to_string(&key).unwrap();
+
+		// Check that the secret is base64url encoded without padding
+		let parsed: serde_json::Value = serde_json::from_str(&json).unwrap();
+		let k_value = parsed["k"].as_str().unwrap();
+
+		// Base64url should not contain padding characters
+		assert!(!k_value.contains('='));
+		assert!(!k_value.contains('+'));
+		assert!(!k_value.contains('/'));
+
+		// Verify it decodes correctly
+		let decoded = base64::engine::general_purpose::URL_SAFE_NO_PAD
+			.decode(k_value)
+			.unwrap();
+		assert_eq!(decoded, key.secret);
+	}
+
+	#[test]
+	fn test_backwards_compatibility_padded_base64url() {
+		// Create a JSON with padded base64url (old format)
+		let padded_json = r#"{"alg":"HS256","key_ops":["sign","verify"],"k":"dGVzdC1zZWNyZXQtdGhhdC1pcy1sb25nLWVub3VnaC1mb3ItaG1hYy1zaGEyNTY=","kid":"test-key-1"}"#;
+
+		// Should be able to deserialize old format
+		let key: Key = serde_json::from_str(padded_json).unwrap();
+		assert_eq!(key.secret, b"test-secret-that-is-long-enough-for-hmac-sha256");
+		assert_eq!(key.algorithm, Algorithm::HS256);
+		assert_eq!(key.kid, Some("test-key-1".to_string()));
+	}
+
+	#[test]
+	fn test_backwards_compatibility_unpadded_base64url() {
+		// Create a JSON with unpadded base64url (new format)
+		let unpadded_json = r#"{"alg":"HS256","key_ops":["sign","verify"],"k":"dGVzdC1zZWNyZXQtdGhhdC1pcy1sb25nLWVub3VnaC1mb3ItaG1hYy1zaGEyNTY","kid":"test-key-1"}"#;
+
+		// Should be able to deserialize new format
+		let key: Key = serde_json::from_str(unpadded_json).unwrap();
+		assert_eq!(key.secret, b"test-secret-that-is-long-enough-for-hmac-sha256");
+		assert_eq!(key.algorithm, Algorithm::HS256);
+		assert_eq!(key.kid, Some("test-key-1".to_string()));
+	}
+
+	#[test]
+	fn test_file_io_base64url() {
+		let key = create_test_key();
+		let temp_dir = std::env::temp_dir();
+		let temp_path = temp_dir.join("test_jwk.key");
+
+		// Write key to file
+		key.to_file(&temp_path).unwrap();
+
+		// Read file contents
+		let contents = std::fs::read_to_string(&temp_path).unwrap();
+
+		// Should be base64url encoded
+		assert!(!contents.contains('{'));
+		assert!(!contents.contains('}'));
+		assert!(!contents.contains('"'));
+
+		// Decode and verify it's valid JSON
+		let decoded = base64::engine::general_purpose::URL_SAFE_NO_PAD
+			.decode(&contents)
+			.unwrap();
+		let json_str = String::from_utf8(decoded).unwrap();
+		let _: serde_json::Value = serde_json::from_str(&json_str).unwrap();
+
+		// Read key back from file
+		let loaded_key = Key::from_file(&temp_path).unwrap();
+		assert_eq!(loaded_key.algorithm, key.algorithm);
+		assert_eq!(loaded_key.operations, key.operations);
+		assert_eq!(loaded_key.secret, key.secret);
+		assert_eq!(loaded_key.kid, key.kid);
+
+		// Clean up
+		std::fs::remove_file(temp_path).ok();
+	}
+
+	#[test]
+	fn test_file_io_backwards_compatibility_json() {
+		let temp_dir = std::env::temp_dir();
+		let temp_path = temp_dir.join("test_jwk_json.key");
+
+		// Write old JSON format to file
+		let old_json = r#"{"alg":"HS256","key_ops":["sign","verify"],"k":"dGVzdC1zZWNyZXQtdGhhdC1pcy1sb25nLWVub3VnaC1mb3ItaG1hYy1zaGEyNTY=","kid":"test-key-1"}"#;
+		std::fs::write(&temp_path, old_json).unwrap();
+
+		// Should be able to read old format
+		let key = Key::from_file(&temp_path).unwrap();
+		assert_eq!(key.secret, b"test-secret-that-is-long-enough-for-hmac-sha256");
+		assert_eq!(key.algorithm, Algorithm::HS256);
+		assert_eq!(key.kid, Some("test-key-1".to_string()));
+
+		// Clean up
+		std::fs::remove_file(temp_path).ok();
+	}
 }

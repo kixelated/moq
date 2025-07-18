@@ -61,7 +61,7 @@ async fn main() -> anyhow::Result<()> {
 			let track = broadcast.create(track);
 			let clock = clock::Publisher::new(track);
 
-			let mut publisher = moq_lite::OriginProducer::new(config.broadcast.clone());
+			let mut publisher = moq_lite::OriginProducer::default();
 			let session = moq_lite::Session::connect(session, publisher.consume_all(), None).await?;
 
 			// Publish the broadcast - the broadcast name is empty because the URL contains the name
@@ -77,9 +77,7 @@ async fn main() -> anyhow::Result<()> {
 			let session = moq_lite::Session::connect(session, None, origin.clone()).await?;
 
 			// The broadcast name is empty because the URL contains the name
-			let broadcast = origin
-				.consume(config.broadcast.clone())
-				.context("broadcast not found")?;
+			let broadcast = origin.consume(config.broadcast).context("broadcast not found")?;
 			let track = broadcast.subscribe(&track);
 			let clock = clock::Subscriber::new(track);
 
