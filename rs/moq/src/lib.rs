@@ -16,12 +16,14 @@
 
 mod error;
 mod model;
+mod path;
 mod session;
 
 pub mod coding;
 pub mod message;
 pub use error::*;
 pub use model::*;
+pub use path::*;
 pub use session::*;
 
 /// The ALPN used when connecting via QUIC directly.

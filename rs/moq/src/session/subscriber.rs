@@ -12,7 +12,7 @@ use web_async::{spawn, Lock};
 use super::{Reader, Stream};
 
 #[derive(Clone)]
-pub(super) struct Subscriber {
+pub(super) struct SessionSubscriber {
 	session: web_transport::Session,
 	origin: Option<OriginProducer>,
 
@@ -21,7 +21,7 @@ pub(super) struct Subscriber {
 	next_id: Arc<atomic::AtomicU64>,
 }
 
-impl Subscriber {
+impl SessionSubscriber {
 	pub fn new(session: web_transport::Session, origin: Option<OriginProducer>) -> Self {
 		Self {
 			session,
@@ -51,7 +51,7 @@ impl Subscriber {
 		let mut stream = Stream::open(&mut self.session, message::ControlType::Announce).await?;
 
 		let msg = message::AnnounceRequest {
-			prefix: self.origin.as_ref().unwrap().prefix.clone(),
+			prefix: self.origin.as_ref().unwrap().prefix.to_string(),
 		};
 		stream.writer.encode(&msg).await?;
 
@@ -62,11 +62,19 @@ impl Subscriber {
 				message::Announce::Active { suffix } => {
 					tracing::debug!(%suffix, "received announce");
 
+					// Construct absolute path by joining prefix with suffix
+					let prefix = &self.origin.as_ref().unwrap().prefix;
+					let absolute_path = if suffix.is_empty() {
+						prefix.clone()
+					} else {
+						prefix.join(&suffix)
+					};
+
 					let producer = BroadcastProducer::new();
 					let consumer = producer.consume();
 
 					// Run the broadcast in the background until all consumers are dropped.
-					self.origin.as_mut().unwrap().publish(suffix.clone(), consumer);
+					self.origin.as_mut().unwrap().publish(absolute_path.clone(), consumer);
 					producers.insert(suffix.clone(), producer.clone());
 
 					spawn(self.clone().run_broadcast(suffix, producer));

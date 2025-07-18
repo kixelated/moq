@@ -13,7 +13,7 @@ setup:
 # Run a localhost relay server
 relay: root
 	# Run the relay server overriding the provided configuration file.
-	cargo run --bin moq-relay moq-relay/dev.toml
+	cargo run --bin moq-relay -- moq-relay/dev.toml
 
 # Run a localhost leaf server, connecting to the relay server
 leaf: root
@@ -27,7 +27,7 @@ leaf: root
 		> dev/leaf.jwt
 
 	# Run the leaf server with a special configuration file.
-	cargo run --bin moq-relay moq-relay/leaf.toml
+	cargo run --bin moq-relay -- moq-relay/leaf.toml
 
 # Generate a random secret key for authentication.
 # By default, this uses HMAC-SHA256, so it's symmetric.

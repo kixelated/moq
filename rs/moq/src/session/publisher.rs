@@ -5,13 +5,13 @@ use crate::{message, model::GroupConsumer, Error, OriginConsumer, Track, TrackCo
 use super::{Stream, Writer};
 
 #[derive(Clone)]
-pub(super) struct Publisher {
+pub(super) struct SessionPublisher {
 	session: web_transport::Session,
 	// If None, then error on every request.
 	origin: Option<OriginConsumer>,
 }
 
-impl Publisher {
+impl SessionPublisher {
 	pub fn new(session: web_transport::Session, origin: Option<OriginConsumer>) -> Self {
 		Self { session, origin }
 	}
@@ -46,8 +46,10 @@ impl Publisher {
 
 	async fn run_announce(&mut self, stream: &mut Stream, prefix: &str) -> Result<(), Error> {
 		let origin = self.origin.as_ref().ok_or(Error::Unauthorized)?;
+		let prefix_path = crate::Path::from(prefix);
 
-		if !prefix.starts_with(&origin.prefix) {
+		// Check if the requested prefix is within the client's authorized prefix
+		if !prefix_path.has_prefix(&origin.prefix) {
 			return Err(Error::Unauthorized);
 		}
 
@@ -63,11 +65,11 @@ impl Publisher {
 						Some((suffix, broadcast)) => {
 							if broadcast.is_some() {
 								tracing::debug!(?suffix, "announce");
-								let msg = message::Announce::Active { suffix: suffix.clone() };
+								let msg = message::Announce::Active { suffix: suffix.to_string() };
 								stream.writer.encode(&msg).await?;
 							} else {
 								tracing::debug!(?suffix, "unannounce");
-								let msg = message::Announce::Ended { suffix };
+								let msg = message::Announce::Ended { suffix: suffix.to_string() };
 								stream.writer.encode(&msg).await?;
 							}
 						},
@@ -102,8 +104,9 @@ impl Publisher {
 
 	async fn run_subscribe(&mut self, stream: &mut Stream, subscribe: &mut message::Subscribe) -> Result<(), Error> {
 		let origin = self.origin.as_ref().ok_or(Error::Unauthorized)?;
+		let broadcast_path = crate::Path::from(&subscribe.broadcast);
 
-		if !subscribe.broadcast.starts_with(&origin.prefix) {
+		if !broadcast_path.has_prefix(&origin.prefix) {
 			return Err(Error::Unauthorized);
 		}
 
@@ -267,7 +270,10 @@ mod test {
 	#[test]
 	fn stream_priority() {
 		let assert = |track_priority, group_sequence, expected| {
-			assert_eq!(Publisher::stream_priority(track_priority, group_sequence), expected);
+			assert_eq!(
+				SessionPublisher::stream_priority(track_priority, group_sequence),
+				expected
+			);
 		};
 
 		const U24: i32 = (1 << 24) - 1;

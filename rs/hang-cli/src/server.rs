@@ -53,13 +53,19 @@ async fn accept(mut server: moq_native::Server, broadcast: String, consumer: Bro
 		// Handle the connection in a new task.
 		tokio::spawn(async move {
 			let session: web_transport::Session = session.into();
-			let mut session = moq_lite::Session::accept(session)
+
+			// Create an origin producer that can publish under any prefix
+			let mut publisher = moq_lite::OriginProducer::new(broadcast.clone());
+
+			let session = moq_lite::Session::accept(session, publisher.consume_all(), None)
 				.await
 				.expect("failed to accept session");
 
 			tracing::info!(?id, "accepted session");
 
-			session.publish(broadcast, consumer.inner.clone());
+			publisher.publish(broadcast, consumer.inner.clone());
+
+			session.closed().await;
 		});
 	}
 

@@ -53,7 +53,7 @@ impl Auth {
 		// ?jwt=...
 		if let Some((_, token)) = url.query_pairs().find(|(k, _)| k == "jwt") {
 			if let Some(key) = self.key.as_ref() {
-				return Ok(key.decode(&token)?);
+				return key.decode(&token);
 			}
 
 			anyhow::bail!("token provided, but no key configured");

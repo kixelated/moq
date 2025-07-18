@@ -7,16 +7,16 @@ use crate::model::{BroadcastConsumer, BroadcastProducer};
 pub struct Room {
 	pub prefix: String,
 	broadcasts: moq_lite::OriginConsumer,
-	session: moq_lite::Session,
+	publisher: moq_lite::OriginProducer,
 	publishing: Lock<HashSet<String>>,
 }
 
 impl Room {
-	pub fn new(session: moq_lite::Session, prefix: String) -> Self {
+	pub fn new(publisher: moq_lite::OriginProducer, subscriber: moq_lite::OriginConsumer, prefix: String) -> Self {
 		Self {
-			broadcasts: session.consume_prefix(&prefix),
+			broadcasts: subscriber,
+			publisher,
 			prefix,
-			session,
 			publishing: Default::default(),
 		}
 	}
@@ -26,7 +26,7 @@ impl Room {
 		self.publishing.lock().insert(name.clone());
 
 		let path = format!("{}{}", self.prefix, name);
-		self.session.publish(path, broadcast.inner.consume());
+		self.publisher.publish(path, broadcast.inner.consume());
 
 		let consumer = broadcast.inner.consume();
 		let publishing = self.publishing.clone();
@@ -44,14 +44,21 @@ impl Room {
 	/// When reannounced, the old BroadcastConsumer won't necessarily be closed, so you might have two broadcasts with the same name.
 	pub async fn watch(&mut self) -> Option<(String, Option<BroadcastConsumer>)> {
 		loop {
-			let (suffix, broadcast) = self.broadcasts.next().await?;
+			let (absolute_path, broadcast) = self.broadcasts.next().await?;
 
-			if self.publishing.lock().contains(&suffix) {
+			// Convert absolute path to relative path for comparison
+			// This should always succeed since Subscriber filters by prefix
+			let suffix = absolute_path
+				.strip_prefix(&moq_lite::Path::from(&self.prefix))
+				.expect("Subscriber should only return broadcasts matching its prefix");
+			let relative_path = suffix.to_string();
+
+			if self.publishing.lock().contains(&relative_path) {
 				// We're publishing this broadcast, so skip it.
 				continue;
 			}
 
-			return Some((suffix, broadcast.map(BroadcastConsumer::new)));
+			return Some((relative_path, broadcast.map(BroadcastConsumer::new)));
 		}
 	}
 

@@ -12,7 +12,7 @@ impl Connection {
 	pub async fn run(&mut self) -> anyhow::Result<()> {
 		let token = self.auth.verify(self.session.url())?;
 
-		// Publish these broadcasts to the session.
+		// These broadcasts will be served to the session (when it subscribes).
 		let mut publish = None;
 		if let Some(prefix) = token.subscribe {
 			let prefix = format!("{}{}", token.root, prefix);
@@ -22,19 +22,19 @@ impl Connection {
 			});
 		}
 
-		// Consume these broadcasts from the session.
-		let mut consume = None;
+		// These broadcasts will be received from the session (when it publishes).
+		let mut subscribe = None;
 		if let Some(prefix) = token.publish {
 			// If this is a cluster node, then add its broadcasts to the secondary origin.
 			// That way we won't publish them to other cluster nodes.
 			let prefix = format!("{}{}", token.root, prefix);
-			consume = Some(match token.cluster {
+			subscribe = Some(match token.cluster {
 				true => self.cluster.secondary.publish_prefix(&prefix),
 				false => self.cluster.primary.publish_prefix(&prefix),
 			});
 		}
 
-		let session = moq_lite::SessionOrigin::accept(self.session.clone(), consume, publish).await?;
+		let session = moq_lite::Session::accept(self.session.clone(), publish, subscribe).await?;
 
 		// Wait until the session is closed.
 		Err(session.closed().await.into())

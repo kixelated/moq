@@ -135,7 +135,7 @@ impl Cluster {
 		// NOTE: The root node will connect to all other nodes as a client, ignoring the existing (server) connection.
 		// This ensures that nodes are advertising a valid hostname before any tracks get announced.
 		while let Some((node, origin)) = origins.next().await {
-			if Some(&node) == self.config.advertise.as_ref() {
+			if Some(node.as_str()) == self.config.advertise.as_deref() {
 				// Skip ourselves.
 				continue;
 			}
@@ -144,7 +144,7 @@ impl Cluster {
 				Some(origin) => origin,
 				None => {
 					tracing::info!(%node, "origin cancelled");
-					active.remove(&node).unwrap().abort();
+					active.remove(node.as_str()).unwrap().abort();
 					continue;
 				}
 			};
@@ -157,7 +157,7 @@ impl Cluster {
 
 			let handle = tokio::spawn(
 				async move {
-					match this.run_remote(&node2, token, origin).await {
+					match this.run_remote(node2.as_str(), token, origin).await {
 						Ok(()) => tracing::info!(%node2, "origin closed"),
 						Err(err) => tracing::warn!(?err, %node2, "origin error"),
 					}
@@ -165,7 +165,7 @@ impl Cluster {
 				.in_current_span(),
 			);
 
-			active.insert(node, handle.abort_handle());
+			active.insert(node.to_string(), handle.abort_handle());
 		}
 
 		Ok(())
@@ -211,10 +211,10 @@ impl Cluster {
 			.await
 			.context("failed to connect to remote")?;
 
-		let publish = Some(self.secondary.clone());
-		let consume = Some(self.primary.consume_all());
+		let publish = Some(self.primary.consume_all());
+		let subscribe = Some(self.secondary.clone());
 
-		let session = moq_lite::SessionOrigin::connect(conn, publish, consume)
+		let session = moq_lite::Session::connect(conn, publish, subscribe)
 			.await
 			.context("failed to establish session")?;
 

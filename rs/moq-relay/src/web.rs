@@ -90,7 +90,7 @@ async fn serve_announced(Path(prefix): Path<String>, cluster: Cluster) -> impl I
 		broadcasts.push(prefix);
 	}
 
-	broadcasts.join("\n")
+	broadcasts.iter().map(|p| p.to_string()).collect::<Vec<_>>().join("\n")
 }
 
 /// Serve the latest group for a given track

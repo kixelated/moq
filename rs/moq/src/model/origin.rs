@@ -3,6 +3,7 @@ use tokio::sync::mpsc;
 use web_async::{Lock, LockWeak};
 
 use super::BroadcastConsumer;
+use crate::Path;
 
 // If there are multiple broadcasts with the same path, we use the most recent one but keep the others around.
 struct BroadcastState {
@@ -12,16 +13,16 @@ struct BroadcastState {
 
 #[derive(Default)]
 struct ProducerState {
-	active: HashMap<String, BroadcastState>,
+	active: HashMap<Path, BroadcastState>,
 	consumers: Vec<ConsumerState>,
 }
 
 impl ProducerState {
 	// Returns true if this was a unique broadcast.
-	fn publish(&mut self, name: String, broadcast: BroadcastConsumer) -> bool {
+	fn publish(&mut self, path: Path, broadcast: BroadcastConsumer) -> bool {
 		let mut unique = true;
 
-		match self.active.entry(name.clone()) {
+		match self.active.entry(path.clone()) {
 			hash_map::Entry::Occupied(mut entry) => {
 				let state = entry.get_mut();
 				if state.active.is_clone(&broadcast) {
@@ -45,8 +46,8 @@ impl ProducerState {
 					state.backup.push(old);
 				}
 
-				// Reannounce the name to all consumers.
-				retain_mut_unordered(&mut self.consumers, |c| c.remove(&name));
+				// Reannounce the path to all consumers.
+				retain_mut_unordered(&mut self.consumers, |c| c.remove(&path));
 			}
 			hash_map::Entry::Vacant(entry) => {
 				entry.insert(BroadcastState {
@@ -56,13 +57,13 @@ impl ProducerState {
 			}
 		};
 
-		retain_mut_unordered(&mut self.consumers, |c| c.insert(&name, &broadcast));
+		retain_mut_unordered(&mut self.consumers, |c| c.insert(&path, &broadcast));
 
 		unique
 	}
 
-	fn remove(&mut self, name: String, broadcast: BroadcastConsumer) {
-		let mut entry = match self.active.entry(name) {
+	fn remove(&mut self, path: Path, broadcast: BroadcastConsumer) {
+		let mut entry = match self.active.entry(path) {
 			hash_map::Entry::Occupied(entry) => entry,
 			hash_map::Entry::Vacant(_) => panic!("broadcast not found"),
 		};
@@ -93,8 +94,8 @@ impl ProducerState {
 
 impl Drop for ProducerState {
 	fn drop(&mut self) {
-		for (name, _) in self.active.drain() {
-			retain_mut_unordered(&mut self.consumers, |c| c.remove(&name));
+		for (path, _) in self.active.drain() {
+			retain_mut_unordered(&mut self.consumers, |c| c.remove(&path));
 		}
 	}
 }
@@ -111,28 +112,30 @@ fn retain_mut_unordered<T, F: Fn(&mut T) -> bool>(vec: &mut Vec<T>, f: F) {
 	}
 }
 
-/// A broadcast name and its associated consumer, or None if closed.
-pub type OriginUpdate = (String, Option<BroadcastConsumer>);
+/// A broadcast path and its associated consumer, or None if closed.
+pub type OriginUpdate = (Path, Option<BroadcastConsumer>);
 
 struct ConsumerState {
-	prefix: String,
+	prefix: Path,
 	updates: mpsc::UnboundedSender<OriginUpdate>,
 }
 
 impl ConsumerState {
-	// Returns true if the consuemr is still alive.
-	pub fn insert(&mut self, name: &str, consumer: &BroadcastConsumer) -> bool {
-		if let Some(suffix) = name.strip_prefix(&self.prefix) {
-			let update = (suffix.to_string(), Some(consumer.clone()));
+	// Returns true if the consumer is still alive.
+	pub fn insert(&mut self, path: &Path, consumer: &BroadcastConsumer) -> bool {
+		if path.has_prefix(&self.prefix) {
+			// Send the absolute path, not the relative suffix
+			let update = (path.clone(), Some(consumer.clone()));
 			return self.updates.send(update).is_ok();
 		}
 
 		!self.updates.is_closed()
 	}
 
-	pub fn remove(&mut self, name: &str) -> bool {
-		if let Some(suffix) = name.strip_prefix(&self.prefix) {
-			let update = (suffix.to_string(), None);
+	pub fn remove(&mut self, path: &Path) -> bool {
+		if path.has_prefix(&self.prefix) {
+			// Send the absolute path, not the relative suffix
+			let update = (path.clone(), None);
 			return self.updates.send(update).is_ok();
 		}
 
@@ -143,34 +146,42 @@ impl ConsumerState {
 /// Announces broadcasts to consumers over the network.
 #[derive(Clone, Default)]
 pub struct OriginProducer {
-	pub prefix: String,
+	pub prefix: Path,
 	state: Lock<ProducerState>,
 }
 
 impl OriginProducer {
 	/// Create a new origin producer with an optional prefix.
-	pub fn new<T: ToString>(prefix: T) -> Self {
+	pub fn new<T: Into<Path>>(prefix: T) -> Self {
 		Self {
 			state: Lock::new(ProducerState {
 				active: HashMap::new(),
 				consumers: Vec::new(),
 			}),
-			prefix: prefix.to_string(),
+			prefix: prefix.into(),
 		}
 	}
 
 	/// Publish a broadcast, announcing it to all consumers.
 	///
 	/// The broadcast will be unannounced when it is closed.
-	/// If there is already a broadcast with the same name, then it will be replaced and reannounced.
+	/// If there is already a broadcast with the same path, then it will be replaced and reannounced.
 	/// If the old broadcast is closed before the new one, then nothing will happen.
 	/// If the new broadcast is closed before the old one, then the old broadcast will be reannounced.
-	pub fn publish<S: ToString>(&mut self, name: S, broadcast: BroadcastConsumer) {
-		let name = name.to_string();
+	pub fn publish<S: Into<Path>>(&mut self, path: S, broadcast: BroadcastConsumer) {
+		let path = path.into();
 
-		if !self.state.lock().publish(name.clone(), broadcast.clone()) {
+		// Assert that the path matches our prefix
+		assert!(
+			path.has_prefix(&self.prefix),
+			"Publisher can only publish broadcasts matching its prefix. Got path '{}' but prefix is '{}'",
+			path,
+			self.prefix
+		);
+
+		if !self.state.lock().publish(path.clone(), broadcast.clone()) {
 			// This is not a big deal, but we want to avoid spawning additional cleanup tasks.
-			tracing::warn!(?name, "duplicate publish");
+			tracing::warn!(?path, "duplicate publish");
 			return;
 		}
 
@@ -180,24 +191,34 @@ impl OriginProducer {
 		web_async::spawn(async move {
 			broadcast.closed().await;
 			if let Some(state) = state.upgrade() {
-				state.lock().remove(name, broadcast);
+				state.lock().remove(path, broadcast);
 			}
 		});
 	}
 
 	/// Create a new origin producer for the given sub-prefix.
-	pub fn publish_prefix(&mut self, prefix: &str) -> OriginProducer {
+	pub fn publish_prefix<S: Into<Path>>(&mut self, prefix: S) -> OriginProducer {
 		OriginProducer {
-			prefix: prefix.to_string(),
+			prefix: prefix.into(),
 			state: self.state.clone(),
 		}
 	}
 
-	/// Get a specific broadcast by name.
+	/// Get a specific broadcast by path.
 	///
 	/// The most recent, non-closed broadcast will be returned if there are duplicates.
-	pub fn consume(&self, name: &str) -> Option<BroadcastConsumer> {
-		self.state.lock().active.get(name).map(|b| b.active.clone())
+	pub fn consume<S: Into<Path>>(&self, path: S) -> Option<BroadcastConsumer> {
+		let path = path.into();
+
+		// Assert that the path matches our prefix
+		assert!(
+			path.has_prefix(&self.prefix),
+			"Publisher can only consume broadcasts matching its prefix. Got path '{}' but prefix is '{}'",
+			path,
+			self.prefix
+		);
+
+		self.state.lock().active.get(&path).map(|b| b.active.clone())
 	}
 
 	/// Subscribe to all announced broadcasts.
@@ -206,8 +227,8 @@ impl OriginProducer {
 	}
 
 	/// Subscribe to all announced broadcasts matching the prefix.
-	pub fn consume_prefix<S: ToString>(&self, prefix: S) -> OriginConsumer {
-		let prefix = prefix.to_string();
+	pub fn consume_prefix<S: Into<Path>>(&self, prefix: S) -> OriginConsumer {
+		let prefix = prefix.into();
 		let mut state = self.state.lock();
 
 		let (tx, rx) = mpsc::unbounded_channel();
@@ -216,8 +237,8 @@ impl OriginProducer {
 			updates: tx,
 		};
 
-		for (prefix, broadcast) in &state.active {
-			consumer.insert(prefix, &broadcast.active);
+		for (path, broadcast) in &state.active {
+			consumer.insert(path, &broadcast.active);
 		}
 		state.consumers.push(consumer);
 
@@ -259,30 +280,52 @@ pub struct OriginConsumer {
 	// We need a weak reference to the producer so that we can clone it.
 	producer: LockWeak<ProducerState>,
 	updates: mpsc::UnboundedReceiver<OriginUpdate>,
-	pub prefix: String,
+	pub prefix: Path,
 }
 
 impl OriginConsumer {
-	/// Returns the next (un)announced broadcast and the name.
+	/// Returns the next (un)announced broadcast and the absolute path.
 	///
 	/// The broadcast will only be None if it was previously Some.
-	/// The same name won't be announced/unannounced twice, instead it will toggle.
+	/// The same path won't be announced/unannounced twice, instead it will toggle.
+	///
+	/// Note: The returned path is absolute and will always match this consumer's prefix.
 	pub async fn next(&mut self) -> Option<OriginUpdate> {
-		self.updates.recv().await
+		let (path, broadcast) = self.updates.recv().await?;
+
+		// Assert that returned broadcasts always match our prefix
+		// This should never fail due to the filtering in ConsumerState::insert/remove
+		debug_assert!(
+			path.has_prefix(&self.prefix),
+			"Subscriber received broadcast with mismatched prefix. Got path '{}' but prefix is '{}'. This indicates a bug in the filtering logic.",
+			path, self.prefix
+		);
+
+		Some((path, broadcast))
 	}
 
-	pub fn consume(&self, name: &str) -> Option<BroadcastConsumer> {
+	pub fn consume<S: Into<Path>>(&self, path: S) -> Option<BroadcastConsumer> {
+		let path = path.into();
+
+		// Assert that the path matches our prefix
+		assert!(
+			path.has_prefix(&self.prefix),
+			"Subscriber can only consume broadcasts matching its prefix. Got path '{}' but prefix is '{}'",
+			path,
+			self.prefix
+		);
+
 		let state = self.producer.upgrade()?;
 		let state = state.lock();
-		state.active.get(name).map(|b| b.active.clone())
+		state.active.get(&path).map(|b| b.active.clone())
 	}
 
 	pub fn consume_all(&self) -> OriginConsumer {
 		self.consume_prefix(&self.prefix)
 	}
 
-	pub fn consume_prefix<S: ToString>(&self, prefix: S) -> OriginConsumer {
-		let prefix = prefix.to_string();
+	pub fn consume_prefix<S: Into<Path>>(&self, prefix: S) -> OriginConsumer {
+		let prefix = prefix.into();
 		let (tx, rx) = mpsc::unbounded_channel();
 
 		// NOTE: consumer is immediately dropped, signalling FIN, if the producer can't be upgraded.
@@ -294,8 +337,8 @@ impl OriginConsumer {
 		if let Some(state) = self.producer.upgrade() {
 			let mut state = state.lock();
 
-			for (prefix, broadcast) in &state.active {
-				consumer.insert(prefix, &broadcast.active);
+			for (path, broadcast) in &state.active {
+				consumer.insert(path, &broadcast.active);
 			}
 
 			state.consumers.push(consumer);
@@ -320,15 +363,15 @@ use futures::FutureExt;
 
 #[cfg(test)]
 impl OriginConsumer {
-	pub fn assert_next(&mut self, name: &str, broadcast: &BroadcastConsumer) {
+	pub fn assert_next(&mut self, path: &str, broadcast: &BroadcastConsumer) {
 		let next = self.next().now_or_never().expect("next blocked").expect("no next");
-		assert_eq!(next.0, name, "wrong name");
+		assert_eq!(next.0.as_str(), path, "wrong path");
 		assert!(next.1.unwrap().is_clone(broadcast), "should be the same broadcast");
 	}
 
-	pub fn assert_next_none(&mut self, name: &str) {
+	pub fn assert_next_none(&mut self, path: &str) {
 		let next = self.next().now_or_never().expect("next blocked").expect("no next");
-		assert_eq!(next.0, name, "wrong name");
+		assert_eq!(next.0.as_str(), path, "wrong path");
 		assert!(next.1.is_none(), "should be unannounced");
 	}
 
@@ -475,5 +518,25 @@ mod tests {
 		// Wait for the async task to run.
 		tokio::time::sleep(tokio::time::Duration::from_millis(1)).await;
 		assert!(producer.consume("test").is_none());
+	}
+
+	#[tokio::test]
+	#[should_panic(expected = "Publisher can only publish broadcasts matching its prefix")]
+	async fn test_publish_mismatched_prefix() {
+		let mut producer = OriginProducer::new("foo/");
+		let broadcast = BroadcastProducer::new();
+
+		// This should panic because "bar/test" doesn't start with "foo/"
+		producer.publish("bar/test", broadcast.consume());
+	}
+
+	#[tokio::test]
+	#[should_panic(expected = "Subscriber can only consume broadcasts matching its prefix")]
+	async fn test_consume_mismatched_prefix() {
+		let producer = OriginProducer::new("foo/");
+		let consumer = producer.consume_all();
+
+		// This should panic because "bar/test" doesn't start with "foo/"
+		consumer.consume("bar/test");
 	}
 }

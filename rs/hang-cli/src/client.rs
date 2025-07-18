@@ -2,7 +2,6 @@ use anyhow::Context;
 use hang::cmaf::Import;
 use hang::moq_lite;
 use hang::{BroadcastConsumer, BroadcastProducer};
-use moq_lite::Session;
 use tokio::io::AsyncRead;
 use url::Url;
 
@@ -33,10 +32,15 @@ async fn connect(
 	tracing::info!(%url, "connecting");
 
 	let session = client.connect(url).await?;
-	let mut session = Session::connect(session).await?;
 
-	// The path is relative to the URL, so it's empty because we only publish one broadcast.
-	session.publish(broadcast, consumer.inner.clone());
+	// Create an origin producer that can only publish this specific broadcast.
+	let mut publisher = moq_lite::OriginProducer::new(broadcast.clone());
+
+	// Establish the connection, not providing a subscriber.
+	let session = moq_lite::Session::connect(session, publisher.consume_all(), None).await?;
+
+	// Publish the broadcast using the origin producer directly.
+	publisher.publish(broadcast, consumer.inner.clone());
 
 	tokio::select! {
 		// On ctrl-c, close the session and exit.
