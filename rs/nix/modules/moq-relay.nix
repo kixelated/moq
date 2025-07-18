@@ -33,15 +33,22 @@ let
         {
           key = if cfg.auth.keyFile != null then cfg.auth.keyFile else "${cfg.stateDir}/root.jwk";
         }
-        // lib.optionalAttrs (cfg.auth.publicRead || cfg.auth.publicWrite) {
-          public = {
-            read = cfg.auth.publicRead;
-            write = cfg.auth.publicWrite;
-          };
+        // lib.optionalAttrs (cfg.auth.publicPath != null) {
+          public = cfg.auth.publicPath;
         };
     }
-    // lib.optionalAttrs (cfg.auth.paths != { }) {
-      "auth.path" = cfg.auth.paths;
+    // lib.optionalAttrs (cfg.cluster.mode != "none") {
+      cluster = lib.filterAttrs (n: v: v != null) {
+        connect = cfg.cluster.rootUrl;
+        token =
+          if cfg.cluster.tokenFile != null then cfg.cluster.tokenFile else "${cfg.stateDir}/cluster.jwt";
+        advertise = cfg.cluster.nodeUrl;
+      };
+    }
+    // lib.optionalAttrs (cfg.cluster.mode != "none") {
+      client = {
+        "tls.disable_verify" = cfg.cluster.disableTlsVerify;
+      };
     };
 
   # Generate the config file
@@ -119,37 +126,11 @@ in
         description = "Path to JWT signing key (will be generated if null)";
       };
 
-      publicRead = lib.mkOption {
-        type = lib.types.bool;
-        default = false;
-        description = "Allow public read access when auth is enabled";
-      };
-
-      publicWrite = lib.mkOption {
-        type = lib.types.bool;
-        default = false;
-        description = "Allow public write access when auth is enabled";
-      };
-
-      paths = lib.mkOption {
-        type = lib.types.attrsOf (
-          lib.types.submodule {
-            options = {
-              key = lib.mkOption {
-                type = lib.types.str;
-                default = "";
-                description = "Override auth key for this path (empty = no auth)";
-              };
-            };
-          }
-        );
-        default = { };
-        example = {
-          demo = {
-            key = "";
-          }; # Disable auth for /demo
-        };
-        description = "Path-specific authentication configuration";
+      publicPath = lib.mkOption {
+        type = lib.types.nullOr lib.types.str;
+        default = null;
+        example = "demo/";
+        description = "Public path prefix for anonymous access";
       };
     };
 
@@ -167,15 +148,27 @@ in
       rootUrl = lib.mkOption {
         type = lib.types.nullOr lib.types.str;
         default = null;
-        example = "https://root.example.com:4443";
-        description = "Root node URL (for leaf mode)";
+        example = "localhost:4443";
+        description = "Root node URL to connect to (for leaf mode)";
       };
 
       nodeUrl = lib.mkOption {
         type = lib.types.nullOr lib.types.str;
         default = null;
-        example = "https://leaf.example.com:4444";
-        description = "This node's URL (for cluster mode)";
+        example = "localhost:4444";
+        description = "This node's advertised URL";
+      };
+
+      tokenFile = lib.mkOption {
+        type = lib.types.nullOr lib.types.path;
+        default = null;
+        description = "Path to cluster token file (will be generated if null)";
+      };
+
+      disableTlsVerify = lib.mkOption {
+        type = lib.types.bool;
+        default = false;
+        description = "Disable TLS verification for cluster connections";
       };
     };
 
@@ -226,12 +219,15 @@ in
         ''}
 
         # Generate cluster token for leaf nodes
-        ${lib.optionalString (cfg.cluster.mode == "leaf" && cfg.auth.enable) ''
-          ${pkgs.moq-token}/bin/moq-token --key "${cfg.stateDir}/root.jwk" sign \
-            --subscribe "" --publish "" --cluster \
-            > "${cfg.stateDir}/cluster.jwt"
-          chown ${cfg.user}:${cfg.group} "${cfg.stateDir}/cluster.jwt"
-        ''}
+        ${lib.optionalString
+          (cfg.cluster.mode == "leaf" && cfg.auth.enable && cfg.cluster.tokenFile == null)
+          ''
+            ${pkgs.moq-token}/bin/moq-token --key "${cfg.stateDir}/root.jwk" sign \
+              --subscribe "" --publish "" --cluster \
+              > "${cfg.stateDir}/cluster.jwt"
+            chown ${cfg.user}:${cfg.group} "${cfg.stateDir}/cluster.jwt"
+          ''
+        }
       '';
 
       serviceConfig = {
@@ -239,14 +235,7 @@ in
         User = cfg.user;
         Group = cfg.group;
 
-        ExecStart =
-          "${cfg.package}/bin/moq-relay ${configFile}"
-          + lib.optionalString (
-            cfg.cluster.mode == "leaf" && cfg.cluster.rootUrl != null
-          ) " --cluster-root ${cfg.cluster.rootUrl}"
-          + lib.optionalString (
-            cfg.cluster.mode != "none" && cfg.cluster.nodeUrl != null
-          ) " --cluster-node ${cfg.cluster.nodeUrl}";
+        ExecStart = "${cfg.package}/bin/moq-relay ${configFile}";
 
         Restart = "on-failure";
         RestartSec = "5s";

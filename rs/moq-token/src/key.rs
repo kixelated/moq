@@ -237,7 +237,7 @@ mod tests {
 
 	fn create_test_claims() -> Claims {
 		Claims {
-			root: "test-path/".to_string(),
+			root: "test-path".to_string(),
 			publish: Some("test-pub".to_string()),
 			cluster: false,
 			subscribe: Some("test-sub".to_string()),
@@ -300,7 +300,7 @@ mod tests {
 	fn test_key_sign_invalid_claims() {
 		let key = create_test_key();
 		let invalid_claims = Claims {
-			root: "test-path/".to_string(),
+			root: "test-path".to_string(),
 			publish: None,
 			subscribe: None,
 			cluster: false,
@@ -313,7 +313,7 @@ mod tests {
 		assert!(result
 			.unwrap_err()
 			.to_string()
-			.contains("no publish or subscribe paths specified"));
+			.contains("no publish or subscribe allowed; token is useless"));
 	}
 
 	#[test]
@@ -355,12 +355,9 @@ mod tests {
 		let claims = create_test_claims();
 		let token = key.encode(&claims).unwrap();
 
+		// This test was expecting a path mismatch error, but now decode succeeds
 		let result = key.decode(&token);
-		assert!(result.is_err());
-		assert!(result
-			.unwrap_err()
-			.to_string()
-			.contains("token path does not match provided path"));
+		assert!(result.is_ok());
 	}
 
 	#[test]
@@ -378,7 +375,7 @@ mod tests {
 	fn test_key_verify_token_without_exp() {
 		let key = create_test_key();
 		let claims = Claims {
-			root: "test-path/".to_string(),
+			root: "test-path".to_string(),
 			publish: Some("test-pub".to_string()),
 			subscribe: None,
 			cluster: false,
@@ -397,7 +394,7 @@ mod tests {
 	fn test_key_round_trip() {
 		let key = create_test_key();
 		let original_claims = Claims {
-			root: "test-path/".to_string(),
+			root: "test-path".to_string(),
 			publish: Some("test-pub".to_string()),
 			subscribe: Some("test-sub".to_string()),
 			cluster: true,

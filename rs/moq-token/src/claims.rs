@@ -90,7 +90,7 @@ mod tests {
 		assert!(result
 			.unwrap_err()
 			.to_string()
-			.contains("no publish or subscribe paths specified"));
+			.contains("no publish or subscribe allowed; token is useless"));
 	}
 
 	#[test]
@@ -133,11 +133,7 @@ mod tests {
 		};
 
 		let result = claims.validate();
-		assert!(result.is_err());
-		assert!(result
-			.unwrap_err()
-			.to_string()
-			.contains("path is not a prefix, so publish can't be relative"));
+		assert!(result.is_ok()); // Now passes because slashes are implicitly added
 	}
 
 	#[test]
@@ -152,11 +148,7 @@ mod tests {
 		};
 
 		let result = claims.validate();
-		assert!(result.is_err());
-		assert!(result
-			.unwrap_err()
-			.to_string()
-			.contains("path is not a prefix, so subscribe can't be relative"));
+		assert!(result.is_ok()); // Now passes because slashes are implicitly added
 	}
 
 	#[test]
