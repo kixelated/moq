@@ -3,6 +3,11 @@ import test from "node:test";
 import type { Claims } from "./claims";
 import { load, sign, verify } from "./key";
 
+// Helper function to encode JSON to base64url
+function encodeJwk(obj: unknown): string {
+	return Buffer.from(JSON.stringify(obj)).toString("base64url");
+}
+
 const testKey = {
 	alg: "HS256",
 	key_ops: ["sign", "verify"],
@@ -20,7 +25,7 @@ const testClaims: Claims = {
 };
 
 test("load - valid JWK", () => {
-	const jwk = JSON.stringify(testKey);
+	const jwk = encodeJwk(testKey);
 	const key = load(jwk);
 
 	assert.strictEqual(key.alg, "HS256");
@@ -29,8 +34,17 @@ test("load - valid JWK", () => {
 	assert.strictEqual(key.kid, "test-key-1");
 });
 
-test("load - invalid JSON", () => {
-	const invalidJwk = "invalid json";
+test("load - invalid base64url", () => {
+	const invalidJwk = "invalid-base64url!@#$%";
+
+	assert.throws(() => {
+		load(invalidJwk);
+	}, /Failed to parse JWK: invalid JSON format/);
+});
+
+test("load - invalid JSON after base64url decode", () => {
+	// Base64url encode invalid JSON
+	const invalidJwk = Buffer.from("invalid json").toString("base64url");
 
 	assert.throws(() => {
 		load(invalidJwk);
@@ -42,7 +56,7 @@ test("load - invalid secret format", () => {
 		...testKey,
 		k: "invalid-base64url-chars!@#$%",
 	};
-	const jwk = JSON.stringify(invalidKey);
+	const jwk = encodeJwk(invalidKey);
 
 	assert.throws(() => {
 		load(jwk);
@@ -54,7 +68,7 @@ test("load - secret too short", () => {
 		...testKey,
 		k: "c2hvcnQ", // "short" in base64url (only 5 bytes)
 	};
-	const jwk = JSON.stringify(invalidKey);
+	const jwk = encodeJwk(invalidKey);
 
 	assert.throws(() => {
 		load(jwk);
@@ -66,7 +80,7 @@ test("load - missing required fields", () => {
 		alg: "HS256",
 		// missing key_ops and k
 	};
-	const jwk = JSON.stringify(invalidKey);
+	const jwk = encodeJwk(invalidKey);
 
 	assert.throws(() => {
 		load(jwk);
@@ -74,7 +88,7 @@ test("load - missing required fields", () => {
 });
 
 test("sign - successful signing", async () => {
-	const key = load(JSON.stringify(testKey));
+	const key = load(encodeJwk(testKey));
 	const token = await sign(key, testClaims);
 
 	assert.ok(typeof token === "string");
@@ -87,7 +101,7 @@ test("sign - key doesn't support signing", async () => {
 		...testKey,
 		key_ops: ["verify"],
 	};
-	const key = load(JSON.stringify(verifyOnlyKey));
+	const key = load(encodeJwk(verifyOnlyKey));
 
 	await assert.rejects(async () => {
 		await sign(key, testClaims);
@@ -95,7 +109,7 @@ test("sign - key doesn't support signing", async () => {
 });
 
 test("verify - successful verification", async () => {
-	const key = load(JSON.stringify(testKey));
+	const key = load(encodeJwk(testKey));
 	const token = await sign(key, testClaims);
 	const claims = await verify(key, token, testClaims.path);
 
@@ -110,7 +124,7 @@ test("verify - key doesn't support verification", async () => {
 		...testKey,
 		key_ops: ["sign"],
 	};
-	const key = load(JSON.stringify(signOnlyKey));
+	const key = load(encodeJwk(signOnlyKey));
 
 	await assert.rejects(async () => {
 		await verify(key, "some.jwt.token", "test-path");
@@ -118,7 +132,7 @@ test("verify - key doesn't support verification", async () => {
 });
 
 test("verify - invalid token format", async () => {
-	const key = load(JSON.stringify(testKey));
+	const key = load(encodeJwk(testKey));
 
 	await assert.rejects(async () => {
 		await verify(key, "invalid-token", "test-path");
@@ -131,7 +145,7 @@ test("verify - expired token", async () => {
 		exp: Math.floor((Date.now() - 60 * 1000) / 1000), // 1 minute ago in seconds
 	};
 
-	const key = load(JSON.stringify(testKey));
+	const key = load(encodeJwk(testKey));
 	const token = await sign(key, expiredClaims);
 
 	await assert.rejects(async () => {
@@ -145,7 +159,7 @@ test("verify - token without exp field", async () => {
 		pub: "test-pub",
 	};
 
-	const key = load(JSON.stringify(testKey));
+	const key = load(encodeJwk(testKey));
 	const token = await sign(key, claimsWithoutExp);
 	const claims = await verify(key, token, claimsWithoutExp.path);
 
@@ -161,7 +175,7 @@ test("claims validation - must have pub or sub", async () => {
 		// missing both pub and sub
 	};
 
-	const key = load(JSON.stringify(testKey));
+	const key = load(encodeJwk(testKey));
 
 	await assert.rejects(async () => {
 		await sign(key, invalidClaims as Claims);
@@ -169,7 +183,7 @@ test("claims validation - must have pub or sub", async () => {
 });
 
 test("round-trip - sign and verify", async () => {
-	const key = load(JSON.stringify(testKey));
+	const key = load(encodeJwk(testKey));
 	const originalClaims: Claims = {
 		path: "test-path/",
 		pub: "test-pub",
@@ -191,7 +205,7 @@ test("round-trip - sign and verify", async () => {
 });
 
 test("verify - path mismatch", async () => {
-	const key = load(JSON.stringify(testKey));
+	const key = load(encodeJwk(testKey));
 	const token = await sign(key, testClaims);
 
 	await assert.rejects(async () => {
@@ -200,7 +214,7 @@ test("verify - path mismatch", async () => {
 });
 
 test("sign - invalid claims without pub or sub", async () => {
-	const key = load(JSON.stringify(testKey));
+	const key = load(encodeJwk(testKey));
 	const invalidClaims = {
 		path: "test-path/",
 		cluster: false,
@@ -212,7 +226,7 @@ test("sign - invalid claims without pub or sub", async () => {
 });
 
 test("sign - claims validation path not prefix relative pub", async () => {
-	const key = load(JSON.stringify(testKey));
+	const key = load(encodeJwk(testKey));
 	const invalidClaims: Claims = {
 		path: "test-path", // no trailing slash
 		pub: "relative-pub", // relative path without leading slash
@@ -224,7 +238,7 @@ test("sign - claims validation path not prefix relative pub", async () => {
 });
 
 test("sign - claims validation path not prefix relative sub", async () => {
-	const key = load(JSON.stringify(testKey));
+	const key = load(encodeJwk(testKey));
 	const invalidClaims: Claims = {
 		path: "test-path", // no trailing slash
 		sub: "relative-sub", // relative path without leading slash
@@ -236,7 +250,7 @@ test("sign - claims validation path not prefix relative sub", async () => {
 });
 
 test("sign - claims validation path not prefix absolute pub", async () => {
-	const key = load(JSON.stringify(testKey));
+	const key = load(encodeJwk(testKey));
 	const validClaims: Claims = {
 		path: "test-path", // no trailing slash
 		pub: "/absolute-pub", // absolute path with leading slash
@@ -248,7 +262,7 @@ test("sign - claims validation path not prefix absolute pub", async () => {
 });
 
 test("sign - claims validation path not prefix absolute sub", async () => {
-	const key = load(JSON.stringify(testKey));
+	const key = load(encodeJwk(testKey));
 	const validClaims: Claims = {
 		path: "test-path", // no trailing slash
 		sub: "/absolute-sub", // absolute path with leading slash
@@ -260,7 +274,7 @@ test("sign - claims validation path not prefix absolute sub", async () => {
 });
 
 test("sign - claims validation path not prefix empty pub", async () => {
-	const key = load(JSON.stringify(testKey));
+	const key = load(encodeJwk(testKey));
 	const validClaims: Claims = {
 		path: "test-path", // no trailing slash
 		pub: "", // empty string
@@ -273,7 +287,7 @@ test("sign - claims validation path not prefix empty pub", async () => {
 });
 
 test("sign - claims validation path not prefix empty sub", async () => {
-	const key = load(JSON.stringify(testKey));
+	const key = load(encodeJwk(testKey));
 	const validClaims: Claims = {
 		path: "test-path", // no trailing slash
 		sub: "", // empty string
@@ -286,7 +300,7 @@ test("sign - claims validation path not prefix empty sub", async () => {
 });
 
 test("sign - claims validation path is prefix with relative paths", async () => {
-	const key = load(JSON.stringify(testKey));
+	const key = load(encodeJwk(testKey));
 	const validClaims: Claims = {
 		path: "test-path/", // with trailing slash
 		pub: "relative-pub", // relative path is ok when path is prefix
@@ -299,7 +313,7 @@ test("sign - claims validation path is prefix with relative paths", async () => 
 });
 
 test("sign - claims validation empty path", async () => {
-	const key = load(JSON.stringify(testKey));
+	const key = load(encodeJwk(testKey));
 	const validClaims: Claims = {
 		path: "", // empty path
 		pub: "test-pub",
@@ -318,7 +332,7 @@ test("different algorithms - HS384", async () => {
 		kid: "test-key-hs384",
 	} as const;
 
-	const key = load(JSON.stringify(hs384Key));
+	const key = load(encodeJwk(hs384Key));
 	const token = await sign(key, testClaims);
 	const verifiedClaims = await verify(key, token, testClaims.path);
 
@@ -334,7 +348,7 @@ test("different algorithms - HS512", async () => {
 		kid: "test-key-hs512",
 	} as const;
 
-	const key = load(JSON.stringify(hs512Key));
+	const key = load(encodeJwk(hs512Key));
 	const token = await sign(key, testClaims);
 	const verifiedClaims = await verify(key, token, testClaims.path);
 
@@ -343,9 +357,9 @@ test("different algorithms - HS512", async () => {
 });
 
 test("cross-algorithm verification fails", async () => {
-	const hs256Key = load(JSON.stringify(testKey));
+	const hs256Key = load(encodeJwk(testKey));
 	const hs384Key = load(
-		JSON.stringify({
+		encodeJwk({
 			alg: "HS384",
 			key_ops: ["sign", "verify"],
 			k: "dGVzdC1zZWNyZXQtdGhhdC1pcy1sb25nLWVub3VnaC1mb3ItaG1hYy1zaGEzODQtYWxnb3JpdGhtLXRlc3RpbmctcHVycG9zZXM",
@@ -365,7 +379,7 @@ test("load - invalid algorithm", () => {
 		...testKey,
 		alg: "RS256", // unsupported algorithm
 	};
-	const jwk = JSON.stringify(invalidKey);
+	const jwk = encodeJwk(invalidKey);
 
 	assert.throws(() => {
 		load(jwk);
@@ -377,7 +391,7 @@ test("load - invalid key_ops", () => {
 		...testKey,
 		key_ops: ["invalid-operation"],
 	};
-	const jwk = JSON.stringify(invalidKey);
+	const jwk = encodeJwk(invalidKey);
 
 	assert.throws(() => {
 		load(jwk);
@@ -389,7 +403,7 @@ test("load - missing alg field", () => {
 		key_ops: ["sign", "verify"],
 		k: testKey.k,
 	};
-	const jwk = JSON.stringify(invalidKey);
+	const jwk = encodeJwk(invalidKey);
 
 	assert.throws(() => {
 		load(jwk);
@@ -397,7 +411,7 @@ test("load - missing alg field", () => {
 });
 
 test("sign - includes kid in header when present", async () => {
-	const key = load(JSON.stringify(testKey));
+	const key = load(encodeJwk(testKey));
 	const token = await sign(key, testClaims);
 
 	// Decode the header to verify kid is present
@@ -416,7 +430,7 @@ test("sign - no kid in header when not present", async () => {
 	};
 	delete keyWithoutKid.kid;
 
-	const key = load(JSON.stringify(keyWithoutKid));
+	const key = load(encodeJwk(keyWithoutKid));
 	const token = await sign(key, testClaims);
 
 	// Decode the header to verify kid is not present
@@ -429,7 +443,7 @@ test("sign - no kid in header when not present", async () => {
 });
 
 test("sign - sets issued at timestamp", async () => {
-	const key = load(JSON.stringify(testKey));
+	const key = load(encodeJwk(testKey));
 	const claimsWithoutIat: Claims = {
 		path: "test-path/",
 		pub: "test-pub",
@@ -448,7 +462,7 @@ test("sign - sets issued at timestamp", async () => {
 });
 
 test("verify - malformed token parts", async () => {
-	const key = load(JSON.stringify(testKey));
+	const key = load(encodeJwk(testKey));
 
 	await assert.rejects(async () => {
 		await verify(key, "invalid", "test-path");
@@ -464,7 +478,7 @@ test("verify - malformed token parts", async () => {
 });
 
 test("verify - invalid payload structure", async () => {
-	const key = load(JSON.stringify(testKey));
+	const key = load(encodeJwk(testKey));
 
 	// Create a token with invalid payload structure
 	const header = Buffer.from(JSON.stringify({ alg: "HS256", typ: "JWT" })).toString("base64url");
@@ -478,7 +492,7 @@ test("verify - invalid payload structure", async () => {
 });
 
 test("verify - claims validation during verification", async () => {
-	const key = load(JSON.stringify(testKey));
+	const key = load(encodeJwk(testKey));
 
 	// We need to create a token with valid claims since sign() would reject invalid ones
 	const token = await sign(key, { path: "test-path", pub: "/absolute-pub" });

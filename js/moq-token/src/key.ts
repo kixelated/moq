@@ -48,8 +48,13 @@ export type Key = z.infer<typeof keySchema>;
 export function load(jwk: string): Key {
 	let data: unknown;
 	try {
-		data = JSON.parse(jwk);
-	} catch {
+		// First base64url decode the input
+		const decoded = Buffer.from(jwk, "base64url").toString("utf-8");
+		data = JSON.parse(decoded);
+	} catch (error) {
+		if (error instanceof Error && error.message.includes("Invalid character")) {
+			throw new Error("Failed to decode JWK: invalid base64url encoding");
+		}
 		throw new Error("Failed to parse JWK: invalid JSON format");
 	}
 
