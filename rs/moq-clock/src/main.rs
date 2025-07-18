@@ -73,7 +73,7 @@ async fn main() -> anyhow::Result<()> {
 			}
 		}
 		Command::Subscribe => {
-			let origin = moq_lite::OriginProducer::new(config.broadcast.clone());
+			let origin = moq_lite::OriginProducer::default();
 			let session = moq_lite::Session::connect(session, None, origin.clone()).await?;
 
 			// The broadcast name is empty because the URL contains the name
