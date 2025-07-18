@@ -215,12 +215,24 @@ impl Auth {
 			return Ok(permissions);
 		}
 
-		// No auth required, so create a dummy token that allows accessing everything.
-		Ok(moq_token::Claims {
+		// Check if authentication is required but no token was provided
+		if auth.key.is_some() {
+			anyhow::bail!("authentication required but no token provided");
+		}
+
+		// No auth required, so create a token that allows public access
+		let claims = moq_token::Claims {
 			path: path.to_string(),
 			publish: auth.public_write.then_some("".to_string()),
 			subscribe: auth.public_read.then_some("".to_string()),
 			..Default::default()
-		})
+		};
+
+		// Reject connections that have no permissions at all
+		if claims.publish.is_none() && claims.subscribe.is_none() {
+			anyhow::bail!("session has no access permissions");
+		}
+
+		Ok(claims)
 	}
 }
