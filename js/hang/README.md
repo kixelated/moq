@@ -196,7 +196,7 @@ You're on your own when it comes to documentation... for now.
 import * as Hang from "@kixelated/hang";
 
 // Create a new connection, available via `.established`
-const connection = new Hang.Connection("https://relay.quic.video/");
+const connection = new Hang.Connection("https://relay.quic.video/anon");
 
 // Publishing media, with (optional) initial settings
 const publish = new Hang.Publish.Broadcast(connection, {

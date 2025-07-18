@@ -104,7 +104,7 @@ impl<'a> Display for PathRef<'a> {
 /// assert_eq!(joined.as_str(), "api/v1/users");
 /// ```
 #[derive(Clone, Debug, PartialEq, Eq, Hash, Default)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "serde", derive(serde::Serialize))]
 pub struct Path(String);
 
 impl Path {
@@ -276,6 +276,17 @@ impl Decode for Path {
 impl Encode for Path {
 	fn encode<W: bytes::BufMut>(&self, w: &mut W) {
 		self.0.encode(w)
+	}
+}
+
+#[cfg(feature = "serde")]
+impl<'de> serde::Deserialize<'de> for Path {
+	fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+	where
+		D: serde::Deserializer<'de>,
+	{
+		let s = String::deserialize(deserializer)?;
+		Ok(Path::new(s))
 	}
 }
 
