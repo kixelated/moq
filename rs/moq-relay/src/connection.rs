@@ -1,4 +1,3 @@
-use anyhow::Context;
 use moq_lite::Path;
 
 use crate::{Auth, Cluster};

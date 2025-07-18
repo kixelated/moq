@@ -65,7 +65,7 @@ async fn main() -> anyhow::Result<()> {
 			let session = moq_lite::Session::connect(session, publisher.consume_all(), None).await?;
 
 			// Publish the broadcast - the broadcast name is empty because the URL contains the name
-			publisher.publish(config.broadcast, broadcast.consume());
+			publisher.publish(&config.broadcast, broadcast.consume());
 
 			tokio::select! {
 				res = session.closed() => Err(res.into()),
@@ -77,7 +77,7 @@ async fn main() -> anyhow::Result<()> {
 			let session = moq_lite::Session::connect(session, None, origin.clone()).await?;
 
 			// The broadcast name is empty because the URL contains the name
-			let broadcast = origin.consume(config.broadcast).context("broadcast not found")?;
+			let broadcast = origin.consume(&config.broadcast).context("broadcast not found")?;
 			let track = broadcast.subscribe(&track);
 			let clock = clock::Subscriber::new(track);
 
