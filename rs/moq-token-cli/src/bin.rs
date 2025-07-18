@@ -1,7 +1,7 @@
 use anyhow::Context;
 use clap::{Parser, Subcommand};
-use std::{io, path::PathBuf};
 use moq_lite::Path;
+use std::{io, path::PathBuf};
 
 #[derive(Debug, Parser)]
 #[command(name = "moq-token")]

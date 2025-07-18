@@ -217,8 +217,8 @@ fn generate_hmac_key<const SIZE: usize>() -> Vec<u8> {
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use std::time::{Duration, SystemTime};
 	use moq_lite::Path;
+	use std::time::{Duration, SystemTime};
 
 	fn create_test_key() -> Key {
 		Key {
