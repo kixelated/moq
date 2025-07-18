@@ -16,15 +16,15 @@
 
 mod error;
 mod model;
+mod path;
 mod session;
 
 pub mod coding;
 pub mod message;
 pub use error::*;
 pub use model::*;
+pub use path::*;
 pub use session::*;
-
-pub use message::{Path, PathRef};
 
 /// The ALPN used when connecting via QUIC directly.
 pub const ALPN: &str = message::Alpn::CURRENT.0;

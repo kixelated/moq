@@ -1,6 +1,7 @@
 use anyhow::Context;
 use clap::{Parser, Subcommand};
 use std::{io, path::PathBuf};
+use moq_lite::Path;
 
 #[derive(Debug, Parser)]
 #[command(name = "moq-token")]
@@ -89,10 +90,10 @@ fn main() -> anyhow::Result<()> {
 			let key = moq_token::Key::from_file(cli.key)?;
 
 			let payload = moq_token::Claims {
-				root,
-				publish,
+				root: Path::new(root),
+				publish: publish.map(Path::new),
 				cluster,
-				subscribe,
+				subscribe: subscribe.map(Path::new),
 				expires,
 				issued,
 			};

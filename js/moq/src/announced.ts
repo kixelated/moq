@@ -97,11 +97,18 @@ export class AnnouncedConsumer {
 
 			while (this.#index < queue.length) {
 				const announce = queue.at(this.#index++);
-				if (!announce?.name.startsWith(this.prefix)) continue;
+				if (!announce) continue;
+				
+				// Check if name starts with prefix and respects path boundaries
+				if (!announce.name.startsWith(this.prefix)) continue;
+				
+				// Ensure we have a proper path boundary after the prefix
+				const remaining = announce.name.slice(this.prefix.length);
+				if (this.prefix !== "" && remaining !== "" && !remaining.startsWith("/")) continue;
 
 				// We have to remove the prefix so we only return our suffix.
 				return {
-					name: announce.name.slice(this.prefix.length),
+					name: remaining,
 					active: announce.active,
 				};
 			}

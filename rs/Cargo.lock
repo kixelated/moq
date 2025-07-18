@@ -1421,6 +1421,7 @@ dependencies = [
  "aws-lc-rs",
  "base64",
  "jsonwebtoken",
+ "moq-lite",
  "serde",
  "serde_json",
  "serde_with",
@@ -1432,6 +1433,7 @@ version = "0.1.5"
 dependencies = [
  "anyhow",
  "clap",
+ "moq-lite",
  "moq-token",
 ]
 

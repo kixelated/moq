@@ -61,9 +61,9 @@ export default class HangWatch extends HTMLElement {
 		this.#signals.effect((effect) => {
 			const broadcast = effect.get(this.broadcast.name);
 			if (broadcast) {
-				this.setAttribute("broadcast", broadcast);
+				this.setAttribute("name", broadcast);
 			} else {
-				this.removeAttribute("broadcast");
+				this.removeAttribute("name");
 			}
 		});
 

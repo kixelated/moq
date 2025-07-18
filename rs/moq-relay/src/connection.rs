@@ -1,5 +1,3 @@
-use moq_lite::Path;
-
 use crate::{Auth, Cluster};
 
 pub struct Connection {
@@ -13,13 +11,12 @@ impl Connection {
 	#[tracing::instrument("conn", skip_all, fields(id = self.id))]
 	pub async fn run(&mut self) -> anyhow::Result<()> {
 		let token = self.auth.verify(self.session.url())?;
-		let root = Path::new(token.root);
+		let root = &token.root;
 
 		// These broadcasts will be served to the session (when it subscribes).
 		let mut publish = None;
-		if let Some(prefix) = token.subscribe {
-			let prefix = Path::new(prefix);
-			let prefix = root.join(&prefix);
+		if let Some(prefix) = &token.subscribe {
+			let prefix = root.join(prefix);
 
 			publish = Some(match token.cluster {
 				true => self.cluster.primary.consume_prefix(&prefix),
@@ -29,11 +26,10 @@ impl Connection {
 
 		// These broadcasts will be received from the session (when it publishes).
 		let mut subscribe = None;
-		if let Some(prefix) = token.publish {
+		if let Some(prefix) = &token.publish {
 			// If this is a cluster node, then add its broadcasts to the secondary origin.
 			// That way we won't publish them to other cluster nodes.
-			let prefix = Path::new(prefix);
-			let prefix = root.join(&prefix);
+			let prefix = root.join(prefix);
 
 			subscribe = Some(match token.cluster {
 				true => self.cluster.secondary.publish_prefix(&prefix),

@@ -1,5 +1,6 @@
 use std::sync::Arc;
 
+use moq_lite::Path;
 use serde::{Deserialize, Serialize};
 use url::Url;
 
@@ -15,7 +16,7 @@ pub struct AuthConfig {
 	/// If present, unauthorized users will be able to read and write to this prefix ONLY.
 	/// If a user provides a token, then they can only access the prefix only if it is specified in the token.
 	#[arg(long = "auth-public")]
-	pub public: Option<String>,
+	pub public: Option<Path>,
 }
 
 impl AuthConfig {
@@ -27,7 +28,7 @@ impl AuthConfig {
 #[derive(Clone)]
 pub struct Auth {
 	key: Option<Arc<moq_token::Key>>,
-	public: Option<String>,
+	public: Option<Path>,
 }
 
 impl Auth {
@@ -40,7 +41,7 @@ impl Auth {
 			}
 		};
 
-		let public = config.public.map(|p| p.trim_matches('/').to_string());
+		let public = config.public;
 
 		Ok(Self {
 			key: key.map(Arc::new),
@@ -62,8 +63,8 @@ impl Auth {
 		} else if let Some(public) = &self.public {
 			moq_token::Claims {
 				root: public.clone(),
-				subscribe: Some("".to_string()),
-				publish: Some("".to_string()),
+				subscribe: Some(Path::new("")),
+				publish: Some(Path::new("")),
 				..Default::default()
 			}
 		} else {
@@ -72,14 +73,17 @@ impl Auth {
 
 		// Get the path from the URL, removing any leading or trailing slashes.
 		// We will automatically add a trailing slash when joining the path with the subscribe/publish roots.
-		let path = url.path().trim_matches('/');
+		let path = Path::new(url.path());
 
-		Ok(match path.strip_prefix(&claims.root) {
-			// Exact match, the claims are valid.
-			Some("") => claims,
-			// Our connection is more specific than the claims
-			// TODO: We could handle this one day, but it's not worth the mental overhead.
-			Some(_) | None => anyhow::bail!("path does not match the root: {} != {}", path, claims.root),
-		})
+		// TODO We might be able to support when the path is more specific than the claim.
+		// But it's not worth the mental overhead right now.
+		anyhow::ensure!(
+			claims.root == path,
+			"path does not match the root: {} != {}",
+			path,
+			claims.root
+		);
+
+		Ok(claims)
 	}
 }

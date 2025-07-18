@@ -1,4 +1,4 @@
-use std::{collections::HashSet, fmt, path::Path, sync::OnceLock};
+use std::{collections::HashSet, fmt, path::Path as StdPath, sync::OnceLock};
 
 use base64::Engine;
 use jsonwebtoken::{DecodingKey, EncodingKey, Header};
@@ -62,7 +62,7 @@ impl Key {
 		Ok(serde_json::from_str(s)?)
 	}
 
-	pub fn from_file<P: AsRef<Path>>(path: P) -> anyhow::Result<Self> {
+	pub fn from_file<P: AsRef<StdPath>>(path: P) -> anyhow::Result<Self> {
 		// TODO: Remove this once all keys are migrated to base64url format
 		// First try to read as JSON (backwards compatibility)
 		let contents = std::fs::read_to_string(&path)?;
@@ -83,7 +83,7 @@ impl Key {
 		Ok(serde_json::to_string(self)?)
 	}
 
-	pub fn to_file<P: AsRef<Path>>(&self, path: P) -> anyhow::Result<()> {
+	pub fn to_file<P: AsRef<StdPath>>(&self, path: P) -> anyhow::Result<()> {
 		// Serialize to JSON first
 		let json = serde_json::to_string(self)?;
 		// Then encode as base64url
@@ -110,12 +110,7 @@ impl Key {
 		let mut validation = jsonwebtoken::Validation::new(self.algorithm.into());
 		validation.required_spec_claims = Default::default(); // Don't require exp, but still validate it if present
 
-		let mut token = jsonwebtoken::decode::<Claims>(token, decode, &validation)?;
-		// For backwards compatibility, we trim any slashes from the paths.
-		// They will be automatically added when joining the path with the publish/subscribe roots.
-		token.claims.root = token.claims.root.trim_matches('/').to_string();
-		token.claims.publish = token.claims.publish.map(|r| r.trim_matches('/').to_string());
-		token.claims.subscribe = token.claims.subscribe.map(|r| r.trim_matches('/').to_string());
+		let token = jsonwebtoken::decode::<Claims>(token, decode, &validation)?;
 		token.claims.validate()?;
 
 		Ok(token.claims)
@@ -223,6 +218,7 @@ fn generate_hmac_key<const SIZE: usize>() -> Vec<u8> {
 mod tests {
 	use super::*;
 	use std::time::{Duration, SystemTime};
+	use moq_lite::Path;
 
 	fn create_test_key() -> Key {
 		Key {
@@ -237,10 +233,10 @@ mod tests {
 
 	fn create_test_claims() -> Claims {
 		Claims {
-			root: "test-path".to_string(),
-			publish: Some("test-pub".to_string()),
+			root: Path::new("test-path"),
+			publish: Some(Path::new("test-pub")),
 			cluster: false,
-			subscribe: Some("test-sub".to_string()),
+			subscribe: Some(Path::new("test-sub")),
 			expires: Some(SystemTime::now() + Duration::from_secs(3600)),
 			issued: Some(SystemTime::now()),
 		}
@@ -300,7 +296,7 @@ mod tests {
 	fn test_key_sign_invalid_claims() {
 		let key = create_test_key();
 		let invalid_claims = Claims {
-			root: "test-path".to_string(),
+			root: Path::new("test-path"),
 			publish: None,
 			subscribe: None,
 			cluster: false,
@@ -375,8 +371,8 @@ mod tests {
 	fn test_key_verify_token_without_exp() {
 		let key = create_test_key();
 		let claims = Claims {
-			root: "test-path".to_string(),
-			publish: Some("test-pub".to_string()),
+			root: Path::new("test-path"),
+			publish: Some(Path::new("test-pub")),
 			subscribe: None,
 			cluster: false,
 			expires: None,
@@ -394,9 +390,9 @@ mod tests {
 	fn test_key_round_trip() {
 		let key = create_test_key();
 		let original_claims = Claims {
-			root: "test-path".to_string(),
-			publish: Some("test-pub".to_string()),
-			subscribe: Some("test-sub".to_string()),
+			root: Path::new("test-path"),
+			publish: Some(Path::new("test-pub")),
+			subscribe: Some(Path::new("test-sub")),
 			cluster: true,
 			expires: Some(SystemTime::now() + Duration::from_secs(3600)),
 			issued: Some(SystemTime::now()),

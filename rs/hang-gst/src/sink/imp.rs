@@ -172,7 +172,8 @@ impl HangSink {
 			let mut session = moq_lite::Session::connect(session).await.expect("failed to connect");
 
 			let broadcast = hang::BroadcastProducer::new();
-			session.publish(settings.name, broadcast.inner.consume());
+			let name = settings.name.as_ref().expect("name is required");
+			session.publish(name, broadcast.inner.consume());
 
 			let media = hang::cmaf::Import::new(broadcast);
 
