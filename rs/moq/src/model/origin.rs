@@ -228,7 +228,7 @@ impl OriginProducer {
 		};
 
 		for (path, broadcast) in &state.active {
-			consumer.insert(&path, &broadcast.active);
+			consumer.insert(path, &broadcast.active);
 		}
 		state.consumers.push(consumer);
 
@@ -317,7 +317,7 @@ impl OriginConsumer {
 			let mut state = state.lock();
 
 			for (path, broadcast) in &state.active {
-				consumer.insert(&path, &broadcast.active);
+				consumer.insert(path, &broadcast.active);
 			}
 
 			state.consumers.push(consumer);

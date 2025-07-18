@@ -165,9 +165,7 @@ impl Prefix {
 	pub fn join(&self, suffix: &Suffix) -> Path {
 		if self.0.is_empty() {
 			Path::new(&suffix.0)
-		} else if self.0.ends_with('/') {
-			Path::new(format!("{}{}", self.0, suffix.0))
-		} else if suffix.0.starts_with('/') {
+		} else if self.0.ends_with('/') || suffix.0.starts_with('/') {
 			Path::new(format!("{}{}", self.0, suffix.0))
 		} else {
 			Path::new(format!("{}/{}", self.0, suffix.0))
@@ -270,7 +268,7 @@ impl Prefix {
 	/// use moq_lite::{Prefix, Suffix};
 	///
 	/// let prefix = Prefix::new("foo/bar/baz");
-	/// 
+	///
 	/// // Valid prefix stripping
 	/// let suffix = prefix.strip_prefix(&Prefix::new("foo")).unwrap();
 	/// assert_eq!(suffix.as_str(), "/bar/baz");

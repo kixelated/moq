@@ -4,7 +4,7 @@ use web_async::Lock;
 
 use crate::model::{BroadcastConsumer, BroadcastProducer};
 
-use moq_lite::{OriginConsumer, OriginProducer, Path, Prefix, Suffix};
+use moq_lite::{OriginConsumer, OriginProducer, Prefix, Suffix};
 
 pub struct Room {
 	pub prefix: Prefix,
