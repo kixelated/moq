@@ -18,10 +18,16 @@
 		There's a simple, web component to set up the provided canvas, including some basic controls.
 		Note that the name is optional, and can be set via query parameters in index.ts.
 
-		TODO: There's a bug with Big Buck Bunny causing audio to stutter, so we need to increase the latency to 100ms.
+		The relay url is loaded from an environment as it contains a generated JWT authentication token.
+		Feel free to hard-code it if you have public access configured, like `url="https://relay.quic.video/anon"`
 		NOTE: `http` performs an insecure certificate check. You must use `https` in production.
+
+		The broadcast name is overwritten by the ?name query parameter in index.ts.
+
+		TODO: There's a bug with Big Buck Bunny causing audio to stutter, so we need to increase the latency to 100ms.
+
 	-->
-	<hang-watch url="http://localhost:4443/anon" name="bbb" muted controls latency="100">
+	<hang-watch url="%VITE_RELAY_URL%" name="bbb" muted controls latency="100">
 		<canvas style="max-width: 100%; height: auto; border-radius: 4px; margin: 0 auto;"></canvas>
 	</hang-watch>
 

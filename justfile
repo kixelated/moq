@@ -21,14 +21,17 @@ all: dev
 # Run the relay, web server, and publish bbb.
 dev:
 	# We use pnpm for concurrently, unfortunately, so make sure it's installed.
-	cd js && pnpm i
+	@cd js && pnpm i
+
+	# Generate auth tokens if needed
+	@cd rs && just auth
 
 	# Then run the relay with a slight head start.
 	# It doesn't matter if the web beats BBB because we support automatic reloading.
 	js/node_modules/.bin/concurrently --kill-others --names srv,bbb,web --prefix-colors auto \
 		"just relay" \
-		"sleep 1 && just pub bbb" \
-		"sleep 2 && just web"
+		"sleep 1 && just pub bbb http://localhost:4443/demo?jwt=$(cat rs/dev/demo-pub.jwt)" \
+		"sleep 2 && just web http://localhost:4443/demo?jwt=$(cat rs/dev/demo-me.jwt)"
 
 # Run a localhost relay server
 relay:
@@ -39,15 +42,18 @@ cluster:
 	# We use pnpm for concurrently, unfortunately, so make sure it's installed.
 	cd js && pnpm i
 
+	# Generate auth tokens if needed
+	cd rs && just auth
+
 	# Then run a BOATLOAD of services to make sure they all work correctly.
 	# Publish the funny bunny to the root node.
 	# Publish the robot fanfic to the leaf node.
 	js/node_modules/.bin/concurrently --kill-others --names root,leaf,bbb,tos,web --prefix-colors auto \
 		"just relay" \
 		"sleep 1 && just leaf" \
-		"sleep 2 && just pub bbb http://localhost:4444/anon" \
-		"sleep 3 && just pub tos http://localhost:4443/anon" \
-		"sleep 4 && just web"
+		"sleep 2 && just pub bbb http://localhost:4444/demo?jwt=$(cat rs/dev/demo-pub.jwt)" \
+		"sleep 3 && just pub tos http://localhost:4443/demo?jwt=$(cat rs/dev/demo-pub.jwt)" \
+		"sleep 4 && just web http://localhost:4443/demo?jwt=$(cat rs/dev/demo-me.jwt)"
 
 # Run a leaf node
 leaf:
@@ -70,8 +76,8 @@ serve name:
 	just --justfile rs/justfile serve {{name}}
 
 # Run the web server
-web:
-	just --justfile js/justfile web
+web url='http://localhost:4443/anon':
+	just --justfile js/justfile web {{url}}
 
 # Publish the clock broadcast
 # `action` is either `publish` or `subscribe`

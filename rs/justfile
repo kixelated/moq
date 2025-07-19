@@ -7,7 +7,7 @@ default:
   just --list
 
 # Install any required dependencies.
-setup:
+setup: auth
 	cargo install cargo-shear cargo-sort cargo-upgrades cargo-edit cargo-audit
 
 # Run a localhost relay server
@@ -16,17 +16,7 @@ relay: root
 	cargo run --bin moq-relay -- moq-relay/dev.toml
 
 # Run a localhost leaf server, connecting to the relay server
-leaf: root
-	# Generate a token that allows a cluster node to publish and subscribe to all paths.
-	# Obviously this needs to be secured in production.
-	# WARN: The --cluster flag subtly changes publishing behavior; don't reuse this token for other purposes.
-	cargo run --quiet --bin moq-token -- --key "dev/root.jwk" sign \
-	 	--root "" \
-		--subscribe "" \
-		--publish "" \
-		--cluster \
-		> dev/leaf.jwt
-
+leaf:
 	# Run the leaf server with a special configuration file.
 	cargo run --bin moq-relay -- moq-relay/leaf.toml
 
@@ -34,19 +24,49 @@ leaf: root
 # By default, this uses HMAC-SHA256, so it's symmetric.
 # If some one wants to contribute, public/private key pairs would be nice.
 root:
-	if [ ! -f "dev/root.jwk" ]; then \
+	@if [ ! -f "dev/root.jwk" ]; then \
+		rm "dev/*.jwt"; \
 		cargo run --bin moq-token -- --key "dev/root.jwk" generate; \
+	fi
+
+# Generate authentication tokens for local development
+# demo-me.jwt - allows publishing to demo/me/* and subscribing to demo/*
+# demo-pub.jwt - allows publishing to demo/* but no subscribing
+# cluster.jwt - allows publishing and subscribing to all paths
+auth: root
+	@if [ ! -f "dev/demo-me.jwt" ]; then \
+		cargo run --quiet --bin moq-token -- --key "dev/root.jwk" sign \
+			--root "demo" \
+			--subscribe "" \
+			--publish "me" \
+			> dev/demo-me.jwt ; \
+	fi
+
+	@if [ ! -f "dev/demo-pub.jwt" ]; then \
+		cargo run --quiet --bin moq-token -- --key "dev/root.jwk" sign \
+			--root "demo" \
+			--publish "" \
+			> dev/demo-pub.jwt ; \
+	fi
+
+	@if [ ! -f "dev/cluster.jwt" ]; then \
+		cargo run --quiet --bin moq-token -- --key "dev/root.jwk" sign \
+		--root "" \
+		--subscribe "" \
+		--publish "" \
+		--cluster \
+		> dev/cluster.jwt ; \
 	fi
 
 # Download the video and convert it to a fragmented MP4 that we can stream
 download name:
 	@mkdir -p dev
 
-	if [ ! -f dev/{{name}}.mp4 ]; then \
+	@if [ ! -f dev/{{name}}.mp4 ]; then \
 		curl -fsSL $(just download-url {{name}}) -o dev/{{name}}.mp4; \
 	fi
 
-	if [ ! -f dev/{{name}}.fmp4 ]; then \
+	@if [ ! -f dev/{{name}}.fmp4 ]; then \
 		ffmpeg -loglevel error -i dev/{{name}}.mp4 \
 			-c:v copy \
 			-f mp4 -movflags cmaf+separate_moof+delay_moov+skip_trailer+frag_every_frame \
@@ -66,7 +86,7 @@ download-url name:
 # Publish a video using ffmpeg to the localhost relay server
 # NOTE: The `http` means that we perform insecure certificate verification.
 # Switch it to `https` when you're ready to use a real certificate.
-pub name url='http://localhost:4443/anon':
+pub name url:
 	# Download the sample media.
 	just download {{name}}
 
@@ -82,7 +102,7 @@ pub name url='http://localhost:4443/anon':
 		- | cargo run --bin hang -- publish --url "{{url}}" --name "{{name}}"
 
 # Publish a video using gstreamer to the localhost relay server
-pub-gst name url='http://localhost:4443/anon':
+pub-gst name url:
 	# Download the sample media.
 	just download {{name}}
 
@@ -97,7 +117,7 @@ pub-gst name url='http://localhost:4443/anon':
 		demux.audio_0 ! aacparse ! queue ! mux.
 
 # Subscribe to a video using gstreamer
-sub name url='http://localhost:4443/anon':
+sub name url:
 	# Build the plugins
 	cargo build -p hang-gst
 
@@ -124,7 +144,7 @@ serve name:
 
 # Publish the clock broadcast
 # `action` is either `publish` or `subscribe`
-clock action url='http://localhost:4443/anon':
+clock action url:
 	if [ "{{action}}" != "publish" ] && [ "{{action}}" != "subscribe" ]; then \
 		echo "Error: action must be 'publish' or 'subscribe', got '{{action}}'" >&2; \
 		exit 1; \

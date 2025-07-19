@@ -14,32 +14,35 @@ impl Connection {
 		let root = &token.root;
 
 		// These broadcasts will be served to the session (when it subscribes).
-		let mut publish = None;
-		if let Some(prefix) = &token.publish {
+		let mut subscribe = None;
+		if let Some(prefix) = &token.subscribe {
 			let prefix = root.join(prefix);
 
-			publish = Some(match token.cluster {
+			subscribe = Some(match token.cluster {
 				true => self.cluster.primary.consume_prefix(&prefix),
 				false => self.cluster.combined.consume_prefix(&prefix),
 			});
 		}
 
 		// These broadcasts will be received from the session (when it publishes).
-		let mut subscribe = None;
-		if let Some(prefix) = &token.subscribe {
+		let mut publish = None;
+		if let Some(prefix) = &token.publish {
 			// If this is a cluster node, then add its broadcasts to the secondary origin.
 			// That way we won't publish them to other cluster nodes.
 			let prefix = root.join(prefix);
 
-			subscribe = Some(match token.cluster {
+			publish = Some(match token.cluster {
 				true => self.cluster.secondary.publish_prefix(&prefix),
 				false => self.cluster.primary.publish_prefix(&prefix),
 			});
 		}
 
-		tracing::info!(publish = ?publish.as_ref().map(|p| p.prefix()), subscribe = ?subscribe.as_ref().map(|s| s.prefix()), "session accepted");
+		tracing::info!(subscribe = ?subscribe.as_ref().map(|s| s.prefix()), publish = ?publish.as_ref().map(|p| p.prefix()), "session accepted");
 
-		let session = moq_lite::Session::accept(self.session.clone(), publish, subscribe).await?;
+		// NOTE: subscribe and publish seem backwards because of how relays work.
+		// We publish the tracks the client is allowed to subscribe to.
+		// We subscribe to the tracks the client is allowed to publish.
+		let session = moq_lite::Session::accept(self.session.clone(), subscribe, publish).await?;
 
 		// Wait until the session is closed.
 		Err(session.closed().await.into())

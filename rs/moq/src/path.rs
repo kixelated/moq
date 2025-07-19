@@ -85,6 +85,7 @@ impl<'a> Display for PathRef<'a> {
 ///
 /// Paths are automatically trimmed of leading and trailing slashes on creation,
 /// making all slashes implicit at boundaries.
+/// All paths are RELATIVE; you cannot join with a leading slash to make an absolute path.
 ///
 /// # Examples
 /// ```
