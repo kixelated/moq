@@ -18,9 +18,6 @@ just dev
 # Run individual components
 just relay        # Run localhost relay server
 just cluster      # Run cluster of relay servers
-just web          # Run web server
-just pub <name>   # Publish video using ffmpeg
-just sub <name>   # Subscribe to video
 
 # Code quality and testing
 just check        # Run all tests and linting
