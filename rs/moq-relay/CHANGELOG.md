@@ -6,6 +6,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.7.8](https://github.com/kixelated/moq/compare/moq-relay-v0.7.7...moq-relay-v0.7.8) - 2025-07-19
+
+### Other
+
+- Revamp connection URLs, broadcast paths, and origins ([#472](https://github.com/kixelated/moq/pull/472))
+- Fix hanging sessions for unauthorized connections ([#470](https://github.com/kixelated/moq/pull/470))
+
 ## [0.7.7](https://github.com/kixelated/moq/compare/moq-relay-v0.7.6...moq-relay-v0.7.7) - 2025-07-16
 
 ### Other

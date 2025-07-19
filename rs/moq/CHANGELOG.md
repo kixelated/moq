@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.0](https://github.com/kixelated/moq/compare/moq-lite-v0.3.5...moq-lite-v0.4.0) - 2025-07-19
+
+### Other
+
+- Revamp connection URLs, broadcast paths, and origins ([#472](https://github.com/kixelated/moq/pull/472))
+
 ## [0.3.5](https://github.com/kixelated/moq/compare/moq-lite-v0.3.4...moq-lite-v0.3.5) - 2025-07-16
 
 ### Other

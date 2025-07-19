@@ -26,10 +26,10 @@ resolver = "2"
 
 [workspace.dependencies]
 
-hang = { version = "0.4", path = "hang" }
-moq-lite = { version = "0.3", path = "moq" }
+hang = { version = "0.5", path = "hang" }
+moq-lite = { version = "0.4", path = "moq" }
 moq-native = { version = "0.7", path = "moq-native" }
-moq-token = { version = "0.4", path = "moq-token" }
+moq-token = { version = "0.5", path = "moq-token" }
 
 serde = { version = "1", features = ["derive"] }
 tokio = "1.45"
