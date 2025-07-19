@@ -106,6 +106,8 @@ This allows:
 
 Empty string (`""`) grants full permissions within the root path.
 
+*Note: Omitting a field entirely (undefined) denies that permission. For example, if the `pub` field is not included in the token, you cannot publish.*
+
 ## Key Management
 
 ### Key Format
