@@ -30,18 +30,17 @@ impl SessionPublisher {
 	pub async fn recv_announce(&mut self, stream: &mut Stream) -> Result<(), Error> {
 		let interest = stream.reader.decode::<message::AnnounceRequest>().await?;
 
-		let prefix = self
-			.origin
-			.as_ref()
-			.ok_or(Error::Unauthorized)?
-			.prefix()
-			.join(&interest.prefix);
+		// Just for logging the fully qualified prefix.
+		let prefix = match self.origin.as_ref() {
+			Some(origin) => origin.prefix().join(&interest.prefix),
+			None => Path::new("unauthorized").join(&interest.prefix),
+		};
 
-		tracing::trace!(%prefix, "announce started");
+		tracing::debug!(%prefix, "announce started");
 
-		let res = self.run_announce(stream, &prefix).await;
+		let res = self.run_announce(stream, &interest.prefix).await;
 		match res {
-			Err(Error::Cancel) => tracing::trace!(%prefix, "announce cancelled"),
+			Err(Error::Cancel) => tracing::debug!(%prefix, "announce cancelled"),
 			Err(err) => tracing::debug!(?err, %prefix, "announce error"),
 			_ => tracing::trace!(%prefix, "announce complete"),
 		}
@@ -52,10 +51,7 @@ impl SessionPublisher {
 	async fn run_announce(&mut self, stream: &mut Stream, prefix: &Path) -> Result<(), Error> {
 		let origin = self.origin.as_ref().ok_or(Error::Unauthorized)?;
 
-		// Check if the requested prefix is within the client's authorized prefix
-		let suffix = prefix.strip_prefix(origin.prefix()).ok_or(Error::Unauthorized)?;
-
-		let mut announced = origin.consume_prefix(suffix);
+		let mut announced = origin.consume_prefix(prefix);
 
 		// Flush any synchronously announced paths
 		loop {

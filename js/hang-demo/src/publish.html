@@ -18,7 +18,7 @@
 		Use the included Web Component to render a preview and simple controls.
 		See `publish.ts` for an example changing the broadcast based on a query parameter.
 	-->
-	<hang-publish url="http://localhost:4443/demo" name="me" audio video controls>
+	<hang-publish url="http://localhost:4443/anon" name="me" audio video controls>
 		<!-- It's optional to provide a video element to preview the outgoing media. -->
 		<video style="max-width: 100%; height: auto; border-radius: 4px; margin: 0 auto;" muted autoplay></video>
 	</hang-publish>
@@ -64,7 +64,7 @@ publish.lib.device = "camera";</code></pre>
 	<p>
 		You're not limited to web publishing either.
 		Try running <code class="language-bash">just pub tos</code> in a new terminal and then <a
-			href="index.html?name=demo/tos" target="_blank">watch robots bang</a>.
+			href="index.html?name=tos" target="_blank">watch robots bang</a>.
 		This uses ffmpeg to produce a fragmented MP4 file piped over stdout then sent over the network.
 		Yeah it's pretty gross.
 	</p>

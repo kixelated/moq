@@ -19,7 +19,7 @@
 		It will discover any published broadcasts and render them.
 		You can also use `name=meeting-abc` to only match broadcasts matching that prefix.
 	-->
-	<hang-meet url="http://localhost:4443/demo">
+	<hang-meet url="http://localhost:4443/anon">
 		<!--
 			If a `hang-publish` element is nested, then it will inherit the `url` attribute.
 			It also won't be downloaded, instead rendered in the grid if `preview` is set.
@@ -43,7 +43,7 @@
 	</p>
 	<p>
 		A "room" of broadcasts is little more than a shared prefix.
-		If you publish to <code>demo/foo</code> and <code>demo/bar</code>, then using <code>demo</code> will render both.
+		If you publish to <code>anon/foo</code> and <code>anon/bar</code>, then using <code>anon</code> will render both.
 		You can provide the name of the broadcast via the <code>name</code> attribute.
 	</p>
 	<hr />

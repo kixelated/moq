@@ -62,4 +62,4 @@ tls.disable_verify = true
 key = "dev/root.jwk"
 
 # Allow anonymous publishing and subscribing for this prefix.
-public = "demo/"
+public = "anon"

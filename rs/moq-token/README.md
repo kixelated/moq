@@ -5,7 +5,7 @@ A simple JWT and JWK based authentication scheme for moq-relay.
 ## Usage
 ```bash
 moq-token --key key.jwk generate
-moq-token --key key.jwk sign --path demo/ --publish bbb > token.jwt
+moq-token --key key.jwk sign --root demo --publish bbb > token.jwt
 moq-token --key key.jwk verify < token.jwt
 ```
 

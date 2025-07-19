@@ -87,19 +87,23 @@ export class Broadcast {
 		effect.cleanup(() => announced.close());
 
 		effect.spawn(async (cancel) => {
-			for (;;) {
-				const update = await Promise.race([announced.next(), cancel]);
+			try {
+				for (;;) {
+					const update = await Promise.race([announced.next(), cancel]);
 
-				// We're donezo.
-				if (!update) break;
+					// We're donezo.
+					if (!update) break;
 
-				// Require full equality
-				if (update.name !== "") {
-					console.warn("ignoring suffix", update.name);
-					continue;
+					// Require full equality
+					if (update.name !== "") {
+						console.warn("ignoring suffix", update.name);
+						continue;
+					}
+
+					this.#active.set(update.active);
 				}
-
-				this.#active.set(update.active);
+			} finally {
+				this.#active.set(false);
 			}
 		});
 	}

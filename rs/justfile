@@ -66,7 +66,7 @@ download-url name:
 # Publish a video using ffmpeg to the localhost relay server
 # NOTE: The `http` means that we perform insecure certificate verification.
 # Switch it to `https` when you're ready to use a real certificate.
-pub name url='http://localhost:4443/demo':
+pub name url='http://localhost:4443/anon':
 	# Download the sample media.
 	just download {{name}}
 
@@ -82,7 +82,7 @@ pub name url='http://localhost:4443/demo':
 		- | cargo run --bin hang -- publish --url "{{url}}" --name "{{name}}"
 
 # Publish a video using gstreamer to the localhost relay server
-pub-gst name url='http://localhost:4443/demo':
+pub-gst name url='http://localhost:4443/anon':
 	# Download the sample media.
 	just download {{name}}
 
@@ -97,7 +97,7 @@ pub-gst name url='http://localhost:4443/demo':
 		demux.audio_0 ! aacparse ! queue ! mux.
 
 # Subscribe to a video using gstreamer
-sub name url='http://localhost:4443/demo':
+sub name url='http://localhost:4443/anon':
 	# Build the plugins
 	cargo build -p hang-gst
 
@@ -124,7 +124,7 @@ serve name:
 
 # Publish the clock broadcast
 # `action` is either `publish` or `subscribe`
-clock action url='http://localhost:4443/demo':
+clock action url='http://localhost:4443/anon':
 	if [ "{{action}}" != "publish" ] && [ "{{action}}" != "subscribe" ]; then \
 		echo "Error: action must be 'publish' or 'subscribe', got '{{action}}'" >&2; \
 		exit 1; \

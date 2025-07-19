@@ -20,7 +20,8 @@ Live media is built on top of this layer using something like [hang](../hang).
     let config = moq_native::ClientConfig::default(); // See documentation
 	let client = moq_native::Client::new(config);
 
-	// For local development, use: http://localhost:4443/
+	// For local development, use: http://localhost:4443/anon
+	// The "anon" path is usually configured to bypass authentication; be careful!
 	let url = url::Url::parse("https://relay.quic.video/anon").unwrap();
 
 	// Establish a WebTransport/QUIC connection.
@@ -51,8 +52,7 @@ Live media is built on top of this layer using something like [hang](../hang).
 
 	// Finally, publish the broadcast to the session.
 	// You can provide a broadcast path which gets appended to the URL.
-	// Feel free to publish broadcasts starting with `anon/` to bypass authentication.
-	session.publish("anon/my-broadcast", broadcast.consume());
+	session.publish("my-broadcast", broadcast.consume());
 
 	// NOTE: You can create multiple consumer instances of any `XxxProducer`
 	// Each which will receive a (ref-counted) copy of the data.

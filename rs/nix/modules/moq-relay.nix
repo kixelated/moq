@@ -129,7 +129,7 @@ in
       publicPath = lib.mkOption {
         type = lib.types.nullOr lib.types.str;
         default = null;
-        example = "demo/";
+        example = "anon";
         description = "Public path prefix for anonymous access";
       };
     };

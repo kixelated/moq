@@ -30,8 +30,6 @@ impl Session {
 		// We will consume any remote broadcasts, inserting them into this origin.
 		subscribe: Option<OriginProducer>,
 	) -> Self {
-		tracing::info!("session started");
-
 		let publisher = SessionPublisher::new(session.clone(), publish);
 		let subscriber = SessionSubscriber::new(session.clone());
 
