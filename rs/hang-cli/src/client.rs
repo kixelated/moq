@@ -29,7 +29,7 @@ async fn connect(
 	name: String,
 	consumer: BroadcastConsumer,
 ) -> anyhow::Result<()> {
-	tracing::info!(%url, "connecting");
+	tracing::info!(%url, %name, "connecting");
 
 	let session = client.connect(url).await?;
 

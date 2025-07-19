@@ -50,21 +50,11 @@ pub struct Cluster {
 
 impl Cluster {
 	pub fn new(config: ClusterConfig, client: moq_native::Client) -> Self {
-		let mut primary = OriginProducer::default();
-		let noop = BroadcastProducer::new();
-
-		// Announce ourselves as an origin to the root node.
-		if let Some(myself) = config.advertise.as_ref() {
-			tracing::info!(%config.prefix, %myself, "announcing as origin");
-			let name = config.prefix.join(myself);
-			primary.publish(&name, noop.consume());
-		}
-
 		Cluster {
 			config,
 			client,
-			primary,
-			noop,
+			primary: OriginProducer::default(),
+			noop: BroadcastProducer::new(),
 			secondary: OriginProducer::default(),
 			combined: OriginProducer::default(),
 		}
@@ -76,7 +66,7 @@ impl Cluster {
 			.or_else(|| self.secondary.consume(broadcast))
 	}
 
-	pub async fn run(self) -> anyhow::Result<()> {
+	pub async fn run(mut self) -> anyhow::Result<()> {
 		let connect = match self.config.connect.clone() {
 			// If we're using a root node, then we have to connect to it.
 			Some(connect) if Some(&connect) != self.config.advertise.as_ref() => connect,
@@ -86,6 +76,13 @@ impl Cluster {
 				return self.run_combined().await;
 			}
 		};
+
+		// Announce ourselves as an origin to the root node.
+		if let Some(myself) = self.config.advertise.as_ref() {
+			tracing::info!(%self.config.prefix, %myself, "announcing as leaf");
+			let name = self.config.prefix.join(myself);
+			self.primary.publish(&name, self.noop.consume());
+		}
 
 		// If the token is provided, read it from the disk and use it in the query parameter.
 		// TODO put this in an AUTH header once WebTransport supports it.
