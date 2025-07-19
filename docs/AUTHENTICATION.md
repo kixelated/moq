@@ -29,6 +29,8 @@ For development or public content, anonymous access is supported:
 https://relay.example.com/anon/public-broadcast
 ```
 
+*Note: Anonymous access must be configured in the relay configuration (see [Configuration](#configuration) section).*
+
 ## JWT Token Structure
 
 ### Claims Format
