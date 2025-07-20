@@ -1,6 +1,6 @@
 use crate::{Auth, Cluster};
 
-use web_transport::http;
+use web_transport::quinn::http;
 
 pub struct Connection {
 	pub id: u64,

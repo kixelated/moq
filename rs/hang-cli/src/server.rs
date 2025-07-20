@@ -52,24 +52,37 @@ async fn accept(mut server: moq_native::Server, name: String, consumer: Broadcas
 
 		// Handle the connection in a new task.
 		tokio::spawn(async move {
-			let session: web_transport::Session = session.into();
-
-			// Create an origin producer to publish to the broadcast.
-			let mut publisher = moq_lite::OriginProducer::default();
-
-			let session = moq_lite::Session::accept(session, publisher.consume_all(), None)
-				.await
-				.expect("failed to accept session");
-
-			tracing::info!(?id, "accepted session");
-
-			publisher.publish(&name, consumer.inner.clone());
-
-			session.closed().await;
+			if let Err(err) = run_session(id, session, name, consumer).await {
+				tracing::warn!(?err, "failed to accept session");
+			}
 		});
 	}
 
 	Ok(())
+}
+
+#[tracing::instrument("session", skip_all, fields(id))]
+async fn run_session(
+	id: u64,
+	session: web_transport::quinn::Request,
+	name: String,
+	consumer: BroadcastConsumer,
+) -> anyhow::Result<()> {
+	// Blindly accept the WebTransport session, regardless of the URL.
+	let session = session.ok().await.context("failed to accept session")?;
+
+	// Create an origin producer to publish to the broadcast.
+	let mut publisher = moq_lite::OriginProducer::default();
+
+	let session = moq_lite::Session::accept(session, publisher.consume_all(), None)
+		.await
+		.context("failed to accept session")?;
+
+	tracing::info!(?id, "accepted session");
+
+	publisher.publish(&name, consumer.inner.clone());
+
+	Err(session.closed().await.into())
 }
 
 async fn publish<T: AsyncRead + Unpin>(producer: BroadcastProducer, input: &mut T) -> anyhow::Result<()> {
