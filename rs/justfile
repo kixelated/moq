@@ -25,7 +25,7 @@ leaf:
 # If some one wants to contribute, public/private key pairs would be nice.
 root:
 	@if [ ! -f "dev/root.jwk" ]; then \
-		rm "dev/*.jwt"; \
+		rm -f dev/*.jwt; \
 		cargo run --bin moq-token -- --key "dev/root.jwk" generate; \
 	fi
 
