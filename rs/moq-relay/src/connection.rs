@@ -1,22 +1,33 @@
 use crate::{Auth, Cluster};
 
+use web_transport::http;
+
 pub struct Connection {
 	pub id: u64,
-	pub session: web_transport::Session,
+	pub request: web_transport::quinn::Request,
 	pub cluster: Cluster,
 	pub auth: Auth,
 }
 
 impl Connection {
 	#[tracing::instrument("conn", skip_all, fields(id = self.id))]
-	pub async fn run(&mut self) -> anyhow::Result<()> {
-		let token = self.auth.verify(self.session.url())?;
-		let root = &token.root;
+	pub async fn run(mut self) -> anyhow::Result<()> {
+		// Verify the URL before accepting the connection.
+		let token = match self.auth.verify(self.request.url()) {
+			Ok(token) => token,
+			Err(err) => {
+				self.request.close(http::StatusCode::UNAUTHORIZED).await?;
+				return Err(err);
+			}
+		};
+
+		// Accept the connection.
+		let session = self.request.ok().await?;
 
 		// These broadcasts will be served to the session (when it subscribes).
 		let mut subscribe = None;
 		if let Some(prefix) = &token.subscribe {
-			let prefix = root.join(prefix);
+			let prefix = token.root.join(prefix);
 
 			subscribe = Some(match token.cluster {
 				true => self.cluster.primary.consume_prefix(&prefix),
@@ -29,7 +40,7 @@ impl Connection {
 		if let Some(prefix) = &token.publish {
 			// If this is a cluster node, then add its broadcasts to the secondary origin.
 			// That way we won't publish them to other cluster nodes.
-			let prefix = root.join(prefix);
+			let prefix = token.root.join(prefix);
 
 			publish = Some(match token.cluster {
 				true => self.cluster.secondary.publish_prefix(&prefix),
@@ -42,7 +53,7 @@ impl Connection {
 		// NOTE: subscribe and publish seem backwards because of how relays work.
 		// We publish the tracks the client is allowed to subscribe to.
 		// We subscribe to the tracks the client is allowed to publish.
-		let session = moq_lite::Session::accept(self.session.clone(), subscribe, publish).await?;
+		let session = moq_lite::Session::accept(session, subscribe, publish).await?;
 
 		// Wait until the session is closed.
 		Err(session.closed().await.into())

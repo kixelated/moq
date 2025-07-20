@@ -39,10 +39,10 @@ async fn main() -> anyhow::Result<()> {
 
 	let mut conn_id = 0;
 
-	while let Some(conn) = server.accept().await {
-		let mut conn = Connection {
+	while let Some(request) = server.accept().await {
+		let conn = Connection {
 			id: conn_id,
-			session: conn.into(),
+			request,
 			cluster: cluster.clone(),
 			auth: auth.clone(),
 		};
@@ -52,7 +52,6 @@ async fn main() -> anyhow::Result<()> {
 			let err = conn.run().await;
 			if let Err(err) = err {
 				tracing::warn!(?err, "connection closed");
-				conn.session.close(1, err.to_string().as_str());
 			}
 		});
 	}
