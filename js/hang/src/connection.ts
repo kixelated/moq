@@ -85,9 +85,6 @@ export class Connection {
 				}
 			} catch (err) {
 				console.warn("connection error:", err);
-			} finally {
-				this.established.set(undefined);
-				this.status.set("disconnected");
 
 				if (this.reload) {
 					const tick = this.#tick.peek() + 1;
@@ -99,6 +96,9 @@ export class Connection {
 					// Exponential backoff.
 					this.#delay = Math.min(this.#delay * 2, this.maxDelay);
 				}
+			} finally {
+				this.established.set(undefined);
+				this.status.set("disconnected");
 			}
 		});
 
