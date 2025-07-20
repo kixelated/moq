@@ -56,6 +56,10 @@ An token can be passed via the `?jwt=` query parameter in the connection URL:
 
 **Example URL**: `https://relay.quic.video/demo?jwt=<base64-jwt-token>`
 
+**WARNING**: These tokens are only as secure as the delivery.
+Make sure that any secrets are securely transmitted (ex. via HTTPS) and stored (ex. secrets manager).
+Avoid logging this query parameter if possible; we'll switch to an `Authentication` header once WebTransport supports it.
+
 The token contains permissions that apply to the session.
 It can also be used to prevent publishing (read-only) or subscribing (write-only) on a per-path basis.
 
@@ -72,7 +76,7 @@ It can also be used to prevent publishing (read-only) or subscribing (write-only
 ```
 
 This token allows:
-- ✅ Connect to `http://relay.quic.video/room/123.`
+- ✅ Connect to `https://relay.quic.video/room/123`
 - ❌ Connect to: `https://relay.quic.video/secret` (wrong root)
 - ✅ Publish to `alice/camera`
 - ❌ Publish to: `bob/camera` (only alice)
