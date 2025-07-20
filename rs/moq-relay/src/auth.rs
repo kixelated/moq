@@ -41,8 +41,10 @@ impl Auth {
 
 		let public = config.public;
 
-		if key.is_none() {
-			tracing::warn!("no root key configured; all paths will be public");
+		match (&key, &public) {
+			(None, None) => anyhow::bail!("no root key or public path configured"),
+			(Some(_), Some(public)) if public.is_empty() => anyhow::bail!("root key but fully public access"),
+			_ => (),
 		}
 
 		Ok(Self {
