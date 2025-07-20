@@ -129,12 +129,10 @@ This repository provides both [Rust](/rs) and [TypeScript](/js) libraries with s
 
 
 ## Documentation
+Additional documentation and implementation details:
 
-For detailed guides and implementation details, see our [documentation](docs/):
-
-- **[docs/](docs/)** - Complete documentation index
 - **[Authentication](docs/auth.md)** - JWT tokens, authorization, and security
-- **[Architecture Guide](CLAUDE.md)** - Development setup and project architecture
+
 
 ## Protocol
 Read the specifications:
