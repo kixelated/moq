@@ -63,33 +63,44 @@ export class Connection {
 		this.status.set("connecting");
 		effect.cleanup(() => this.status.set("disconnected"));
 
-		(async () => {
+		effect.spawn(async (cancel) => {
 			try {
-				const connection = await Moq.Connection.connect(url);
-				this.established.set(connection);
-				this.status.set("connected");
+				const pending = Moq.Connection.connect(url);
+				const connection = await Promise.race([cancel, pending]);
+				if (!connection) {
+					pending.then((conn) => conn.close());
+					return;
+				}
 
-				// Reset the exponential backoff on success.
-				this.#delay = this.delay;
+				try {
+					this.established.set(connection);
+					this.status.set("connected");
 
-				await connection.closed();
+					// Reset the exponential backoff on success.
+					this.#delay = this.delay;
+
+					await Promise.race([cancel, connection.closed()]);
+				} finally {
+					connection.close();
+				}
 			} catch (err) {
 				console.warn("connection error:", err);
-
+			} finally {
 				this.established.set(undefined);
 				this.status.set("disconnected");
 
-				if (!this.reload) return;
-				const tick = this.#tick.peek() + 1;
+				if (this.reload) {
+					const tick = this.#tick.peek() + 1;
 
-				setTimeout(() => {
-					this.#tick.set((prev) => Math.max(prev, tick));
-				}, this.#delay);
+					setTimeout(() => {
+						this.#tick.set((prev) => Math.max(prev, tick));
+					}, this.#delay);
 
-				// Exponential backoff.
-				this.#delay = Math.min(this.#delay * 2, this.maxDelay);
+					// Exponential backoff.
+					this.#delay = Math.min(this.#delay * 2, this.maxDelay);
+				}
 			}
-		})();
+		});
 
 		effect.cleanup(() => {
 			this.established.set((prev) => {

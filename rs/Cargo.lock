@@ -2981,9 +2981,9 @@ dependencies = [
 
 [[package]]
 name = "web-transport"
-version = "0.9.3"
+version = "0.9.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "11c476f2c40013a2c651393df0fcff40a33e1fc24fddfd3cfa69d2c298018bd0"
+checksum = "8dd16497e7d916fe90639b0b8553bdb3098d488f576c3a825da852ed0e630d59"
 dependencies = [
  "bytes",
  "thiserror 2.0.12",
@@ -3006,9 +3006,9 @@ dependencies = [
 
 [[package]]
 name = "web-transport-quinn"
-version = "0.7.2"
+version = "0.7.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5f9226d1daf46670c9bf83422bf8ff6020c7af549cf7f8159e3dbbb2aed97f3a"
+checksum = "f678f219136b44edb0f264679f6668a41817ccb7cf9098256ff9a359cee8d010"
 dependencies = [
  "aws-lc-rs",
  "bytes",
