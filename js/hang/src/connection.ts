@@ -1,5 +1,5 @@
 import * as Moq from "@kixelated/moq";
-import { type Effect, Root, Signal } from "@kixelated/signals";
+import { type Effect, Root, Signal, Unique } from "@kixelated/signals";
 
 export type ConnectionProps = {
 	// The URL of the relay server.
@@ -21,7 +21,7 @@ export type ConnectionProps = {
 export type ConnectionStatus = "connecting" | "connected" | "disconnected" | "unsupported";
 
 export class Connection {
-	url: Signal<URL | undefined>;
+	url: Unique<URL | undefined>;
 	status = new Signal<ConnectionStatus>("disconnected");
 	established = new Signal<Moq.Connection | undefined>(undefined);
 
@@ -36,7 +36,7 @@ export class Connection {
 	#tick = new Signal(0);
 
 	constructor(props?: ConnectionProps) {
-		this.url = new Signal(props?.url);
+		this.url = new Unique(props?.url);
 		this.reload = props?.reload ?? true;
 		this.delay = props?.delay ?? 1000;
 		this.maxDelay = props?.maxDelay ?? 30000;
