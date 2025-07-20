@@ -36,11 +36,21 @@ Cluster arguments:
 -   `--cluster-node <HOST>`: The hostname/ip of this instance. There needs to be a corresponding valid TLS certificate, potentially self-signed. If missing, published broadcasts will only be available on this specific relay.
 
 ## Authentication
-There is currently no authentication.
-All broadcasts are public and discoverable.
 
-However, track names are *not* public.
-An application could make them unguessable in order to implement private broadcasts.
+The relay supports JWT-based authentication and authorization with path-based access control.
 
-If security/privacy is a concern, you should encrypt all application payloads anyway (ex. via MLS).
-moq-relay will **only** use the limited header information surfaced in the moq-lite layer.
+For detailed authentication setup, including token generation and configuration examples, see:
+**[Authentication Documentation](../../docs/auth.md)**
+
+Key features:
+- JWT tokens passed via query parameters (`?jwt=<token>`)
+- Path-based authorization with `root`, `pub`, and `sub` claims
+- Anonymous access support for public content
+- Symmetric key cryptography (HMAC-SHA256/384/512)
+
+Quick example configuration in your `.toml` file:
+```toml
+[auth]
+key = "dev/root.jwk"    # JWT signing key
+public = "anon"         # Allow anonymous access to /anon prefix
+```

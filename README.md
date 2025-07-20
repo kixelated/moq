@@ -128,6 +128,12 @@ This repository provides both [Rust](/rs) and [TypeScript](/js) libraries with s
 | **[@kixelated/hang-demo](js/hang-demo)** | Examples using `@kixelated/hang`.                                                                                  |                                                                                                       |
 
 
+## Documentation
+Additional documentation and implementation details:
+
+- **[Authentication](docs/auth.md)** - JWT tokens, authorization, and security
+
+
 ## Protocol
 Read the specifications:
 - [moq-lite](https://kixelated.github.io/moq-drafts/draft-lcurley-moq-lite.html)
