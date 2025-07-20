@@ -113,7 +113,7 @@ pub-gst name url:
 	GST_PLUGIN_PATH="${PWD}/target/debug${GST_PLUGIN_PATH:+:$GST_PLUGIN_PATH}" \
 	gst-launch-1.0 -v -e multifilesrc location="dev/{{name}}.fmp4" loop=true ! qtdemux name=demux \
 		demux.video_0 ! h264parse ! queue ! identity sync=true ! isofmp4mux name=mux chunk-duration=1 fragment-duration=1 ! \
-		hangsink url="{{url}}" tls-disable-verify=true name="{{name}}" \
+		hangsink url="{{url}}" tls-disable-verify=true broadcast="{{name}}" \
 		demux.audio_0 ! aacparse ! queue ! mux.
 
 # Subscribe to a video using gstreamer
@@ -124,7 +124,7 @@ sub name url:
 	# Run gstreamer and pipe the output to our plugin
 	# This will render the video to the screen
 	GST_PLUGIN_PATH="${PWD}/target/debug${GST_PLUGIN_PATH:+:$GST_PLUGIN_PATH}" \
-	gst-launch-1.0 -v -e hangsrc url="{{url}}" name="{{name}}" tls-disable-verify=true ! decodebin ! videoconvert ! autovideosink
+	gst-launch-1.0 -v -e hangsrc url="{{url}}" broadcast="{{name}}" tls-disable-verify=true ! decodebin ! videoconvert ! autovideosink
 
 # Publish a video using ffmpeg directly from hang to the localhost
 serve name:
