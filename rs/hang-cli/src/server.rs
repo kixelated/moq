@@ -73,14 +73,13 @@ async fn run_session(
 
 	// Create an origin producer to publish to the broadcast.
 	let mut publisher = moq_lite::OriginProducer::default();
+	publisher.publish(&name, consumer.inner.clone());
 
 	let session = moq_lite::Session::accept(session, publisher.consume_all(), None)
 		.await
 		.context("failed to accept session")?;
 
 	tracing::info!(?id, "accepted session");
-
-	publisher.publish(&name, consumer.inner.clone());
 
 	Err(session.closed().await.into())
 }

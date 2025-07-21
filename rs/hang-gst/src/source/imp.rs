@@ -136,6 +136,11 @@ impl ElementImpl for HangSrc {
 					gst::error!(CAT, obj = self.obj(), "Failed to setup: {:?}", e);
 					return Err(gst::StateChangeError);
 				}
+				// Chain up first to let the bin handle the state change
+				let result = self.parent_change_state(transition);
+				result?;
+				// This is a live source - no preroll needed
+				return Ok(gst::StateChangeSuccess::NoPreroll);
 			}
 
 			gst::StateChange::PausedToReady => {
@@ -146,7 +151,7 @@ impl ElementImpl for HangSrc {
 			_ => (),
 		}
 
-		// Chain up
+		// Chain up for other transitions
 		self.parent_change_state(transition)
 	}
 }
@@ -175,17 +180,13 @@ impl HangSrc {
 		let origin = moq_lite::OriginProducer::default();
 		let _session = moq_lite::Session::connect(session, None, origin.clone()).await?;
 
-		// TODO giant hack to avoid a race condition with how announcements are now populated.
-		tokio::time::sleep(std::time::Duration::from_millis(100)).await;
-
-		// Wait for the broadcast to be announced (race condition workaround)
-		let broadcast = origin.consume(&name).expect("broadcast not found");
+		let broadcast = origin
+			.consume(&name)
+			.ok_or_else(|| anyhow::anyhow!("Broadcast '{}' not found", name))?;
 		let mut broadcast = hang::BroadcastConsumer::new(broadcast);
 
 		// TODO handle catalog updates
 		let catalog = broadcast.catalog.next().await?.context("no catalog found")?.clone();
-
-		gst::info!(CAT, "catalog: {:?}", catalog);
 
 		for video in catalog.video {
 			let mut track = broadcast.subscribe(&video.track);

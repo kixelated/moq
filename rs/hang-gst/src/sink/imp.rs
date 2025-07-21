@@ -171,13 +171,14 @@ impl HangSink {
 			let session = client.connect(url.clone()).await.expect("failed to connect");
 
 			let mut publisher = moq_lite::OriginProducer::default();
-			let _session = moq_lite::Session::connect(session, publisher.consume_all(), None)
-				.await
-				.expect("failed to connect");
 
 			let broadcast = hang::BroadcastProducer::new();
 			let name = settings.broadcast.as_ref().expect("broadcast is required");
 			publisher.publish(name, broadcast.consume().inner);
+
+			let _session = moq_lite::Session::connect(session, publisher.consume_all(), None)
+				.await
+				.expect("failed to connect");
 
 			let media = hang::cmaf::Import::new(broadcast);
 

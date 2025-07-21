@@ -304,6 +304,7 @@ impl OriginConsumer {
 	/// Get a specific broadcast by path.
 	///
 	/// This is relative to the consumer's prefix.
+	/// Returns None if the path hasn't been announced yet.
 	pub fn consume<'a>(&self, suffix: impl Into<PathRef<'a>>) -> Option<BroadcastConsumer> {
 		let path = self.prefix.join(suffix.into());
 
