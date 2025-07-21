@@ -6,53 +6,6 @@
 }:
 let
   cfg = config.services.moq-relay;
-
-  # Use TOML format for configuration
-  tomlFormat = pkgs.formats.toml { };
-
-  # Build the configuration
-  configData =
-    {
-      log = {
-        level = cfg.logLevel;
-      };
-
-      server =
-        {
-          listen = "[::]:${toString cfg.port}";
-        }
-        // lib.optionalAttrs (cfg.tls.generate != [ ]) {
-          "tls.generate" = cfg.tls.generate;
-        }
-        // lib.optionalAttrs (cfg.tls.certs != [ ]) {
-          "tls.cert" = cfg.tls.certs;
-        };
-    }
-    // lib.optionalAttrs cfg.auth.enable {
-      auth =
-        {
-          key = if cfg.auth.keyFile != null then cfg.auth.keyFile else "${cfg.stateDir}/root.jwk";
-        }
-        // lib.optionalAttrs (cfg.auth.publicPath != null) {
-          public = cfg.auth.publicPath;
-        };
-    }
-    // lib.optionalAttrs (cfg.cluster.mode != "none") {
-      cluster = lib.filterAttrs (n: v: v != null) {
-        connect = cfg.cluster.rootUrl;
-        token =
-          if cfg.cluster.tokenFile != null then cfg.cluster.tokenFile else "${cfg.stateDir}/cluster.jwt";
-        advertise = cfg.cluster.nodeUrl;
-      };
-    }
-    // lib.optionalAttrs (cfg.cluster.mode != "none") {
-      client = {
-        "tls.disable_verify" = cfg.cluster.disableTlsVerify;
-      };
-    };
-
-  # Generate the config file
-  configFile = tomlFormat.generate "moq-relay.toml" configData;
 in
 {
   options.services.moq-relay = {
@@ -235,7 +188,7 @@ in
         User = cfg.user;
         Group = cfg.group;
 
-        ExecStart = "${cfg.package}/bin/moq-relay ${configFile}";
+        ExecStart = "${cfg.package}/bin/moq-relay";
 
         Restart = "on-failure";
         RestartSec = "5s";
@@ -253,6 +206,33 @@ in
 
       environment = {
         RUST_LOG = lib.mkDefault cfg.logLevel;
+
+        # Server configuration
+        MOQ_LISTEN = "[::]:${toString cfg.port}";
+
+        # TLS configuration
+        MOQ_TLS_GENERATE = lib.optionalString (cfg.tls.generate != [ ]) (
+          lib.concatStringsSep "," cfg.tls.generate
+        );
+        MOQ_TLS_CERT = lib.optionalString (cfg.tls.certs != [ ]) (
+          lib.concatMapStringsSep "," (cert: "${cert.chain}:${cert.key}") cfg.tls.certs
+        );
+
+        # Auth configuration
+        MOQ_AUTH_ENABLE = lib.boolToString cfg.auth.enable;
+        MOQ_AUTH_KEY = lib.optionalString cfg.auth.enable (
+          if cfg.auth.keyFile != null then cfg.auth.keyFile else "${cfg.stateDir}/root.jwk"
+        );
+        MOQ_AUTH_PUBLIC = lib.optionalString (cfg.auth.publicPath != null) cfg.auth.publicPath;
+
+        # Cluster configuration
+        MOQ_CLUSTER_MODE = cfg.cluster.mode;
+        MOQ_CLUSTER_CONNECT = lib.optionalString (cfg.cluster.rootUrl != null) cfg.cluster.rootUrl;
+        MOQ_CLUSTER_TOKEN = lib.optionalString (cfg.cluster.mode != "none") (
+          if cfg.cluster.tokenFile != null then cfg.cluster.tokenFile else "${cfg.stateDir}/cluster.jwt"
+        );
+        MOQ_CLUSTER_ADVERTISE = lib.optionalString (cfg.cluster.nodeUrl != null) cfg.cluster.nodeUrl;
+        MOQ_CLUSTER_TLS_DISABLE_VERIFY = lib.boolToString cfg.cluster.disableTlsVerify;
       };
     };
   };

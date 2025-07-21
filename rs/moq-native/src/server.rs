@@ -44,7 +44,7 @@ pub struct ServerTlsConfig {
 
 	/// Or generate a new certificate and key with the given hostnames.
 	/// This won't be valid unless the client uses the fingerprint or disables verification.
-	#[arg(long = "tls-generate", value_delimiter = ',')]
+	#[arg(long = "tls-generate", value_delimiter = ',', env = "MOQ_TLS_GENERATE")]
 	#[serde(default, skip_serializing_if = "Vec::is_empty")]
 	pub generate: Vec<String>,
 }
@@ -54,7 +54,7 @@ pub struct ServerTlsConfig {
 pub struct ServerConfig {
 	/// Listen for UDP packets on the given address.
 	/// Defaults to `[::]:443` if not provided.
-	#[arg(long)]
+	#[arg(long, env = "MOQ_SERVER_LISTEN")]
 	pub listen: Option<net::SocketAddr>,
 
 	#[command(flatten)]
