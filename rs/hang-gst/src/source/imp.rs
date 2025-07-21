@@ -138,9 +138,7 @@ impl ElementImpl for HangSrc {
 				}
 				// Chain up first to let the bin handle the state change
 				let result = self.parent_change_state(transition);
-				if result.is_err() {
-					return result;
-				}
+				result?;
 				// This is a live source - no preroll needed
 				return Ok(gst::StateChangeSuccess::NoPreroll);
 			}
