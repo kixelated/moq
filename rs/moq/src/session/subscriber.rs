@@ -93,7 +93,7 @@ impl Subscriber {
 		let mut producers = HashMap::new();
 
 		let init: message::AnnounceInit = stream.reader.decode().await?;
-		for path in init.paths {
+		for path in init.suffixes {
 			tracing::debug!(broadcast = %path, "received announce");
 
 			let producer = BroadcastProducer::new();

@@ -87,7 +87,7 @@ impl Publisher {
 			}
 		}
 
-		let announce_init = message::AnnounceInit { paths: init };
+		let announce_init = message::AnnounceInit { suffixes: init };
 		stream.writer.encode(&announce_init).await?;
 
 		// Flush any synchronously announced paths

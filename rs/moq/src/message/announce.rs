@@ -97,8 +97,8 @@ impl Encode for AnnounceStatus {
 #[derive(Clone, Debug, PartialEq, Eq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct AnnounceInit {
-	/// List of currently active paths
-	pub paths: Vec<Path>,
+	/// List of currently active broadcasts, encoded as suffixes to be combined with the prefix.
+	pub suffixes: Vec<Path>,
 }
 
 impl Decode for AnnounceInit {
@@ -112,14 +112,14 @@ impl Decode for AnnounceInit {
 			paths.push(Path::decode(r)?);
 		}
 
-		Ok(Self { paths })
+		Ok(Self { suffixes: paths })
 	}
 }
 
 impl Encode for AnnounceInit {
 	fn encode<W: bytes::BufMut>(&self, w: &mut W) {
-		(self.paths.len() as u64).encode(w);
-		for path in &self.paths {
+		(self.suffixes.len() as u64).encode(w);
+		for path in &self.suffixes {
 			path.encode(w);
 		}
 	}
