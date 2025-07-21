@@ -92,3 +92,35 @@ impl Encode for AnnounceStatus {
 		(*self as u8).encode(w)
 	}
 }
+
+/// Sent after setup to communicate the initially announced paths.
+#[derive(Clone, Debug, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct AnnounceInit {
+	/// List of currently active paths
+	pub paths: Vec<Path>,
+}
+
+impl Decode for AnnounceInit {
+	fn decode<R: bytes::Buf>(r: &mut R) -> Result<Self, DecodeError> {
+		let count = u64::decode(r)?;
+
+		// Don't allocate more than 1024 elements upfront
+		let mut paths = Vec::with_capacity(count.min(1024) as usize);
+
+		for _ in 0..count {
+			paths.push(Path::decode(r)?);
+		}
+
+		Ok(Self { paths })
+	}
+}
+
+impl Encode for AnnounceInit {
+	fn encode<W: bytes::BufMut>(&self, w: &mut W) {
+		(self.paths.len() as u64).encode(w);
+		for path in &self.paths {
+			path.encode(w);
+		}
+	}
+}

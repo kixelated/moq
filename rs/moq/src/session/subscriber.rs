@@ -8,48 +8,104 @@ use crate::{
 	TrackProducer,
 };
 
+use tokio::sync::watch;
 use web_async::{spawn, Lock};
 
 use super::{Reader, Stream};
 
 #[derive(Clone)]
-pub(super) struct SessionSubscriber {
+pub(super) struct Subscriber {
 	session: web_transport::Session,
 
+	origin: Option<OriginProducer>,
 	broadcasts: Lock<HashMap<Path, BroadcastProducer>>,
 	subscribes: Lock<HashMap<u64, TrackProducer>>,
 	next_id: Arc<atomic::AtomicU64>,
+	init: watch::Sender<bool>,
 }
 
-impl SessionSubscriber {
-	pub fn new(session: web_transport::Session) -> Self {
+impl Subscriber {
+	pub fn new(session: web_transport::Session, origin: Option<OriginProducer>) -> Self {
 		Self {
 			session,
+			origin,
 			broadcasts: Default::default(),
 			subscribes: Default::default(),
 			next_id: Default::default(),
+			init: Default::default(),
 		}
 	}
 
-	pub async fn run(self, origin: OriginProducer) -> Result<(), Error> {
-		let closed = origin.clone();
+	// Wait until the subscriber is initialized with announcements.
+	pub async fn init(&self) -> bool {
+		let mut init = self.init.subscribe();
+		let v = init.wait_for(|v| *v).await;
+		v.is_ok()
+	}
 
-		// Wait until the producer is no longer needed or the stream is closed.
+	pub async fn run(self) -> Result<(), Error> {
+		let closed = self.origin.clone();
 		tokio::select! {
-			biased; // avoid run_inner if we're already unused
-			// Nobody wants to consume from this origin anymore.
-			_ = closed.unused() => Err(Error::Cancel),
-			res = self.run_inner(origin) => res,
+				 biased; // avoid run_inner if we're already unused
+				 // Nobody wants to consume from this origin anymore.
+				 Some(_) = async move { closed.as_ref()?.unused().await;
+		Some(()) } => Err(Error::Cancel),
+				 Err(err) = self.clone().run_announce() => Err(err),
+				 res = self.run_uni() => res,
+			 }
+	}
+
+	async fn run_uni(mut self) -> Result<(), Error> {
+		loop {
+			let stream = Reader::accept(&mut self.session).await?;
+			let this = self.clone();
+
+			web_async::spawn(async move {
+				this.run_uni_stream(stream).await.ok();
+			});
 		}
 	}
 
-	async fn run_inner(mut self, mut origin: OriginProducer) -> Result<(), Error> {
+	async fn run_uni_stream(mut self, mut stream: Reader) -> Result<(), Error> {
+		let kind = stream.decode().await?;
+
+		let res = match kind {
+			message::DataType::Group => self.recv_group(&mut stream).await,
+		};
+
+		if let Err(err) = res {
+			stream.abort(&err);
+		}
+
+		Ok(())
+	}
+
+	async fn run_announce(mut self) -> Result<(), Error> {
+		if self.origin.is_none() {
+			return Ok(());
+		}
+
 		let mut stream = Stream::open(&mut self.session, message::ControlType::Announce).await?;
 
 		let msg = message::AnnounceRequest { prefix: "".into() };
 		stream.writer.encode(&msg).await?;
 
 		let mut producers = HashMap::new();
+
+		let init: message::AnnounceInit = stream.reader.decode().await?;
+		for path in init.paths {
+			tracing::debug!(broadcast = %path, "received announce");
+
+			let producer = BroadcastProducer::new();
+			let consumer = producer.consume();
+
+			self.origin.as_mut().unwrap().publish(&path, consumer);
+			producers.insert(path.clone(), producer.clone());
+
+			spawn(self.clone().run_broadcast(path, producer));
+		}
+
+		self.init.send_replace(true);
 
 		while let Some(announce) = stream.reader.decode_maybe::<message::Announce>().await? {
 			match announce {
@@ -60,7 +116,7 @@ impl SessionSubscriber {
 					let consumer = producer.consume();
 
 					// Run the broadcast in the background until all consumers are dropped.
-					origin.publish(&path, consumer);
+					self.origin.as_mut().unwrap().publish(&path, consumer);
 					producers.insert(path.clone(), producer.clone());
 
 					spawn(self.clone().run_broadcast(path, producer));

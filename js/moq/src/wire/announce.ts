@@ -43,3 +43,27 @@ export class AnnounceInterest {
 		return new AnnounceInterest(prefix);
 	}
 }
+
+export class AnnounceInit {
+	paths: string[];
+
+	constructor(paths: string[]) {
+		this.paths = paths;
+	}
+
+	async encode(w: Writer) {
+		await w.u53(this.paths.length);
+		for (const path of this.paths) {
+			await w.string(path);
+		}
+	}
+
+	static async decode(r: Reader): Promise<AnnounceInit> {
+		const count = await r.u53();
+		const paths: string[] = [];
+		for (let i = 0; i < count; i++) {
+			paths.push(await r.string());
+		}
+		return new AnnounceInit(paths);
+	}
+}
