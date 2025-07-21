@@ -129,7 +129,7 @@ impl ConsumerState {
 	pub fn insert<'a>(&mut self, path: impl Into<PathRef<'a>>, consumer: &BroadcastConsumer) -> bool {
 		let path_ref = path.into();
 
-		if let Some(suffix) = path_ref.to_path().strip_prefix(&self.prefix) {
+		if let Some(suffix) = path_ref.to_owned().strip_prefix(&self.prefix) {
 			// Send the absolute path, not the relative suffix
 			let update = OriginUpdate {
 				suffix: suffix.into(),
@@ -144,7 +144,7 @@ impl ConsumerState {
 	pub fn remove<'a>(&mut self, path: impl Into<PathRef<'a>>) -> bool {
 		let path_ref = path.into();
 
-		if let Some(suffix) = path_ref.to_path().strip_prefix(&self.prefix) {
+		if let Some(suffix) = path_ref.to_owned().strip_prefix(&self.prefix) {
 			// Send the absolute path, not the relative suffix
 			let update = OriginUpdate {
 				suffix: suffix.into(),
