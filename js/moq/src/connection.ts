@@ -108,6 +108,9 @@ export class Connection {
 
 		const conn = new Connection(adjustedUrl, quic, stream);
 
+		// The connection is now ready to use
+		// Note: ANNOUNCE_INIT will be handled when announce streams are actually requested
+
 		const cleanup = () => {
 			conn.close();
 		};

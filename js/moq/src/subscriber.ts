@@ -44,6 +44,18 @@ export class Subscriber {
 			try {
 				const stream = await Wire.Stream.open(this.#quic, msg);
 
+				// First, receive ANNOUNCE_INIT
+				const init = await Wire.AnnounceInit.decode(stream.reader);
+
+				// Process initial announcements
+				for (const path of init.paths) {
+					const full = prefix.concat(path);
+					console.debug(`announced: broadcast=${full} active=true`);
+					producer.write({ name: full, active: true });
+					active.add(full);
+				}
+
+				// Then receive updates
 				for (;;) {
 					const announce = await Wire.Announce.decode_maybe(stream.reader);
 					if (!announce) {

@@ -10,41 +10,40 @@ use publisher::*;
 use reader::*;
 use stream::*;
 use subscriber::*;
+use tokio::sync::oneshot;
 use writer::*;
 
-/// A MoQ session, constructed with [Publisher] and [Subscriber] halves.
+/// A MoQ session, constructed with [OriginProducer] and [OriginConsumer] halves.
 ///
 /// This simplifies the state machine and immediately rejects any subscriptions that don't match the origin prefix.
 /// You probably want to use [Session] unless you're writing a relay.
-#[derive(Clone)]
 pub struct Session {
 	pub webtransport: web_transport::Session,
 }
 
 impl Session {
-	fn new(
+	async fn new(
 		mut session: web_transport::Session,
 		stream: Stream,
 		// We will publish any local broadcasts from this origin.
 		publish: Option<OriginConsumer>,
 		// We will consume any remote broadcasts, inserting them into this origin.
 		subscribe: Option<OriginProducer>,
-	) -> Self {
-		let publisher = SessionPublisher::new(session.clone(), publish);
-		let subscriber = SessionSubscriber::new(session.clone());
+	) -> Result<Self, Error> {
+		let publisher = Publisher::new(session.clone(), publish);
+		let subscriber = Subscriber::new(session.clone(), subscribe);
 
 		let this = Self {
 			webtransport: session.clone(),
 		};
 
+		let init = oneshot::channel();
+
 		web_async::spawn(async move {
 			let res = tokio::select! {
 				res = Self::run_session(stream) => res,
-				res = Self::run_bi(session.clone(), publisher.clone()) => res,
-				res = Self::run_uni(session.clone(), subscriber.clone()) => res,
-				//res = publisher.run() => res,
-				// Ignore Ok (unused) or when subscribe is None.
-				Some(Err(res)) = async move { Some(subscriber.run(subscribe?).await) } => Err(res),
+				res = publisher.run() => res,
+				res = subscriber.run(init.0) => res,
 			};
 
 			match res {
@@ -63,23 +62,26 @@ impl Session {
 			}
 		});
 
-		this
+		// Wait until receiving the initial announcements to prevent some race conditions.
+		// Otherwise, `consume()` might return not found if we don't wait long enough, so just wait.
+		// If the announce stream fails or is closed, this will return an error instead of hanging.
+		// TODO return a better error
+		init.1.await.map_err(|_| Error::Cancel)?;
+
+		Ok(this)
 	}
 
 	/// Perform the MoQ handshake as a client.
-	pub async fn connect<
-		T: Into<web_transport::Session>,
-		P: Into<Option<OriginConsumer>>,
-		C: Into<Option<OriginProducer>>,
-	>(
-		session: T,
-		publish: P,
-		subscribe: C,
+	pub async fn connect(
+		session: impl Into<web_transport::Session>,
+		publish: impl Into<Option<OriginConsumer>>,
+		subscribe: impl Into<Option<OriginProducer>>,
 	) -> Result<Self, Error> {
 		let mut session = session.into();
 		let mut stream = Stream::open(&mut session, message::ControlType::Session).await?;
 		Self::connect_setup(&mut stream).await?;
-		Ok(Self::new(session, stream, publish.into(), subscribe.into()))
+		let session = Self::new(session, stream, publish.into(), subscribe.into()).await?;
+		Ok(session)
 	}
 
 	async fn connect_setup(setup: &mut Stream) -> Result<(), Error> {
@@ -115,7 +117,8 @@ impl Session {
 		}
 
 		Self::accept_setup(&mut stream).await?;
-		Ok(Self::new(session, stream, publish.into(), subscribe.into()))
+		let session = Self::new(session, stream, publish.into(), subscribe.into()).await?;
+		Ok(session)
 	}
 
 	async fn accept_setup(control: &mut Stream) -> Result<(), Error> {
@@ -137,61 +140,10 @@ impl Session {
 		Ok(())
 	}
 
+	// TODO do something useful with this
 	async fn run_session(mut stream: Stream) -> Result<(), Error> {
 		while let Some(_info) = stream.reader.decode_maybe::<message::SubscribeOk>().await? {}
 		Err(Error::Cancel)
-	}
-
-	async fn run_uni(mut session: web_transport::Session, subscriber: SessionSubscriber) -> Result<(), Error> {
-		loop {
-			let stream = Reader::accept(&mut session).await?;
-			let subscriber = subscriber.clone();
-
-			web_async::spawn(async move {
-				Self::run_data(stream, subscriber).await.ok();
-			});
-		}
-	}
-
-	async fn run_data(mut stream: Reader, mut subscriber: SessionSubscriber) -> Result<(), Error> {
-		let kind = stream.decode().await?;
-
-		let res = match kind {
-			message::DataType::Group => subscriber.recv_group(&mut stream).await,
-		};
-
-		if let Err(err) = res {
-			stream.abort(&err);
-		}
-
-		Ok(())
-	}
-
-	async fn run_bi(mut session: web_transport::Session, publisher: SessionPublisher) -> Result<(), Error> {
-		loop {
-			let stream = Stream::accept(&mut session).await?;
-			let publisher = publisher.clone();
-
-			web_async::spawn(async move {
-				Self::run_control(stream, publisher).await.ok();
-			});
-		}
-	}
-
-	async fn run_control(mut stream: Stream, mut publisher: SessionPublisher) -> Result<(), Error> {
-		let kind = stream.reader.decode().await?;
-
-		let res = match kind {
-			message::ControlType::Session => Err(Error::UnexpectedStream(kind)),
-			message::ControlType::Announce => publisher.recv_announce(&mut stream).await,
-			message::ControlType::Subscribe => publisher.recv_subscribe(&mut stream).await,
-		};
-
-		if let Err(err) = &res {
-			stream.writer.abort(err);
-		}
-
-		res
 	}
 
 	/// Close the underlying WebTransport session.

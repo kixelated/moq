@@ -85,6 +85,20 @@ export class Publisher {
 	async runAnnounce(msg: Wire.AnnounceInterest, stream: Wire.Stream) {
 		const consumer = this.#announced.consume(msg.prefix);
 
+		// Send ANNOUNCE_INIT as the first message with all currently active paths
+		const activePaths: string[] = [];
+		for (const [name] of this.#broadcasts) {
+			if (name.startsWith(msg.prefix)) {
+				// Return suffix relative to prefix
+				const suffix = msg.prefix ? name.slice(msg.prefix.length + 1) : name;
+				activePaths.push(suffix);
+			}
+		}
+
+		const init = new Wire.AnnounceInit(activePaths);
+		await init.encode(stream.writer);
+
+		// Then send updates as they occur
 		for (;;) {
 			const announcement = await consumer.next();
 			if (!announcement) break;

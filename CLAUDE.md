@@ -71,3 +71,11 @@ Key architectural rule: The CDN/relay must not know about application logic, med
 
 - Run `just check` to execute all tests and linting
 - Rust tests are integrated within source files
+
+## Contributing
+
+For first-time contributors looking for tasks to work on:
+
+- Check [TODO.md](./TODO.md) for security and performance issues that need to be addressed
+- Many of these issues are well-scoped and great for getting familiar with the codebase
+- Security-related tasks help improve the robustness of the MoQ protocol implementation

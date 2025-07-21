@@ -37,6 +37,7 @@
             stable.cargo
             stable.clippy
             stable.rustfmt
+            stable.rust-src
           ];
 
         naersk' = naersk.lib.${system}.override {

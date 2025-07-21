@@ -62,10 +62,9 @@ async fn main() -> anyhow::Result<()> {
 			let clock = clock::Publisher::new(track);
 
 			let mut publisher = moq_lite::OriginProducer::default();
-			let session = moq_lite::Session::connect(session, publisher.consume_all(), None).await?;
-
-			// Publish the broadcast - the broadcast name is empty because the URL contains the name
 			publisher.publish(&config.broadcast, broadcast.consume());
+
+			let session = moq_lite::Session::connect(session, publisher.consume_all(), None).await?;
 
 			tokio::select! {
 				res = session.closed() => Err(res.into()),

@@ -35,12 +35,10 @@ async fn connect(
 
 	// Create an origin producer to publish to the broadcast.
 	let mut publisher = moq_lite::OriginProducer::default();
+	publisher.publish(&name, consumer.inner.clone());
 
 	// Establish the connection, not providing a subscriber.
 	let session = moq_lite::Session::connect(session, publisher.consume_all(), None).await?;
-
-	// Publish the broadcast using the origin producer directly.
-	publisher.publish(&name, consumer.inner.clone());
 
 	tokio::select! {
 		// On ctrl-c, close the session and exit.

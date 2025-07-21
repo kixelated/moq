@@ -11,9 +11,10 @@ export const Version = {
 	FORK_03: 0xff0bad03,
 	FORK_04: 0xff0bad04,
 	LITE_00: 0xff0dad00,
+	LITE_01: 0xff0dad01,
 } as const;
 
-export const CURRENT_VERSION = Version.LITE_00;
+export const CURRENT_VERSION = Version.LITE_01;
 
 export class Extensions {
 	entries: Map<bigint, Uint8Array>;

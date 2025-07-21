@@ -22,7 +22,7 @@ pub static RUNTIME: Lazy<tokio::runtime::Runtime> = Lazy::new(|| {
 #[derive(Default, Clone)]
 struct Settings {
 	pub url: Option<String>,
-	pub name: Option<String>,
+	pub broadcast: Option<String>,
 	pub tls_disable_verify: bool,
 }
 
@@ -56,8 +56,8 @@ impl ObjectImpl for HangSink {
 					.nick("Source URL")
 					.blurb("Connect to the given URL")
 					.build(),
-				glib::ParamSpecString::builder("name")
-					.nick("Name")
+				glib::ParamSpecString::builder("broadcast")
+					.nick("Broadcast")
 					.blurb("The name of the broadcast to publish")
 					.build(),
 				glib::ParamSpecBoolean::builder("tls-disable-verify")
@@ -75,7 +75,7 @@ impl ObjectImpl for HangSink {
 
 		match pspec.name() {
 			"url" => settings.url = value.get().unwrap(),
-			"name" => settings.name = value.get().unwrap(),
+			"broadcast" => settings.broadcast = value.get().unwrap(),
 			"tls-disable-verify" => settings.tls_disable_verify = value.get().unwrap(),
 			_ => unimplemented!(),
 		}
@@ -86,7 +86,7 @@ impl ObjectImpl for HangSink {
 
 		match pspec.name() {
 			"url" => settings.url.to_value(),
-			"name" => settings.name.to_value(),
+			"broadcast" => settings.broadcast.to_value(),
 			"tls-disable-verify" => settings.tls_disable_verify.to_value(),
 			_ => unimplemented!(),
 		}
@@ -169,11 +169,16 @@ impl HangSink {
 
 		RUNTIME.block_on(async move {
 			let session = client.connect(url.clone()).await.expect("failed to connect");
-			let mut session = moq_lite::Session::connect(session).await.expect("failed to connect");
+
+			let mut publisher = moq_lite::OriginProducer::default();
 
 			let broadcast = hang::BroadcastProducer::new();
-			let name = settings.name.as_ref().expect("name is required");
-			session.publish(name, broadcast.inner.consume());
+			let name = settings.broadcast.as_ref().expect("broadcast is required");
+			publisher.publish(name, broadcast.consume().inner);
+
+			let _session = moq_lite::Session::connect(session, publisher.consume_all(), None)
+				.await
+				.expect("failed to connect");
 
 			let media = hang::cmaf::Import::new(broadcast);
 

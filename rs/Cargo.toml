@@ -2,7 +2,7 @@
 members = [
     "hang",
     "hang-cli",
-    #"hang-gst",
+    "hang-gst",
     "moq",
     "moq-clock",
     "moq-native",
