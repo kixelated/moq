@@ -26,7 +26,11 @@ pub struct ClusterConfig {
 	/// Defaults to "internal/origins".
 	///
 	/// WARNING: This should not be accessible by users unless authentication is disabled (YOLO).
-	#[arg(long = "cluster-prefix", default_value = "internal/origins")]
+	#[arg(
+		long = "cluster-prefix",
+		default_value = "internal/origins",
+		env = "MOQ_CLUSTER_PREFIX"
+	)]
 	pub prefix: moq_lite::Path,
 }
 
