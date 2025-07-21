@@ -1,0 +1,38 @@
+app = 'moq'
+primary_region = 'sjc'
+
+# Built with `nix build .#moq-relay-docker`
+[build]
+image = "moq-relay:latest"
+
+# Enable multiple regions for global edge deployment
+[[services]]
+internal_port = 443
+protocol = "udp"
+
+# Require dedicated IPv4 for UDP
+[[services.ports]]
+port = 443
+
+# Environment variables
+[env]
+MOQ_SERVER_LISTEN = "fly-global-services:443"
+
+# Preferred address will be set via secrets per region:
+# flyctl secrets set MOQ_PREFERRED_ADDRESS="dedicated-ip:443"
+
+# Multi-region deployment configuration
+# Uncomment and customize based on your needs
+
+# [regions]
+#   lax = 1    # US West (Los Angeles)
+#   ewr = 1    # US East (Newark)
+#   ams = 1    # Europe (Amsterdam)
+#   nrt = 1    # Asia (Tokyo)
+#   syd = 1    # Oceania (Sydney)
+
+# Resource allocation per region
+[[vm]]
+memory = '1gb'
+cpu_kind = 'shared'
+cpus = 1
