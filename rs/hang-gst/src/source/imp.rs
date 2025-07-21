@@ -136,6 +136,13 @@ impl ElementImpl for HangSrc {
 					gst::error!(CAT, obj = self.obj(), "Failed to setup: {:?}", e);
 					return Err(gst::StateChangeError);
 				}
+				// Chain up first to let the bin handle the state change
+				let result = self.parent_change_state(transition);
+				if result.is_err() {
+					return result;
+				}
+				// This is a live source - no preroll needed
+				return Ok(gst::StateChangeSuccess::NoPreroll);
 			}
 
 			gst::StateChange::PausedToReady => {
@@ -146,7 +153,7 @@ impl ElementImpl for HangSrc {
 			_ => (),
 		}
 
-		// Chain up
+		// Chain up for other transitions
 		self.parent_change_state(transition)
 	}
 }
