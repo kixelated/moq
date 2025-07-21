@@ -109,25 +109,33 @@
           };
 
           # Docker images
-          moq-clock-docker = pkgs.dockerTools.buildLayeredImage {
+          moq-clock-docker = pkgs.dockerTools.buildImage {
             name = "moq-clock";
             tag = "latest";
-            contents = [ self.packages.${system}.moq-clock ];
+            copyToRoot = pkgs.buildEnv {
+              name = "image-root";
+              paths = [ self.packages.${system}.moq-clock ];
+              pathsToLink = [ "/bin" ];
+            };
             config = {
-              Entrypoint = [ "moq-clock" ];
+              Entrypoint = [ "/bin/moq-clock" ];
             };
           };
 
-          hang-docker = pkgs.dockerTools.buildLayeredImage {
+          hang-docker = pkgs.dockerTools.buildImage {
             name = "hang";
             tag = "latest";
-            contents = [
-              self.packages.${system}.hang
-              pkgs.ffmpeg
-              pkgs.wget
-            ];
+            copyToRoot = pkgs.buildEnv {
+              name = "image-root";
+              paths = [
+                self.packages.${system}.hang
+                pkgs.ffmpeg
+                pkgs.wget
+              ];
+              pathsToLink = [ "/bin" ];
+            };
             config = {
-              Entrypoint = [ "hang" ];
+              Entrypoint = [ "/bin/hang" ];
             };
             extraCommands = ''
               mkdir -p usr/local/bin
@@ -136,12 +144,16 @@
             '';
           };
 
-          moq-relay-docker = pkgs.dockerTools.buildLayeredImage {
+          moq-relay-docker = pkgs.dockerTools.buildImage {
             name = "moq-relay";
             tag = "latest";
-            contents = [ self.packages.${system}.moq-relay ];
+            copyToRoot = pkgs.buildEnv {
+              name = "image-root";
+              paths = [ self.packages.${system}.moq-relay ];
+              pathsToLink = [ "/bin" ];
+            };
             config = {
-              Entrypoint = [ "moq-relay" ];
+              Entrypoint = [ "/bin/moq-relay" ];
             };
           };
         };
