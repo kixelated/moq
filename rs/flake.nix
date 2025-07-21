@@ -107,6 +107,43 @@
           default = naersk'.buildPackage {
             src = ./.;
           };
+
+          # Docker images
+          moq-clock-docker = pkgs.dockerTools.buildLayeredImage {
+            name = "moq-clock";
+            tag = "latest";
+            contents = [ self.packages.${system}.moq-clock ];
+            config = {
+              Entrypoint = [ "moq-clock" ];
+            };
+          };
+
+          hang-docker = pkgs.dockerTools.buildLayeredImage {
+            name = "hang";
+            tag = "latest";
+            contents = [
+              self.packages.${system}.hang
+              pkgs.ffmpeg
+              pkgs.wget
+            ];
+            config = {
+              Entrypoint = [ "hang" ];
+            };
+            extraCommands = ''
+              mkdir -p usr/local/bin
+              cp ${./hang-bbb} usr/local/bin/hang-bbb
+              chmod +x usr/local/bin/hang-bbb
+            '';
+          };
+
+          moq-relay-docker = pkgs.dockerTools.buildLayeredImage {
+            name = "moq-relay";
+            tag = "latest";
+            contents = [ self.packages.${system}.moq-relay ];
+            config = {
+              Entrypoint = [ "moq-relay" ];
+            };
+          };
         };
 
         devShells.default = pkgs.mkShell {
