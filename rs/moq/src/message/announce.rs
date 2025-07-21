@@ -50,19 +50,19 @@ impl Encode for Announce {
 
 /// Sent by the subscriber to request ANNOUNCE messages.
 #[derive(Clone, Debug)]
-pub struct AnnounceRequest {
+pub struct AnnouncePlease {
 	// Request tracks with this prefix.
 	pub prefix: Path,
 }
 
-impl Decode for AnnounceRequest {
+impl Decode for AnnouncePlease {
 	fn decode<R: bytes::Buf>(r: &mut R) -> Result<Self, DecodeError> {
 		let prefix = Path::decode(r)?;
 		Ok(Self { prefix })
 	}
 }
 
-impl Encode for AnnounceRequest {
+impl Encode for AnnouncePlease {
 	fn encode<W: bytes::BufMut>(&self, w: &mut W) {
 		self.prefix.encode(w)
 	}

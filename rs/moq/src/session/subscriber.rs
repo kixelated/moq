@@ -76,7 +76,7 @@ impl Subscriber {
 
 		let mut stream = Stream::open(&mut self.session, message::ControlType::Announce).await?;
 
-		let msg = message::AnnounceRequest { prefix: "".into() };
+		let msg = message::AnnouncePlease { prefix: "".into() };
 		stream.writer.encode(&msg).await?;
 
 		let mut producers = HashMap::new();

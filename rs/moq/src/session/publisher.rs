@@ -53,7 +53,7 @@ impl Publisher {
 	}
 
 	pub async fn recv_announce(mut self, stream: &mut Stream) -> Result<(), Error> {
-		let interest = stream.reader.decode::<message::AnnounceRequest>().await?;
+		let interest = stream.reader.decode::<message::AnnouncePlease>().await?;
 
 		// Just for logging the fully qualified prefix.
 		let prefix = self.origin.prefix().join(&interest.prefix);
