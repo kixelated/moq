@@ -8,7 +8,7 @@ use crate::{
 	TrackProducer,
 };
 
-use tokio::sync::watch;
+use tokio::sync::oneshot;
 use web_async::{spawn, Lock};
 
 use super::{Reader, Stream};
@@ -21,7 +21,6 @@ pub(super) struct Subscriber {
 	broadcasts: Lock<HashMap<Path, BroadcastProducer>>,
 	subscribes: Lock<HashMap<u64, TrackProducer>>,
 	next_id: Arc<atomic::AtomicU64>,
-	init: watch::Sender<bool>,
 }
 
 impl Subscriber {
@@ -32,20 +31,13 @@ impl Subscriber {
 			broadcasts: Default::default(),
 			subscribes: Default::default(),
 			next_id: Default::default(),
-			init: Default::default(),
 		}
 	}
 
-	// Wait until the subscriber is initialized with announcements.
-	pub async fn init(&self) -> bool {
-		let mut init = self.init.subscribe();
-		let v = init.wait_for(|v| *v).await;
-		v.is_ok()
-	}
-
-	pub async fn run(self) -> Result<(), Error> {
+	/// Send a signal when the subscriber is initialized.
+	pub async fn run(self, init: oneshot::Sender<()>) -> Result<(), Error> {
 		tokio::select! {
-			Err(err) = self.clone().run_announce() => Err(err),
+			Err(err) = self.clone().run_announce(init) => Err(err),
 			res = self.run_uni() => res,
 		}
 	}
@@ -75,10 +67,10 @@ impl Subscriber {
 		Ok(())
 	}
 
-	async fn run_announce(mut self) -> Result<(), Error> {
+	async fn run_announce(mut self, init: oneshot::Sender<()>) -> Result<(), Error> {
 		// Don't do anything if there's no origin configured.
 		if self.origin.is_none() {
-			self.init.send_replace(true);
+			let _ = init.send(());
 			return Ok(());
 		}
 
@@ -89,8 +81,8 @@ impl Subscriber {
 
 		let mut producers = HashMap::new();
 
-		let init: message::AnnounceInit = stream.reader.decode().await?;
-		for path in init.suffixes {
+		let msg: message::AnnounceInit = stream.reader.decode().await?;
+		for path in msg.suffixes {
 			tracing::debug!(broadcast = %path, "received announce");
 
 			let producer = BroadcastProducer::new();
@@ -102,7 +94,7 @@ impl Subscriber {
 			spawn(self.clone().run_broadcast(path, producer));
 		}
 
-		self.init.send_replace(true);
+		let _ = init.send(());
 
 		while let Some(announce) = stream.reader.decode_maybe::<message::Announce>().await? {
 			match announce {

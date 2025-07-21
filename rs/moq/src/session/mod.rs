@@ -10,6 +10,7 @@ use publisher::*;
 use reader::*;
 use stream::*;
 use subscriber::*;
+use tokio::sync::oneshot;
 use writer::*;
 
 /// A MoQ session, constructed with [OriginProducer] and [OriginConsumer] halves.
@@ -28,7 +29,7 @@ impl Session {
 		publish: Option<OriginConsumer>,
 		// We will consume any remote broadcasts, inserting them into this origin.
 		subscribe: Option<OriginProducer>,
-	) -> Self {
+	) -> Result<Self, Error> {
 		let publisher = Publisher::new(session.clone(), publish);
 		let subscriber = Subscriber::new(session.clone(), subscribe);
 
@@ -36,13 +37,13 @@ impl Session {
 			webtransport: session.clone(),
 		};
 
-		let subscriber_init = subscriber.clone();
+		let init = oneshot::channel();
 
 		web_async::spawn(async move {
 			let res = tokio::select! {
 				res = Self::run_session(stream) => res,
 				res = publisher.run() => res,
-				res = subscriber.run() => res,
+				res = subscriber.run(init.0) => res,
 			};
 
 			match res {
@@ -63,9 +64,11 @@ impl Session {
 
 		// Wait until receiving the initial announcements to prevent some race conditions.
 		// Otherwise, `consume()` might return not found if we don't wait long enough, so just wait.
-		subscriber_init.init().await;
+		// If the announce stream fails or is closed, this will return an error instead of hanging.
+		// TODO return a better error
+		init.1.await.map_err(|_| Error::Cancel)?;
 
-		this
+		Ok(this)
 	}
 
 	/// Perform the MoQ handshake as a client.
@@ -77,7 +80,7 @@ impl Session {
 		let mut session = session.into();
 		let mut stream = Stream::open(&mut session, message::ControlType::Session).await?;
 		Self::connect_setup(&mut stream).await?;
-		let session = Self::new(session, stream, publish.into(), subscribe.into()).await;
+		let session = Self::new(session, stream, publish.into(), subscribe.into()).await?;
 		Ok(session)
 	}
 
@@ -114,7 +117,7 @@ impl Session {
 		}
 
 		Self::accept_setup(&mut stream).await?;
-		let session = Self::new(session, stream, publish.into(), subscribe.into()).await;
+		let session = Self::new(session, stream, publish.into(), subscribe.into()).await?;
 		Ok(session)
 	}
 
