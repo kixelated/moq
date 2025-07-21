@@ -1,19 +1,22 @@
 use futures::FutureExt;
 use web_async::FuturesExt;
 
-use crate::{message, model::GroupConsumer, Error, OriginConsumer, OriginUpdate, Path, Track, TrackConsumer};
+use crate::{
+	message, model::GroupConsumer, Error, OriginConsumer, OriginProducer, OriginUpdate, Path, Track, TrackConsumer,
+};
 
 use super::{Stream, Writer};
 
 #[derive(Clone)]
 pub(super) struct Publisher {
 	session: web_transport::Session,
-	// If None, then error on every request.
-	origin: Option<OriginConsumer>,
+	origin: OriginConsumer,
 }
 
 impl Publisher {
 	pub fn new(session: web_transport::Session, origin: Option<OriginConsumer>) -> Self {
+		// Create a dummy origin that is immediately closed.
+		let origin = origin.unwrap_or_else(|| OriginProducer::default().consume_all());
 		Self { session, origin }
 	}
 
@@ -53,10 +56,7 @@ impl Publisher {
 		let interest = stream.reader.decode::<message::AnnounceRequest>().await?;
 
 		// Just for logging the fully qualified prefix.
-		let prefix = match self.origin.as_ref() {
-			Some(origin) => origin.prefix().join(&interest.prefix),
-			None => Path::new("unauthorized").join(&interest.prefix),
-		};
+		let prefix = self.origin.prefix().join(&interest.prefix);
 
 		let res = self.run_announce(stream, &interest.prefix).await;
 		match res {
@@ -69,9 +69,7 @@ impl Publisher {
 	}
 
 	async fn run_announce(&mut self, stream: &mut Stream, prefix: &Path) -> Result<(), Error> {
-		let origin = self.origin.as_ref().ok_or(Error::Unauthorized)?;
-
-		let mut announced = origin.consume_prefix(prefix);
+		let mut announced = self.origin.consume_prefix(prefix);
 
 		let mut init = Vec::new();
 
@@ -82,6 +80,7 @@ impl Publisher {
 				tracing::debug!(broadcast = %prefix.join(&suffix), "announce");
 				init.push(suffix);
 			} else {
+				// A potential race.
 				tracing::debug!(broadcast = %prefix.join(&suffix), "unannounce");
 				init.retain(|path| path != &suffix);
 			}
@@ -138,14 +137,12 @@ impl Publisher {
 	}
 
 	async fn run_subscribe(&mut self, stream: &mut Stream, subscribe: &mut message::Subscribe) -> Result<(), Error> {
-		let origin = self.origin.as_ref().ok_or(Error::Unauthorized)?;
-
 		let track = Track {
 			name: subscribe.track.clone(),
 			priority: subscribe.priority,
 		};
 
-		let broadcast = origin.consume(&subscribe.broadcast).ok_or(Error::NotFound)?;
+		let broadcast = self.origin.consume(&subscribe.broadcast).ok_or(Error::NotFound)?;
 		let track = broadcast.subscribe(&track);
 
 		// TODO wait until track.info() to get the *real* priority

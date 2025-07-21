@@ -44,15 +44,10 @@ impl Subscriber {
 	}
 
 	pub async fn run(self) -> Result<(), Error> {
-		let closed = self.origin.clone();
 		tokio::select! {
-				 biased; // avoid run_inner if we're already unused
-				 // Nobody wants to consume from this origin anymore.
-				 Some(_) = async move { closed.as_ref()?.unused().await;
-		Some(()) } => Err(Error::Cancel),
-				 Err(err) = self.clone().run_announce() => Err(err),
-				 res = self.run_uni() => res,
-			 }
+			Err(err) = self.clone().run_announce() => Err(err),
+			res = self.run_uni() => res,
+		}
 	}
 
 	async fn run_uni(mut self) -> Result<(), Error> {
@@ -81,7 +76,9 @@ impl Subscriber {
 	}
 
 	async fn run_announce(mut self) -> Result<(), Error> {
+		// Don't do anything if there's no origin configured.
 		if self.origin.is_none() {
+			self.init.send_replace(true);
 			return Ok(());
 		}
 
@@ -131,7 +128,7 @@ impl Subscriber {
 			}
 		}
 
-		// Close the writer.
+		// Close the stream when there's nothing more to announce.
 		stream.writer.finish().await
 	}
 

@@ -175,17 +175,13 @@ impl HangSrc {
 		let origin = moq_lite::OriginProducer::default();
 		let _session = moq_lite::Session::connect(session, None, origin.clone()).await?;
 
-		// TODO giant hack to avoid a race condition with how announcements are now populated.
-		tokio::time::sleep(std::time::Duration::from_millis(100)).await;
-
-		// Wait for the broadcast to be announced (race condition workaround)
-		let broadcast = origin.consume(&name).expect("broadcast not found");
+		let broadcast = origin
+			.consume(&name)
+			.ok_or_else(|| anyhow::anyhow!("Broadcast '{}' not found", name))?;
 		let mut broadcast = hang::BroadcastConsumer::new(broadcast);
 
 		// TODO handle catalog updates
 		let catalog = broadcast.catalog.next().await?.context("no catalog found")?.clone();
-
-		gst::info!(CAT, "catalog: {:?}", catalog);
 
 		for video in catalog.video {
 			let mut track = broadcast.subscribe(&video.track);

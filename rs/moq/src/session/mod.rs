@@ -36,7 +36,7 @@ impl Session {
 			webtransport: session.clone(),
 		};
 
-		let subscriber2 = subscriber.clone();
+		let subscriber_init = subscriber.clone();
 
 		web_async::spawn(async move {
 			let res = tokio::select! {
@@ -63,7 +63,7 @@ impl Session {
 
 		// Wait until receiving the initial announcements to prevent some race conditions.
 		// Otherwise, `consume()` might return not found if we don't wait long enough, so just wait.
-		subscriber2.init().await;
+		subscriber_init.init().await;
 
 		this
 	}
