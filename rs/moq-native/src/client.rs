@@ -16,7 +16,7 @@ pub struct ClientTls {
 	/// This value can be provided multiple times for multiple roots.
 	/// If this is empty, system roots will be used instead
 	#[serde(skip_serializing_if = "Vec::is_empty")]
-	#[arg(long = "tls-root")]
+	#[arg(long = "tls-root", env = "MOQ_CLIENT_TLS_ROOT")]
 	pub root: Vec<PathBuf>,
 
 	/// Danger: Disable TLS certificate verification.
@@ -24,7 +24,7 @@ pub struct ClientTls {
 	/// Fine for local development and between relays, but should be used in caution in production.
 	// This is an Option<bool> so clap skips over it when not provided, otherwise it is set to false.
 	#[serde(skip_serializing_if = "Option::is_none")]
-	#[arg(long = "tls-disable-verify")]
+	#[arg(long = "tls-disable-verify", env = "MOQ_CLIENT_TLS_DISABLE_VERIFY")]
 	pub disable_verify: Option<bool>,
 }
 
@@ -32,7 +32,7 @@ pub struct ClientTls {
 #[serde(deny_unknown_fields, default)]
 pub struct ClientConfig {
 	/// Listen for UDP packets on the given address.
-	#[arg(long, id = "client-bind", default_value = "[::]:0")]
+	#[arg(long, id = "client-bind", default_value = "[::]:0", env = "MOQ_CLIENT_BIND")]
 	pub bind: net::SocketAddr,
 
 	#[command(flatten)]
