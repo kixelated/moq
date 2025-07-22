@@ -1,4 +1,4 @@
-import { decodeMessage, encodeMessage } from "./message";
+import * as Message from "./message";
 import type { Valid } from "../path";
 import type { Reader, Writer } from "./stream";
 
@@ -24,11 +24,11 @@ export class Announce {
 
 	// Wrapper methods that automatically handle size prefixing
 	async encode(w: Writer): Promise<void> {
-		return encodeMessage(this, w);
+		return Message.encode(this, w);
 	}
 
 	static async decode(r: Reader): Promise<Announce> {
-		return decodeMessage(Announce, r);
+		return Message.decode(Announce, r);
 	}
 
 	static async decode_maybe(r: Reader): Promise<Announce | undefined> {
@@ -56,11 +56,11 @@ export class AnnounceInterest {
 
 	// Wrapper methods that automatically handle size prefixing
 	async encode(w: Writer): Promise<void> {
-		return encodeMessage(this, w);
+		return Message.encode(this, w);
 	}
 
 	static async decode(r: Reader): Promise<AnnounceInterest> {
-		return decodeMessage(AnnounceInterest, r);
+		return Message.decode(AnnounceInterest, r);
 	}
 }
 
@@ -89,10 +89,10 @@ export class AnnounceInit {
 
 	// Wrapper methods that automatically handle size prefixing
 	async encode(w: Writer): Promise<void> {
-		return encodeMessage(this, w);
+		return Message.encode(this, w);
 	}
 
 	static async decode(r: Reader): Promise<AnnounceInit> {
-		return decodeMessage(AnnounceInit, r);
+		return Message.decode(AnnounceInit, r);
 	}
 }
