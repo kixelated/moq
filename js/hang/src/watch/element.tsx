@@ -1,3 +1,4 @@
+import * as Moq from "@kixelated/moq";
 import { Root, Signal } from "@kixelated/signals";
 import solid from "@kixelated/signals/solid";
 import { type JSX, Match, Show, Switch } from "solid-js";
@@ -61,7 +62,7 @@ export default class HangWatch extends HTMLElement {
 		this.#signals.effect((effect) => {
 			const broadcast = effect.get(this.broadcast.name);
 			if (broadcast) {
-				this.setAttribute("name", broadcast);
+				this.setAttribute("name", broadcast.toString());
 			} else {
 				this.removeAttribute("name");
 			}
@@ -140,11 +141,11 @@ export default class HangWatch extends HTMLElement {
 	}
 
 	get name(): string | undefined {
-		return this.broadcast.name.peek();
+		return this.broadcast.name.peek()?.toString();
 	}
 
 	set name(name: string | undefined) {
-		this.broadcast.name.set(name);
+		this.broadcast.name.set(name ? Moq.Path.from(name) : undefined);
 	}
 
 	get paused(): boolean {

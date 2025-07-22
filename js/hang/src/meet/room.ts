@@ -1,10 +1,11 @@
-import { type Connection, type Moq, type Publish, Watch } from "@kixelated/hang";
+import { type Connection, Moq, type Publish, Watch } from "@kixelated/hang";
+import type { Path } from "@kixelated/moq";
 import { type Effect, Root, Signal } from "@kixelated/signals";
 
 export type Broadcast = Watch.Broadcast | Publish.Broadcast;
 
 export type RoomProps = {
-	name?: string;
+	name?: Path.Valid;
 };
 
 export class Room {
@@ -13,29 +14,29 @@ export class Room {
 	connection: Connection;
 
 	// An optional prefix to filter broadcasts by.
-	name: Signal<string>;
+	name: Signal<Path.Valid>;
 
 	// The active broadcasts, sorted by announcement time.
-	active = new Map<string, Broadcast>();
+	active = new Map<Path.Valid, Broadcast>();
 
 	// All of the remote broadcasts.
-	remotes = new Map<string, Watch.Broadcast>();
+	remotes = new Map<Path.Valid, Watch.Broadcast>();
 
 	// The local broadcasts.
-	locals = new Map<string, Publish.Broadcast>();
+	locals = new Map<Path.Valid, Publish.Broadcast>();
 
 	// Optional callbacks to learn when individual broadcasts are added/removed.
 	// We avoid using signals because we don't want to re-render everything on every update.
 	// One day I'll figure out how to handle collections elegantly.
-	#onActive?: (name: string, broadcast: Broadcast | undefined) => void;
-	#onRemote?: (name: string, broadcast: Watch.Broadcast | undefined) => void;
-	#onLocal?: (name: string, broadcast: Publish.Broadcast | undefined) => void;
+	#onActive?: (name: Path.Valid, broadcast: Broadcast | undefined) => void;
+	#onRemote?: (name: Path.Valid, broadcast: Watch.Broadcast | undefined) => void;
+	#onLocal?: (name: Path.Valid, broadcast: Publish.Broadcast | undefined) => void;
 
 	#signals = new Root();
 
 	constructor(connection: Connection, props?: RoomProps) {
 		this.connection = connection;
-		this.name = new Signal(props?.name ?? "");
+		this.name = new Signal(props?.name ?? Moq.Path.empty());
 
 		this.#signals.effect(this.#init.bind(this));
 	}
@@ -43,16 +44,16 @@ export class Room {
 	// Render a local broadcast instead of downloading a remote broadcast.
 	// This is not a perfect preview, as downloading/decoding is skipped.
 	// NOTE: The broadcast is only published when broadcast.enabled is true.
-	preview(name: string, broadcast: Publish.Broadcast) {
+	preview(name: Path.Valid, broadcast: Publish.Broadcast) {
 		this.locals.set(name, broadcast);
 	}
 
-	unpreview(name: string) {
+	unpreview(name: Path.Valid) {
 		this.locals.delete(name);
 	}
 
 	// Register a callback when a broadcast has been added/removed.
-	onActive(callback?: (name: string, broadcast: Broadcast | undefined) => void) {
+	onActive(callback?: (name: Path.Valid, broadcast: Broadcast | undefined) => void) {
 		this.#onActive = callback;
 		if (!callback) return;
 
@@ -61,7 +62,7 @@ export class Room {
 		}
 	}
 
-	onRemote(callback?: (name: string, broadcast: Watch.Broadcast | undefined) => void) {
+	onRemote(callback?: (name: Path.Valid, broadcast: Watch.Broadcast | undefined) => void) {
 		this.#onRemote = callback;
 		if (!callback) return;
 
@@ -70,7 +71,7 @@ export class Room {
 		}
 	}
 
-	onLocal(callback?: (name: string, broadcast: Publish.Broadcast | undefined) => void) {
+	onLocal(callback?: (name: Path.Valid, broadcast: Publish.Broadcast | undefined) => void) {
 		this.#onLocal = callback;
 		if (!callback) return;
 

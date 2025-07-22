@@ -1,3 +1,4 @@
+import { Path } from "@kixelated/moq";
 import { Root } from "@kixelated/signals";
 import { type Publish, Watch } from "..";
 import { Connection } from "../connection";
@@ -19,7 +20,7 @@ export default class HangMeet extends HTMLElement {
 	#container: HTMLDivElement;
 
 	// Save a reference to the <video> tag used to render the local broadcast.
-	#locals = new Map<string, { video: HTMLVideoElement; cleanup: () => void }>();
+	#locals = new Map<Path.Valid, { video: HTMLVideoElement; cleanup: () => void }>();
 
 	// We have to save a reference to the Video/Audio renderers so we can close them.
 	#remotes = new Map<
@@ -82,7 +83,7 @@ export default class HangMeet extends HTMLElement {
 		this.#signals.close();
 	}
 
-	#onLocal(name: string, broadcast?: Publish.Broadcast) {
+	#onLocal(name: Path.Valid, broadcast?: Publish.Broadcast) {
 		if (!broadcast) {
 			const existing = this.#locals.get(name);
 			if (!existing) return;
@@ -110,7 +111,7 @@ export default class HangMeet extends HTMLElement {
 		this.#container.appendChild(video);
 	}
 
-	#onRemote(name: string, broadcast?: Watch.Broadcast) {
+	#onRemote(name: Path.Valid, broadcast?: Watch.Broadcast) {
 		if (!broadcast) {
 			const existing = this.#remotes.get(name);
 			if (!existing) return;
@@ -146,7 +147,7 @@ export default class HangMeet extends HTMLElement {
 		if (name === "url") {
 			this.url = newValue ? new URL(newValue) : undefined;
 		} else if (name === "name") {
-			this.name = newValue ?? "";
+			this.name = Path.from(newValue ?? "");
 		} else {
 			const exhaustive: never = name;
 			throw new Error(`Invalid attribute: ${exhaustive}`);
@@ -161,11 +162,11 @@ export default class HangMeet extends HTMLElement {
 		this.connection.url.set(url);
 	}
 
-	get name(): string {
+	get name(): Path.Valid {
 		return this.room.name.peek();
 	}
 
-	set name(name: string) {
+	set name(name: Path.Valid) {
 		this.room.name.set(name);
 	}
 }

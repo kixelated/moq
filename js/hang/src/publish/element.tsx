@@ -1,3 +1,4 @@
+import * as Moq from "@kixelated/moq";
 import { Root, Signal } from "@kixelated/signals";
 import solid from "@kixelated/signals/solid";
 import { Show } from "solid-js";
@@ -86,11 +87,11 @@ export default class HangPublish extends HTMLElement {
 	}
 
 	get name(): string | undefined {
-		return this.broadcast.name.peek();
+		return this.broadcast.name.peek()?.toString();
 	}
 
 	set name(name: string | undefined) {
-		this.broadcast.name.set(name);
+		this.broadcast.name.set(name ? Moq.Path.from(name) : undefined);
 	}
 
 	get device(): Device | undefined {

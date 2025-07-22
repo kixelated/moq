@@ -10,7 +10,7 @@ use tracing_subscriber::EnvFilter;
 pub struct Log {
 	/// The level filter to use.
 	#[serde_as(as = "DisplayFromStr")]
-	#[arg(id = "log-level", long = "log-level", default_value = "info")]
+	#[arg(id = "log-level", long = "log-level", default_value = "info", env = "MOQ_LOG_LEVEL")]
 	pub level: Level,
 }
 

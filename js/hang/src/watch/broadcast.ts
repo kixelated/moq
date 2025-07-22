@@ -13,7 +13,7 @@ export interface BroadcastProps {
 	enabled?: boolean;
 
 	// The broadcast name.
-	name?: string;
+	name?: Moq.Path.Valid;
 
 	// You can disable reloading if you want to save a round trip when you know the broadcast is already live.
 	reload?: boolean;
@@ -30,7 +30,7 @@ export class Broadcast {
 	connection: Connection;
 
 	enabled: Signal<boolean>;
-	name: Signal<string | undefined>;
+	name: Signal<Moq.Path.Valid | undefined>;
 	status = new Signal<"offline" | "loading" | "live">("offline");
 	user: Computed<Catalog.User | undefined>;
 

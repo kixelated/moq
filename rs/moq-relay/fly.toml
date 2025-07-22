@@ -1,0 +1,25 @@
+app = 'moq'
+primary_region = 'sjc'
+
+# Built with `nix build .#moq-relay-docker`
+[build]
+image = "moq-relay:latest"
+
+# Enable multiple regions for global edge deployment
+[[services]]
+internal_port = 443
+protocol = "udp"
+
+[[services.ports]]
+port = 443
+
+# Environment variables
+[env]
+# NOTE: A dedicated IPv4 address is required for UDP.
+MOQ_SERVER_LISTEN = "fly-global-services:443"
+
+# Resource allocation per region
+[[vm]]
+memory = '1gb'
+cpu_kind = 'shared'
+cpus = 1

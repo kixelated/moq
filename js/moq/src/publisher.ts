@@ -1,6 +1,7 @@
 import { AnnouncedProducer } from "./announced";
 import type { BroadcastConsumer } from "./broadcast";
 import type { GroupConsumer } from "./group";
+import * as Path from "./path";
 import type { TrackConsumer } from "./track";
 import { error } from "./util/error";
 import * as Wire from "./wire";
@@ -18,7 +19,7 @@ export class Publisher {
 	#announced = new AnnouncedProducer();
 
 	// Our published broadcasts.
-	#broadcasts = new Map<string, BroadcastConsumer>();
+	#broadcasts = new Map<Path.Valid, BroadcastConsumer>();
 
 	/**
 	 * Creates a new Publisher instance.
@@ -35,7 +36,7 @@ export class Publisher {
 	 * @param name - The name of the broadcast to consume
 	 * @returns A BroadcastConsumer instance or undefined if not found
 	 */
-	consume(name: string): BroadcastConsumer | undefined {
+	consume(name: Path.Valid): BroadcastConsumer | undefined {
 		return this.#broadcasts.get(name)?.clone();
 	}
 
@@ -43,12 +44,12 @@ export class Publisher {
 	 * Publishes a broadcast with any associated tracks.
 	 * @param name - The broadcast to publish
 	 */
-	publish(name: string, broadcast: BroadcastConsumer) {
+	publish(name: Path.Valid, broadcast: BroadcastConsumer) {
 		this.#broadcasts.set(name, broadcast);
 		void this.#runPublish(name, broadcast);
 	}
 
-	async #runPublish(name: string, broadcast: BroadcastConsumer) {
+	async #runPublish(name: Path.Valid, broadcast: BroadcastConsumer) {
 		try {
 			this.#announced.write({
 				name,
@@ -86,13 +87,11 @@ export class Publisher {
 		const consumer = this.#announced.consume(msg.prefix);
 
 		// Send ANNOUNCE_INIT as the first message with all currently active paths
-		const activePaths: string[] = [];
+		const activePaths: Path.Valid[] = [];
 		for (const [name] of this.#broadcasts) {
-			if (name.startsWith(msg.prefix)) {
-				// Return suffix relative to prefix
-				const suffix = msg.prefix ? name.slice(msg.prefix.length + 1) : name;
-				activePaths.push(suffix);
-			}
+			const suffix = Path.stripPrefix(msg.prefix, name);
+			if (suffix === null) continue;
+			activePaths.push(suffix);
 		}
 
 		const init = new Wire.AnnounceInit(activePaths);
@@ -153,7 +152,7 @@ export class Publisher {
 	 *
 	 * @internal
 	 */
-	async #runTrack(sub: bigint, broadcast: string, track: TrackConsumer, stream: Wire.Writer) {
+	async #runTrack(sub: bigint, broadcast: Path.Valid, track: TrackConsumer, stream: Wire.Writer) {
 		try {
 			for (;;) {
 				const next = track.nextGroup();

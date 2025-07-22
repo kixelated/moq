@@ -1,6 +1,7 @@
 import { type AnnouncedConsumer, AnnouncedProducer } from "./announced";
 import { type BroadcastConsumer, BroadcastProducer } from "./broadcast";
 import { GroupProducer } from "./group";
+import * as Path from "./path";
 import type { TrackProducer } from "./track";
 import { error } from "./util/error";
 import * as Wire from "./wire";
@@ -32,15 +33,15 @@ export class Subscriber {
 	 * @param prefix - The prefix for announcements
 	 * @returns An AnnounceConsumer instance
 	 */
-	announced(prefix = ""): AnnouncedConsumer {
+	announced(prefix: Path.Valid = Path.empty()): AnnouncedConsumer {
+		console.debug(`announce please: prefix=${prefix}`);
+
 		const producer = new AnnouncedProducer();
 		const consumer = producer.consume(prefix);
 
 		const msg = new Wire.AnnounceInterest(prefix);
 
 		(async () => {
-			const active = new Set<string>();
-
 			try {
 				const stream = await Wire.Stream.open(this.#quic, msg);
 
@@ -48,11 +49,10 @@ export class Subscriber {
 				const init = await Wire.AnnounceInit.decode(stream.reader);
 
 				// Process initial announcements
-				for (const path of init.paths) {
-					const full = prefix.concat(path);
-					console.debug(`announced: broadcast=${full} active=true`);
-					producer.write({ name: full, active: true });
-					active.add(full);
+				for (const suffix of init.suffixes) {
+					const name = Path.join(prefix, suffix);
+					console.debug(`announced: broadcast=${name} active=true`);
+					producer.write({ name, active: true });
 				}
 
 				// Then receive updates
@@ -62,26 +62,15 @@ export class Subscriber {
 						break;
 					}
 
-					const full = prefix.concat(announce.suffix);
+					const name = Path.join(prefix, announce.suffix);
 
-					console.debug(`announced: broadcast=${full} active=${announce.active}`);
-					producer.write({ name: full, active: announce.active });
-
-					// Just for logging
-					if (announce.active) {
-						active.add(full);
-					} else {
-						active.delete(full);
-					}
+					console.debug(`announced: broadcast=${name} active=${announce.active}`);
+					producer.write({ name, active: announce.active });
 				}
 
 				producer.close();
 			} catch (err: unknown) {
 				producer.abort(error(err));
-			} finally {
-				for (const broadcast of active) {
-					console.debug(`announced: broadcast=${broadcast} active=dropped`);
-				}
 			}
 		})();
 
@@ -98,7 +87,7 @@ export class Subscriber {
 	 * @param name - The name of the broadcast to consume
 	 * @returns A BroadcastConsumer instance
 	 */
-	consume(name: string): BroadcastConsumer {
+	consume(broadcast: Path.Valid): BroadcastConsumer {
 		const producer = new BroadcastProducer();
 		const consumer = producer.consume();
 
@@ -109,7 +98,7 @@ export class Subscriber {
 			producer.insertTrack(track.consume());
 
 			// Perform the subscription in the background.
-			this.#runSubscribe(name, track).finally(() => {
+			this.#runSubscribe(broadcast, track).finally(() => {
 				try {
 					producer.removeTrack(track.name);
 				} catch {
@@ -127,26 +116,26 @@ export class Subscriber {
 		return consumer;
 	}
 
-	async #runSubscribe(name: string, track: TrackProducer) {
+	async #runSubscribe(broadcast: Path.Valid, track: TrackProducer) {
 		const id = this.#subscribeNext++;
 
 		// Save the writer so we can append groups to it.
 		this.#subscribes.set(id, track);
 
-		const msg = new Wire.Subscribe(id, name, track.name, track.priority);
+		const msg = new Wire.Subscribe(id, broadcast, track.name, track.priority);
 
 		const stream = await Wire.Stream.open(this.#quic, msg);
 		try {
 			await Wire.SubscribeOk.decode(stream.reader);
-			console.debug(`subscribe ok: id=${id} broadcast=${name} track=${track.name}`);
+			console.debug(`subscribe ok: id=${id} broadcast=${broadcast} track=${track.name}`);
 
 			await Promise.race([stream.reader.closed(), track.unused()]);
 
 			track.close();
-			console.debug(`subscribe close: id=${id} broadcast=${name} track=${track.name}`);
+			console.debug(`subscribe close: id=${id} broadcast=${broadcast} track=${track.name}`);
 		} catch (err) {
 			track.abort(error(err));
-			console.warn(`subscribe error: id=${id} broadcast=${name} track=${track.name} error=${error(err)}`);
+			console.warn(`subscribe error: id=${id} broadcast=${broadcast} track=${track.name} error=${error(err)}`);
 		} finally {
 			this.#subscribes.delete(id);
 			stream.close();

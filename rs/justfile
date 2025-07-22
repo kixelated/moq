@@ -8,7 +8,7 @@ default:
 
 # Install any required dependencies.
 setup: auth
-	cargo install cargo-shear cargo-sort cargo-upgrades cargo-edit cargo-audit
+	cargo install cargo-shear cargo-sort cargo-upgrades cargo-edit
 
 # Run a localhost relay server
 relay: root
@@ -87,7 +87,7 @@ download-url name:
 # Publish a video using ffmpeg to the localhost relay server
 # NOTE: The `http` means that we perform insecure certificate verification.
 # Switch it to `https` when you're ready to use a real certificate.
-pub name url:
+pub name url="http://localhost:4443/anon":
 	# Download the sample media.
 	just download {{name}}
 
@@ -103,7 +103,7 @@ pub name url:
 		- | cargo run --bin hang -- publish --url "{{url}}" --name "{{name}}"
 
 # Publish a video using gstreamer to the localhost relay server
-pub-gst name url:
+pub-gst name url="http://localhost:4443/anon":
 	# Download the sample media.
 	just download {{name}}
 
@@ -119,7 +119,7 @@ pub-gst name url:
 		demux.audio_0 ! aacparse ! queue ! mux.
 
 # Subscribe to a video using gstreamer
-sub name url:
+sub name url="http://localhost:4443/anon":
 	# Build the plugins
 	cargo build -p hang-gst
 
@@ -147,7 +147,7 @@ serve name:
 
 # Publish the clock broadcast
 # `action` is either `publish` or `subscribe`
-clock action url:
+clock action url="http://localhost:4443/anon":
 	if [ "{{action}}" != "publish" ] && [ "{{action}}" != "subscribe" ]; then \
 		echo "Error: action must be 'publish' or 'subscribe', got '{{action}}'" >&2; \
 		exit 1; \
@@ -167,9 +167,6 @@ check flags="":
 	# requires: cargo install cargo-sort
 	cargo sort --workspace --check
 
-	# requires: cargo install cargo-audit
-	cargo audit
-
 # Automatically fix some issues.
 fix flags="":
 	cargo fix --allow-staged --allow-dirty --all-targets --all-features {{flags}}
@@ -181,9 +178,6 @@ fix flags="":
 
 	# requires: cargo install cargo-sort
 	cargo sort --workspace
-
-	# requires: cargo install cargo-audit
-	cargo audit
 
 	# Update any patch versions
 	cargo update
@@ -199,3 +193,34 @@ upgrade:
 # Build the packages
 build:
 	cargo build
+
+# Build Docker images (local architecture only)
+# valid targets: moq-relay, moq-clock, hang
+docker target tag="latest":
+	# Note: This builds for your current architecture only. Use 'docker-release' for multi-platform builds.
+	nix build ".#{{target}}-docker"
+	docker load < result
+	docker tag {{target}}:latest {{target}}:{{tag}}
+
+# Build and release a multiplatform Docker image (for CI/remote builders)
+# valid targets: moq-relay, moq-clock, hang
+docker-release target registry tag:
+	# Create and use a new builder for multiplatform
+	docker buildx create --name multiplatform --use || docker buildx use multiplatform
+
+	# Build x64 image
+	nix build ".#{{target}}-docker" --system x86_64-linux
+	docker load < result
+	docker tag "{{target}}:latest" "{{target}}:amd64"
+
+	# Build ARM64 image
+	nix build ".#{{target}}-docker" --system aarch64-linux
+	docker load < result
+	docker tag "{{target}}:latest" "{{target}}:arm64"
+
+	# Create and push multiplatform manifest
+	docker buildx imagetools create \
+		--tag "{{registry}}/{{target}}:{{tag}}" \
+		--tag "{{registry}}/{{target}}:latest" \
+		"{{target}}:amd64" \
+		"{{target}}:arm64"

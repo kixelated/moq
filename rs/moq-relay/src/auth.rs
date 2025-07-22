@@ -10,13 +10,13 @@ use url::Url;
 pub struct AuthConfig {
 	/// The root authentication key.
 	/// If present, all paths will require a token unless they are in the public list.
-	#[arg(long = "auth-key")]
+	#[arg(long = "auth-key", env = "MOQ_AUTH_KEY")]
 	pub key: Option<String>,
 
 	/// The prefix that will be public for reading and writing.
 	/// If present, unauthorized users will be able to read and write to this prefix ONLY.
 	/// If a user provides a token, then they can only access the prefix only if it is specified in the token.
-	#[arg(long = "auth-public")]
+	#[arg(long = "auth-public", env = "MOQ_AUTH_PUBLIC")]
 	pub public: Option<Path>,
 }
 
@@ -86,12 +86,12 @@ impl Auth {
 
 		// If a more specific path is is provided, reduce the permissions.
 		claims.subscribe = match claims.subscribe {
-			Some(path) if !path.is_empty() => path.strip_prefix(suffix).map(|p| p.to_path()),
+			Some(path) if !path.is_empty() => path.strip_prefix(&suffix).map(|p| p.to_owned()),
 			v => v,
 		};
 
 		claims.publish = match claims.publish {
-			Some(path) if !path.is_empty() => path.strip_prefix(suffix).map(|p| p.to_path()),
+			Some(path) if !path.is_empty() => path.strip_prefix(&suffix).map(|p| p.to_owned()),
 			v => v,
 		};
 

@@ -11,22 +11,26 @@ use url::Url;
 #[serde(default, deny_unknown_fields)]
 pub struct ClusterConfig {
 	/// Connect to this hostname in order to discover other nodes.
-	#[arg(long = "cluster-connect")]
+	#[arg(long = "cluster-connect", env = "MOQ_CLUSTER_CONNECT")]
 	pub connect: Option<String>,
 
 	/// Use the token in this file when connecting to other nodes.
-	#[arg(long = "cluster-token")]
+	#[arg(long = "cluster-token", env = "MOQ_CLUSTER_TOKEN")]
 	pub token: Option<PathBuf>,
 
 	/// Our hostname which we advertise to other nodes.
-	#[arg(long = "cluster-advertise")]
+	#[arg(long = "cluster-advertise", env = "MOQ_CLUSTER_ADVERTISE")]
 	pub advertise: Option<String>,
 
 	/// The prefix to use for cluster announcements.
 	/// Defaults to "internal/origins".
 	///
 	/// WARNING: This should not be accessible by users unless authentication is disabled (YOLO).
-	#[arg(long = "cluster-prefix", default_value = "internal/origins")]
+	#[arg(
+		long = "cluster-prefix",
+		default_value = "internal/origins",
+		env = "MOQ_CLUSTER_PREFIX"
+	)]
 	pub prefix: moq_lite::Path,
 }
 
