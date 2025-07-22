@@ -1,4 +1,4 @@
-import { decodeMessage, encodeMessage } from "./message";
+import * as Message from "./message";
 import type { Reader, Writer } from "./stream";
 
 export class Group {
@@ -23,11 +23,11 @@ export class Group {
 
 	// Wrapper methods that automatically handle size prefixing
 	async encode(w: Writer): Promise<void> {
-		return encodeMessage(this, w);
+		return Message.encode(this, w);
 	}
 
 	static async decode(r: Reader): Promise<Group> {
-		return decodeMessage(Group, r);
+		return Message.decode(Group, r);
 	}
 }
 
@@ -54,11 +54,11 @@ export class GroupDrop {
 
 	// Wrapper methods that automatically handle size prefixing
 	async encode(w: Writer): Promise<void> {
-		return encodeMessage(this, w);
+		return Message.encode(this, w);
 	}
 
 	static async decode(r: Reader): Promise<GroupDrop> {
-		return decodeMessage(GroupDrop, r);
+		return Message.decode(GroupDrop, r);
 	}
 }
 
@@ -82,10 +82,10 @@ export class Frame {
 
 	// Wrapper methods that automatically handle size prefixing
 	async encode(w: Writer): Promise<void> {
-		return encodeMessage(this, w);
+		return Message.encode(this, w);
 	}
 
 	static async decode(r: Reader): Promise<Frame> {
-		return decodeMessage(Frame, r);
+		return Message.decode(Frame, r);
 	}
 }

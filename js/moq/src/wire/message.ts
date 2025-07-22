@@ -3,18 +3,18 @@ import { Reader, Writer } from "./stream";
 /**
  * Interface for messages that are automatically size-prefixed during encoding/decoding.
  */
-export interface Message {
+export interface Encode {
 	encodeBody(w: Writer): Promise<void>;
 }
 
-export interface MessageConstructor<T extends Message> {
+export interface Decode<T extends Encode> {
 	decodeBody(r: Reader): Promise<T>;
 }
 
 /**
  * Encode a message with a size prefix.
  */
-export async function encodeMessage(message: Message, writer: Writer): Promise<void> {
+export async function encode(message: Encode, writer: Writer): Promise<void> {
 	// Use a growing buffer to collect all the data
 	// Most messages are small, so start with a small buffer.
 	// We use data.byteLength as the length and data.buffer.byteLength as the capacity.
@@ -60,10 +60,7 @@ export async function encodeMessage(message: Message, writer: Writer): Promise<v
 /**
  * Decode a size-prefixed message, ensuring exact size consumption.
  */
-export async function decodeMessage<T extends Message>(
-	MessageClass: MessageConstructor<T>,
-	reader: Reader,
-): Promise<T> {
+export async function decode<T extends Encode>(MessageClass: Decode<T>, reader: Reader): Promise<T> {
 	const size = await reader.u53();
 	const messageData = await reader.read(size);
 
@@ -86,10 +83,7 @@ export async function decodeMessage<T extends Message>(
 	return result;
 }
 
-export async function decodeMaybe<T extends Message>(
-	MessageClass: MessageConstructor<T>,
-	reader: Reader,
-): Promise<T | undefined> {
+export async function decodeMaybe<T extends Encode>(MessageClass: Decode<T>, reader: Reader): Promise<T | undefined> {
 	if (await reader.done()) return;
-	return await decodeMessage(MessageClass, reader);
+	return await decode(MessageClass, reader);
 }

@@ -1,4 +1,4 @@
-import { decodeMessage, encodeMessage } from "./message";
+import * as Message from "./message";
 import type { Reader, Writer } from "./stream";
 
 export const Version = {
@@ -100,11 +100,11 @@ export class SessionClient {
 
 	// Wrapper methods that automatically handle size prefixing
 	async encode(w: Writer): Promise<void> {
-		return encodeMessage(this, w);
+		return Message.encode(this, w);
 	}
 
 	static async decode(r: Reader): Promise<SessionClient> {
-		return decodeMessage(SessionClient, r);
+		return Message.decode(SessionClient, r);
 	}
 }
 
@@ -130,11 +130,11 @@ export class SessionServer {
 
 	// Wrapper methods that automatically handle size prefixing
 	async encode(w: Writer): Promise<void> {
-		return encodeMessage(this, w);
+		return Message.encode(this, w);
 	}
 
 	static async decode(r: Reader): Promise<SessionServer> {
-		return decodeMessage(SessionServer, r);
+		return Message.decode(SessionServer, r);
 	}
 }
 
@@ -156,11 +156,11 @@ export class SessionInfo {
 
 	// Wrapper methods that automatically handle size prefixing
 	async encode(w: Writer): Promise<void> {
-		return encodeMessage(this, w);
+		return Message.encode(this, w);
 	}
 
 	static async decode(r: Reader): Promise<SessionInfo> {
-		return decodeMessage(SessionInfo, r);
+		return Message.decode(SessionInfo, r);
 	}
 
 	static async decode_maybe(r: Reader): Promise<SessionInfo | undefined> {
