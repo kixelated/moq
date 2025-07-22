@@ -1,5 +1,5 @@
-import * as Message from "./message";
 import type { Valid } from "../path";
+import * as Message from "./message";
 import type { Reader, Writer } from "./stream";
 
 export class Announce {

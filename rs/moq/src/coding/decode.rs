@@ -71,11 +71,11 @@ impl Decode for String {
 impl Decode for Vec<u8> {
 	fn decode<B: bytes::Buf>(buf: &mut B) -> Result<Self, DecodeError> {
 		let size = usize::decode(buf)?;
-		
+
 		if buf.remaining() < size {
 			return Err(DecodeError::Short);
 		}
-		
+
 		let bytes = buf.copy_to_bytes(size);
 		Ok(bytes.to_vec())
 	}
