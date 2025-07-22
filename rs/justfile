@@ -24,6 +24,7 @@ leaf:
 # By default, this uses HMAC-SHA256, so it's symmetric.
 # If some one wants to contribute, public/private key pairs would be nice.
 root:
+	@mkdir -p dev
 	@if [ ! -f "dev/root.jwk" ]; then \
 		rm -f dev/*.jwt; \
 		cargo run --bin moq-token -- --key "dev/root.jwk" generate; \

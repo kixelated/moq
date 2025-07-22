@@ -247,8 +247,8 @@ impl Subscriber {
 	}
 
 	async fn run_group(&mut self, stream: &mut Reader, mut group: GroupProducer) -> Result<(), Error> {
-		while let Some(frame) = stream.decode_maybe::<message::Frame>().await? {
-			let frame = group.create_frame(Frame { size: frame.size });
+		while let Some(size) = stream.decode_maybe::<u64>().await? {
+			let frame = group.create_frame(Frame { size });
 
 			let res = tokio::select! {
 				_ = frame.unused() => Err(Error::Cancel),

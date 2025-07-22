@@ -1,5 +1,3 @@
-use std::fmt;
-
 use crate::{coding::*, message, Error};
 
 // A wrapper around a web_transport::SendStream that will reset on Drop
@@ -25,7 +23,7 @@ impl Writer {
 		Ok(writer)
 	}
 
-	pub async fn encode<T: Encode + fmt::Debug>(&mut self, msg: &T) -> Result<(), Error> {
+	pub async fn encode<T: Encode>(&mut self, msg: &T) -> Result<(), Error> {
 		self.buffer.clear();
 		msg.encode(&mut self.buffer);
 

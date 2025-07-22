@@ -1,4 +1,5 @@
 import type { Valid } from "../path";
+import * as Message from "./message";
 import type { Reader, Writer } from "./stream";
 
 export class SubscribeUpdate {
@@ -8,18 +9,27 @@ export class SubscribeUpdate {
 		this.priority = priority;
 	}
 
-	async encode(w: Writer) {
+	async encodeBody(w: Writer) {
 		await w.u8(this.priority);
 	}
 
-	static async decode(r: Reader): Promise<SubscribeUpdate> {
+	static async decodeBody(r: Reader): Promise<SubscribeUpdate> {
 		const priority = await r.u8();
 		return new SubscribeUpdate(priority);
 	}
 
+	// Wrapper methods that automatically handle size prefixing
+	async encode(w: Writer): Promise<void> {
+		return Message.encode(this, w);
+	}
+
+	static async decode(r: Reader): Promise<SubscribeUpdate> {
+		return Message.decode(SubscribeUpdate, r);
+	}
+
 	static async decode_maybe(r: Reader): Promise<SubscribeUpdate | undefined> {
 		if (await r.done()) return;
-		return await SubscribeUpdate.decode(r);
+		return SubscribeUpdate.decode(r);
 	}
 }
 
@@ -37,19 +47,28 @@ export class Subscribe extends SubscribeUpdate {
 		this.track = track;
 	}
 
-	override async encode(w: Writer) {
+	override async encodeBody(w: Writer) {
 		await w.u62(this.id);
 		await w.path(this.broadcast);
 		await w.string(this.track);
-		await super.encode(w);
+		await super.encodeBody(w);
 	}
 
-	static override async decode(r: Reader): Promise<Subscribe> {
+	static override async decodeBody(r: Reader): Promise<Subscribe> {
 		const id = await r.u62();
 		const broadcast = await r.path();
 		const track = await r.string();
-		const update = await SubscribeUpdate.decode(r);
+		const update = await SubscribeUpdate.decodeBody(r);
 		return new Subscribe(id, broadcast, track, update.priority);
+	}
+
+	// Wrapper methods that automatically handle size prefixing
+	override async encode(w: Writer): Promise<void> {
+		return Message.encode(this, w);
+	}
+
+	static override async decode(r: Reader): Promise<Subscribe> {
+		return Message.decode(Subscribe, r);
 	}
 }
 
@@ -60,12 +79,21 @@ export class SubscribeOk {
 		this.priority = priority;
 	}
 
-	async encode(w: Writer) {
+	async encodeBody(w: Writer) {
 		await w.u8(this.priority);
 	}
 
-	static async decode(r: Reader): Promise<SubscribeOk> {
+	static async decodeBody(r: Reader): Promise<SubscribeOk> {
 		const priority = await r.u8();
 		return new SubscribeOk(priority);
+	}
+
+	// Wrapper methods that automatically handle size prefixing
+	async encode(w: Writer): Promise<void> {
+		return Message.encode(this, w);
+	}
+
+	static async decode(r: Reader): Promise<SubscribeOk> {
+		return Message.decode(SubscribeOk, r);
 	}
 }

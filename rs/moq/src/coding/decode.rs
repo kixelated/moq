@@ -35,6 +35,9 @@ pub enum DecodeError {
 	#[error("expected data")]
 	ExpectedData,
 
+	#[error("too many bytes")]
+	TooManyBytes,
+
 	// TODO move these to ParamError
 	#[error("duplicate parameter")]
 	DupliateParameter,
@@ -65,18 +68,16 @@ impl Decode for String {
 	}
 }
 
-impl<T: Decode> Decode for Vec<T> {
+impl Decode for Vec<u8> {
 	fn decode<B: bytes::Buf>(buf: &mut B) -> Result<Self, DecodeError> {
 		let size = usize::decode(buf)?;
 
-		// Don't allocate more than 1024 elements upfront
-		let mut v = Vec::with_capacity(size.min(1024));
-
-		for _ in 0..size {
-			v.push(T::decode(buf)?);
+		if buf.remaining() < size {
+			return Err(DecodeError::Short);
 		}
 
-		Ok(v)
+		let bytes = buf.copy_to_bytes(size);
+		Ok(bytes.to_vec())
 	}
 }
 

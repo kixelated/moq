@@ -40,7 +40,7 @@ impl TrackProducer {
 	/// For example, H.264 B-frames will introduce jitter and reordering.
 	pub fn write(&mut self, frame: Frame) {
 		let timestamp = frame.timestamp.as_micros() as u64;
-		let mut header = BytesMut::with_capacity(timestamp.encode_size());
+		let mut header = BytesMut::new();
 		timestamp.encode(&mut header);
 
 		if frame.keyframe {

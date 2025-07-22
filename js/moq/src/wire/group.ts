@@ -1,3 +1,4 @@
+import * as Message from "./message";
 import type { Reader, Writer } from "./stream";
 
 export class Group {
@@ -11,13 +12,22 @@ export class Group {
 		this.sequence = sequence;
 	}
 
-	async encode(w: Writer) {
+	async encodeBody(w: Writer) {
 		await w.u62(this.subscribe);
 		await w.u53(this.sequence);
 	}
 
-	static async decode(r: Reader): Promise<Group> {
+	static async decodeBody(r: Reader): Promise<Group> {
 		return new Group(await r.u62(), await r.u53());
+	}
+
+	// Wrapper methods that automatically handle size prefixing
+	async encode(w: Writer): Promise<void> {
+		return Message.encode(this, w);
+	}
+
+	static async decode(r: Reader): Promise<Group> {
+		return Message.decode(Group, r);
 	}
 }
 
@@ -32,14 +42,23 @@ export class GroupDrop {
 		this.error = error;
 	}
 
-	async encode(w: Writer) {
+	async encodeBody(w: Writer) {
 		await w.u53(this.sequence);
 		await w.u53(this.count);
 		await w.u53(this.error);
 	}
 
-	static async decode(r: Reader): Promise<GroupDrop> {
+	static async decodeBody(r: Reader): Promise<GroupDrop> {
 		return new GroupDrop(await r.u53(), await r.u53(), await r.u53());
+	}
+
+	// Wrapper methods that automatically handle size prefixing
+	async encode(w: Writer): Promise<void> {
+		return Message.encode(this, w);
+	}
+
+	static async decode(r: Reader): Promise<GroupDrop> {
+		return Message.decode(GroupDrop, r);
 	}
 }
 
@@ -50,14 +69,23 @@ export class Frame {
 		this.payload = payload;
 	}
 
-	async encode(w: Writer) {
+	async encodeBody(w: Writer) {
 		await w.u53(this.payload.byteLength);
 		await w.write(this.payload);
 	}
 
-	static async decode(r: Reader): Promise<Frame> {
+	static async decodeBody(r: Reader): Promise<Frame> {
 		const size = await r.u53();
 		const payload = await r.read(size);
 		return new Frame(payload);
+	}
+
+	// Wrapper methods that automatically handle size prefixing
+	async encode(w: Writer): Promise<void> {
+		return Message.encode(this, w);
+	}
+
+	static async decode(r: Reader): Promise<Frame> {
+		return Message.decode(Frame, r);
 	}
 }
