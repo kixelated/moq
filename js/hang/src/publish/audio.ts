@@ -1,6 +1,7 @@
 import * as Moq from "@kixelated/moq";
 import { type Computed, type Effect, Root, Signal } from "@kixelated/signals";
 import type * as Catalog from "../catalog";
+import { u8, u53 } from "../catalog/integers";
 import * as Container from "../container";
 import type * as Worklet from "../worklet";
 
@@ -166,16 +167,16 @@ export class Audio {
 		const catalog = {
 			track: {
 				name: track.name,
-				priority: track.priority,
+				priority: u8(track.priority),
 			},
 			config: {
 				// TODO get codec and description from decoderConfig
 				codec: "opus",
 				// Firefox doesn't provide the sampleRate in the settings.
-				sampleRate: settings.sampleRate ?? worklet?.context.sampleRate,
-				numberOfChannels: settings.channelCount,
+				sampleRate: u53(settings.sampleRate ?? worklet?.context.sampleRate),
+				numberOfChannels: u53(settings.channelCount),
 				// TODO configurable
-				bitrate: settings.channelCount * 32_000,
+				bitrate: u53(settings.channelCount * 32_000),
 			},
 		};
 

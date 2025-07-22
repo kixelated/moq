@@ -1,5 +1,6 @@
-import { z } from "zod/v4-mini";
+import { z } from "zod";
 
+import { u53Schema } from "./integers";
 import { TrackSchema } from "./track";
 
 export const VideoConfigSchema = z.object({
@@ -9,36 +10,36 @@ export const VideoConfigSchema = z.object({
 	// The description is used for some codecs.
 	// If provided, we can initialize the decoder based on the catalog alone.
 	// Otherwise, the initialization information is (repeated) before each key-frame.
-	description: z.optional(z.string()), // hex encoded TODO use base64
+	description: z.string().optional(), // hex encoded TODO use base64
 
 	// The width and height of the video in pixels
-	codedWidth: z.optional(z.uint32()),
-	codedHeight: z.optional(z.uint32()),
+	codedWidth: u53Schema.optional(),
+	codedHeight: u53Schema.optional(),
 
 	// Ratio of display width/height to coded width/height
 	// Allows stretching/squishing individual "pixels" of the video
 	// If not provided, the display ratio is 1:1
-	displayRatioWidth: z.optional(z.uint32()),
-	displayRatioHeight: z.optional(z.uint32()),
+	displayRatioWidth: u53Schema.optional(),
+	displayRatioHeight: u53Schema.optional(),
 
 	// The frame rate of the video in frames per second
-	framerate: z.optional(z.number()),
+	framerate: z.number().optional(),
 
 	// The bitrate of the video in bits per second
 	// TODO: Support up to Number.MAX_SAFE_INTEGER
-	bitrate: z.optional(z.uint32()),
+	bitrate: u53Schema.optional(),
 
 	// If true, the decoder will optimize for latency.
 	// Default: true
-	optimizeForLatency: z.optional(z.boolean()),
+	optimizeForLatency: z.boolean().optional(),
 
 	// The rotation of the video in degrees.
 	// Default: 0
-	rotation: z.optional(z.number()),
+	rotation: z.number().optional(),
 
 	// If true, the decoder will flip the video horizontally
 	// Default: false
-	flip: z.optional(z.boolean()),
+	flip: z.boolean().optional(),
 });
 
 // Mirrors VideoDecoderConfig

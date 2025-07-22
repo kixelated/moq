@@ -2,6 +2,7 @@ import * as Moq from "@kixelated/moq";
 import { type Effect, Root, Signal } from "@kixelated/signals";
 import { Buffer } from "buffer";
 import type * as Catalog from "../catalog";
+import { u8, u53 } from "../catalog/integers";
 import * as Container from "../container";
 import { isFirefox } from "../hacks";
 
@@ -359,13 +360,22 @@ export class Video {
 		const catalog: Catalog.Video = {
 			track: {
 				name: track.name,
-				priority: track.priority,
+				priority: u8(track.priority),
 			},
 			config: {
 				// The order is important here.
-				...encoderConfig,
-				...decoderConfig,
+				codec: decoderConfig.codec,
 				description,
+				codedWidth: decoderConfig.codedWidth ? u53(decoderConfig.codedWidth) : undefined,
+				codedHeight: decoderConfig.codedHeight ? u53(decoderConfig.codedHeight) : undefined,
+				displayRatioWidth: encoderConfig.displayWidth ? u53(encoderConfig.displayWidth) : undefined,
+				displayRatioHeight: encoderConfig.displayHeight ? u53(encoderConfig.displayHeight) : undefined,
+				framerate: encoderConfig.framerate,
+				bitrate: encoderConfig.bitrate ? u53(encoderConfig.bitrate) : undefined,
+				optimizeForLatency: decoderConfig.optimizeForLatency,
+				// rotation and flip are not standard VideoEncoderConfig properties
+				rotation: undefined,
+				flip: undefined,
 			},
 		};
 

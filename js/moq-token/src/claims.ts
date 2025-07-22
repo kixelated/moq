@@ -3,11 +3,11 @@ import { z } from "zod";
 export const claimsSchema = z
 	.object({
 		path: z.string(),
-		pub: z.optional(z.string()),
-		cluster: z.optional(z.boolean()),
-		sub: z.optional(z.string()),
-		exp: z.optional(z.number()),
-		iat: z.optional(z.number()),
+		pub: z.string().optional(),
+		cluster: z.boolean().optional(),
+		sub: z.string().optional(),
+		exp: z.number().optional(),
+		iat: z.number().optional(),
 	})
 	.refine((data) => data.pub || data.sub, {
 		message: "Either pub or sub must be specified",

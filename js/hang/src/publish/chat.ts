@@ -1,6 +1,7 @@
 import * as Moq from "@kixelated/moq";
 import { type Computed, type Effect, Root, Signal } from "@kixelated/signals";
 import type * as Catalog from "../catalog";
+import { u8 } from "../catalog/integers";
 import * as Container from "../container";
 
 export type ChatProps = {
@@ -38,7 +39,7 @@ export class Chat {
 			broadcast.insertTrack(this.#track.consume());
 			effect.cleanup(() => broadcast.removeTrack(this.#track.name));
 
-			return { track: { name: this.#track.name, priority: this.#track.priority }, ttl: effect.get(this.ttl) };
+			return { track: { name: this.#track.name, priority: u8(this.#track.priority) }, ttl: effect.get(this.ttl) };
 		});
 	}
 
