@@ -61,11 +61,11 @@ export class SubscribeOk {
 	}
 
 	async encode(w: Writer) {
-		await w.u53(this.priority);
+		await w.u8(this.priority);
 	}
 
 	static async decode(r: Reader): Promise<SubscribeOk> {
-		const priority = await r.u53();
+		const priority = await r.u8();
 		return new SubscribeOk(priority);
 	}
 }
