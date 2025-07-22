@@ -11,7 +11,7 @@ export interface PreviewProps {
 export class PreviewWatch {
 	broadcast: Signal<Moq.BroadcastConsumer | undefined>;
 	enabled: Signal<boolean>;
-	
+
 	catalog: Computed<Catalog.Track | undefined>;
 	track: Computed<Container.FrameConsumer | undefined>;
 	preview: Computed<Preview.Preview | undefined>;
@@ -29,7 +29,7 @@ export class PreviewWatch {
 		this.catalog = this.#signals.unique((effect) => {
 			if (!effect.get(this.enabled)) return undefined;
 			const root = effect.get(catalog);
-			return root?.tracks?.find(t => t.name === "preview.json");
+			return root?.tracks?.find((t) => t.name === "preview.json");
 		});
 
 		this.track = this.#signals.computed((effect) => {

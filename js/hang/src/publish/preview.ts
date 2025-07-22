@@ -10,7 +10,7 @@ export type PreviewProps = {
 export class PreviewPublish {
 	broadcast: Moq.BroadcastProducer;
 	enabled: Signal<boolean>;
-	
+
 	displayName: Signal<string>;
 	avatar: Signal<string | undefined>;
 	audio: Signal<boolean>;
@@ -26,7 +26,7 @@ export class PreviewPublish {
 	constructor(broadcast: Moq.BroadcastProducer, props?: PreviewProps) {
 		this.broadcast = broadcast;
 		this.enabled = new Signal(props?.enabled ?? false);
-		
+
 		this.displayName = new Signal("");
 		this.avatar = new Signal<string | undefined>(undefined);
 		this.audio = new Signal(false);

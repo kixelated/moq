@@ -5,7 +5,7 @@ import type { Connection } from "../connection";
 import { Audio, type AudioProps } from "./audio";
 import { Chat, type ChatProps } from "./chat";
 import { Location, type LocationProps } from "./location";
-import { PreviewWatch, type PreviewProps } from "./preview";
+import { type PreviewProps, PreviewWatch } from "./preview";
 import { Video, type VideoProps } from "./video";
 
 export interface BroadcastProps {

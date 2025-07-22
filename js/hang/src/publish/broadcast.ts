@@ -5,7 +5,7 @@ import type { Connection } from "../connection";
 import { Audio, type AudioProps, type AudioTrack } from "./audio";
 import { Chat, type ChatProps } from "./chat";
 import { Location, type LocationProps } from "./location";
-import { PreviewPublish, type PreviewProps } from "./preview";
+import { type PreviewProps, PreviewPublish } from "./preview";
 import { Video, type VideoProps, type VideoTrack } from "./video";
 
 export type Device = "screen" | "camera";
