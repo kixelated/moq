@@ -4,7 +4,6 @@ mod sink;
 mod source;
 
 use tracing::level_filters::LevelFilter;
-use tracing::Level;
 use tracing_subscriber::EnvFilter;
 
 pub fn plugin_init(plugin: &gst::Plugin) -> Result<(), glib::BoolError> {
