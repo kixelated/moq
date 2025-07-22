@@ -50,12 +50,10 @@ impl<T: Encode> Encode for &[T] {
 	}
 }
 
-impl<T: Encode> Encode for Vec<T> {
+impl Encode for Vec<u8> {
 	fn encode<W: bytes::BufMut>(&self, w: &mut W) {
 		self.len().encode(w);
-		for item in self.iter() {
-			item.encode(w);
-		}
+		w.put_slice(self);
 	}
 }
 

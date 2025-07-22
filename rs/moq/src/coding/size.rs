@@ -18,7 +18,7 @@ unsafe impl BufMut for Sizer {
 		// Use a thread-local static buffer to avoid safety issues
 		thread_local! {
 			static BUFFER: std::cell::UnsafeCell<[MaybeUninit<u8>; 8192]> =
-				const { std::cell::UnsafeCell::new(unsafe { MaybeUninit::uninit().assume_init() }) };
+				std::cell::UnsafeCell::new([MaybeUninit::uninit(); 8192]);
 		}
 
 		BUFFER.with(|buf| {
