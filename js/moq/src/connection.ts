@@ -83,11 +83,12 @@ export class Connection {
 
 			// Fetch the fingerprint from the server.
 			const fingerprint = await fetch(fingerprintUrl);
+			const fingerprintText = await fingerprint.text();
 
 			options.serverCertificateHashes = [
 				{
 					algorithm: "sha-256",
-					value: hexToBytes(await fingerprint.text()),
+					value: hexToBytes(fingerprintText),
 				},
 			];
 

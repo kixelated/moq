@@ -1,4 +1,4 @@
-use std::{cmp, fmt, io};
+use std::{cmp, io};
 
 use bytes::{Buf, Bytes, BytesMut};
 
@@ -22,32 +22,28 @@ impl Reader {
 		Ok(Self::new(stream))
 	}
 
-	pub async fn decode<T: Decode + fmt::Debug>(&mut self) -> Result<T, Error> {
+	pub async fn decode<T: Decode>(&mut self) -> Result<T, Error> {
 		loop {
 			let mut cursor = io::Cursor::new(&self.buffer);
-
-			// Try to decode with the current buffer.
 			match T::decode(&mut cursor) {
 				Ok(msg) => {
 					self.buffer.advance(cursor.position() as usize);
 					return Ok(msg);
 				}
-				Err(DecodeError::Short) => (), // Try again with more data
-				Err(err) => return Err(err.into()),
-			};
-
-			if !self.buffer.is_empty() {
-				tracing::trace!(buffer = ?self.buffer, "more data needed");
-			}
-
-			if self.stream.read_buf(&mut self.buffer).await?.is_none() {
-				return Err(DecodeError::Short.into());
+				Err(DecodeError::Short) => {
+					// Try to read more data
+					if self.stream.read_buf(&mut self.buffer).await?.is_none() {
+						// Stream closed while we still need more data
+						return Err(Error::Decode(DecodeError::Short));
+					}
+				}
+				Err(e) => return Err(Error::Decode(e)),
 			}
 		}
 	}
 
 	// Decode optional messages at the end of a stream
-	pub async fn decode_maybe<T: Decode + fmt::Debug>(&mut self) -> Result<Option<T>, Error> {
+	pub async fn decode_maybe<T: Decode>(&mut self) -> Result<Option<T>, Error> {
 		match self.finished().await {
 			Ok(()) => Ok(None),
 			Err(Error::Decode(DecodeError::ExpectedEnd)) => Ok(Some(self.decode().await?)),

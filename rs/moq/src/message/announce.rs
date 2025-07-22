@@ -20,7 +20,7 @@ impl Announce {
 	}
 }
 
-impl Decode for Announce {
+impl Message for Announce {
 	fn decode<R: bytes::Buf>(r: &mut R) -> Result<Self, DecodeError> {
 		Ok(match AnnounceStatus::decode(r)? {
 			AnnounceStatus::Active => Self::Active {
@@ -31,9 +31,7 @@ impl Decode for Announce {
 			},
 		})
 	}
-}
 
-impl Encode for Announce {
 	fn encode<W: bytes::BufMut>(&self, w: &mut W) {
 		match self {
 			Self::Active { suffix } => {
@@ -55,14 +53,12 @@ pub struct AnnouncePlease {
 	pub prefix: Path,
 }
 
-impl Decode for AnnouncePlease {
+impl Message for AnnouncePlease {
 	fn decode<R: bytes::Buf>(r: &mut R) -> Result<Self, DecodeError> {
 		let prefix = Path::decode(r)?;
 		Ok(Self { prefix })
 	}
-}
 
-impl Encode for AnnouncePlease {
 	fn encode<W: bytes::BufMut>(&self, w: &mut W) {
 		self.prefix.encode(w)
 	}
@@ -101,7 +97,7 @@ pub struct AnnounceInit {
 	pub suffixes: Vec<Path>,
 }
 
-impl Decode for AnnounceInit {
+impl Message for AnnounceInit {
 	fn decode<R: bytes::Buf>(r: &mut R) -> Result<Self, DecodeError> {
 		let count = u64::decode(r)?;
 
@@ -114,9 +110,7 @@ impl Decode for AnnounceInit {
 
 		Ok(Self { suffixes: paths })
 	}
-}
 
-impl Encode for AnnounceInit {
 	fn encode<W: bytes::BufMut>(&self, w: &mut W) {
 		(self.suffixes.len() as u64).encode(w);
 		for path in &self.suffixes {

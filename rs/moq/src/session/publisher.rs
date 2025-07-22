@@ -256,8 +256,7 @@ impl Publisher {
 				None => break,
 			};
 
-			let header = message::Frame { size: frame.info.size };
-			stream.encode(&header).await?;
+			stream.encode(&frame.info.size).await?;
 
 			loop {
 				let chunk = tokio::select! {

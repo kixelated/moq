@@ -35,6 +35,9 @@ pub enum DecodeError {
 	#[error("expected data")]
 	ExpectedData,
 
+	#[error("too many bytes")]
+	TooManyBytes,
+
 	// TODO move these to ParamError
 	#[error("duplicate parameter")]
 	DupliateParameter,

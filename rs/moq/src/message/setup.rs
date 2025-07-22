@@ -11,7 +11,7 @@ pub struct ClientSetup {
 	pub extensions: Extensions,
 }
 
-impl Decode for ClientSetup {
+impl Message for ClientSetup {
 	/// Decode a client setup message.
 	fn decode<R: bytes::Buf>(r: &mut R) -> Result<Self, DecodeError> {
 		let versions = Versions::decode(r)?;
@@ -19,9 +19,7 @@ impl Decode for ClientSetup {
 
 		Ok(Self { versions, extensions })
 	}
-}
 
-impl Encode for ClientSetup {
 	/// Encode a server setup message.
 	fn encode<W: bytes::BufMut>(&self, w: &mut W) {
 		self.versions.encode(w);
@@ -39,19 +37,16 @@ pub struct ServerSetup {
 	pub extensions: Extensions,
 }
 
-impl Decode for ServerSetup {
-	/// Decode the server setup.
+impl Message for ServerSetup {
+	fn encode<W: bytes::BufMut>(&self, w: &mut W) {
+		self.version.encode(w);
+		self.extensions.encode(w);
+	}
+
 	fn decode<R: bytes::Buf>(r: &mut R) -> Result<Self, DecodeError> {
 		let version = Version::decode(r)?;
 		let extensions = Extensions::decode(r)?;
 
 		Ok(Self { version, extensions })
-	}
-}
-
-impl Encode for ServerSetup {
-	fn encode<W: bytes::BufMut>(&self, w: &mut W) {
-		self.version.encode(w);
-		self.extensions.encode(w);
 	}
 }

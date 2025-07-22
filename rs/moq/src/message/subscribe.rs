@@ -1,5 +1,5 @@
 use crate::{
-	coding::{Decode, DecodeError, Encode},
+	coding::{Decode, DecodeError, Encode, Message},
 	Path,
 };
 
@@ -14,7 +14,7 @@ pub struct Subscribe {
 	pub priority: u8,
 }
 
-impl Decode for Subscribe {
+impl Message for Subscribe {
 	fn decode<R: bytes::Buf>(r: &mut R) -> Result<Self, DecodeError> {
 		let id = u64::decode(r)?;
 		let broadcast = Path::decode(r)?;
@@ -28,9 +28,7 @@ impl Decode for Subscribe {
 			priority,
 		})
 	}
-}
 
-impl Encode for Subscribe {
 	fn encode<W: bytes::BufMut>(&self, w: &mut W) {
 		self.id.encode(w);
 		self.broadcast.encode(w);
@@ -44,13 +42,11 @@ pub struct SubscribeOk {
 	pub priority: u8,
 }
 
-impl Encode for SubscribeOk {
+impl Message for SubscribeOk {
 	fn encode<W: bytes::BufMut>(&self, w: &mut W) {
 		self.priority.encode(w);
 	}
-}
 
-impl Decode for SubscribeOk {
 	fn decode<R: bytes::Buf>(r: &mut R) -> Result<Self, DecodeError> {
 		let priority = u8::decode(r)?;
 		Ok(Self { priority })
