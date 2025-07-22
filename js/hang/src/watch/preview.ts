@@ -2,7 +2,7 @@ import type * as Moq from "@kixelated/moq";
 import { type Computed, Root, Signal } from "@kixelated/signals";
 import { Container } from "..";
 import type * as Catalog from "../catalog";
-import type * as Preview from "../preview";
+import * as Preview from "../preview";
 
 export interface PreviewProps {
 	enabled?: boolean;
@@ -12,37 +12,30 @@ export class PreviewWatch {
 	broadcast: Signal<Moq.BroadcastConsumer | undefined>;
 	enabled: Signal<boolean>;
 
-	catalog: Computed<Catalog.Track | undefined>;
 	track: Computed<Container.FrameConsumer | undefined>;
-	preview: Computed<Preview.Preview | undefined>;
+	preview: Computed<Preview.Info | undefined>;
 
 	#signals = new Root();
 
 	constructor(
 		broadcast: Signal<Moq.BroadcastConsumer | undefined>,
-		catalog: Signal<Catalog.Root | undefined>,
+		_catalog: Signal<Catalog.Root | undefined>,
 		props?: PreviewProps,
 	) {
 		this.broadcast = broadcast;
 		this.enabled = new Signal(props?.enabled ?? false);
 
-		this.catalog = this.#signals.unique((effect) => {
-			if (!effect.get(this.enabled)) return undefined;
-			const root = effect.get(catalog);
-			return root?.tracks?.find((t) => t.name === "preview.json");
-		});
-
 		this.track = this.#signals.computed((effect) => {
-			const catalog = effect.get(this.catalog);
-			if (!catalog) return undefined;
+			if (!effect.get(this.enabled)) return undefined;
 
 			const broadcast = effect.get(this.broadcast);
 			if (!broadcast) return undefined;
 
-			const track = broadcast.subscribe(catalog.name, catalog.priority);
+			// Subscribe to the preview.json track directly
+			const track = broadcast.subscribe("preview.json", 0);
 			const consumer = new Container.FrameConsumer(track);
 
-			effect.cleanup(() => consumer.close());
+			effect.cleanup(() => track.close());
 			return consumer;
 		});
 
@@ -50,18 +43,24 @@ export class PreviewWatch {
 			const track = effect.get(this.track);
 			if (!track) return undefined;
 
-			const frame = track.frame.peek();
-			if (!frame) return undefined;
+			// Create an async effect to fetch and parse the preview
+			const preview = new Signal<Preview.Info | undefined>(undefined);
 
-			try {
-				const decoder = new TextDecoder();
-				const json = decoder.decode(frame.payload);
-				const parsed = JSON.parse(json);
-				return Preview.PreviewSchema.parse(parsed);
-			} catch (error) {
-				console.warn("Failed to parse preview JSON:", error);
-				return undefined;
-			}
+			effect.spawn(async () => {
+				try {
+					const frame = await track.decode();
+					if (!frame) return;
+
+					const decoder = new TextDecoder();
+					const json = decoder.decode(frame.data);
+					const parsed = JSON.parse(json);
+					preview.set(Preview.PreviewSchema.parse(parsed));
+				} catch (error) {
+					console.warn("Failed to parse preview JSON:", error);
+				}
+			});
+
+			return effect.get(preview);
 		});
 	}
 

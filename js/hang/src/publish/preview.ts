@@ -1,73 +1,60 @@
 import * as Moq from "@kixelated/moq";
-import { type Computed, type Effect, Root, Signal } from "@kixelated/signals";
-import type * as Catalog from "../catalog";
-import type * as Preview from "../preview";
+import { Root, Signal } from "@kixelated/signals";
+import type { Info } from "../preview";
 
 export type PreviewProps = {
 	enabled?: boolean;
+	info?: Info;
 };
 
-export class PreviewPublish {
+export class Preview {
 	broadcast: Moq.BroadcastProducer;
 	enabled: Signal<boolean>;
-
-	displayName: Signal<string>;
-	avatar: Signal<string | undefined>;
-	audio: Signal<boolean>;
-	video: Signal<boolean>;
-
-	catalog: Computed<Catalog.Track | undefined>;
+	info: Signal<Info | undefined>;
 
 	#track = new Moq.TrackProducer("preview.json", 0);
-	#group?: Moq.GroupProducer;
 
 	#signals = new Root();
 
 	constructor(broadcast: Moq.BroadcastProducer, props?: PreviewProps) {
 		this.broadcast = broadcast;
 		this.enabled = new Signal(props?.enabled ?? false);
+		this.info = new Signal(props?.info);
 
-		this.displayName = new Signal("");
-		this.avatar = new Signal<string | undefined>(undefined);
-		this.audio = new Signal(false);
-		this.video = new Signal(false);
-
-		this.catalog = this.#signals.computed<Catalog.Track | undefined>((effect: Effect) => {
+		this.#signals.effect((effect) => {
 			const enabled = effect.get(this.enabled);
 			if (!enabled) return;
 
 			broadcast.insertTrack(this.#track.consume());
 			effect.cleanup(() => broadcast.removeTrack(this.#track.name));
-
-			return { name: this.#track.name, priority: this.#track.priority };
 		});
 
 		this.#signals.effect((effect) => {
 			if (!effect.get(this.enabled)) return;
 
-			const preview: Preview.Preview = {
-				displayName: effect.get(this.displayName),
-				avatar: effect.get(this.avatar),
-				audio: effect.get(this.audio),
-				video: effect.get(this.video),
-			};
-
-			this.#publish(preview);
+			const info = effect.get(this.info);
+			this.#publish(info);
 		});
 	}
 
-	#publish(preview: Preview.Preview) {
+	#publish(preview?: Info) {
 		const encoder = new TextEncoder();
-		const json = JSON.stringify(preview);
-		const buffer = encoder.encode(json);
+		const group = this.#track.appendGroup();
 
-		this.#group?.close();
-		this.#group = this.#track.appendGroup();
-		this.#group.writeFrame(buffer);
+		// Write an empty group if there is no info.
+		// TODO or empty frame?
+		if (preview) {
+			const json = JSON.stringify(preview);
+			const buffer = encoder.encode(json);
+			group.writeFrame(buffer);
+		}
+
+		console.log("published preview", preview);
+
+		group.close();
 	}
 
 	close() {
-		this.#group?.close();
 		this.#signals.close();
 	}
 }

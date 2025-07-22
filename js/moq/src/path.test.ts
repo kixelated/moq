@@ -175,3 +175,18 @@ test("handles special characters", () => {
 	assert.strictEqual(Path.hasPrefix(Path.from("foo-bar"), path), false);
 	assert.strictEqual(Path.hasPrefix(Path.from("foo-bar_baz.txt"), path), true);
 });
+
+test("from accepts multiple arguments", () => {
+	assert.strictEqual(Path.from("foo", "bar", "baz"), "foo/bar/baz");
+	assert.strictEqual(Path.from("api", "v1", "users"), "api/v1/users");
+});
+
+test("from handles empty strings in arguments", () => {
+	assert.strictEqual(Path.from("foo", "", "bar"), "foo/bar");
+	assert.strictEqual(Path.from("", "foo", "bar", ""), "foo/bar");
+});
+
+test("from sanitizes multiple arguments with slashes", () => {
+	assert.strictEqual(Path.from("/foo/", "/bar/", "/baz/"), "foo/bar/baz");
+	assert.strictEqual(Path.from("foo//", "//bar", "baz"), "foo/bar/baz");
+});

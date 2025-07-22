@@ -29,7 +29,7 @@ export class Connection {
 	readonly delay: number;
 	readonly maxDelay: number;
 
-	#signals = new Root();
+	signals = new Root();
 	#delay: number;
 
 	// Increased by 1 each time to trigger a reload.
@@ -50,7 +50,7 @@ export class Connection {
 		}
 
 		// Create a reactive root so cleanup is easier.
-		this.#signals.effect(this.#connect.bind(this));
+		this.signals.effect(this.#connect.bind(this));
 	}
 
 	#connect(effect: Effect): void {
@@ -68,7 +68,7 @@ export class Connection {
 				const pending = Moq.Connection.connect(url);
 				const connection = await Promise.race([cancel, pending]);
 				if (!connection) {
-					pending.then((conn) => conn.close()).catch(() => {});
+					pending.then((conn) => conn.close()).catch(() => { });
 					return;
 				}
 
@@ -111,6 +111,6 @@ export class Connection {
 	}
 
 	close() {
-		this.#signals.close();
+		this.signals.close();
 	}
 }
