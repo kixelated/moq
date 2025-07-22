@@ -38,7 +38,7 @@ impl ServerTlsCert {
 #[serde(deny_unknown_fields)]
 pub struct ServerTlsConfig {
 	/// Load the given certificate and keys from disk.
-	#[arg(long = "tls-cert", value_parser = ServerTlsCert::parse, env = "MOQ_SERVER_TLS_CERT")]
+	#[arg(long = "tls-cert", value_parser = ServerTlsCert::parse, value_delimiter = ',', env = "MOQ_SERVER_TLS_CERT")]
 	#[serde(default, skip_serializing_if = "Vec::is_empty")]
 	pub cert: Vec<ServerTlsCert>,
 
