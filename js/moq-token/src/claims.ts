@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-export const claimsSchema = z
+export const ClaimsSchema = z
 	.object({
 		path: z.string(),
 		pub: z.string().optional(),
@@ -16,7 +16,7 @@ export const claimsSchema = z
 /**
  * JWT claims structure for moq-token
  */
-export type Claims = z.infer<typeof claimsSchema>;
+export type Claims = z.infer<typeof ClaimsSchema>;
 
 /**
  * Validate claims structure and business rules

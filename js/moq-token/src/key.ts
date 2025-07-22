@@ -1,20 +1,20 @@
 import * as jose from "jose";
 import { z } from "zod";
-import { algorithmSchema } from "./algorithm";
-import { type Claims, claimsSchema, validateClaims } from "./claims";
+import { AlgorithmSchema } from "./algorithm";
+import { type Claims, ClaimsSchema, validateClaims } from "./claims";
 
 /**
  * Key operations that can be performed
  */
-export const operationSchema = z.enum(["sign", "verify", "decrypt", "encrypt"]);
-export type Operation = z.infer<typeof operationSchema>;
+export const OperationSchema = z.enum(["sign", "verify", "decrypt", "encrypt"]);
+export type Operation = z.infer<typeof OperationSchema>;
 
 /**
  * Key interface for JWT operations - matches Rust implementation
  */
-export const keySchema = z.object({
-	alg: algorithmSchema,
-	key_ops: z.array(operationSchema),
+export const KeySchema = z.object({
+	alg: AlgorithmSchema,
+	key_ops: z.array(OperationSchema),
 	k: z
 		.string()
 		.refine(
@@ -43,7 +43,7 @@ export const keySchema = z.object({
 		),
 	kid: z.string().optional(),
 });
-export type Key = z.infer<typeof keySchema>;
+export type Key = z.infer<typeof KeySchema>;
 
 export function load(jwk: string): Key {
 	let data: unknown;
@@ -59,7 +59,7 @@ export function load(jwk: string): Key {
 	}
 
 	try {
-		const key = keySchema.parse(data);
+		const key = KeySchema.parse(data);
 		return key;
 	} catch (error) {
 		throw new Error(`Failed to validate JWK: ${error instanceof Error ? error.message : "unknown error"}`);
@@ -73,7 +73,7 @@ export async function sign(key: Key, claims: Claims): Promise<string> {
 
 	// Validate claims before signing
 	try {
-		claimsSchema.parse(claims);
+		ClaimsSchema.parse(claims);
 		validateClaims(claims);
 	} catch (error) {
 		throw new Error(`Invalid claims: ${error instanceof Error ? error.message : "unknown error"}`);
@@ -104,7 +104,7 @@ export async function verify(key: Key, token: string, path: string): Promise<Cla
 
 	let claims: Claims;
 	try {
-		claims = claimsSchema.parse(payload);
+		claims = ClaimsSchema.parse(payload);
 	} catch (error) {
 		throw new Error(`Failed to parse token claims: ${error instanceof Error ? error.message : "unknown error"}`);
 	}
