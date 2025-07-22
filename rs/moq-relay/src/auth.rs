@@ -86,12 +86,12 @@ impl Auth {
 
 		// If a more specific path is is provided, reduce the permissions.
 		claims.subscribe = match claims.subscribe {
-			Some(path) if !path.is_empty() => path.strip_prefix(suffix).map(|p| p.to_owned()),
+			Some(path) if !path.is_empty() => path.strip_prefix(&suffix).map(|p| p.to_owned()),
 			v => v,
 		};
 
 		claims.publish = match claims.publish {
-			Some(path) if !path.is_empty() => path.strip_prefix(suffix).map(|p| p.to_owned()),
+			Some(path) if !path.is_empty() => path.strip_prefix(&suffix).map(|p| p.to_owned()),
 			v => v,
 		};
 

@@ -270,7 +270,7 @@ impl Path {
 			self.clone()
 		} else {
 			// Since paths are trimmed, we always need to add a slash
-			Path::new(&format!("{}/{}", self.0, other.as_str()))
+			Path::new(format!("{}/{}", self.0, other.as_str()))
 		}
 	}
 }
@@ -731,7 +731,7 @@ mod tests {
 		// Test that Path::new works with all these types
 		let _path1 = Path::new("foo/bar"); // &str
 		let _path2 = Path::new(String::from("foo/bar")); // String - should now work
-		let _path3 = Path::new(&String::from("foo/bar")); // &String
+		let _path3 = Path::new(String::from("foo/bar")); // &String
 		let _path4 = Path::new(PathRef::new("foo/bar")); // PathRef
 
 		// Test the trait alias version works the same

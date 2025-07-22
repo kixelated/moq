@@ -1,3 +1,4 @@
+import type { Valid } from "../path";
 import type { Reader, Writer } from "./stream";
 
 export class SubscribeUpdate {
@@ -24,12 +25,12 @@ export class SubscribeUpdate {
 
 export class Subscribe extends SubscribeUpdate {
 	id: bigint;
-	broadcast: string;
+	broadcast: Valid;
 	track: string;
 
 	static StreamID = 0x2;
 
-	constructor(id: bigint, broadcast: string, track: string, priority: number) {
+	constructor(id: bigint, broadcast: Valid, track: string, priority: number) {
 		super(priority);
 		this.id = id;
 		this.broadcast = broadcast;
@@ -38,14 +39,14 @@ export class Subscribe extends SubscribeUpdate {
 
 	override async encode(w: Writer) {
 		await w.u62(this.id);
-		await w.string(this.broadcast);
+		await w.path(this.broadcast);
 		await w.string(this.track);
 		await super.encode(w);
 	}
 
 	static override async decode(r: Reader): Promise<Subscribe> {
 		const id = await r.u62();
-		const broadcast = await r.string();
+		const broadcast = await r.path();
 		const track = await r.string();
 		const update = await SubscribeUpdate.decode(r);
 		return new Subscribe(id, broadcast, track, update.priority);

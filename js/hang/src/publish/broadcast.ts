@@ -11,7 +11,7 @@ export type Device = "screen" | "camera";
 
 export type BroadcastProps = {
 	enabled?: boolean;
-	name?: string;
+	name?: Moq.Path.Valid;
 	audio?: AudioProps;
 	video?: VideoProps;
 	location?: LocationProps;
@@ -26,7 +26,7 @@ export type BroadcastProps = {
 export class Broadcast {
 	connection: Connection;
 	enabled: Signal<boolean>;
-	name: Signal<string | undefined>;
+	name: Signal<Moq.Path.Valid | undefined>;
 
 	audio: Audio;
 	video: Video;
