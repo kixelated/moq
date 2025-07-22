@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.1](https://github.com/kixelated/moq/compare/hang-gst-v0.2.0...hang-gst-v0.2.1) - 2025-07-22
+
+### Other
+
+- Create a type-safe Path wrapper for Javascript ([#487](https://github.com/kixelated/moq/pull/487))
+- Add an ANNOUNCE_INIT message. ([#483](https://github.com/kixelated/moq/pull/483))
+
 ## [0.1.2](https://github.com/kixelated/moq/compare/hang-gst-v0.1.1...hang-gst-v0.1.2) - 2025-06-20
 
 ### Other
