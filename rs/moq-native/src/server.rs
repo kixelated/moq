@@ -9,7 +9,6 @@ use rustls::server::{ClientHello, ResolvesServerCert};
 use rustls::sign::CertifiedKey;
 use std::fs;
 use std::io::{self, Cursor, Read};
-use url::Url;
 
 use futures::future::BoxFuture;
 use futures::stream::{FuturesUnordered, StreamExt};
@@ -39,13 +38,13 @@ impl ServerTlsCert {
 #[serde(deny_unknown_fields)]
 pub struct ServerTlsConfig {
 	/// Load the given certificate and keys from disk.
-	#[arg(long = "tls-cert", value_parser = ServerTlsCert::parse)]
+	#[arg(long = "tls-cert", value_parser = ServerTlsCert::parse, value_delimiter = ',', env = "MOQ_SERVER_TLS_CERT")]
 	#[serde(default, skip_serializing_if = "Vec::is_empty")]
 	pub cert: Vec<ServerTlsCert>,
 
 	/// Or generate a new certificate and key with the given hostnames.
 	/// This won't be valid unless the client uses the fingerprint or disables verification.
-	#[arg(long = "tls-generate", value_delimiter = ',')]
+	#[arg(long = "tls-generate", value_delimiter = ',', env = "MOQ_SERVER_TLS_GENERATE")]
 	#[serde(default, skip_serializing_if = "Vec::is_empty")]
 	pub generate: Vec<String>,
 }
@@ -55,7 +54,7 @@ pub struct ServerTlsConfig {
 pub struct ServerConfig {
 	/// Listen for UDP packets on the given address.
 	/// Defaults to `[::]:443` if not provided.
-	#[arg(long)]
+	#[arg(long, env = "MOQ_SERVER_LISTEN")]
 	pub listen: Option<net::SocketAddr>,
 
 	#[command(flatten)]
@@ -71,7 +70,7 @@ impl ServerConfig {
 
 pub struct Server {
 	quic: quinn::Endpoint,
-	accept: FuturesUnordered<BoxFuture<'static, anyhow::Result<web_transport_quinn::Session>>>,
+	accept: FuturesUnordered<BoxFuture<'static, anyhow::Result<web_transport_quinn::Request>>>,
 	fingerprints: Vec<String>,
 }
 
@@ -137,7 +136,12 @@ impl Server {
 		&self.fingerprints
 	}
 
-	pub async fn accept(&mut self) -> Option<web_transport_quinn::Session> {
+	/// Returns the next partially established WebTransport session.
+	///
+	/// This returns a [web_transport_quinn::Request] instead of a [web_transport_quinn::Session]
+	/// so the connection can be rejected early on an invalid path.
+	/// Call [web_transport_quinn::Request::ok] or [web_transport_quinn::Request::close] to complete the WebTransport handshake.
+	pub async fn accept(&mut self) -> Option<web_transport_quinn::Request> {
 		loop {
 			tokio::select! {
 				res = self.quic.accept() => {
@@ -160,7 +164,7 @@ impl Server {
 		}
 	}
 
-	async fn accept_session(conn: quinn::Incoming) -> anyhow::Result<web_transport_quinn::Session> {
+	async fn accept_session(conn: quinn::Incoming) -> anyhow::Result<web_transport_quinn::Request> {
 		let mut conn = conn.accept()?;
 
 		let handshake = conn
@@ -181,29 +185,16 @@ impl Server {
 		let span = tracing::Span::current();
 		span.record("id", conn.stable_id()); // TODO can we get this earlier?
 
-		let session = match alpn.as_str() {
+		match alpn.as_str() {
 			web_transport::quinn::ALPN => {
 				// Wait for the CONNECT request.
-				let request = web_transport::quinn::Request::accept(conn)
+				web_transport::quinn::Request::accept(conn)
 					.await
-					.context("failed to receive WebTransport request")?;
-
-				// Accept the CONNECT request.
-				request
-					.ok()
-					.await
-					.context("failed to respond to WebTransport request")?
+					.context("failed to receive WebTransport request")
 			}
-			// A bit of a hack to pretend like we're a WebTransport session
-			moq_lite::ALPN => {
-				// Fake a URL to so we can treat it like a WebTransport session.
-				let url = Url::parse(format!("moql://{host}").as_str()).unwrap();
-				web_transport::quinn::Session::raw(conn, url)
-			}
+			// TODO hack in raw QUIC support again
 			_ => anyhow::bail!("unsupported ALPN: {}", alpn),
-		};
-
-		Ok(session)
+		}
 	}
 
 	pub fn local_addr(&self) -> anyhow::Result<net::SocketAddr> {

@@ -13,9 +13,8 @@ export interface BroadcastProps {
 	// Defaults to false so you can make sure everything is ready before starting.
 	enabled?: boolean;
 
-	// The broadcast path relative to the connection URL.
-	// Defaults to ""
-	path?: string;
+	// The broadcast name.
+	name?: Moq.Path.Valid;
 
 	// You can disable reloading if you want to save a round trip when you know the broadcast is already live.
 	reload?: boolean;
@@ -28,11 +27,12 @@ export interface BroadcastProps {
 }
 
 // A broadcast that (optionally) reloads automatically when live/offline.
+// TODO rename to Catalog?
 export class Broadcast {
 	connection: Connection;
 
 	enabled: Signal<boolean>;
-	path: Signal<string>;
+	name: Signal<Moq.Path.Valid | undefined>;
 	status = new Signal<"offline" | "loading" | "live">("offline");
 	user: Computed<Catalog.User | undefined>;
 
@@ -56,7 +56,7 @@ export class Broadcast {
 
 	constructor(connection: Connection, props?: BroadcastProps) {
 		this.connection = connection;
-		this.path = new Signal(props?.path ?? "");
+		this.name = new Signal(props?.name);
 		this.enabled = new Signal(props?.enabled ?? false);
 		this.audio = new Audio(this.#broadcast, this.#catalog, props?.audio);
 		this.video = new Video(this.#broadcast, this.#catalog, props?.video);
@@ -84,25 +84,30 @@ export class Broadcast {
 		const conn = effect.get(this.connection.established);
 		if (!conn) return;
 
-		const path = effect.get(this.path);
+		const name = effect.get(this.name);
+		if (!name) return;
 
-		const announced = conn.announced(path);
+		const announced = conn.announced(name);
 		effect.cleanup(() => announced.close());
 
 		effect.spawn(async (cancel) => {
-			for (;;) {
-				const update = await Promise.race([announced.next(), cancel]);
+			try {
+				for (;;) {
+					const update = await Promise.race([announced.next(), cancel]);
 
-				// We're donezo.
-				if (!update) break;
+					// We're donezo.
+					if (!update) break;
 
-				// Require full equality
-				if (update.path !== "") {
-					console.warn("ignoring suffix", update.path);
-					continue;
+					// Require full equality
+					if (update.name !== "") {
+						console.warn("ignoring suffix", update.name);
+						continue;
+					}
+
+					this.#active.set(update.active);
 				}
-
-				this.#active.set(update.active);
+			} finally {
+				this.#active.set(false);
 			}
 		});
 	}
@@ -113,10 +118,12 @@ export class Broadcast {
 
 		if (!effect.get(this.enabled)) return;
 
-		const path = effect.get(this.path);
+		const name = effect.get(this.name);
+		if (!name) return;
+
 		if (!effect.get(this.#active)) return;
 
-		const broadcast = conn.consume(path);
+		const broadcast = conn.consume(name);
 		effect.cleanup(() => broadcast.close());
 
 		this.#broadcast.set(broadcast);
@@ -143,13 +150,13 @@ export class Broadcast {
 				const update = await Promise.race([Catalog.fetch(catalog), cancel]);
 				if (!update) break;
 
-				console.debug("received catalog", this.path.peek(), update);
+				console.debug("received catalog", this.name.peek(), update);
 
 				this.#catalog.set(update);
 				this.status.set("live");
 			}
 		} catch (err) {
-			console.warn("error fetching catalog", this.path.peek(), err);
+			console.warn("error fetching catalog", this.name.peek(), err);
 		} finally {
 			this.#catalog.set(undefined);
 			this.status.set("offline");

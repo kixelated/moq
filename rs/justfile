@@ -7,46 +7,67 @@ default:
   just --list
 
 # Install any required dependencies.
-setup:
-	cargo install cargo-shear cargo-sort cargo-upgrades cargo-edit cargo-audit
+setup: auth
+	cargo install cargo-shear cargo-sort cargo-upgrades cargo-edit
 
 # Run a localhost relay server
 relay: root
 	# Run the relay server overriding the provided configuration file.
-	cargo run --bin moq-relay moq-relay/dev.toml
+	cargo run --bin moq-relay -- moq-relay/dev.toml
 
 # Run a localhost leaf server, connecting to the relay server
-leaf: root
-	# Generate a token that allows a cluster node to publish and subscribe to all paths.
-	# Obviously this needs to be secured in production.
-	# WARN: The --cluster flag subtly changes publishing behavior.
-	cargo run --quiet --bin moq-token -- --key "dev/root.jwk" sign \
-		--path "" \
-		--subscribe "" \
-		--publish "" \
-		--cluster \
-		> dev/leaf.jwt
-
+leaf:
 	# Run the leaf server with a special configuration file.
-	cargo run --bin moq-relay moq-relay/leaf.toml
+	cargo run --bin moq-relay -- moq-relay/leaf.toml
 
 # Generate a random secret key for authentication.
 # By default, this uses HMAC-SHA256, so it's symmetric.
 # If some one wants to contribute, public/private key pairs would be nice.
 root:
-	if [ ! -f "dev/root.jwk" ]; then \
+	@mkdir -p dev
+	@if [ ! -f "dev/root.jwk" ]; then \
+		rm -f dev/*.jwt; \
 		cargo run --bin moq-token -- --key "dev/root.jwk" generate; \
+	fi
+
+# Generate authentication tokens for local development
+# demo-me.jwt - allows publishing to demo/me/* and subscribing to demo/*
+# demo-pub.jwt - allows publishing to demo/* but no subscribing
+# cluster.jwt - allows publishing and subscribing to all paths
+auth: root
+	@if [ ! -f "dev/demo-me.jwt" ]; then \
+		cargo run --quiet --bin moq-token -- --key "dev/root.jwk" sign \
+			--root "demo" \
+			--subscribe "" \
+			--publish "me" \
+			> dev/demo-me.jwt ; \
+	fi
+
+	@if [ ! -f "dev/demo-pub.jwt" ]; then \
+		cargo run --quiet --bin moq-token -- --key "dev/root.jwk" sign \
+			--root "demo" \
+			--publish "" \
+			> dev/demo-pub.jwt ; \
+	fi
+
+	@if [ ! -f "dev/cluster.jwt" ]; then \
+		cargo run --quiet --bin moq-token -- --key "dev/root.jwk" sign \
+		--root "" \
+		--subscribe "" \
+		--publish "" \
+		--cluster \
+		> dev/cluster.jwt ; \
 	fi
 
 # Download the video and convert it to a fragmented MP4 that we can stream
 download name:
 	@mkdir -p dev
 
-	if [ ! -f dev/{{name}}.mp4 ]; then \
+	@if [ ! -f dev/{{name}}.mp4 ]; then \
 		curl -fsSL $(just download-url {{name}}) -o dev/{{name}}.mp4; \
 	fi
 
-	if [ ! -f dev/{{name}}.fmp4 ]; then \
+	@if [ ! -f dev/{{name}}.fmp4 ]; then \
 		ffmpeg -loglevel error -i dev/{{name}}.mp4 \
 			-c:v copy \
 			-f mp4 -movflags cmaf+separate_moof+delay_moov+skip_trailer+frag_every_frame \
@@ -66,7 +87,7 @@ download-url name:
 # Publish a video using ffmpeg to the localhost relay server
 # NOTE: The `http` means that we perform insecure certificate verification.
 # Switch it to `https` when you're ready to use a real certificate.
-pub name url='http://localhost:4443/demo':
+pub name url="http://localhost:4443/anon":
 	# Download the sample media.
 	just download {{name}}
 
@@ -79,10 +100,10 @@ pub name url='http://localhost:4443/demo':
 		-i "dev/{{name}}.fmp4" \
 		-c copy \
 		-f mp4 -movflags cmaf+separate_moof+delay_moov+skip_trailer+frag_every_frame \
-		- | cargo run --bin hang -- publish "{{url}}/{{name}}.hang"
+		- | cargo run --bin hang -- publish --url "{{url}}" --name "{{name}}"
 
 # Publish a video using gstreamer to the localhost relay server
-pub-gst name url='http://localhost:4443/demo':
+pub-gst name url="http://localhost:4443/anon":
 	# Download the sample media.
 	just download {{name}}
 
@@ -91,20 +112,22 @@ pub-gst name url='http://localhost:4443/demo':
 
 	# Run gstreamer and pipe the output to our plugin
 	GST_PLUGIN_PATH="${PWD}/target/debug${GST_PLUGIN_PATH:+:$GST_PLUGIN_PATH}" \
+	GST_DEBUG="hangsink:4" \
 	gst-launch-1.0 -v -e multifilesrc location="dev/{{name}}.fmp4" loop=true ! qtdemux name=demux \
 		demux.video_0 ! h264parse ! queue ! identity sync=true ! isofmp4mux name=mux chunk-duration=1 fragment-duration=1 ! \
-		hangsink url="{{url}}/{{name}}.hang" tls-disable-verify=true \
+		hangsink url="{{url}}" tls-disable-verify=true broadcast="{{name}}" \
 		demux.audio_0 ! aacparse ! queue ! mux.
 
 # Subscribe to a video using gstreamer
-sub name url='http://localhost:4443/demo':
+sub name url="http://localhost:4443/anon":
 	# Build the plugins
 	cargo build -p hang-gst
 
 	# Run gstreamer and pipe the output to our plugin
 	# This will render the video to the screen
 	GST_PLUGIN_PATH="${PWD}/target/debug${GST_PLUGIN_PATH:+:$GST_PLUGIN_PATH}" \
-	gst-launch-1.0 -v -e hangsrc url="{{url}}/{{name}}.hang" tls-disable-verify=true ! decodebin ! videoconvert ! autovideosink
+	GST_DEBUG="hangsrc:4" \
+	gst-launch-1.0 -v -e hangsrc url="{{url}}" broadcast="{{name}}" tls-disable-verify=true ! decodebin ! videoconvert ! autovideosink
 
 # Publish a video using ffmpeg directly from hang to the localhost
 serve name:
@@ -120,17 +143,17 @@ serve name:
 		-i "dev/{{name}}.fmp4" \
 		-c copy \
 		-f mp4 -movflags cmaf+separate_moof+delay_moov+skip_trailer+frag_every_frame \
-		- | cargo run --bin hang -- serve --listen "[::]:4443" --tls-generate "localhost"
+		- | cargo run --bin hang -- serve --listen "[::]:4443" --tls-generate "localhost" --name "{{name}}"
 
 # Publish the clock broadcast
 # `action` is either `publish` or `subscribe`
-clock action url='http://localhost:4443/demo/clock':
+clock action url="http://localhost:4443/anon":
 	if [ "{{action}}" != "publish" ] && [ "{{action}}" != "subscribe" ]; then \
 		echo "Error: action must be 'publish' or 'subscribe', got '{{action}}'" >&2; \
 		exit 1; \
 	fi
 
-	cargo run --bin moq-clock -- "{{url}}" {{action}}
+	cargo run --bin moq-clock -- "{{url}}" --name "clock" {{action}}
 
 # Run the CI checks
 check flags="":
@@ -144,9 +167,6 @@ check flags="":
 	# requires: cargo install cargo-sort
 	cargo sort --workspace --check
 
-	# requires: cargo install cargo-audit
-	cargo audit
-
 # Automatically fix some issues.
 fix flags="":
 	cargo fix --allow-staged --allow-dirty --all-targets --all-features {{flags}}
@@ -158,9 +178,6 @@ fix flags="":
 
 	# requires: cargo install cargo-sort
 	cargo sort --workspace
-
-	# requires: cargo install cargo-audit
-	cargo audit
 
 	# Update any patch versions
 	cargo update
@@ -176,3 +193,34 @@ upgrade:
 # Build the packages
 build:
 	cargo build
+
+# Build Docker images (local architecture only)
+# valid targets: moq-relay, moq-clock, hang
+docker target tag="latest":
+	# Note: This builds for your current architecture only. Use 'docker-release' for multi-platform builds.
+	nix build ".#{{target}}-docker"
+	docker load < result
+	docker tag {{target}}:latest {{target}}:{{tag}}
+
+# Build and release a multiplatform Docker image (for CI/remote builders)
+# valid targets: moq-relay, moq-clock, hang
+docker-release target registry tag:
+	# Create and use a new builder for multiplatform
+	docker buildx create --name multiplatform --use || docker buildx use multiplatform
+
+	# Build x64 image
+	nix build ".#{{target}}-docker" --system x86_64-linux
+	docker load < result
+	docker tag "{{target}}:latest" "{{target}}:amd64"
+
+	# Build ARM64 image
+	nix build ".#{{target}}-docker" --system aarch64-linux
+	docker load < result
+	docker tag "{{target}}:latest" "{{target}}:arm64"
+
+	# Create and push multiplatform manifest
+	docker buildx imagetools create \
+		--tag "{{registry}}/{{target}}:{{tag}}" \
+		--tag "{{registry}}/{{target}}:latest" \
+		"{{target}}:amd64" \
+		"{{target}}:arm64"

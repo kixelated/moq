@@ -41,7 +41,7 @@ export const keySchema = z.object({
 				message: "Secret must be at least 32 bytes when decoded",
 			},
 		),
-	kid: z.optional(z.string()),
+	kid: z.string().optional(),
 });
 export type Key = z.infer<typeof keySchema>;
 

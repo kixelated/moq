@@ -23,6 +23,7 @@ pub static RUNTIME: Lazy<tokio::runtime::Runtime> = Lazy::new(|| {
 #[derive(Default, Clone)]
 struct Settings {
 	pub url: Option<String>,
+	pub broadcast: Option<String>,
 	pub tls_disable_verify: bool,
 }
 
@@ -53,6 +54,10 @@ impl ObjectImpl for HangSrc {
 					.nick("Source URL")
 					.blurb("Connect to the given URL")
 					.build(),
+				glib::ParamSpecString::builder("broadcast")
+					.nick("Broadcast")
+					.blurb("The name of the broadcast to consume")
+					.build(),
 				glib::ParamSpecBoolean::builder("tls-disable-verify")
 					.nick("TLS disable verify")
 					.blurb("Disable TLS verification")
@@ -68,6 +73,7 @@ impl ObjectImpl for HangSrc {
 
 		match pspec.name() {
 			"url" => settings.url = value.get().unwrap(),
+			"broadcast" => settings.broadcast = value.get().unwrap(),
 			"tls-disable-verify" => settings.tls_disable_verify = value.get().unwrap(),
 			_ => unimplemented!(),
 		}
@@ -78,6 +84,7 @@ impl ObjectImpl for HangSrc {
 
 		match pspec.name() {
 			"url" => settings.url.to_value(),
+			"broadcast" => settings.broadcast.to_value(),
 			"tls-disable-verify" => settings.tls_disable_verify.to_value(),
 			_ => unimplemented!(),
 		}
@@ -129,6 +136,11 @@ impl ElementImpl for HangSrc {
 					gst::error!(CAT, obj = self.obj(), "Failed to setup: {:?}", e);
 					return Err(gst::StateChangeError);
 				}
+				// Chain up first to let the bin handle the state change
+				let result = self.parent_change_state(transition);
+				result?;
+				// This is a live source - no preroll needed
+				return Ok(gst::StateChangeSuccess::NoPreroll);
 			}
 
 			gst::StateChange::PausedToReady => {
@@ -139,16 +151,17 @@ impl ElementImpl for HangSrc {
 			_ => (),
 		}
 
-		// Chain up
+		// Chain up for other transitions
 		self.parent_change_state(transition)
 	}
 }
 
 impl HangSrc {
 	async fn setup(&self) -> anyhow::Result<()> {
-		let (client, url) = {
+		let (client, url, name) = {
 			let settings = self.settings.lock().unwrap();
 			let url = url::Url::parse(settings.url.as_ref().expect("url is required"))?;
+			let name = settings.broadcast.as_ref().expect("broadcast is required").clone();
 
 			// TODO support TLS certs and other options
 			let client = moq_native::ClientConfig {
@@ -160,17 +173,20 @@ impl HangSrc {
 			}
 			.init()?;
 
-			(client, url)
+			(client, url, name)
 		};
 
 		let session = client.connect(url).await?;
-		let session = moq_lite::Session::connect(session).await?;
-		let mut broadcast = hang::BroadcastConsumer::new(session.consume(""));
+		let origin = moq_lite::OriginProducer::default();
+		let _session = moq_lite::Session::connect(session, None, origin.clone()).await?;
+
+		let broadcast = origin
+			.consume(&name)
+			.ok_or_else(|| anyhow::anyhow!("Broadcast '{}' not found", name))?;
+		let mut broadcast = hang::BroadcastConsumer::new(broadcast);
 
 		// TODO handle catalog updates
 		let catalog = broadcast.catalog.next().await?.context("no catalog found")?.clone();
-
-		gst::info!(CAT, "catalog: {:?}", catalog);
 
 		for video in catalog.video {
 			let mut track = broadcast.subscribe(&video.track);

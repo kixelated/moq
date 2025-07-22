@@ -1,10 +1,11 @@
+use std::mem::MaybeUninit;
+
 use bytes::{buf::UninitSlice, Buf, BufMut};
 
 // A BufMut implementation that only counts the size of the buffer
 #[derive(Default)]
 pub struct Sizer {
 	pub size: usize,
-	buf: [u8; 16],
 }
 
 unsafe impl BufMut for Sizer {
@@ -13,7 +14,20 @@ unsafe impl BufMut for Sizer {
 	}
 
 	fn chunk_mut(&mut self) -> &mut UninitSlice {
-		UninitSlice::new(&mut self.buf)
+		// We need to return a valid slice, but it won't actually be written to
+		// Use a thread-local static buffer to avoid safety issues
+		thread_local! {
+			static BUFFER: std::cell::UnsafeCell<[MaybeUninit<u8>; 8192]> =
+				const { std::cell::UnsafeCell::new([MaybeUninit::uninit(); 8192]) };
+		}
+
+		BUFFER.with(|buf| {
+			let ptr = buf.get();
+			unsafe {
+				let slice = (*ptr).as_mut_ptr();
+				bytes::buf::UninitSlice::from_raw_parts_mut(slice as *mut u8, 8192)
+			}
+		})
 	}
 
 	fn remaining_mut(&self) -> usize {

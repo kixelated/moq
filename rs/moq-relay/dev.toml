@@ -21,57 +21,53 @@ tls.generate = ["localhost"]
 
 # Authentication is rather crude because it's GOOD ENOUGH for now.
 #
-# All authentication is performed at connection time and is based on path prefixes.
-# If you're authenticated to publish to `foo/`, then you can publish `foo/bar` or `foo/baz`.
-# Likewise, if you're authenticated to subscribe to `foo/`, then you can subscribe to `foo/bar` or `foo/baz`.
+# All authentication is performed at connection time and is based on the broadcast path.
+# A client can either:
+#   - connect to `/path?jwt=...` using a JWT token scoped to a path within the token.
+#   - connect to `/path` only if the path is configured as a public path.
 #
-# Note that the trailing slash is very important.
-# If you're authenticated to publish to `foo`, then you can ONLY publish to `foo`.
-# Think of it like a file system, `foo.txt` is very different from `foo.text/`.
+# The expectation is that some API server will generate a JWT token for each user.
+# This is the easiest way to divest the relay from any business logic in regards to authentication.
+# Both the relay and API server will need to be configured with the same root key; currently it's symmetric.
 #
-# If a root key is provided, then a moq-token must be provided in the connection URL.
-# Specific paths can override the key or disable authentication entirely.
-# For example, each customer can be given a unique path that only accepts tokens signed with their own key.
+# Authorization is split into separate publishing and subscribing permissions.
+# If you're authenticated to publish to `foo`, then you can publish `foo/bar` or `foo/baz`.
+# Likewise, if you're authenticated to subscribe to `foo`, then you can subscribe to `foo/bar` or `foo/baz`.
 #
-# A authenticated URL contains a path and a `?jwt=` query parameter.
-#
-# ## URL Path
-# The path is used to scope the connection and determine the key to use.
-# The longest matching path override is used to determine the key.
-# For example, `foo/bar/` will use `foo/bar`, `foo`, or the root key if one of them is configured.
-#
-# All broadcast paths are relative to this URL path.
-# If you connect to `foo/bar/` then subscribe to `baz`, then `foo/bar/baz` will be fetched.
-# There's no way to break out of this scope with `../` or anything like that.
-#
+# **Note** slashes are automatically added as delimiters.
+# If you're authenticated to publish to `foo`, then you can't publish `foobar`.
+# It has to be just `foo` or `foo/bar`.
 #
 # ## JWT Token
-# The `?jwt=` query parameter contains a base64 JSON token that is signed with the key.
+# The `?jwt=` query parameter contains a base64 JSON token that is signed with the root key.
 #
 # The token contains permissions for the connection.
 # It specifies a few things:
-# - root: The URL path MUST contain this path prefix. Defaults to "".
-# - subscribe: The connection can subscribe to this path prefix, relative to the root. Defaults to None.
-# - publish: The connection can publish to this path prefix relative to the root. Defaults to None.
+# - root: The publish and subscribe paths are relative to this path. Defaults to "".
+# - subscribe: The connection can ONLY subscribe to broadcasts with this prefix, relative to the root. Defaults to None.
+# - publish: The connection can ONLY publish to broadcasts with this prefix, relative to the root. Defaults to None.
+#
+# If the connection attempts to publish or subscribe to a path that is not allowed, then an Unauthorized error will be returned.
 #
 # A practical example:
-# - root: "hang/meeting-abc/"
+# - root: "hang/meeting-abc"
 # - subscribe: ""
-# - publish: "alice/"
+# - publish: "alice"
 #
-# This user would connect to `https://relay.quic.video/hang/meeting-abc/?token=...`
-# If a special "hang" key is configured, then it will use that key, otherwise it will use the root key.
+# This user would connect to `https://relay.quic.video/hang/meeting-abc?jwt=...`
+# They could then publish `alice/camera` and subscribe to `bob/camera`.
+# It would be an error if they tried to publish to `bob/camera` or subscribe to `alice/camera`.
 #
-# Technically, the user could connect to `https://relay.quic.video/hang/meeting-abc/alice/?token=...`
-# However, they would lose the ability to subscribe to other broadcasts in the room, but that may be intentional (write-only).
+# ## Public Path
+# If no token is provided, then the connection will default to the public path, if any.
+#
+# There's currently no subscribe-only or publish-only support.
+# This path is fully public and users can impersonate each other if they want.
+# Use it mostly for testing.
 [auth]
 # `just leaf` will generate a root key and set this value via the CLI
-# If you want to disable authentication, set the key to "".
+# If you want to disable authentication, don't specify a key.
 key = "dev/root.jwk"
 
-# Special auth logic based on the path.
-[auth.path.demo]
-# This rule matches any broadcast path that starts with "demo/".
-
-# We disable authentication for this path by unsetting the key.
-key = ""
+# Allow anonymous publishing and subscribing for this prefix.
+public = "anon"

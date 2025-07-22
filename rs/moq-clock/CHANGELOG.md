@@ -6,6 +6,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.7](https://github.com/kixelated/moq/compare/moq-clock-v0.6.6...moq-clock-v0.6.7) - 2025-07-19
+
+### Other
+
+- Revamp connection URLs, broadcast paths, and origins ([#472](https://github.com/kixelated/moq/pull/472))
+
 ## [0.6.6](https://github.com/kixelated/moq/compare/moq-clock-v0.6.5...moq-clock-v0.6.6) - 2025-07-16
 
 ### Other

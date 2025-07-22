@@ -1,10 +1,11 @@
+import { Path } from "@kixelated/moq";
 import { Root } from "@kixelated/signals";
 import { type Publish, Watch } from "..";
 import { Connection } from "../connection";
 import HangPublish from "../publish/element";
 import { Room } from "./room";
 
-const OBSERVED = ["url", "path"] as const;
+const OBSERVED = ["url", "name"] as const;
 type Observed = (typeof OBSERVED)[number];
 
 // NOTE: This element is more of an example of how to use the library.
@@ -19,7 +20,7 @@ export default class HangMeet extends HTMLElement {
 	#container: HTMLDivElement;
 
 	// Save a reference to the <video> tag used to render the local broadcast.
-	#locals = new Map<string, { video: HTMLVideoElement; cleanup: () => void }>();
+	#locals = new Map<Path.Valid, { video: HTMLVideoElement; cleanup: () => void }>();
 
 	// We have to save a reference to the Video/Audio renderers so we can close them.
 	#remotes = new Map<
@@ -59,19 +60,19 @@ export default class HangMeet extends HTMLElement {
 
 			const publish = element as HangPublish;
 
-			// Monitor the path of the publish element and update the room.
+			// Monitor the name of the publish element and update the room.
 			this.#signals.effect((effect) => {
-				const path = effect.get(publish.broadcast.path);
-				if (!path) return;
+				const name = effect.get(publish.broadcast.name);
+				if (!name) return;
 
-				this.room.preview(path, publish.broadcast);
-				effect.cleanup(() => this.room.unpreview(path));
+				this.room.preview(name, publish.broadcast);
+				effect.cleanup(() => this.room.unpreview(name));
 			});
 
 			// Copy the connection URL to the publish element so they're the same.
+			// TODO Reuse the connection instead of dialing a new one.
 			this.#signals.effect((effect) => {
 				const url = effect.get(this.connection.url);
-
 				publish.connection.url.set(url);
 				effect.cleanup(() => publish.connection.url.set(undefined));
 			});
@@ -82,12 +83,12 @@ export default class HangMeet extends HTMLElement {
 		this.#signals.close();
 	}
 
-	#onLocal(path: string, broadcast?: Publish.Broadcast) {
+	#onLocal(name: Path.Valid, broadcast?: Publish.Broadcast) {
 		if (!broadcast) {
-			const existing = this.#locals.get(path);
+			const existing = this.#locals.get(name);
 			if (!existing) return;
 
-			this.#locals.delete(path);
+			this.#locals.delete(name);
 			existing.cleanup();
 			existing.video.remove();
 
@@ -106,16 +107,16 @@ export default class HangMeet extends HTMLElement {
 			video.srcObject = media ? new MediaStream([media]) : null;
 		});
 
-		this.#locals.set(path, { video, cleanup });
+		this.#locals.set(name, { video, cleanup });
 		this.#container.appendChild(video);
 	}
 
-	#onRemote(path: string, broadcast?: Watch.Broadcast) {
+	#onRemote(name: Path.Valid, broadcast?: Watch.Broadcast) {
 		if (!broadcast) {
-			const existing = this.#remotes.get(path);
+			const existing = this.#remotes.get(name);
 			if (!existing) return;
 
-			this.#remotes.delete(path);
+			this.#remotes.delete(name);
 
 			existing.renderer.close();
 			existing.emitter.close();
@@ -136,7 +137,7 @@ export default class HangMeet extends HTMLElement {
 		const renderer = new Watch.VideoRenderer(broadcast.video, { canvas });
 		const emitter = new Watch.AudioEmitter(broadcast.audio);
 
-		this.#remotes.set(path, { canvas, renderer, emitter });
+		this.#remotes.set(name, { canvas, renderer, emitter });
 
 		// Add the canvas to the DOM.
 		this.#container.appendChild(canvas);
@@ -145,8 +146,8 @@ export default class HangMeet extends HTMLElement {
 	attributeChangedCallback(name: Observed, _oldValue: string | null, newValue: string | null) {
 		if (name === "url") {
 			this.url = newValue ? new URL(newValue) : undefined;
-		} else if (name === "path") {
-			this.path = newValue ?? "";
+		} else if (name === "name") {
+			this.name = Path.from(newValue ?? "");
 		} else {
 			const exhaustive: never = name;
 			throw new Error(`Invalid attribute: ${exhaustive}`);
@@ -161,12 +162,12 @@ export default class HangMeet extends HTMLElement {
 		this.connection.url.set(url);
 	}
 
-	get path(): string {
-		return this.room.path.peek();
+	get name(): Path.Valid {
+		return this.room.name.peek();
 	}
 
-	set path(path: string) {
-		this.room.path.set(path);
+	set name(name: Path.Valid) {
+		this.room.name.set(name);
 	}
 }
 

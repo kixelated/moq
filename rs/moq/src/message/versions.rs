@@ -38,8 +38,9 @@ impl Version {
 	pub const FORK_04: Version = Version(0xff0bad04);
 
 	pub const LITE_00: Version = Version(0xff0dad00);
+	pub const LITE_01: Version = Version(0xff0dad01);
 
-	pub const CURRENT: Version = Version::LITE_00;
+	pub const CURRENT: Version = Version::LITE_01;
 }
 
 /// A version number negotiated during the setup.
@@ -48,7 +49,8 @@ pub struct Alpn(pub &'static str);
 
 impl Alpn {
 	pub const LITE_00: Alpn = Alpn("moql-00");
-	pub const CURRENT: Alpn = Alpn::LITE_00;
+	pub const LITE_01: Alpn = Alpn("moql-01");
+	pub const CURRENT: Alpn = Alpn::LITE_01;
 }
 
 impl From<u64> for Version {

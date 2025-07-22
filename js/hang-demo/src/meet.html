@@ -16,15 +16,20 @@
 
 	<!--
 	 	This is a simple element to render each broadcast in a grid.
-		It will discover any broadcast starting with `demo/` and render them.
+		It will discover any published broadcasts and render them.
+		You can also use `name=meeting-abc` to only match broadcasts matching that prefix.
+
+		The relay url is loaded from an environment as it contains a generated JWT authentication token.
+		Feel free to hard-code it if you have public access configured, like `url="https://relay.quic.video/anon"`
+		NOTE: `http` performs an insecure certificate check. You must use `https` in production.
 	-->
-	<hang-meet url="http://localhost:4443/demo/">
+	<hang-meet url="%VITE_RELAY_URL%">
 		<!--
-			If a `hang-publish` element is nested, then it will inherit the `url` attribute and use the `path` as the suffix.
+			If a `hang-publish` element is nested, then it will inherit the `url` attribute.
 			It also won't be downloaded, instead rendered in the grid if `preview` is set.
 			This is rather limited but so is this Web Component; use the JS API for more control.
 		-->
-		<hang-publish path="me" audio video controls preview></hang-publish>
+		<hang-publish name="me" audio video controls preview></hang-publish>
 	</hang-meet>
 
 	<h3>Other demos:</h3>
@@ -43,8 +48,7 @@
 	<p>
 		A "room" of broadcasts is little more than a shared prefix.
 		If you publish to <code>demo/foo</code> and <code>demo/bar</code>, then using <code>demo</code> will render both.
-		You can provide the path via the connection URL or appending a <code>path</code> attribute.
-		The only difference is authentication; a more constrained connection can't access other rooms.
+		You can provide the name of the broadcast via the <code>name</code> attribute.
 	</p>
 	<hr />
 	<p>

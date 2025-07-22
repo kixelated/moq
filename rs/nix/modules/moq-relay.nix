@@ -6,46 +6,6 @@
 }:
 let
   cfg = config.services.moq-relay;
-
-  # Use TOML format for configuration
-  tomlFormat = pkgs.formats.toml { };
-
-  # Build the configuration
-  configData =
-    {
-      log = {
-        level = cfg.logLevel;
-      };
-
-      server =
-        {
-          listen = "[::]:${toString cfg.port}";
-        }
-        // lib.optionalAttrs (cfg.tls.generate != [ ]) {
-          "tls.generate" = cfg.tls.generate;
-        }
-        // lib.optionalAttrs (cfg.tls.certs != [ ]) {
-          "tls.cert" = cfg.tls.certs;
-        };
-    }
-    // lib.optionalAttrs cfg.auth.enable {
-      auth =
-        {
-          key = if cfg.auth.keyFile != null then cfg.auth.keyFile else "${cfg.stateDir}/root.jwk";
-        }
-        // lib.optionalAttrs (cfg.auth.publicRead || cfg.auth.publicWrite) {
-          public = {
-            read = cfg.auth.publicRead;
-            write = cfg.auth.publicWrite;
-          };
-        };
-    }
-    // lib.optionalAttrs (cfg.auth.paths != { }) {
-      "auth.path" = cfg.auth.paths;
-    };
-
-  # Generate the config file
-  configFile = tomlFormat.generate "moq-relay.toml" configData;
 in
 {
   options.services.moq-relay = {
@@ -119,37 +79,11 @@ in
         description = "Path to JWT signing key (will be generated if null)";
       };
 
-      publicRead = lib.mkOption {
-        type = lib.types.bool;
-        default = false;
-        description = "Allow public read access when auth is enabled";
-      };
-
-      publicWrite = lib.mkOption {
-        type = lib.types.bool;
-        default = false;
-        description = "Allow public write access when auth is enabled";
-      };
-
-      paths = lib.mkOption {
-        type = lib.types.attrsOf (
-          lib.types.submodule {
-            options = {
-              key = lib.mkOption {
-                type = lib.types.str;
-                default = "";
-                description = "Override auth key for this path (empty = no auth)";
-              };
-            };
-          }
-        );
-        default = { };
-        example = {
-          demo = {
-            key = "";
-          }; # Disable auth for /demo
-        };
-        description = "Path-specific authentication configuration";
+      publicPath = lib.mkOption {
+        type = lib.types.nullOr lib.types.str;
+        default = null;
+        example = "anon";
+        description = "Public path prefix for anonymous access";
       };
     };
 
@@ -167,15 +101,27 @@ in
       rootUrl = lib.mkOption {
         type = lib.types.nullOr lib.types.str;
         default = null;
-        example = "https://root.example.com:4443";
-        description = "Root node URL (for leaf mode)";
+        example = "localhost:4443";
+        description = "Root node URL to connect to (for leaf mode)";
       };
 
       nodeUrl = lib.mkOption {
         type = lib.types.nullOr lib.types.str;
         default = null;
-        example = "https://leaf.example.com:4444";
-        description = "This node's URL (for cluster mode)";
+        example = "localhost:4444";
+        description = "This node's advertised URL";
+      };
+
+      tokenFile = lib.mkOption {
+        type = lib.types.nullOr lib.types.path;
+        default = null;
+        description = "Path to cluster token file (will be generated if null)";
+      };
+
+      disableTlsVerify = lib.mkOption {
+        type = lib.types.bool;
+        default = false;
+        description = "Disable TLS verification for cluster connections";
       };
     };
 
@@ -226,12 +172,15 @@ in
         ''}
 
         # Generate cluster token for leaf nodes
-        ${lib.optionalString (cfg.cluster.mode == "leaf" && cfg.auth.enable) ''
-          ${pkgs.moq-token}/bin/moq-token --key "${cfg.stateDir}/root.jwk" sign \
-            --path "" --subscribe "" --publish "" --cluster \
-            > "${cfg.stateDir}/cluster.jwt"
-          chown ${cfg.user}:${cfg.group} "${cfg.stateDir}/cluster.jwt"
-        ''}
+        ${lib.optionalString
+          (cfg.cluster.mode == "leaf" && cfg.auth.enable && cfg.cluster.tokenFile == null)
+          ''
+            ${pkgs.moq-token}/bin/moq-token --key "${cfg.stateDir}/root.jwk" sign \
+              --subscribe "" --publish "" --cluster \
+              > "${cfg.stateDir}/cluster.jwt"
+            chown ${cfg.user}:${cfg.group} "${cfg.stateDir}/cluster.jwt"
+          ''
+        }
       '';
 
       serviceConfig = {
@@ -239,14 +188,7 @@ in
         User = cfg.user;
         Group = cfg.group;
 
-        ExecStart =
-          "${cfg.package}/bin/moq-relay ${configFile}"
-          + lib.optionalString (
-            cfg.cluster.mode == "leaf" && cfg.cluster.rootUrl != null
-          ) " --cluster-root ${cfg.cluster.rootUrl}"
-          + lib.optionalString (
-            cfg.cluster.mode != "none" && cfg.cluster.nodeUrl != null
-          ) " --cluster-node ${cfg.cluster.nodeUrl}";
+        ExecStart = "${cfg.package}/bin/moq-relay";
 
         Restart = "on-failure";
         RestartSec = "5s";
@@ -263,7 +205,32 @@ in
       };
 
       environment = {
-        RUST_LOG = lib.mkDefault cfg.logLevel;
+        MOQ_LOG_LEVEL = lib.mkDefault cfg.logLevel;
+
+        # Server configuration
+        MOQ_SERVER_LISTEN = "[::]:${toString cfg.port}";
+
+        # TLS configuration
+        MOQ_SERVER_TLS_GENERATE = lib.optionalString (cfg.tls.generate != [ ]) (
+          lib.concatStringsSep "," cfg.tls.generate
+        );
+        MOQ_SERVER_TLS_CERT = lib.optionalString (cfg.tls.certs != [ ]) (
+          lib.concatMapStringsSep "," (cert: "${cert.chain}:${cert.key}") cfg.tls.certs
+        );
+
+        # Auth configuration
+        MOQ_AUTH_KEY = lib.optionalString cfg.auth.enable (
+          if cfg.auth.keyFile != null then cfg.auth.keyFile else "${cfg.stateDir}/root.jwk"
+        );
+        MOQ_AUTH_PUBLIC = lib.optionalString (cfg.auth.publicPath != null) cfg.auth.publicPath;
+
+        # Cluster configuration
+        MOQ_CLUSTER_CONNECT = lib.optionalString (cfg.cluster.rootUrl != null) cfg.cluster.rootUrl;
+        MOQ_CLUSTER_TOKEN = lib.optionalString (cfg.cluster.mode != "none") (
+          if cfg.cluster.tokenFile != null then cfg.cluster.tokenFile else "${cfg.stateDir}/cluster.jwt"
+        );
+        MOQ_CLUSTER_ADVERTISE = lib.optionalString (cfg.cluster.nodeUrl != null) cfg.cluster.nodeUrl;
+        MOQ_CLIENT_TLS_DISABLE_VERIFY = lib.boolToString cfg.cluster.disableTlsVerify;
       };
     };
   };

@@ -1,3 +1,4 @@
+import * as Path from "./path";
 import { type WatchConsumer, WatchProducer } from "./util/watch";
 
 /**
@@ -6,7 +7,7 @@ import { type WatchConsumer, WatchProducer } from "./util/watch";
  * @public
  */
 export interface Announce {
-	path: string;
+	name: Path.Valid;
 	active: boolean;
 }
 
@@ -57,7 +58,7 @@ export class AnnouncedProducer {
 	 * @param prefix - The prefix for the consumer
 	 * @returns A new AnnouncedConsumer instance
 	 */
-	consume(prefix = ""): AnnouncedConsumer {
+	consume(prefix = Path.empty()): AnnouncedConsumer {
 		return new AnnouncedConsumer(this.#queue.consume(), prefix);
 	}
 }
@@ -69,7 +70,7 @@ export class AnnouncedProducer {
  */
 export class AnnouncedConsumer {
 	/** The prefix for this reader */
-	readonly prefix: string;
+	readonly prefix: Path.Valid;
 
 	#queue: WatchConsumer<Announce[]>;
 	#index = 0;
@@ -81,7 +82,7 @@ export class AnnouncedConsumer {
 	 *
 	 * @internal
 	 */
-	constructor(queue: WatchConsumer<Announce[]>, prefix = "") {
+	constructor(queue: WatchConsumer<Announce[]>, prefix = Path.empty()) {
 		this.#queue = queue;
 		this.prefix = prefix;
 	}
@@ -97,11 +98,15 @@ export class AnnouncedConsumer {
 
 			while (this.#index < queue.length) {
 				const announce = queue.at(this.#index++);
-				if (!announce?.path.startsWith(this.prefix)) continue;
+				if (!announce) continue;
 
-				// We have to remove the prefix so we only return our suffix.
+				// Check if name starts with prefix and respects path boundaries
+				// We remove the prefix so we only return our suffix.
+				const suffix = Path.stripPrefix(this.prefix, announce.name);
+				if (suffix === null) continue;
+
 				return {
-					path: announce.path.slice(this.prefix.length),
+					name: suffix,
 					active: announce.active,
 				};
 			}

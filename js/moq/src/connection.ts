@@ -1,7 +1,9 @@
 import type { AnnouncedConsumer } from "./announced";
 import type { BroadcastConsumer } from "./broadcast";
+import * as Path from "./path";
 import { Publisher } from "./publisher";
 import { Subscriber } from "./subscriber";
+import { unreachable } from "./util";
 import * as Wire from "./wire";
 
 /**
@@ -83,11 +85,12 @@ export class Connection {
 
 			// Fetch the fingerprint from the server.
 			const fingerprint = await fetch(fingerprintUrl);
+			const fingerprintText = await fingerprint.text();
 
 			options.serverCertificateHashes = [
 				{
 					algorithm: "sha-256",
-					value: hexToBytes(await fingerprint.text()),
+					value: hexToBytes(fingerprintText),
 				},
 			];
 
@@ -107,6 +110,9 @@ export class Connection {
 		}
 
 		const conn = new Connection(adjustedUrl, quic, stream);
+
+		// The connection is now ready to use
+		// Note: ANNOUNCE_INIT will be handled when announce streams are actually requested
 
 		const cleanup = () => {
 			conn.close();
@@ -148,10 +154,11 @@ export class Connection {
 
 	/**
 	 * Publishes a broadcast to the connection.
+	 * @param name - The broadcast path to publish
 	 * @param broadcast - The broadcast to publish
 	 */
-	publish(path: string, broadcast: BroadcastConsumer) {
-		this.#publisher.publish(path, broadcast);
+	publish(name: Path.Valid, broadcast: BroadcastConsumer) {
+		this.#publisher.publish(name, broadcast);
 	}
 
 	/**
@@ -159,7 +166,7 @@ export class Connection {
 	 * @param prefix - The prefix for announcements
 	 * @returns An AnnounceConsumer instance
 	 */
-	announced(prefix = ""): AnnouncedConsumer {
+	announced(prefix = Path.empty()): AnnouncedConsumer {
 		return this.#subscriber.announced(prefix);
 	}
 
@@ -169,10 +176,10 @@ export class Connection {
 	 * @remarks
 	 * If the broadcast is not found, a "not found" error will be thrown when requesting any tracks.
 	 *
-	 * @param broadcast - The name of the broadcast to consume
+	 * @param broadcast - The path of the broadcast to consume
 	 * @returns A BroadcastConsumer instance
 	 */
-	consume(broadcast: string): BroadcastConsumer {
+	consume(broadcast: Path.Valid): BroadcastConsumer {
 		return this.#subscriber.consume(broadcast);
 	}
 
@@ -218,7 +225,7 @@ export class Connection {
 			return;
 		}
 
-		throw new Error("unknown message: ", msg);
+		unreachable(msg);
 	}
 
 	async #runUnis() {

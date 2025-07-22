@@ -7,9 +7,9 @@ default:
   just --list
 
 # Run the web server
-web:
+web url='http://localhost:4443/anon':
 	pnpm -r i
-	pnpm -r run dev
+	VITE_RELAY_URL="{{url}}" pnpm -r run dev
 
 # Run the CI checks
 check flags="":

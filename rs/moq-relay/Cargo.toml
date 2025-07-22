@@ -5,7 +5,7 @@ authors = ["Luke Curley"]
 repository = "https://github.com/kixelated/moq"
 license = "MIT OR Apache-2.0"
 
-version = "0.7.7"
+version = "0.8.2"
 edition = "2021"
 
 keywords = ["quic", "http3", "webtransport", "media", "live"]
@@ -21,7 +21,7 @@ http-body = "1"
 hyper-serve = { version = "0.6", features = [
 	"tls-rustls",
 ] } # fork of axum-server
-moq-lite = { workspace = true }
+moq-lite = { workspace = true, features = ["serde"] }
 moq-native = { workspace = true }
 moq-token = { workspace = true }
 serde = { version = "1", features = ["derive"] }
@@ -33,3 +33,6 @@ tower-http = { version = "0.6", features = ["cors"] }
 tracing = "0.1"
 url = { version = "2", features = ["serde"] }
 web-transport = { workspace = true }
+
+[dev-dependencies]
+tempfile = "3"

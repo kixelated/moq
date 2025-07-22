@@ -4,29 +4,29 @@ use web_async::Lock;
 
 use crate::model::{BroadcastConsumer, BroadcastProducer};
 
+use moq_lite::{OriginConsumer, OriginProducer, OriginUpdate, Path};
+
 pub struct Room {
-	pub path: String,
-	broadcasts: moq_lite::OriginConsumer,
-	session: moq_lite::Session,
-	publishing: Lock<HashSet<String>>,
+	pub name: Path,
+	broadcasts: OriginConsumer,
+	publisher: OriginProducer,
+	publishing: Lock<HashSet<Path>>,
 }
 
 impl Room {
-	pub fn new(session: moq_lite::Session, path: String) -> Self {
+	pub fn new(publisher: OriginProducer, subscriber: OriginConsumer, name: Path) -> Self {
 		Self {
-			broadcasts: session.consume_prefix(&path),
-			path,
-			session,
+			broadcasts: subscriber,
+			publisher,
+			name,
 			publishing: Default::default(),
 		}
 	}
 
 	/// Joins the room, publishing the broadcast.
-	pub fn publish(&mut self, name: String, broadcast: BroadcastProducer) {
+	pub fn publish(&mut self, name: Path, broadcast: BroadcastProducer) {
 		self.publishing.lock().insert(name.clone());
-
-		let path = format!("{}{}", self.path, name);
-		self.session.publish(path, broadcast.inner.consume());
+		self.publisher.publish(&name, broadcast.inner.consume());
 
 		let consumer = broadcast.inner.consume();
 		let publishing = self.publishing.clone();
@@ -41,10 +41,13 @@ impl Room {
 	/// Returns the next broadcaster in the room (not including ourselves).
 	///
 	/// If None is returned, then the broadcaster with that name has stopped broadcasting or is being reannounced.
-	/// When reannounced, the old BroadcastConsumer won't necessarily be closed, so you might have two broadcasts with the same path.
-	pub async fn watch(&mut self) -> Option<(String, Option<BroadcastConsumer>)> {
+	/// When reannounced, the old BroadcastConsumer won't necessarily be closed, so you might have two broadcasts with the same name.
+	pub async fn watch(&mut self) -> Option<(Path, Option<BroadcastConsumer>)> {
 		loop {
-			let (suffix, broadcast) = self.broadcasts.next().await?;
+			let OriginUpdate {
+				suffix,
+				active: broadcast,
+			} = self.broadcasts.next().await?;
 
 			if self.publishing.lock().contains(&suffix) {
 				// We're publishing this broadcast, so skip it.

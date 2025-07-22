@@ -1,6 +1,7 @@
 import { AnnouncedProducer } from "./announced";
 import type { BroadcastConsumer } from "./broadcast";
 import type { GroupConsumer } from "./group";
+import * as Path from "./path";
 import type { TrackConsumer } from "./track";
 import { error } from "./util/error";
 import * as Wire from "./wire";
@@ -18,7 +19,7 @@ export class Publisher {
 	#announced = new AnnouncedProducer();
 
 	// Our published broadcasts.
-	#broadcasts = new Map<string, BroadcastConsumer>();
+	#broadcasts = new Map<Path.Valid, BroadcastConsumer>();
 
 	/**
 	 * Creates a new Publisher instance.
@@ -32,44 +33,44 @@ export class Publisher {
 
 	/**
 	 * Gets a broadcast reader for the specified broadcast.
-	 * @param broadcast - The name of the broadcast to consume
+	 * @param name - The name of the broadcast to consume
 	 * @returns A BroadcastConsumer instance or undefined if not found
 	 */
-	consume(path: string): BroadcastConsumer | undefined {
-		return this.#broadcasts.get(path)?.clone();
+	consume(name: Path.Valid): BroadcastConsumer | undefined {
+		return this.#broadcasts.get(name)?.clone();
 	}
 
 	/**
 	 * Publishes a broadcast with any associated tracks.
-	 * @param broadcast - The broadcast to publish
+	 * @param name - The broadcast to publish
 	 */
-	publish(path: string, broadcast: BroadcastConsumer) {
-		this.#broadcasts.set(path, broadcast);
-		void this.#runPublish(path, broadcast);
+	publish(name: Path.Valid, broadcast: BroadcastConsumer) {
+		this.#broadcasts.set(name, broadcast);
+		void this.#runPublish(name, broadcast);
 	}
 
-	async #runPublish(path: string, broadcast: BroadcastConsumer) {
+	async #runPublish(name: Path.Valid, broadcast: BroadcastConsumer) {
 		try {
 			this.#announced.write({
-				path,
+				name,
 				active: true,
 			});
 
-			console.debug(`announce: broadcast=${path} active=true`);
+			console.debug(`announce: broadcast=${name} active=true`);
 
 			// Wait until the broadcast is closed, then remove it from the lookup.
 			await broadcast.closed();
 
-			console.debug(`announce: broadcast=${path} active=false`);
+			console.debug(`announce: broadcast=${name} active=false`);
 		} catch (err: unknown) {
-			console.warn(`announce: broadcast=${path} error=${error(err)}`);
+			console.warn(`announce: broadcast=${name} error=${error(err)}`);
 		} finally {
 			broadcast.close();
 
-			this.#broadcasts.delete(path);
+			this.#broadcasts.delete(name);
 
 			this.#announced.write({
-				path,
+				name,
 				active: false,
 			});
 		}
@@ -85,11 +86,23 @@ export class Publisher {
 	async runAnnounce(msg: Wire.AnnounceInterest, stream: Wire.Stream) {
 		const consumer = this.#announced.consume(msg.prefix);
 
+		// Send ANNOUNCE_INIT as the first message with all currently active paths
+		const activePaths: Path.Valid[] = [];
+		for (const [name] of this.#broadcasts) {
+			const suffix = Path.stripPrefix(msg.prefix, name);
+			if (suffix === null) continue;
+			activePaths.push(suffix);
+		}
+
+		const init = new Wire.AnnounceInit(activePaths);
+		await init.encode(stream.writer);
+
+		// Then send updates as they occur
 		for (;;) {
 			const announcement = await consumer.next();
 			if (!announcement) break;
 
-			const wire = new Wire.Announce(announcement.path, announcement.active);
+			const wire = new Wire.Announce(announcement.name, announcement.active);
 			await wire.encode(stream.writer);
 		}
 	}
@@ -139,7 +152,7 @@ export class Publisher {
 	 *
 	 * @internal
 	 */
-	async #runTrack(sub: bigint, broadcast: string, track: TrackConsumer, stream: Wire.Writer) {
+	async #runTrack(sub: bigint, broadcast: Path.Valid, track: TrackConsumer, stream: Wire.Writer) {
 		try {
 			for (;;) {
 				const next = track.nextGroup();

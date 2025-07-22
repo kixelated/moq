@@ -44,7 +44,7 @@ jobs:
           # Direct prompt for automated review (no @claude mention needed)
           direct_prompt: |
             Please review this pull request and look for bugs and security issues. 
-            Only report on bugs and potential vulnerabilities you find. Be concise.
+            Only report issues you find, otherwise give a thumbs up. Be concise!
 
           # Optional: Use sticky comments to make Claude reuse the same comment on subsequent pushes to the same PR
           # use_sticky_comment: true

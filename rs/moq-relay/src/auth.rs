@@ -1,60 +1,23 @@
-use std::collections::{hash_map, HashMap};
+use std::sync::Arc;
 
 use anyhow::Context;
+use moq_lite::Path;
 use serde::{Deserialize, Serialize};
-use serde_with::skip_serializing_none;
 use url::Url;
 
 #[derive(clap::Args, Clone, Debug, Serialize, Deserialize, Default)]
 #[serde(default)]
 pub struct AuthConfig {
-	/// The configuration for the root path.
-	#[serde(flatten)]
-	#[command(flatten)]
-	pub root: AuthRoot,
-
-	/// Configuration overrides based on the path.
-	///
-	/// WARNING: Nested paths cannot have more strict rules than the root path.
-	/// Authentication is currently based on the prefix at connection time.
-	/// If you allow public access to root but try to lock down a nested path, IT WILL NOT WORK.
-	#[serde(skip_serializing_if = "HashMap::is_empty")]
-	#[arg(skip)] // It's too difficult to handle this in clap; use TOML.
-	pub path: HashMap<String, AuthRoot>,
-}
-
-#[skip_serializing_none]
-#[derive(clap::Args, Clone, Debug, Serialize, Deserialize, Default)]
-pub struct AuthRoot {
-	/// If specified, this key will override the root key for this path.
-	/// If not specified, the root key will be used.
-	#[arg(long = "auth-key")]
+	/// The root authentication key.
+	/// If present, all paths will require a token unless they are in the public list.
+	#[arg(long = "auth-key", env = "MOQ_AUTH_KEY")]
 	pub key: Option<String>,
 
-	/// Public access configuration.
-	#[serde(default)]
-	#[command(flatten)]
-	pub public: AuthPublic,
-}
-
-#[derive(clap::Args, Clone, Debug, Serialize, Deserialize, Default)]
-pub struct AuthPublic {
-	/// If specified, this path will either require or not require a token for reading.
-	/// If None, the default depends on if a key is configured otherwise the root config will be used.
-	#[arg(long = "auth-public-read")]
-	pub read: Option<bool>,
-
-	/// If specified, this path will either require or not require a token for writing.
-	/// If None, the default depends on if a key is configured otherwise the root config will be used.
-	#[arg(long = "auth-public-write")]
-	pub write: Option<bool>,
-}
-
-// Similar to AuthRoot, but fully qualified.
-struct AuthPath {
-	pub key: Option<moq_token::Key>,
-	pub public_read: bool,
-	pub public_write: bool,
+	/// The prefix that will be public for reading and writing.
+	/// If present, unauthorized users will be able to read and write to this prefix ONLY.
+	/// If a user provides a token, then they can only access the prefix only if it is specified in the token.
+	#[arg(long = "auth-public", env = "MOQ_AUTH_PUBLIC")]
+	pub public: Option<Path>,
 }
 
 impl AuthConfig {
@@ -63,176 +26,531 @@ impl AuthConfig {
 	}
 }
 
+#[derive(Clone)]
 pub struct Auth {
-	root: AuthPath,
-	paths: HashMap<String, AuthPath>,
+	key: Option<Arc<moq_token::Key>>,
+	public: Option<Path>,
 }
 
 impl Auth {
 	pub fn new(config: AuthConfig) -> anyhow::Result<Self> {
-		let mut paths = HashMap::new();
-
-		// Most of this validation is just to avoid accidental security holes.
-		let path = match config.root.key.as_deref() {
-			None | Some("") => {
-				tracing::warn!("no root key configured; all paths will be public");
-
-				let read = config.root.public.read.unwrap_or(true);
-				let write = config.root.public.write.unwrap_or(true);
-
-				anyhow::ensure!(read || write, "no root key configured, but no public access either");
-
-				for auth in config.path.values() {
-					anyhow::ensure!(
-						auth.key.is_none(),
-						"no root key configured, but individual paths are configured"
-					);
-
-					if (read && auth.public.read == Some(false)) || (write && auth.public.write == Some(false)) {
-						anyhow::bail!("nested path cannot be more strict than root");
-					}
-				}
-
-				return Ok(Self {
-					root: AuthPath {
-						key: None,
-						public_read: read,
-						public_write: write,
-					},
-					paths,
-				});
-			}
-			Some(path) => path,
+		let key = match config.key.as_deref() {
+			Some(path) => Some(moq_token::Key::from_file(path)?),
+			None => None,
 		};
 
-		// We have a key, so we default to no public access.
-		let root_public_read = config.root.public.read.unwrap_or(false);
-		let root_public_write = config.root.public.write.unwrap_or(false);
+		let public = config.public;
 
-		anyhow::ensure!(
-			!root_public_read && !root_public_write,
-			"root key configured, but access is public"
-		);
-
-		let root_key = moq_token::Key::from_file(path)?;
-		anyhow::ensure!(
-			root_key.operations.contains(&moq_token::KeyOperation::Verify),
-			"key does not support verification"
-		);
-
-		for (path, auth) in config.path {
-			let path_key = match auth.key.as_deref() {
-				// Inherit from the root config if no key is configured.
-				None => Some(root_key.clone()),
-
-				// Disable authentication if an empty string is configured.
-				Some("") => None,
-
-				// Load the key from the file.
-				Some(path) => Some(moq_token::Key::from_file(path)?),
-			};
-
-			let path_public_read = match path_key.is_some() {
-				// If a key is configured, then default to the root config.
-				true => auth.public.read.unwrap_or(root_public_read),
-
-				// If no key is configured, then default to public unless explicitly disabled.
-				false => auth.public.read.unwrap_or(true),
-			};
-
-			let path_public_write = match path_key.is_some() {
-				true => auth.public.write.unwrap_or(root_public_write),
-				false => auth.public.write.unwrap_or(true),
-			};
-
-			// TODO We should do a similar check for all sub-paths.
-			if (root_public_read && !path_public_read) || (root_public_write && !path_public_write) {
-				anyhow::bail!("nested path cannot be more strict than root");
-			}
-
-			anyhow::ensure!(
-				path_key.is_some() || (path_public_read && path_public_write),
-				"no key configured, but no public access either"
-			);
-
-			match paths.entry(path) {
-				hash_map::Entry::Vacant(e) => {
-					e.insert(AuthPath {
-						key: path_key,
-						public_read: path_public_read,
-						public_write: path_public_write,
-					});
-				}
-				hash_map::Entry::Occupied(e) => anyhow::bail!("duplicate path: {}", e.key()),
-			}
+		match (&key, &public) {
+			(None, None) => anyhow::bail!("no root key or public path configured"),
+			(Some(_), Some(public)) if public.is_empty() => anyhow::bail!("root key but fully public access"),
+			_ => (),
 		}
 
 		Ok(Self {
-			root: AuthPath {
-				key: Some(root_key),
-				public_read: root_public_read,
-				public_write: root_public_write,
-			},
-			paths,
+			key: key.map(Arc::new),
+			public,
 		})
 	}
 
-	// Parse/validate a user provided URL.
-	pub fn validate(&self, url: &Url) -> anyhow::Result<moq_token::Claims> {
+	// Parse the token from the user provided URL, returning the claims if successful.
+	// If no token is provided, then the claims will use the public path if it is set.
+	pub fn verify(&self, url: &Url) -> anyhow::Result<moq_token::Claims> {
 		// Find the token in the query parameters.
 		// ?jwt=...
-		let token = url.query_pairs().find(|(k, _)| k == "jwt").map(|(_, v)| v);
-
-		// Remove the leading / from the path; it's required for URLs.
-		let path = url.path().trim_start_matches('/');
-
-		// Default to requiring a token if there's a root key configured.
-		let mut auth = &self.root;
-		let mut remain = path;
-
-		// Keep removing / until we find a configured key.
-		while let Some((prefix, _)) = remain.rsplit_once("/") {
-			if let Some(path_auth) = self.paths.get(prefix) {
-				// We found the longest configured path.
-				auth = path_auth;
-				break;
+		let mut claims = if let Some((_, token)) = url.query_pairs().find(|(k, _)| k == "jwt") {
+			if let Some(key) = self.key.as_ref() {
+				key.decode(&token)?
+			} else {
+				anyhow::bail!("token provided, but no key configured");
 			}
-
-			remain = prefix;
-		}
-
-		if let Some(token) = token {
-			let key = auth.key.as_ref().context("token used for public path")?;
-
-			// Verify the token and return the payload.
-			let mut permissions = key.verify(&token, path)?;
-
-			// Modify the permissions to allow public access if configured.
-			// We still use the token's permissions if they exist.
-			permissions.publish = permissions.publish.or(auth.public_write.then_some("".to_string()));
-			permissions.subscribe = permissions.subscribe.or(auth.public_read.then_some("".to_string()));
-
-			return Ok(permissions);
-		}
-
-		// Check if authentication is required but no token was provided
-		if auth.key.is_some() {
-			anyhow::bail!("authentication required but no token provided");
-		}
-
-		// No auth required, so create a token that allows public access
-		let claims = moq_token::Claims {
-			path: path.to_string(),
-			publish: auth.public_write.then_some("".to_string()),
-			subscribe: auth.public_read.then_some("".to_string()),
-			..Default::default()
+		} else if let Some(public) = &self.public {
+			moq_token::Claims {
+				root: public.clone(),
+				subscribe: Some(Path::new("")),
+				publish: Some(Path::new("")),
+				..Default::default()
+			}
+		} else {
+			anyhow::bail!("no token provided and no public path configured");
 		};
 
-		// Reject connections that have no permissions at all
-		if claims.publish.is_none() && claims.subscribe.is_none() {
-			anyhow::bail!("session has no access permissions");
-		}
+		// Get the path from the URL, removing any leading or trailing slashes.
+		// We will automatically add a trailing slash when joining the path with the subscribe/publish roots.
+		let path = Path::new(url.path());
+
+		// Make sure the URL path matches the root path.
+		let suffix = path
+			.strip_prefix(&claims.root)
+			.context("path does not match the root")?;
+
+		// If a more specific path is is provided, reduce the permissions.
+		claims.subscribe = match claims.subscribe {
+			Some(path) if !path.is_empty() => path.strip_prefix(&suffix).map(|p| p.to_owned()),
+			v => v,
+		};
+
+		claims.publish = match claims.publish {
+			Some(path) if !path.is_empty() => path.strip_prefix(&suffix).map(|p| p.to_owned()),
+			v => v,
+		};
+
+		claims.root = path;
 
 		Ok(claims)
+	}
+}
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+	use moq_token::{Algorithm, Key};
+	use tempfile::NamedTempFile;
+
+	fn create_test_key() -> anyhow::Result<(NamedTempFile, Key)> {
+		let key_file = NamedTempFile::new()?;
+		let key = Key::generate(Algorithm::HS256, None);
+		key.to_file(key_file.path())?;
+		Ok((key_file, key))
+	}
+
+	#[test]
+	fn test_anonymous_access_with_public_path() -> anyhow::Result<()> {
+		// Test anonymous access to /anon path
+		let auth = Auth::new(AuthConfig {
+			key: None,
+			public: Some(Path::new("anon")),
+		})?;
+
+		// Should succeed for anonymous path
+		let url = Url::parse("https://relay.example.com/anon")?;
+		let claims = auth.verify(&url)?;
+		assert_eq!(claims.root, Path::new("anon"));
+		assert_eq!(claims.subscribe, Some(Path::new("")));
+		assert_eq!(claims.publish, Some(Path::new("")));
+
+		// Should succeed for sub-paths under anonymous
+		let url = Url::parse("https://relay.example.com/anon/room/123")?;
+		let claims = auth.verify(&url)?;
+		assert_eq!(claims.root, Path::new("anon/room/123"));
+		assert_eq!(claims.subscribe, Some(Path::new("")));
+		assert_eq!(claims.publish, Some(Path::new("")));
+
+		Ok(())
+	}
+
+	#[test]
+	fn test_anonymous_access_fully_public() -> anyhow::Result<()> {
+		// Test fully public access (public = "")
+		let auth = Auth::new(AuthConfig {
+			key: None,
+			public: Some(Path::new("")),
+		})?;
+
+		// Should succeed for any path
+		let url = Url::parse("https://relay.example.com/any/path")?;
+		let claims = auth.verify(&url)?;
+		assert_eq!(claims.root, Path::new("any/path"));
+		assert_eq!(claims.subscribe, Some(Path::new("")));
+		assert_eq!(claims.publish, Some(Path::new("")));
+
+		Ok(())
+	}
+
+	#[test]
+	fn test_anonymous_access_denied_wrong_prefix() -> anyhow::Result<()> {
+		// Test anonymous access denied for wrong prefix
+		let auth = Auth::new(AuthConfig {
+			key: None,
+			public: Some(Path::new("anon")),
+		})?;
+
+		// Should fail for non-anonymous path
+		let url = Url::parse("https://relay.example.com/secret")?;
+		let result = auth.verify(&url);
+		assert!(result.is_err());
+		assert!(result.unwrap_err().to_string().contains("path does not match the root"));
+
+		Ok(())
+	}
+
+	#[test]
+	fn test_no_token_no_public_path_fails() -> anyhow::Result<()> {
+		let (key_file, _) = create_test_key()?;
+		let auth = Auth::new(AuthConfig {
+			key: Some(key_file.path().to_string_lossy().to_string()),
+			public: None,
+		})?;
+
+		// Should fail when no token and no public path
+		let url = Url::parse("https://relay.example.com/any/path")?;
+		let result = auth.verify(&url);
+		assert!(result.is_err());
+		assert!(result
+			.unwrap_err()
+			.to_string()
+			.contains("no token provided and no public path configured"));
+
+		Ok(())
+	}
+
+	#[test]
+	fn test_token_provided_but_no_key_configured() -> anyhow::Result<()> {
+		let auth = Auth::new(AuthConfig {
+			key: None,
+			public: Some(Path::new("anon")),
+		})?;
+
+		// Should fail when token provided but no key configured
+		let url = Url::parse("https://relay.example.com/any/path?jwt=fake-token")?;
+		let result = auth.verify(&url);
+		assert!(result.is_err());
+		assert!(result
+			.unwrap_err()
+			.to_string()
+			.contains("token provided, but no key configured"));
+
+		Ok(())
+	}
+
+	#[test]
+	fn test_jwt_token_basic_validation() -> anyhow::Result<()> {
+		let (key_file, key) = create_test_key()?;
+		let auth = Auth::new(AuthConfig {
+			key: Some(key_file.path().to_string_lossy().to_string()),
+			public: None,
+		})?;
+
+		// Create a token with basic permissions
+		let claims = moq_token::Claims {
+			root: Path::new("room/123"),
+			subscribe: Some(Path::new("")),
+			publish: Some(Path::new("alice")),
+			..Default::default()
+		};
+		let token = key.encode(&claims)?;
+
+		// Should succeed with valid token and matching path
+		let url = Url::parse(&format!("https://relay.example.com/room/123?jwt={token}"))?;
+		let verified_claims = auth.verify(&url)?;
+		assert_eq!(verified_claims.root, Path::new("room/123"));
+		assert_eq!(verified_claims.subscribe, Some(Path::new("")));
+		assert_eq!(verified_claims.publish, Some(Path::new("alice")));
+
+		Ok(())
+	}
+
+	#[test]
+	fn test_jwt_token_wrong_root_path() -> anyhow::Result<()> {
+		let (key_file, key) = create_test_key()?;
+		let auth = Auth::new(AuthConfig {
+			key: Some(key_file.path().to_string_lossy().to_string()),
+			public: None,
+		})?;
+
+		// Create a token for room/123
+		let claims = moq_token::Claims {
+			root: Path::new("room/123"),
+			subscribe: Some(Path::new("")),
+			publish: Some(Path::new("")),
+			..Default::default()
+		};
+		let token = key.encode(&claims)?;
+
+		// Should fail when trying to access wrong path
+		let url = Url::parse(&format!("https://relay.example.com/secret?jwt={token}"))?;
+		let result = auth.verify(&url);
+		assert!(result.is_err());
+		assert!(result.unwrap_err().to_string().contains("path does not match the root"));
+
+		Ok(())
+	}
+
+	#[test]
+	fn test_jwt_token_with_restricted_publish_subscribe() -> anyhow::Result<()> {
+		let (key_file, key) = create_test_key()?;
+		let auth = Auth::new(AuthConfig {
+			key: Some(key_file.path().to_string_lossy().to_string()),
+			public: None,
+		})?;
+
+		// Create a token with specific pub/sub restrictions
+		let claims = moq_token::Claims {
+			root: Path::new("room/123"),
+			subscribe: Some(Path::new("bob")),
+			publish: Some(Path::new("alice")),
+			..Default::default()
+		};
+		let token = key.encode(&claims)?;
+
+		// Verify the restrictions are preserved
+		let url = Url::parse(&format!("https://relay.example.com/room/123?jwt={token}"))?;
+		let verified_claims = auth.verify(&url)?;
+		assert_eq!(verified_claims.root, Path::new("room/123"));
+		assert_eq!(verified_claims.subscribe, Some(Path::new("bob")));
+		assert_eq!(verified_claims.publish, Some(Path::new("alice")));
+
+		Ok(())
+	}
+
+	#[test]
+	fn test_jwt_token_read_only() -> anyhow::Result<()> {
+		let (key_file, key) = create_test_key()?;
+		let auth = Auth::new(AuthConfig {
+			key: Some(key_file.path().to_string_lossy().to_string()),
+			public: None,
+		})?;
+
+		// Create a read-only token (no publish permissions)
+		let claims = moq_token::Claims {
+			root: Path::new("room/123"),
+			subscribe: Some(Path::new("")),
+			publish: None,
+			..Default::default()
+		};
+		let token = key.encode(&claims)?;
+
+		let url = Url::parse(&format!("https://relay.example.com/room/123?jwt={token}"))?;
+		let verified_claims = auth.verify(&url)?;
+		assert_eq!(verified_claims.subscribe, Some(Path::new("")));
+		assert_eq!(verified_claims.publish, None);
+
+		Ok(())
+	}
+
+	#[test]
+	fn test_jwt_token_write_only() -> anyhow::Result<()> {
+		let (key_file, key) = create_test_key()?;
+		let auth = Auth::new(AuthConfig {
+			key: Some(key_file.path().to_string_lossy().to_string()),
+			public: None,
+		})?;
+
+		// Create a write-only token (no subscribe permissions)
+		let claims = moq_token::Claims {
+			root: Path::new("room/123"),
+			subscribe: None,
+			publish: Some(Path::new("")),
+			..Default::default()
+		};
+		let token = key.encode(&claims)?;
+
+		let url = Url::parse(&format!("https://relay.example.com/room/123?jwt={token}"))?;
+		let verified_claims = auth.verify(&url)?;
+		assert_eq!(verified_claims.subscribe, None);
+		assert_eq!(verified_claims.publish, Some(Path::new("")));
+
+		Ok(())
+	}
+
+	#[test]
+	fn test_claims_reduction_basic() -> anyhow::Result<()> {
+		let (key_file, key) = create_test_key()?;
+		let auth = Auth::new(AuthConfig {
+			key: Some(key_file.path().to_string_lossy().to_string()),
+			public: None,
+		})?;
+
+		// Create a token with root at room/123 and unrestricted pub/sub
+		let claims = moq_token::Claims {
+			root: Path::new("room/123"),
+			subscribe: Some(Path::new("")),
+			publish: Some(Path::new("")),
+			..Default::default()
+		};
+		let token = key.encode(&claims)?;
+
+		// Connect to more specific path room/123/alice
+		let url = Url::parse(&format!("https://relay.example.com/room/123/alice?jwt={token}"))?;
+		let verified_claims = auth.verify(&url)?;
+
+		// Root should be updated to the more specific path
+		assert_eq!(verified_claims.root, Path::new("room/123/alice"));
+		// Empty permissions remain empty (full access under new root)
+		assert_eq!(verified_claims.subscribe, Some(Path::new("")));
+		assert_eq!(verified_claims.publish, Some(Path::new("")));
+
+		Ok(())
+	}
+
+	#[test]
+	fn test_claims_reduction_with_publish_restrictions() -> anyhow::Result<()> {
+		let (key_file, key) = create_test_key()?;
+		let auth = Auth::new(AuthConfig {
+			key: Some(key_file.path().to_string_lossy().to_string()),
+			public: None,
+		})?;
+
+		// Token allows publishing only to alice/*
+		let claims = moq_token::Claims {
+			root: Path::new("room/123"),
+			subscribe: Some(Path::new("")),
+			publish: Some(Path::new("alice")),
+			..Default::default()
+		};
+		let token = key.encode(&claims)?;
+
+		// Connect to room/123/alice - should remove alice prefix from publish
+		let url = Url::parse(&format!("https://relay.example.com/room/123/alice?jwt={token}"))?;
+		let verified_claims = auth.verify(&url)?;
+
+		assert_eq!(verified_claims.root, Path::new("room/123/alice"));
+		assert_eq!(verified_claims.subscribe, Some(Path::new("")));
+		// alice prefix stripped, now can publish to everything under room/123/alice
+		assert_eq!(verified_claims.publish, Some(Path::new("")));
+
+		Ok(())
+	}
+
+	#[test]
+	fn test_claims_reduction_with_subscribe_restrictions() -> anyhow::Result<()> {
+		let (key_file, key) = create_test_key()?;
+		let auth = Auth::new(AuthConfig {
+			key: Some(key_file.path().to_string_lossy().to_string()),
+			public: None,
+		})?;
+
+		// Token allows subscribing only to bob/*
+		let claims = moq_token::Claims {
+			root: Path::new("room/123"),
+			subscribe: Some(Path::new("bob")),
+			publish: Some(Path::new("")),
+			..Default::default()
+		};
+		let token = key.encode(&claims)?;
+
+		// Connect to room/123/bob - should remove bob prefix from subscribe
+		let url = Url::parse(&format!("https://relay.example.com/room/123/bob?jwt={token}"))?;
+		let verified_claims = auth.verify(&url)?;
+
+		assert_eq!(verified_claims.root, Path::new("room/123/bob"));
+		// bob prefix stripped, now can subscribe to everything under room/123/bob
+		assert_eq!(verified_claims.subscribe, Some(Path::new("")));
+		assert_eq!(verified_claims.publish, Some(Path::new("")));
+
+		Ok(())
+	}
+
+	#[test]
+	fn test_claims_reduction_loses_access() -> anyhow::Result<()> {
+		let (key_file, key) = create_test_key()?;
+		let auth = Auth::new(AuthConfig {
+			key: Some(key_file.path().to_string_lossy().to_string()),
+			public: None,
+		})?;
+
+		// Token allows publishing to alice/* and subscribing to bob/*
+		let claims = moq_token::Claims {
+			root: Path::new("room/123"),
+			subscribe: Some(Path::new("bob")),
+			publish: Some(Path::new("alice")),
+			..Default::default()
+		};
+		let token = key.encode(&claims)?;
+
+		// Connect to room/123/alice - loses ability to subscribe to bob
+		let url = Url::parse(&format!("https://relay.example.com/room/123/alice?jwt={token}"))?;
+		let verified_claims = auth.verify(&url)?;
+
+		assert_eq!(verified_claims.root, Path::new("room/123/alice"));
+		// Can't subscribe to bob anymore (alice doesn't have bob prefix)
+		assert_eq!(verified_claims.subscribe, None);
+		// Can publish to everything under alice
+		assert_eq!(verified_claims.publish, Some(Path::new("")));
+
+		// Connect to room/123/bob - loses ability to publish to alice
+		let url = Url::parse(&format!("https://relay.example.com/room/123/bob?jwt={token}"))?;
+		let verified_claims = auth.verify(&url)?;
+
+		assert_eq!(verified_claims.root, Path::new("room/123/bob"));
+		// Can subscribe to everything under bob
+		assert_eq!(verified_claims.subscribe, Some(Path::new("")));
+		// Can't publish to alice anymore (bob doesn't have alice prefix)
+		assert_eq!(verified_claims.publish, None);
+
+		Ok(())
+	}
+
+	#[test]
+	fn test_claims_reduction_nested_paths() -> anyhow::Result<()> {
+		let (key_file, key) = create_test_key()?;
+		let auth = Auth::new(AuthConfig {
+			key: Some(key_file.path().to_string_lossy().to_string()),
+			public: None,
+		})?;
+
+		// Token with nested publish/subscribe paths
+		let claims = moq_token::Claims {
+			root: Path::new("room/123"),
+			subscribe: Some(Path::new("users/bob/screen")),
+			publish: Some(Path::new("users/alice/camera")),
+			..Default::default()
+		};
+		let token = key.encode(&claims)?;
+
+		// Connect to room/123/users - permissions should be reduced
+		let url = Url::parse(&format!("https://relay.example.com/room/123/users?jwt={token}"))?;
+		let verified_claims = auth.verify(&url)?;
+
+		assert_eq!(verified_claims.root, Path::new("room/123/users"));
+		// users prefix removed from paths
+		assert_eq!(verified_claims.subscribe, Some(Path::new("bob/screen")));
+		assert_eq!(verified_claims.publish, Some(Path::new("alice/camera")));
+
+		// Connect to room/123/users/alice - further reduction
+		let url = Url::parse(&format!("https://relay.example.com/room/123/users/alice?jwt={token}"))?;
+		let verified_claims = auth.verify(&url)?;
+
+		assert_eq!(verified_claims.root, Path::new("room/123/users/alice"));
+		// Can't subscribe (alice doesn't have bob prefix)
+		assert_eq!(verified_claims.subscribe, None);
+		// users/alice prefix removed, left with camera
+		assert_eq!(verified_claims.publish, Some(Path::new("camera")));
+
+		Ok(())
+	}
+
+	#[test]
+	fn test_claims_reduction_preserves_read_write_only() -> anyhow::Result<()> {
+		let (key_file, key) = create_test_key()?;
+		let auth = Auth::new(AuthConfig {
+			key: Some(key_file.path().to_string_lossy().to_string()),
+			public: None,
+		})?;
+
+		// Read-only token
+		let claims = moq_token::Claims {
+			root: Path::new("room/123"),
+			subscribe: Some(Path::new("alice")),
+			publish: None, // No publish permissions
+			..Default::default()
+		};
+		let token = key.encode(&claims)?;
+
+		// Connect to more specific path
+		let url = Url::parse(&format!("https://relay.example.com/room/123/alice?jwt={token}"))?;
+		let verified_claims = auth.verify(&url)?;
+
+		// Should remain read-only
+		assert_eq!(verified_claims.subscribe, Some(Path::new("")));
+		assert_eq!(verified_claims.publish, None);
+
+		// Write-only token
+		let claims = moq_token::Claims {
+			root: Path::new("room/123"),
+			subscribe: None, // No subscribe permissions
+			publish: Some(Path::new("alice")),
+			..Default::default()
+		};
+		let token = key.encode(&claims)?;
+
+		let url = Url::parse(&format!("https://relay.example.com/room/123/alice?jwt={token}"))?;
+		let verified_claims = auth.verify(&url)?;
+
+		// Should remain write-only
+		assert_eq!(verified_claims.subscribe, None);
+		assert_eq!(verified_claims.publish, Some(Path::new("")));
+
+		Ok(())
 	}
 }

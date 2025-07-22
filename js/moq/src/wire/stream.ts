@@ -1,3 +1,5 @@
+import type { Valid } from "../path";
+import * as Path from "../path";
 import * as Wire from ".";
 
 const MAX_U6 = 2 ** 6 - 1;
@@ -162,6 +164,11 @@ export class Reader {
 		return new TextDecoder().decode(buffer);
 	}
 
+	async path(): Promise<Valid> {
+		const str = await this.string();
+		return Path.from(str);
+	}
+
 	async u8(): Promise<number> {
 		await this.#fillTo(1);
 		return this.#slice(1)[0];
@@ -280,6 +287,10 @@ export class Writer {
 		const data = new TextEncoder().encode(str);
 		await this.u53(data.byteLength);
 		await this.write(data);
+	}
+
+	async path(path: Valid) {
+		await this.string(path);
 	}
 
 	close() {

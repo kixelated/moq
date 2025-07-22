@@ -1,3 +1,4 @@
+import * as Message from "./message";
 import type { Reader, Writer } from "./stream";
 
 export const Version = {
@@ -11,9 +12,10 @@ export const Version = {
 	FORK_03: 0xff0bad03,
 	FORK_04: 0xff0bad04,
 	LITE_00: 0xff0dad00,
+	LITE_01: 0xff0dad01,
 } as const;
 
-export const CURRENT_VERSION = Version.LITE_00;
+export const CURRENT_VERSION = Version.LITE_01;
 
 export class Extensions {
 	entries: Map<bigint, Uint8Array>;
@@ -76,7 +78,7 @@ export class SessionClient {
 		this.extensions = extensions;
 	}
 
-	async encode(w: Writer) {
+	async encodeBody(w: Writer) {
 		await w.u53(this.versions.length);
 		for (const v of this.versions) {
 			await w.u53(v);
@@ -85,7 +87,7 @@ export class SessionClient {
 		await this.extensions.encode(w);
 	}
 
-	static async decode(r: Reader): Promise<SessionClient> {
+	static async decodeBody(r: Reader): Promise<SessionClient> {
 		const versions: number[] = [];
 		const count = await r.u53();
 		for (let i = 0; i < count; i++) {
@@ -94,6 +96,15 @@ export class SessionClient {
 
 		const extensions = await Extensions.decode(r);
 		return new SessionClient(versions, extensions);
+	}
+
+	// Wrapper methods that automatically handle size prefixing
+	async encode(w: Writer): Promise<void> {
+		return Message.encode(this, w);
+	}
+
+	static async decode(r: Reader): Promise<SessionClient> {
+		return Message.decode(SessionClient, r);
 	}
 }
 
@@ -106,15 +117,24 @@ export class SessionServer {
 		this.extensions = extensions;
 	}
 
-	async encode(w: Writer) {
+	async encodeBody(w: Writer) {
 		await w.u53(this.version);
 		await this.extensions.encode(w);
 	}
 
-	static async decode(r: Reader): Promise<SessionServer> {
+	static async decodeBody(r: Reader): Promise<SessionServer> {
 		const version = await r.u53();
 		const extensions = await Extensions.decode(r);
 		return new SessionServer(version, extensions);
+	}
+
+	// Wrapper methods that automatically handle size prefixing
+	async encode(w: Writer): Promise<void> {
+		return Message.encode(this, w);
+	}
+
+	static async decode(r: Reader): Promise<SessionServer> {
+		return Message.decode(SessionServer, r);
 	}
 }
 
@@ -125,13 +145,22 @@ export class SessionInfo {
 		this.bitrate = bitrate;
 	}
 
-	async encode(w: Writer) {
+	async encodeBody(w: Writer) {
 		await w.u53(this.bitrate);
 	}
 
-	static async decode(r: Reader): Promise<SessionInfo> {
+	static async decodeBody(r: Reader): Promise<SessionInfo> {
 		const bitrate = await r.u53();
 		return new SessionInfo(bitrate);
+	}
+
+	// Wrapper methods that automatically handle size prefixing
+	async encode(w: Writer): Promise<void> {
+		return Message.encode(this, w);
+	}
+
+	static async decode(r: Reader): Promise<SessionInfo> {
+		return Message.decode(SessionInfo, r);
 	}
 
 	static async decode_maybe(r: Reader): Promise<SessionInfo | undefined> {

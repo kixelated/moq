@@ -16,17 +16,20 @@
 
 	<!--
 		Use the included Web Component to render a preview and simple controls.
-		You can set the url in publish.ts based on query parameters.
-		That's optional of course, you could instead add: url="http://localhost:4443/demo/me.hang"
+		See `publish.ts` for an example changing the broadcast based on a query parameter.
+
+		The relay url is loaded from an environment as it contains a generated JWT authentication token.
+		Feel free to hard-code it if you have public access configured, like `url="https://relay.quic.video/anon"`
+		NOTE: `http` performs an insecure certificate check. You must use `https` in production.
 	-->
-	<hang-publish audio video controls>
+	<hang-publish url="%VITE_RELAY_URL%" name="me" audio video controls>
 		<!-- It's optional to provide a video element to preview the outgoing media. -->
 		<video style="max-width: 100%; height: auto; border-radius: 4px; margin: 0 auto;" muted autoplay></video>
 	</hang-publish>
 
 	<h3>Other demos:</h3>
 	<ul>
-		<li><a href="index.html?name=demo/me" target="_blank" rel="noreferrer" id="watch">Watch your broadcast: <span
+		<li><a href="index.html?name=me" target="_blank" rel="noreferrer" id="watch">Watch your broadcast: <span
 					id="watch-name"></span></a></li>
 		<li><a href="meet.html">Watch a room of broadcasts.</a></li>
 		<li><a href="support.html">Check browser support.</a></li>
@@ -34,8 +37,8 @@
 
 	<h3>Tips:</h3>
 	<p>
-		This page creates a broadcast called `demo/me` by default.
-		You can use <a href="index.html?&name=demo/notme">query parameters</a> to use a different name and create
+		This page creates a broadcast called `me` by default.
+		You can use <a href="index.html?&name=notme">query parameters</a> to use a different name and create
 		multiple broadcasts.
 	</p>
 	<p>

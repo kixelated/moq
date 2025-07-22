@@ -1,18 +1,18 @@
 use num_enum::{IntoPrimitive, TryFromPrimitive};
 
-use crate::coding::*;
+use crate::{coding::*, Path};
 
 /// Sent by the publisher to announce the availability of a track.
 /// The payload contains the contents of the wildcard.
 #[derive(Clone, Debug, PartialEq, Eq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum Announce {
-	Active { suffix: String },
-	Ended { suffix: String },
+	Active { suffix: Path },
+	Ended { suffix: Path },
 }
 
 impl Announce {
-	pub fn suffix(&self) -> &str {
+	pub fn suffix(&self) -> &Path {
 		match self {
 			Announce::Active { suffix } => suffix,
 			Announce::Ended { suffix } => suffix,
@@ -20,20 +20,18 @@ impl Announce {
 	}
 }
 
-impl Decode for Announce {
+impl Message for Announce {
 	fn decode<R: bytes::Buf>(r: &mut R) -> Result<Self, DecodeError> {
 		Ok(match AnnounceStatus::decode(r)? {
 			AnnounceStatus::Active => Self::Active {
-				suffix: String::decode(r)?,
+				suffix: Path::decode(r)?,
 			},
 			AnnounceStatus::Ended => Self::Ended {
-				suffix: String::decode(r)?,
+				suffix: Path::decode(r)?,
 			},
 		})
 	}
-}
 
-impl Encode for Announce {
 	fn encode<W: bytes::BufMut>(&self, w: &mut W) {
 		match self {
 			Self::Active { suffix } => {
@@ -50,19 +48,17 @@ impl Encode for Announce {
 
 /// Sent by the subscriber to request ANNOUNCE messages.
 #[derive(Clone, Debug)]
-pub struct AnnounceRequest {
+pub struct AnnouncePlease {
 	// Request tracks with this prefix.
-	pub prefix: String,
+	pub prefix: Path,
 }
 
-impl Decode for AnnounceRequest {
+impl Message for AnnouncePlease {
 	fn decode<R: bytes::Buf>(r: &mut R) -> Result<Self, DecodeError> {
-		let prefix = String::decode(r)?;
+		let prefix = Path::decode(r)?;
 		Ok(Self { prefix })
 	}
-}
 
-impl Encode for AnnounceRequest {
 	fn encode<W: bytes::BufMut>(&self, w: &mut W) {
 		self.prefix.encode(w)
 	}
@@ -90,5 +86,35 @@ impl Decode for AnnounceStatus {
 impl Encode for AnnounceStatus {
 	fn encode<W: bytes::BufMut>(&self, w: &mut W) {
 		(*self as u8).encode(w)
+	}
+}
+
+/// Sent after setup to communicate the initially announced paths.
+#[derive(Clone, Debug, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct AnnounceInit {
+	/// List of currently active broadcasts, encoded as suffixes to be combined with the prefix.
+	pub suffixes: Vec<Path>,
+}
+
+impl Message for AnnounceInit {
+	fn decode<R: bytes::Buf>(r: &mut R) -> Result<Self, DecodeError> {
+		let count = u64::decode(r)?;
+
+		// Don't allocate more than 1024 elements upfront
+		let mut paths = Vec::with_capacity(count.min(1024) as usize);
+
+		for _ in 0..count {
+			paths.push(Path::decode(r)?);
+		}
+
+		Ok(Self { suffixes: paths })
+	}
+
+	fn encode<W: bytes::BufMut>(&self, w: &mut W) {
+		(self.suffixes.len() as u64).encode(w);
+		for path in &self.suffixes {
+			path.encode(w);
+		}
 	}
 }

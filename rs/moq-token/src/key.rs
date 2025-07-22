@@ -1,4 +1,4 @@
-use std::{collections::HashSet, fmt, path::Path, sync::OnceLock};
+use std::{collections::HashSet, fmt, path::Path as StdPath, sync::OnceLock};
 
 use base64::Engine;
 use jsonwebtoken::{DecodingKey, EncodingKey, Header};
@@ -62,7 +62,7 @@ impl Key {
 		Ok(serde_json::from_str(s)?)
 	}
 
-	pub fn from_file<P: AsRef<Path>>(path: P) -> anyhow::Result<Self> {
+	pub fn from_file<P: AsRef<StdPath>>(path: P) -> anyhow::Result<Self> {
 		// TODO: Remove this once all keys are migrated to base64url format
 		// First try to read as JSON (backwards compatibility)
 		let contents = std::fs::read_to_string(&path)?;
@@ -83,7 +83,7 @@ impl Key {
 		Ok(serde_json::to_string(self)?)
 	}
 
-	pub fn to_file<P: AsRef<Path>>(&self, path: P) -> anyhow::Result<()> {
+	pub fn to_file<P: AsRef<StdPath>>(&self, path: P) -> anyhow::Result<()> {
 		// Serialize to JSON first
 		let json = serde_json::to_string(self)?;
 		// Then encode as base64url
@@ -92,7 +92,7 @@ impl Key {
 		Ok(())
 	}
 
-	pub fn verify(&self, token: &str, path: &str) -> anyhow::Result<Claims> {
+	pub fn decode(&self, token: &str) -> anyhow::Result<Claims> {
 		if !self.operations.contains(&KeyOperation::Verify) {
 			anyhow::bail!("key does not support verification");
 		}
@@ -111,16 +111,12 @@ impl Key {
 		validation.required_spec_claims = Default::default(); // Don't require exp, but still validate it if present
 
 		let token = jsonwebtoken::decode::<Claims>(token, decode, &validation)?;
-		if token.claims.path != path {
-			anyhow::bail!("token path does not match provided path");
-		}
-
 		token.claims.validate()?;
 
 		Ok(token.claims)
 	}
 
-	pub fn sign(&self, payload: &Claims) -> anyhow::Result<String> {
+	pub fn encode(&self, payload: &Claims) -> anyhow::Result<String> {
 		if !self.operations.contains(&KeyOperation::Sign) {
 			anyhow::bail!("key does not support signing");
 		}
@@ -221,6 +217,7 @@ fn generate_hmac_key<const SIZE: usize>() -> Vec<u8> {
 #[cfg(test)]
 mod tests {
 	use super::*;
+	use moq_lite::Path;
 	use std::time::{Duration, SystemTime};
 
 	fn create_test_key() -> Key {
@@ -236,10 +233,10 @@ mod tests {
 
 	fn create_test_claims() -> Claims {
 		Claims {
-			path: "test-path/".to_string(),
-			publish: Some("test-pub".to_string()),
+			root: Path::new("test-path"),
+			publish: Some(Path::new("test-pub")),
 			cluster: false,
-			subscribe: Some("test-sub".to_string()),
+			subscribe: Some(Path::new("test-sub")),
 			expires: Some(SystemTime::now() + Duration::from_secs(3600)),
 			issued: Some(SystemTime::now()),
 		}
@@ -278,7 +275,7 @@ mod tests {
 	fn test_key_sign_success() {
 		let key = create_test_key();
 		let claims = create_test_claims();
-		let token = key.sign(&claims).unwrap();
+		let token = key.encode(&claims).unwrap();
 
 		assert!(!token.is_empty());
 		assert_eq!(token.matches('.').count(), 2); // JWT format: header.payload.signature
@@ -290,7 +287,7 @@ mod tests {
 		key.operations = [KeyOperation::Verify].into();
 		let claims = create_test_claims();
 
-		let result = key.sign(&claims);
+		let result = key.encode(&claims);
 		assert!(result.is_err());
 		assert!(result.unwrap_err().to_string().contains("key does not support signing"));
 	}
@@ -299,7 +296,7 @@ mod tests {
 	fn test_key_sign_invalid_claims() {
 		let key = create_test_key();
 		let invalid_claims = Claims {
-			path: "test-path/".to_string(),
+			root: Path::new("test-path"),
 			publish: None,
 			subscribe: None,
 			cluster: false,
@@ -307,22 +304,22 @@ mod tests {
 			issued: None,
 		};
 
-		let result = key.sign(&invalid_claims);
+		let result = key.encode(&invalid_claims);
 		assert!(result.is_err());
 		assert!(result
 			.unwrap_err()
 			.to_string()
-			.contains("no publish or subscribe paths specified"));
+			.contains("no publish or subscribe allowed; token is useless"));
 	}
 
 	#[test]
 	fn test_key_verify_success() {
 		let key = create_test_key();
 		let claims = create_test_claims();
-		let token = key.sign(&claims).unwrap();
+		let token = key.encode(&claims).unwrap();
 
-		let verified_claims = key.verify(&token, &claims.path).unwrap();
-		assert_eq!(verified_claims.path, claims.path);
+		let verified_claims = key.decode(&token).unwrap();
+		assert_eq!(verified_claims.root, claims.root);
 		assert_eq!(verified_claims.publish, claims.publish);
 		assert_eq!(verified_claims.subscribe, claims.subscribe);
 		assert_eq!(verified_claims.cluster, claims.cluster);
@@ -333,7 +330,7 @@ mod tests {
 		let mut key = create_test_key();
 		key.operations = [KeyOperation::Sign].into();
 
-		let result = key.verify("some.jwt.token", "test-path");
+		let result = key.decode("some.jwt.token");
 		assert!(result.is_err());
 		assert!(result
 			.unwrap_err()
@@ -344,7 +341,7 @@ mod tests {
 	#[test]
 	fn test_key_verify_invalid_token() {
 		let key = create_test_key();
-		let result = key.verify("invalid-token", "test-path");
+		let result = key.decode("invalid-token");
 		assert!(result.is_err());
 	}
 
@@ -352,14 +349,11 @@ mod tests {
 	fn test_key_verify_path_mismatch() {
 		let key = create_test_key();
 		let claims = create_test_claims();
-		let token = key.sign(&claims).unwrap();
+		let token = key.encode(&claims).unwrap();
 
-		let result = key.verify(&token, "different-path");
-		assert!(result.is_err());
-		assert!(result
-			.unwrap_err()
-			.to_string()
-			.contains("token path does not match provided path"));
+		// This test was expecting a path mismatch error, but now decode succeeds
+		let result = key.decode(&token);
+		assert!(result.is_ok());
 	}
 
 	#[test]
@@ -367,9 +361,9 @@ mod tests {
 		let key = create_test_key();
 		let mut claims = create_test_claims();
 		claims.expires = Some(SystemTime::now() - Duration::from_secs(3600)); // 1 hour ago
-		let token = key.sign(&claims).unwrap();
+		let token = key.encode(&claims).unwrap();
 
-		let result = key.verify(&token, &claims.path);
+		let result = key.decode(&token);
 		assert!(result.is_err());
 	}
 
@@ -377,17 +371,17 @@ mod tests {
 	fn test_key_verify_token_without_exp() {
 		let key = create_test_key();
 		let claims = Claims {
-			path: "test-path/".to_string(),
-			publish: Some("test-pub".to_string()),
+			root: Path::new("test-path"),
+			publish: Some(Path::new("test-pub")),
 			subscribe: None,
 			cluster: false,
 			expires: None,
 			issued: None,
 		};
-		let token = key.sign(&claims).unwrap();
+		let token = key.encode(&claims).unwrap();
 
-		let verified_claims = key.verify(&token, &claims.path).unwrap();
-		assert_eq!(verified_claims.path, claims.path);
+		let verified_claims = key.decode(&token).unwrap();
+		assert_eq!(verified_claims.root, claims.root);
 		assert_eq!(verified_claims.publish, claims.publish);
 		assert_eq!(verified_claims.expires, None);
 	}
@@ -396,18 +390,18 @@ mod tests {
 	fn test_key_round_trip() {
 		let key = create_test_key();
 		let original_claims = Claims {
-			path: "test-path/".to_string(),
-			publish: Some("test-pub".to_string()),
-			subscribe: Some("test-sub".to_string()),
+			root: Path::new("test-path"),
+			publish: Some(Path::new("test-pub")),
+			subscribe: Some(Path::new("test-sub")),
 			cluster: true,
 			expires: Some(SystemTime::now() + Duration::from_secs(3600)),
 			issued: Some(SystemTime::now()),
 		};
 
-		let token = key.sign(&original_claims).unwrap();
-		let verified_claims = key.verify(&token, &original_claims.path).unwrap();
+		let token = key.encode(&original_claims).unwrap();
+		let verified_claims = key.decode(&token).unwrap();
 
-		assert_eq!(verified_claims.path, original_claims.path);
+		assert_eq!(verified_claims.root, original_claims.root);
 		assert_eq!(verified_claims.publish, original_claims.publish);
 		assert_eq!(verified_claims.subscribe, original_claims.subscribe);
 		assert_eq!(verified_claims.cluster, original_claims.cluster);
@@ -449,10 +443,10 @@ mod tests {
 		let key = Key::generate(Algorithm::HS256, Some("test-id".to_string()));
 		let claims = create_test_claims();
 
-		let token = key.sign(&claims).unwrap();
-		let verified_claims = key.verify(&token, &claims.path).unwrap();
+		let token = key.encode(&claims).unwrap();
+		let verified_claims = key.decode(&token).unwrap();
 
-		assert_eq!(verified_claims.path, claims.path);
+		assert_eq!(verified_claims.root, claims.root);
 		assert_eq!(verified_claims.publish, claims.publish);
 		assert_eq!(verified_claims.subscribe, claims.subscribe);
 		assert_eq!(verified_claims.cluster, claims.cluster);
@@ -529,9 +523,9 @@ mod tests {
 
 		// Test that each algorithm can sign and verify
 		for key in [key_256, key_384, key_512] {
-			let token = key.sign(&claims).unwrap();
-			let verified_claims = key.verify(&token, &claims.path).unwrap();
-			assert_eq!(verified_claims.path, claims.path);
+			let token = key.encode(&claims).unwrap();
+			let verified_claims = key.decode(&token).unwrap();
+			assert_eq!(verified_claims.root, claims.root);
 		}
 	}
 
@@ -541,10 +535,10 @@ mod tests {
 		let key_384 = Key::generate(Algorithm::HS384, Some("test-id".to_string()));
 
 		let claims = create_test_claims();
-		let token = key_256.sign(&claims).unwrap();
+		let token = key_256.encode(&claims).unwrap();
 
 		// Different algorithm should fail verification
-		let result = key_384.verify(&token, &claims.path);
+		let result = key_384.decode(&token);
 		assert!(result.is_err());
 	}
 

@@ -1,6 +1,7 @@
 import * as Moq from "@kixelated/moq";
 import { type Computed, Root, Signal } from "@kixelated/signals";
 import type * as Catalog from "../catalog";
+import { u8 } from "../catalog/integers";
 import * as Container from "../container";
 
 export type LocationProps = {
@@ -47,7 +48,7 @@ export class Location {
 
 			return {
 				initial: this.current.peek(), // Doesn't trigger a re-render
-				updates: { name: this.#track.name, priority: this.#track.priority },
+				updates: { name: this.#track.name, priority: u8(this.#track.priority) },
 				peering: effect.get(this.peering),
 				peers: effect.get(this.#peers),
 			};
@@ -104,7 +105,7 @@ export class LocationPeer {
 					...(prev ?? {}),
 					[handle]: {
 						name: track.name,
-						priority: track.priority,
+						priority: u8(track.priority),
 					},
 				};
 			});

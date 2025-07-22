@@ -1,7 +1,8 @@
+use futures::FutureExt;
 use web_async::FuturesExt;
 
 use crate::{
-	message, model::GroupConsumer, BroadcastConsumer, Error, OriginConsumer, OriginProducer, Track, TrackConsumer,
+	message, model::GroupConsumer, Error, OriginConsumer, OriginProducer, OriginUpdate, Path, Track, TrackConsumer,
 };
 
 use super::{Stream, Writer};
@@ -9,56 +10,84 @@ use super::{Stream, Writer};
 #[derive(Clone)]
 pub(super) struct Publisher {
 	session: web_transport::Session,
-	broadcasts: OriginProducer,
+	origin: OriginConsumer,
 }
 
 impl Publisher {
-	pub fn new(session: web_transport::Session) -> Self {
-		Self {
-			session,
-			broadcasts: OriginProducer::new(),
+	pub fn new(session: web_transport::Session, origin: Option<OriginConsumer>) -> Self {
+		// Create a dummy origin that is immediately closed.
+		let origin = origin.unwrap_or_else(|| OriginProducer::default().consume_all());
+		Self { session, origin }
+	}
+
+	pub async fn run(self) -> Result<(), Error> {
+		// TODO block on origin.closed()
+		self.run_bi().await
+	}
+
+	async fn run_bi(mut self) -> Result<(), Error> {
+		loop {
+			let stream = Stream::accept(&mut self.session).await?;
+
+			let this = self.clone();
+			web_async::spawn(async move {
+				this.run_control(stream).await.ok();
+			});
 		}
 	}
 
-	/// Publish a broadcast.
-	pub fn publish<T: ToString>(&mut self, path: T, broadcast: BroadcastConsumer) {
-		self.broadcasts.publish(path, broadcast);
+	async fn run_control(self, mut stream: Stream) -> Result<(), Error> {
+		let kind = stream.reader.decode().await?;
+
+		let res = match kind {
+			message::ControlType::Session => Err(Error::UnexpectedStream(kind)),
+			message::ControlType::Announce => self.recv_announce(&mut stream).await,
+			message::ControlType::Subscribe => self.recv_subscribe(&mut stream).await,
+		};
+
+		if let Err(err) = &res {
+			stream.writer.abort(err);
+		}
+
+		res
 	}
 
-	/// Publish all broadcasts from the given origin with a prefix.
-	pub fn publish_prefix(&mut self, prefix: &str, broadcast: OriginConsumer) {
-		self.broadcasts.publish_prefix(prefix, broadcast);
-	}
+	pub async fn recv_announce(mut self, stream: &mut Stream) -> Result<(), Error> {
+		let interest = stream.reader.decode::<message::AnnouncePlease>().await?;
 
-	/// Publish all broadcasts from the given origin
-	pub fn publish_all(&mut self, broadcasts: OriginConsumer) {
-		self.broadcasts.publish_all(broadcasts);
-	}
+		// Just for logging the fully qualified prefix.
+		let prefix = self.origin.prefix().join(&interest.prefix);
 
-	pub async fn recv_announce(&mut self, stream: &mut Stream) -> Result<(), Error> {
-		let interest = stream.reader.decode::<message::AnnounceRequest>().await?;
-		let prefix = interest.prefix;
-
-		tracing::trace!(%prefix, "announce started");
-
-		let res = self.run_announce(stream, &prefix).await;
+		let res = self.run_announce(stream, &interest.prefix).await;
 		match res {
-			Err(Error::Cancel) => {
-				tracing::trace!(%prefix, "announce cancelled");
-			}
-			Err(err) => {
-				tracing::debug!(?err, %prefix, "announce error");
-			}
-			_ => {
-				tracing::trace!(%prefix, "announce complete");
-			}
+			Err(Error::Cancel) => tracing::debug!(%prefix, "announcing cancelled"),
+			Err(err) => tracing::debug!(?err, %prefix, "announcing error"),
+			_ => tracing::trace!(%prefix, "announcing complete"),
 		}
 
 		Ok(())
 	}
 
-	async fn run_announce(&mut self, stream: &mut Stream, prefix: &str) -> Result<(), Error> {
-		let mut announced = self.broadcasts.consume_prefix(prefix);
+	async fn run_announce(&mut self, stream: &mut Stream, prefix: &Path) -> Result<(), Error> {
+		let mut announced = self.origin.consume_prefix(prefix);
+
+		let mut init = Vec::new();
+
+		// Send ANNOUNCE_INIT as the first message with all currently active paths
+		// We use `now_or_never` so `announced` keeps track of what has been sent for us.
+		while let Some(Some(OriginUpdate { suffix, active })) = announced.next().now_or_never() {
+			if active.is_some() {
+				tracing::debug!(broadcast = %prefix.join(&suffix), "announce");
+				init.push(suffix);
+			} else {
+				// A potential race.
+				tracing::debug!(broadcast = %prefix.join(&suffix), "unannounce");
+				init.retain(|path| path != &suffix);
+			}
+		}
+
+		let announce_init = message::AnnounceInit { suffixes: init };
+		stream.writer.encode(&announce_init).await?;
 
 		// Flush any synchronously announced paths
 		loop {
@@ -67,13 +96,13 @@ impl Publisher {
 				res = stream.reader.finished() => return res,
 				announced = announced.next() => {
 					match announced {
-						Some((suffix, broadcast)) => {
-							if broadcast.is_some() {
-								tracing::debug!(?suffix, "announce");
-								let msg = message::Announce::Active { suffix: suffix.clone() };
+						Some(OriginUpdate { suffix, active }) => {
+							if active.is_some() {
+								tracing::debug!(broadcast = %prefix.join(&suffix), "announce");
+								let msg = message::Announce::Active { suffix };
 								stream.writer.encode(&msg).await?;
 							} else {
-								tracing::debug!(?suffix, "unannounce");
+								tracing::debug!(broadcast = %prefix.join(&suffix), "unannounce");
 								let msg = message::Announce::Ended { suffix };
 								stream.writer.encode(&msg).await?;
 							}
@@ -85,7 +114,7 @@ impl Publisher {
 		}
 	}
 
-	pub async fn recv_subscribe(&mut self, stream: &mut Stream) -> Result<(), Error> {
+	pub async fn recv_subscribe(mut self, stream: &mut Stream) -> Result<(), Error> {
 		let mut subscribe = stream.reader.decode::<message::Subscribe>().await?;
 
 		tracing::debug!(id = %subscribe.id, broadcast = %subscribe.broadcast, track = %subscribe.track, "subscribed started");
@@ -108,13 +137,12 @@ impl Publisher {
 	}
 
 	async fn run_subscribe(&mut self, stream: &mut Stream, subscribe: &mut message::Subscribe) -> Result<(), Error> {
-		let broadcast = subscribe.broadcast.clone();
 		let track = Track {
 			name: subscribe.track.clone(),
 			priority: subscribe.priority,
 		};
 
-		let broadcast = self.broadcasts.consume(&broadcast).ok_or(Error::NotFound)?;
+		let broadcast = self.origin.consume(&subscribe.broadcast).ok_or(Error::NotFound)?;
 		let track = broadcast.subscribe(&track);
 
 		// TODO wait until track.info() to get the *real* priority
@@ -228,8 +256,7 @@ impl Publisher {
 				None => break,
 			};
 
-			let header = message::Frame { size: frame.info.size };
-			stream.encode(&header).await?;
+			stream.encode(&frame.info.size).await?;
 
 			loop {
 				let chunk = tokio::select! {
@@ -256,7 +283,7 @@ impl Publisher {
 	// But even with a group per frame, it will take ~6 days to reach that point.
 	// TODO The behavior when two tracks share the same priority is undefined. Should we round-robin?
 	fn stream_priority(track_priority: u8, group_sequence: u64) -> i32 {
-		let sequence = (0xFFFFFF - group_sequence as u32) & 0xFFFFFF;
+		let sequence = 0xFFFFFF - (group_sequence as u32 & 0xFFFFFF);
 		((track_priority as i32) << 24) | sequence as i32
 	}
 }

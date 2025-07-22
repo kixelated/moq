@@ -20,9 +20,9 @@ Live media is built on top of this layer using something like [hang](../hang).
     let config = moq_native::ClientConfig::default(); // See documentation
 	let client = moq_native::Client::new(config);
 
-	// For local development, use: http://localhost:4443/
-	// Feel free to use the `anon` path for testing; no authentication required.
-	let url = url::Url::parse("https://relay.quic.video:443/anon/").unwrap();
+	// For local development, use: http://localhost:4443/anon
+	// The "anon" path is usually configured to bypass authentication; be careful!
+	let url = url::Url::parse("https://relay.quic.video/anon").unwrap();
 
 	// Establish a WebTransport/QUIC connection.
 	let connection = client.connect(url).await?;
