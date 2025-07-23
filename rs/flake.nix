@@ -4,24 +4,22 @@
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
     flake-utils.url = "github:numtide/flake-utils";
-    fenix.url = "github:nix-community/fenix";
-    naersk.url = "github:nmattia/naersk";
+    crane.url = "github:ipetkov/crane";
   };
 
   outputs =
     {
       self,
-      fenix,
       nixpkgs,
       flake-utils,
-      naersk,
+      crane,
     }:
     {
       nixosModules = {
         moq-relay = import ./nix/modules/moq-relay.nix;
       };
 
-      overlays.default = import ./nix/overlay.nix { inherit fenix naersk; };
+      overlays.default = import ./nix/overlay.nix { inherit crane; };
     }
     // flake-utils.lib.eachDefaultSystem (
       system:
@@ -30,20 +28,7 @@
           inherit system;
         };
 
-        rust =
-          with fenix.packages.${system};
-          combine [
-            stable.rustc
-            stable.cargo
-            stable.clippy
-            stable.rustfmt
-            stable.rust-src
-          ];
-
-        naersk' = naersk.lib.${system}.override {
-          cargo = rust;
-          rustc = rust;
-        };
+        craneLib = crane.mkLib pkgs;
 
         gst-deps = with pkgs.gst_all_1; [
           gstreamer
@@ -55,108 +40,52 @@
           gst-libav
         ];
 
-        shell-deps = [
-          rust
-          pkgs.just
-          pkgs.pkg-config
-          pkgs.glib
-          pkgs.libressl
-          pkgs.ffmpeg
-          pkgs.curl
-          pkgs.cargo-sort
-          pkgs.cargo-shear
-          pkgs.cargo-audit
-        ] ++ gst-deps;
+        shell-deps =
+          with pkgs;
+          [
+            rustc
+            cargo
+            clippy
+            rustfmt
+            rust-analyzer
+            just
+            pkg-config
+            glib
+            libressl
+            ffmpeg
+            curl
+            cargo-sort
+            cargo-shear
+            cargo-audit
+          ]
+          ++ gst-deps;
+
+        # Helper function to get crate info from Cargo.toml
+        crateInfo = cargoTomlPath: craneLib.crateNameFromCargoToml { cargoToml = cargoTomlPath; };
+
+        # Apply our overlay to get the package definitions
+        overlayPkgs = pkgs.extend self.overlays.default;
 
       in
       {
-        packages = {
-          moq-clock = naersk'.buildPackage {
-            pname = "moq-clock";
-            src = ./.;
+        packages = rec {
+          default = pkgs.symlinkJoin {
+            name = "moq-all";
+            paths = [
+              moq-relay
+              moq-clock
+              hang
+              moq-token
+            ];
           };
 
-          moq-relay = naersk'.buildPackage {
-            pname = "moq-relay";
-            src = ./.;
-          };
-
-          hang = naersk'.buildPackage {
-            pname = "hang";
-            src = ./.;
-          };
-
-          moq-token = naersk'.buildPackage {
-            pname = "moq-token-cli";
-            src = ./.;
-            cargoBuildOptions =
-              opts:
-              opts
-              ++ [
-                "-p"
-                "moq-token-cli"
-              ];
-            cargoTestOptions =
-              opts:
-              opts
-              ++ [
-                "-p"
-                "moq-token-cli"
-              ];
-          };
-
-          default = naersk'.buildPackage {
-            src = ./.;
-          };
-
-          # Docker images
-          moq-clock-docker = pkgs.dockerTools.buildImage {
-            name = "moq-clock";
-            tag = "latest";
-            copyToRoot = pkgs.buildEnv {
-              name = "image-root";
-              paths = [ self.packages.${system}.moq-clock ];
-              pathsToLink = [ "/bin" ];
-            };
-            config = {
-              Entrypoint = [ "/bin/moq-clock" ];
-            };
-          };
-
-          hang-docker = pkgs.dockerTools.buildImage {
-            name = "hang";
-            tag = "latest";
-            copyToRoot = pkgs.buildEnv {
-              name = "image-root";
-              paths = [
-                self.packages.${system}.hang
-                pkgs.ffmpeg
-                pkgs.wget
-              ];
-              pathsToLink = [ "/bin" ];
-            };
-            config = {
-              Entrypoint = [ "/bin/hang" ];
-            };
-            extraCommands = ''
-              mkdir -p usr/local/bin
-              cp ${./hang-bbb} usr/local/bin/hang-bbb
-              chmod +x usr/local/bin/hang-bbb
-            '';
-          };
-
-          moq-relay-docker = pkgs.dockerTools.buildImage {
-            name = "moq-relay";
-            tag = "latest";
-            copyToRoot = pkgs.buildEnv {
-              name = "image-root";
-              paths = [ self.packages.${system}.moq-relay ];
-              pathsToLink = [ "/bin" ];
-            };
-            config = {
-              Entrypoint = [ "/bin/moq-relay" ];
-            };
-          };
+          # Inherit packages from the overlay
+          inherit (overlayPkgs)
+            moq-relay
+            moq-clock
+            hang
+            moq-token
+            ;
         };
 
         devShells.default = pkgs.mkShell {

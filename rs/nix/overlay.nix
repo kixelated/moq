@@ -1,95 +1,42 @@
-# Accept fenix and naersk as arguments to the overlay
-{ fenix, naersk }:
+# Accept crane as argument to the overlay
+{ crane }:
 final: prev:
 let
-  rust =
-    with fenix.packages.${final.system};
-    combine [
-      stable.rustc
-      stable.cargo
-      stable.clippy
-      stable.rustfmt
-    ];
+  craneLib = crane.mkLib final;
 
-  naersk' = naersk.lib.${final.system}.override {
-    cargo = rust;
-    rustc = rust;
-  };
+  # Helper function to get crate info from Cargo.toml
+  crateInfo = cargoTomlPath: craneLib.crateNameFromCargoToml { cargoToml = cargoTomlPath; };
 in
 {
-  moq-relay = naersk'.buildPackage {
-    pname = "moq-relay";
-    src = ../.;
-    cargoBuildOptions =
-      opts:
-      opts
-      ++ [
-        "-p"
-        "moq-relay"
-      ];
-    cargoTestOptions =
-      opts:
-      opts
-      ++ [
-        "-p"
-        "moq-relay"
-      ];
-  };
+  moq-relay = craneLib.buildPackage (
+    crateInfo ../moq-relay/Cargo.toml
+    // {
+      src = craneLib.cleanCargoSource ../.;
+      cargoExtraArgs = "-p moq-relay";
+    }
+  );
 
-  moq-clock = naersk'.buildPackage {
-    pname = "moq-clock";
-    src = ../.;
-    cargoBuildOptions =
-      opts:
-      opts
-      ++ [
-        "-p"
-        "moq-clock"
-      ];
-    cargoTestOptions =
-      opts:
-      opts
-      ++ [
-        "-p"
-        "moq-clock"
-      ];
-  };
+  moq-clock = craneLib.buildPackage (
+    crateInfo ../moq-clock/Cargo.toml
+    // {
+      src = craneLib.cleanCargoSource ../.;
+      cargoExtraArgs = "-p moq-clock";
+    }
+  );
 
-  hang = naersk'.buildPackage {
-    pname = "hang";
-    src = ../.;
-    cargoBuildOptions =
-      opts:
-      opts
-      ++ [
-        "-p"
-        "hang"
-      ];
-    cargoTestOptions =
-      opts:
-      opts
-      ++ [
-        "-p"
-        "hang"
-      ];
-  };
+  hang = craneLib.buildPackage (
+    crateInfo ../hang-cli/Cargo.toml
+    // {
+      src = craneLib.cleanCargoSource ../.;
+      cargoExtraArgs = "-p hang-cli";
+    }
+  );
 
-  moq-token = naersk'.buildPackage {
-    pname = "moq-token-cli";
-    src = ../.;
-    cargoBuildOptions =
-      opts:
-      opts
-      ++ [
-        "-p"
-        "moq-token-cli"
-      ];
-    cargoTestOptions =
-      opts:
-      opts
-      ++ [
-        "-p"
-        "moq-token-cli"
-      ];
-  };
+  moq-token = craneLib.buildPackage (
+    crateInfo ../moq-token-cli/Cargo.toml
+    // {
+      src = craneLib.cleanCargoSource ../.;
+      cargoExtraArgs = "-p moq-token-cli";
+    }
+  );
 }

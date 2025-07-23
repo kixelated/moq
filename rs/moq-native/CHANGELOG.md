@@ -6,6 +6,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.7.5](https://github.com/kixelated/moq/compare/moq-native-v0.7.4...moq-native-v0.7.5) - 2025-07-22
+
+### Other
+
+- Use Nix to build Docker images, supporting environment variables instead of TOML ([#486](https://github.com/kixelated/moq/pull/486))
+- Reject WebTransport connections early ([#479](https://github.com/kixelated/moq/pull/479))
+
 ## [0.7.4](https://github.com/kixelated/moq/compare/moq-native-v0.7.3...moq-native-v0.7.4) - 2025-07-19
 
 ### Other

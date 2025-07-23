@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.0](https://github.com/kixelated/moq/compare/moq-lite-v0.4.0...moq-lite-v0.5.0) - 2025-07-22
+
+### Other
+
+- Use a size prefix for messages. ([#489](https://github.com/kixelated/moq/pull/489))
+- Create a type-safe Path wrapper for Javascript ([#487](https://github.com/kixelated/moq/pull/487))
+- Add an ANNOUNCE_INIT message. ([#483](https://github.com/kixelated/moq/pull/483))
+- Use JWT tokens for local development. ([#477](https://github.com/kixelated/moq/pull/477))
+
 ## [0.4.0](https://github.com/kixelated/moq/compare/moq-lite-v0.3.5...moq-lite-v0.4.0) - 2025-07-19
 
 ### Other

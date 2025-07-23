@@ -219,10 +219,11 @@ impl Path {
 	/// let suffix = path.strip_prefix("foo").unwrap();
 	/// assert_eq!(suffix.as_str(), "bar/baz");
 	///
-	/// let suffix = path.strip_prefix(&Path::new("foo/")).unwrap();
+	/// let prefix = Path::new("foo/");
+	/// let suffix = path.strip_prefix(&prefix).unwrap();
 	/// assert_eq!(suffix.as_str(), "bar/baz");
 	/// ```
-	pub fn strip_prefix<'a>(&'a self, prefix: impl Into<PathRef<'a>>) -> Option<PathRef<'a>> {
+	pub fn strip_prefix<'a>(&self, prefix: impl Into<PathRef<'a>>) -> Option<PathRef<'_>> {
 		let prefix = prefix.into();
 		if !self.has_prefix(&prefix) {
 			return None;

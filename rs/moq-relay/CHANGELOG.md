@@ -6,6 +6,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.8.3](https://github.com/kixelated/moq/compare/moq-relay-v0.8.2...moq-relay-v0.8.3) - 2025-07-22
+
+### Other
+
+- Create a type-safe Path wrapper for Javascript ([#487](https://github.com/kixelated/moq/pull/487))
+- Use Nix to build Docker images, supporting environment variables instead of TOML ([#486](https://github.com/kixelated/moq/pull/486))
+- Reject WebTransport connections early ([#479](https://github.com/kixelated/moq/pull/479))
+- Improve authentication, adding tests and documentation ([#476](https://github.com/kixelated/moq/pull/476))
+- Use JWT tokens for local development. ([#477](https://github.com/kixelated/moq/pull/477))
+
 ## [0.7.8](https://github.com/kixelated/moq/compare/moq-relay-v0.7.7...moq-relay-v0.7.8) - 2025-07-19
 
 ### Other

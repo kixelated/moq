@@ -47,10 +47,10 @@ importers:
   hang:
     dependencies:
       '@kixelated/moq':
-        specifier: workspace:^0.6.1
+        specifier: workspace:^
         version: link:../moq
       '@kixelated/signals':
-        specifier: workspace:^0.3.0
+        specifier: workspace:^
         version: link:../signals
       buffer:
         specifier: ^6.0.3
@@ -84,7 +84,7 @@ importers:
   hang-demo:
     dependencies:
       '@kixelated/hang':
-        specifier: workspace:^0.2.5
+        specifier: workspace:^
         version: link:../hang
       solid-js:
         specifier: ^1.9.7
@@ -138,6 +138,9 @@ importers:
 
   moq-token:
     dependencies:
+      '@hexagon/base64':
+        specifier: ^2.0.4
+        version: 2.0.4
       jose:
         specifier: ^6.0.12
         version: 6.0.12
@@ -514,6 +517,9 @@ packages:
   '@eslint/plugin-kit@0.3.3':
     resolution: {integrity: sha512-1+WqvgNMhmlAambTvT3KPtCl/Ibr68VldY2XY40SL1CE0ZXiakFR/cbTspaF5HsnpDMvcYYoJHfl4980NBjGag==}
     engines: {node: ^18.18.0 || ^20.9.0 || >=21.1.0}
+
+  '@hexagon/base64@2.0.4':
+    resolution: {integrity: sha512-H/ZY6rGyaEuk0mwQgZ3BVi9hMjFTYpBNFbmtOuec/pPibuGhCMXd8fGtwBaO0h44FkWMurysMsDrpkJsBRmoWQ==}
 
   '@humanfs/core@0.19.1':
     resolution: {integrity: sha512-5DyQ4+1JEUzejeK1JGICcideyfUbGixgS9jNgex5nqkW+cY7WZhxBigmieN5Qnw9ZosSNVC9KQKyb+GUaGyKUA==}
@@ -2343,6 +2349,8 @@ snapshots:
     dependencies:
       '@eslint/core': 0.15.1
       levn: 0.4.1
+
+  '@hexagon/base64@2.0.4': {}
 
   '@humanfs/core@0.19.1': {}
 

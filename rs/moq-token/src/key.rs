@@ -63,20 +63,11 @@ impl Key {
 	}
 
 	pub fn from_file<P: AsRef<StdPath>>(path: P) -> anyhow::Result<Self> {
-		// TODO: Remove this once all keys are migrated to base64url format
-		// First try to read as JSON (backwards compatibility)
 		let contents = std::fs::read_to_string(&path)?;
-		if contents.trim_start().starts_with('{') {
-			// It's JSON format
-			Ok(serde_json::from_str(&contents)?)
-		} else {
-			// It's base64url encoded
-			let decoded = base64::engine::general_purpose::URL_SAFE_NO_PAD
-				.decode(contents.trim())
-				.or_else(|_| base64::engine::general_purpose::URL_SAFE.decode(contents.trim()))?;
-			let json = String::from_utf8(decoded)?;
-			Ok(serde_json::from_str(&json)?)
-		}
+		// It's base64url encoded
+		let decoded = base64::engine::general_purpose::URL_SAFE_NO_PAD.decode(contents.trim())?;
+		let json = String::from_utf8(decoded)?;
+		Ok(serde_json::from_str(&json)?)
 	}
 
 	pub fn to_str(&self) -> anyhow::Result<String> {
@@ -198,7 +189,7 @@ where
 {
 	let s = String::deserialize(deserializer)?;
 
-	// Try to decode as unpadded base64url first
+	// Try to decode as unpadded base64url first (preferred format)
 	base64::engine::general_purpose::URL_SAFE_NO_PAD
 		.decode(&s)
 		.or_else(|_| {
@@ -564,24 +555,24 @@ mod tests {
 	}
 
 	#[test]
-	fn test_backwards_compatibility_padded_base64url() {
-		// Create a JSON with padded base64url (old format)
-		let padded_json = r#"{"alg":"HS256","key_ops":["sign","verify"],"k":"dGVzdC1zZWNyZXQtdGhhdC1pcy1sb25nLWVub3VnaC1mb3ItaG1hYy1zaGEyNTY=","kid":"test-key-1"}"#;
-
-		// Should be able to deserialize old format
-		let key: Key = serde_json::from_str(padded_json).unwrap();
-		assert_eq!(key.secret, b"test-secret-that-is-long-enough-for-hmac-sha256");
-		assert_eq!(key.algorithm, Algorithm::HS256);
-		assert_eq!(key.kid, Some("test-key-1".to_string()));
-	}
-
-	#[test]
 	fn test_backwards_compatibility_unpadded_base64url() {
 		// Create a JSON with unpadded base64url (new format)
 		let unpadded_json = r#"{"alg":"HS256","key_ops":["sign","verify"],"k":"dGVzdC1zZWNyZXQtdGhhdC1pcy1sb25nLWVub3VnaC1mb3ItaG1hYy1zaGEyNTY","kid":"test-key-1"}"#;
 
 		// Should be able to deserialize new format
 		let key: Key = serde_json::from_str(unpadded_json).unwrap();
+		assert_eq!(key.secret, b"test-secret-that-is-long-enough-for-hmac-sha256");
+		assert_eq!(key.algorithm, Algorithm::HS256);
+		assert_eq!(key.kid, Some("test-key-1".to_string()));
+	}
+
+	#[test]
+	fn test_backwards_compatibility_padded_base64url() {
+		// Create a JSON with padded base64url (old format) - same secret but with padding
+		let padded_json = r#"{"alg":"HS256","key_ops":["sign","verify"],"k":"dGVzdC1zZWNyZXQtdGhhdC1pcy1sb25nLWVub3VnaC1mb3ItaG1hYy1zaGEyNTY=","kid":"test-key-1"}"#;
+
+		// Should be able to deserialize old format for backwards compatibility
+		let key: Key = serde_json::from_str(padded_json).unwrap();
 		assert_eq!(key.secret, b"test-secret-that-is-long-enough-for-hmac-sha256");
 		assert_eq!(key.algorithm, Algorithm::HS256);
 		assert_eq!(key.kid, Some("test-key-1".to_string()));
@@ -617,25 +608,6 @@ mod tests {
 		assert_eq!(loaded_key.operations, key.operations);
 		assert_eq!(loaded_key.secret, key.secret);
 		assert_eq!(loaded_key.kid, key.kid);
-
-		// Clean up
-		std::fs::remove_file(temp_path).ok();
-	}
-
-	#[test]
-	fn test_file_io_backwards_compatibility_json() {
-		let temp_dir = std::env::temp_dir();
-		let temp_path = temp_dir.join("test_jwk_json.key");
-
-		// Write old JSON format to file
-		let old_json = r#"{"alg":"HS256","key_ops":["sign","verify"],"k":"dGVzdC1zZWNyZXQtdGhhdC1pcy1sb25nLWVub3VnaC1mb3ItaG1hYy1zaGEyNTY=","kid":"test-key-1"}"#;
-		std::fs::write(&temp_path, old_json).unwrap();
-
-		// Should be able to read old format
-		let key = Key::from_file(&temp_path).unwrap();
-		assert_eq!(key.secret, b"test-secret-that-is-long-enough-for-hmac-sha256");
-		assert_eq!(key.algorithm, Algorithm::HS256);
-		assert_eq!(key.kid, Some("test-key-1".to_string()));
 
 		// Clean up
 		std::fs::remove_file(temp_path).ok();
