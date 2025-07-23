@@ -105,57 +105,14 @@
               ];
           };
 
-          default = naersk'.buildPackage {
-            src = ./.;
-          };
-
-          # Docker images
-          moq-clock-docker = pkgs.dockerTools.buildImage {
-            name = "moq-clock";
-            tag = "latest";
-            copyToRoot = pkgs.buildEnv {
-              name = "image-root";
-              paths = [ self.packages.${system}.moq-clock ];
-              pathsToLink = [ "/bin" ];
-            };
-            config = {
-              Entrypoint = [ "/bin/moq-clock" ];
-            };
-          };
-
-          hang-docker = pkgs.dockerTools.buildImage {
-            name = "hang";
-            tag = "latest";
-            copyToRoot = pkgs.buildEnv {
-              name = "image-root";
-              paths = [
-                self.packages.${system}.hang
-                pkgs.ffmpeg
-                pkgs.wget
-              ];
-              pathsToLink = [ "/bin" ];
-            };
-            config = {
-              Entrypoint = [ "/bin/hang" ];
-            };
-            extraCommands = ''
-              mkdir -p usr/local/bin
-              cp ${./hang-bbb} usr/local/bin/hang-bbb
-              chmod +x usr/local/bin/hang-bbb
-            '';
-          };
-
-          moq-relay-docker = pkgs.dockerTools.buildImage {
-            name = "moq-relay";
-            tag = "latest";
-            copyToRoot = pkgs.buildEnv {
-              name = "image-root";
-              paths = [ self.packages.${system}.moq-relay ];
-              pathsToLink = [ "/bin" ];
-            };
-            config = {
-              Entrypoint = [ "/bin/moq-relay" ];
-            };
+          default = pkgs.symlinkJoin {
+            name = "moq-all";
+            paths = [
+              self.packages.${system}.moq-relay
+              self.packages.${system}.moq-clock
+              self.packages.${system}.hang
+              self.packages.${system}.moq-token
+            ];
           };
         };
 
