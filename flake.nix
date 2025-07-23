@@ -7,14 +7,7 @@
     crane.url = "github:ipetkov/crane";
 
     js.url = "./js";
-    rs = {
-      url = "./rs";
-      inputs = {
-        nixpkgs.follows = "nixpkgs";
-        flake-utils.follows = "flake-utils";
-        crane.follows = "crane";
-      };
-    };
+    rs.url = "./rs";
   };
 
   outputs =
