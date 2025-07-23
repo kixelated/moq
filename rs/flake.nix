@@ -108,18 +108,6 @@
             }
           );
 
-          hang-bbb = pkgs.symlinkJoin {
-            name = "hang-bbb";
-            paths = [
-              hang
-              pkgs.ffmpeg
-              pkgs.wget
-              pkgs.bash
-              (pkgs.writeScriptBin "hang-bbb" (builtins.readFile ./hang-bbb))
-            ];
-          };
-        };
-
         devShells.default = pkgs.mkShell {
           packages = shell-deps;
 
