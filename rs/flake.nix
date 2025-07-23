@@ -71,18 +71,7 @@
       in
       {
         packages = {
-          moq-clock = naersk'.buildPackage {
-            pname = "moq-clock";
-            src = ./.;
-          };
-
-          moq-relay = naersk'.buildPackage {
-            pname = "moq-relay";
-            src = ./.;
-          };
-
-          hang = naersk'.buildPackage {
-            pname = "hang";
+          default = naersk'.buildPackage {
             src = ./.;
           };
 
@@ -94,35 +83,6 @@
               pkgs.wget
               pkgs.bash
               (pkgs.writeScriptBin "hang-bbb" (builtins.readFile ./hang-bbb))
-            ];
-          };
-
-          moq-token = naersk'.buildPackage {
-            pname = "moq-token-cli";
-            src = ./.;
-            cargoBuildOptions =
-              opts:
-              opts
-              ++ [
-                "-p"
-                "moq-token-cli"
-              ];
-            cargoTestOptions =
-              opts:
-              opts
-              ++ [
-                "-p"
-                "moq-token-cli"
-              ];
-          };
-
-          default = pkgs.symlinkJoin {
-            name = "moq-all";
-            paths = [
-              self.packages.${system}.moq-relay
-              self.packages.${system}.moq-clock
-              self.packages.${system}.hang
-              self.packages.${system}.moq-token
             ];
           };
         };
