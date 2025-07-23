@@ -8,7 +8,7 @@ import { load, sign, verify } from "./key";
 function encodeJwk(obj: unknown): string {
 	const jsonString = JSON.stringify(obj);
 	const data = new TextEncoder().encode(jsonString);
-	return base64.fromArrayBuffer(data.buffer, true); // true for urlSafe
+	return base64.fromArrayBuffer(data.buffer as ArrayBuffer, true); // true for urlSafe
 }
 
 const testKey = {
@@ -48,7 +48,7 @@ test("load - invalid base64url", () => {
 test("load - invalid JSON after base64url decode", () => {
 	// Base64url encode invalid JSON
 	const data = new TextEncoder().encode("invalid json");
-	const invalidJwk = base64.fromArrayBuffer(data.buffer, true); // true for urlSafe
+	const invalidJwk = base64.fromArrayBuffer(data.buffer as ArrayBuffer, true); // true for urlSafe
 
 	assert.throws(() => {
 		load(invalidJwk);
@@ -489,10 +489,10 @@ test("verify - invalid payload structure", async () => {
 
 	// Create a token with invalid payload structure
 	const headerData = new TextEncoder().encode(JSON.stringify({ alg: "HS256", typ: "JWT" }));
-	const header = base64.fromArrayBuffer(headerData.buffer, true); // true for urlSafe
+	const header = base64.fromArrayBuffer(headerData.buffer as ArrayBuffer, true); // true for urlSafe
 
 	const payloadData = new TextEncoder().encode(JSON.stringify({ invalid: "payload" }));
-	const payload = base64.fromArrayBuffer(payloadData.buffer, true); // true for urlSafe
+	const payload = base64.fromArrayBuffer(payloadData.buffer as ArrayBuffer, true); // true for urlSafe
 	const signature = "invalid";
 	const invalidToken = `${header}.${payload}.${signature}`;
 
