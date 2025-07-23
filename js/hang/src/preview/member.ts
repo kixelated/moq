@@ -25,17 +25,27 @@ export class Member {
 			const track = this.broadcast.subscribe("preview.json", 0);
 			effect.cleanup(() => track.close());
 
-			effect.spawn(async () => {
-				const frame = await track.nextFrame()
-				if (!frame) return;
+			effect.spawn(async (cancel) => {
+				try {
+				for (;;) {
+					const frame = await Promise.race([track.nextFrame(), cancel]);
+					if (!frame) break;
 
-				const decoder = new TextDecoder();
-				const json = decoder.decode(frame.data);
-				const parsed = JSON.parse(json);
-				this.info.set(Preview.InfoSchema.parse(parsed));
+					// An empty group wipes the preview.
+					if (frame.data.byteLength === 0) {
+						this.info.set(undefined);
+						continue;
+					}
+
+					const decoder = new TextDecoder();
+					const json = decoder.decode(frame.data);
+					const parsed = JSON.parse(json);
+					this.info.set(Preview.InfoSchema.parse(parsed));
+				}
+				} finally {
+					this.info.set(undefined);
+				}
 			});
-
-			effect.cleanup(() => this.info.set(undefined));
 		});
 	}
 

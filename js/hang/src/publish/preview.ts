@@ -21,6 +21,9 @@ export class Preview {
 		this.enabled = new Signal(props?.enabled ?? false);
 		this.info = new Signal(props?.info);
 
+		// Create an empty group to start with.
+		this.#track.appendGroup().close();
+
 		this.#signals.effect((effect) => {
 			const enabled = effect.get(this.enabled);
 			if (!enabled) return;
