@@ -60,7 +60,7 @@ mod tests {
 
 	fn create_test_claims() -> Claims {
 		Claims {
-			root: Path::new("test-path/"),
+			root: Path::new("test-path"),
 			publish: Some(Path::new("test-pub")),
 			cluster: false,
 			subscribe: Some(Path::new("test-sub")),
@@ -78,7 +78,7 @@ mod tests {
 	#[test]
 	fn test_claims_validation_no_publish_or_subscribe() {
 		let claims = Claims {
-			root: Path::new("test-path/"),
+			root: Path::new("test-path"),
 			publish: None,
 			subscribe: None,
 			cluster: false,
@@ -97,7 +97,7 @@ mod tests {
 	#[test]
 	fn test_claims_validation_only_publish() {
 		let claims = Claims {
-			root: Path::new("test-path/"),
+			root: Path::new("test-path"),
 			publish: Some(Path::new("test-pub")),
 			subscribe: None,
 			cluster: false,
@@ -111,7 +111,7 @@ mod tests {
 	#[test]
 	fn test_claims_validation_only_subscribe() {
 		let claims = Claims {
-			root: Path::new("test-path/"),
+			root: Path::new("test-path"),
 			publish: None,
 			subscribe: Some(Path::new("test-sub")),
 			cluster: false,
@@ -211,7 +211,7 @@ mod tests {
 	#[test]
 	fn test_claims_validation_path_is_prefix() {
 		let claims = Claims {
-			root: Path::new("test-path/"),              // with trailing slash
+			root: Path::new("test-path"),               // with trailing slash
 			publish: Some(Path::new("relative-pub")),   // relative path is ok when path is prefix
 			subscribe: Some(Path::new("relative-sub")), // relative path is ok when path is prefix
 			cluster: false,

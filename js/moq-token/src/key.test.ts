@@ -19,7 +19,7 @@ const testKey = {
 } as const;
 
 const testClaims: Claims = {
-	path: "test-path/",
+	root: "test-path",
 	pub: "test-pub",
 	sub: "test-sub",
 	cluster: false,
@@ -115,9 +115,9 @@ test("sign - key doesn't support signing", async () => {
 test("verify - successful verification", async () => {
 	const key = load(encodeJwk(testKey));
 	const token = await sign(key, testClaims);
-	const claims = await verify(key, token, testClaims.path);
+	const claims = await verify(key, token, testClaims.root);
 
-	assert.strictEqual(claims.path, testClaims.path);
+	assert.strictEqual(claims.root, testClaims.root);
 	assert.strictEqual(claims.pub, testClaims.pub);
 	assert.strictEqual(claims.sub, testClaims.sub);
 	assert.strictEqual(claims.cluster, testClaims.cluster);
@@ -153,28 +153,28 @@ test("verify - expired token", async () => {
 	const token = await sign(key, expiredClaims);
 
 	await assert.rejects(async () => {
-		await verify(key, token, expiredClaims.path);
+		await verify(key, token, expiredClaims.root);
 	});
 });
 
 test("verify - token without exp field", async () => {
 	const claimsWithoutExp: Claims = {
-		path: "test-path/",
+		root: "test-path",
 		pub: "test-pub",
 	};
 
 	const key = load(encodeJwk(testKey));
 	const token = await sign(key, claimsWithoutExp);
-	const claims = await verify(key, token, claimsWithoutExp.path);
+	const claims = await verify(key, token, claimsWithoutExp.root);
 
-	assert.strictEqual(claims.path, "test-path/");
+	assert.strictEqual(claims.root, "test-path");
 	assert.strictEqual(claims.pub, "test-pub");
 	assert.strictEqual(claims.exp, undefined);
 });
 
 test("claims validation - must have pub or sub", async () => {
 	const invalidClaims = {
-		path: "test-path/",
+		root: "test-path",
 		cluster: false,
 		// missing both pub and sub
 	};
@@ -189,7 +189,7 @@ test("claims validation - must have pub or sub", async () => {
 test("round-trip - sign and verify", async () => {
 	const key = load(encodeJwk(testKey));
 	const originalClaims: Claims = {
-		path: "test-path/",
+		root: "test-path",
 		pub: "test-pub",
 		sub: "test-sub",
 		cluster: true,
@@ -198,9 +198,9 @@ test("round-trip - sign and verify", async () => {
 	};
 
 	const token = await sign(key, originalClaims);
-	const verifiedClaims = await verify(key, token, originalClaims.path);
+	const verifiedClaims = await verify(key, token, originalClaims.root);
 
-	assert.strictEqual(verifiedClaims.path, originalClaims.path);
+	assert.strictEqual(verifiedClaims.root, originalClaims.root);
 	assert.strictEqual(verifiedClaims.pub, originalClaims.pub);
 	assert.strictEqual(verifiedClaims.sub, originalClaims.sub);
 	assert.strictEqual(verifiedClaims.cluster, originalClaims.cluster);
@@ -220,7 +220,7 @@ test("verify - path mismatch", async () => {
 test("sign - invalid claims without pub or sub", async () => {
 	const key = load(encodeJwk(testKey));
 	const invalidClaims = {
-		path: "test-path/",
+		root: "test-path",
 		cluster: false,
 	};
 
@@ -229,73 +229,11 @@ test("sign - invalid claims without pub or sub", async () => {
 	});
 });
 
-test("sign - claims validation path not prefix relative pub", async () => {
-	const key = load(encodeJwk(testKey));
-	const invalidClaims: Claims = {
-		path: "test-path", // no trailing slash
-		pub: "relative-pub", // relative path without leading slash
-	};
-
-	await assert.rejects(async () => {
-		await sign(key, invalidClaims);
-	});
-});
-
-test("sign - claims validation path not prefix relative sub", async () => {
-	const key = load(encodeJwk(testKey));
-	const invalidClaims: Claims = {
-		path: "test-path", // no trailing slash
-		sub: "relative-sub", // relative path without leading slash
-	};
-
-	await assert.rejects(async () => {
-		await sign(key, invalidClaims);
-	});
-});
-
-test("sign - claims validation path not prefix absolute pub", async () => {
-	const key = load(encodeJwk(testKey));
-	const validClaims: Claims = {
-		path: "test-path", // no trailing slash
-		pub: "/absolute-pub", // absolute path with leading slash
-	};
-
-	const token = await sign(key, validClaims);
-	assert.ok(typeof token === "string");
-	assert.ok(token.length > 0);
-});
-
 test("sign - claims validation path not prefix absolute sub", async () => {
 	const key = load(encodeJwk(testKey));
 	const validClaims: Claims = {
-		path: "test-path", // no trailing slash
-		sub: "/absolute-sub", // absolute path with leading slash
-	};
-
-	const token = await sign(key, validClaims);
-	assert.ok(typeof token === "string");
-	assert.ok(token.length > 0);
-});
-
-test("sign - claims validation path not prefix empty pub", async () => {
-	const key = load(encodeJwk(testKey));
-	const validClaims: Claims = {
-		path: "test-path", // no trailing slash
-		pub: "", // empty string
-		sub: "/test-sub", // absolute path
-	};
-
-	const token = await sign(key, validClaims);
-	assert.ok(typeof token === "string");
-	assert.ok(token.length > 0);
-});
-
-test("sign - claims validation path not prefix empty sub", async () => {
-	const key = load(encodeJwk(testKey));
-	const validClaims: Claims = {
-		path: "test-path", // no trailing slash
-		sub: "", // empty string
-		pub: "/test-pub", // absolute path
+		root: "test-path",
+		sub: "absolute-sub",
 	};
 
 	const token = await sign(key, validClaims);
@@ -306,9 +244,9 @@ test("sign - claims validation path not prefix empty sub", async () => {
 test("sign - claims validation path is prefix with relative paths", async () => {
 	const key = load(encodeJwk(testKey));
 	const validClaims: Claims = {
-		path: "test-path/", // with trailing slash
-		pub: "relative-pub", // relative path is ok when path is prefix
-		sub: "relative-sub", // relative path is ok when path is prefix
+		root: "test-path",
+		pub: "relative-pub",
+		sub: "relative-sub",
 	};
 
 	const token = await sign(key, validClaims);
@@ -316,10 +254,10 @@ test("sign - claims validation path is prefix with relative paths", async () => 
 	assert.ok(token.length > 0);
 });
 
-test("sign - claims validation empty path", async () => {
+test("sign - claims validation empty root", async () => {
 	const key = load(encodeJwk(testKey));
 	const validClaims: Claims = {
-		path: "", // empty path
+		root: "",
 		pub: "test-pub",
 	};
 
@@ -338,9 +276,9 @@ test("different algorithms - HS384", async () => {
 
 	const key = load(encodeJwk(hs384Key));
 	const token = await sign(key, testClaims);
-	const verifiedClaims = await verify(key, token, testClaims.path);
+	const verifiedClaims = await verify(key, token, testClaims.root);
 
-	assert.strictEqual(verifiedClaims.path, testClaims.path);
+	assert.strictEqual(verifiedClaims.root, testClaims.root);
 	assert.strictEqual(verifiedClaims.pub, testClaims.pub);
 });
 
@@ -354,9 +292,9 @@ test("different algorithms - HS512", async () => {
 
 	const key = load(encodeJwk(hs512Key));
 	const token = await sign(key, testClaims);
-	const verifiedClaims = await verify(key, token, testClaims.path);
+	const verifiedClaims = await verify(key, token, testClaims.root);
 
-	assert.strictEqual(verifiedClaims.path, testClaims.path);
+	assert.strictEqual(verifiedClaims.root, testClaims.root);
 	assert.strictEqual(verifiedClaims.pub, testClaims.pub);
 });
 
@@ -374,7 +312,7 @@ test("cross-algorithm verification fails", async () => {
 	const token = await sign(hs256Key, testClaims);
 
 	await assert.rejects(async () => {
-		await verify(hs384Key, token, testClaims.path);
+		await verify(hs384Key, token, testClaims.root);
 	});
 });
 
@@ -451,7 +389,7 @@ test("sign - no kid in header when not present", async () => {
 test("sign - sets issued at timestamp", async () => {
 	const key = load(encodeJwk(testKey));
 	const claimsWithoutIat: Claims = {
-		path: "test-path/",
+		root: "test-path",
 		pub: "test-pub",
 	};
 
@@ -505,9 +443,9 @@ test("verify - claims validation during verification", async () => {
 	const key = load(encodeJwk(testKey));
 
 	// We need to create a token with valid claims since sign() would reject invalid ones
-	const token = await sign(key, { path: "test-path", pub: "/absolute-pub" });
+	const token = await sign(key, { root: "test-path", pub: "/absolute-pub" });
 
 	// Test that valid tokens pass verification
 	const verifiedClaims = await verify(key, token, "test-path");
-	assert.strictEqual(verifiedClaims.path, "test-path");
+	assert.strictEqual(verifiedClaims.root, "test-path");
 });
