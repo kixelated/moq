@@ -1,31 +1,30 @@
-# Multi-stage Dockerfile that builds all binaries and creates target-specific images
-# Usage: docker build --build-arg TARGET=moq-relay --target moq-relay .
+# This dockerfile is super slow because nothing is cached.
+# We only use it for releases, so it's not a big deal.
 
-# Builder stage that builds all binaries
 FROM nixos/nix:latest AS builder
 ENV NIX_CONFIG="experimental-features = nix-command flakes"
 
 WORKDIR /build
 
-# Copy the source code
-COPY . .
-
 # moq-relay target
 FROM builder AS moq-relay
-RUN nix build .#moq-relay
+COPY . .
+RUN --mount=type=cache,target=/root/.cache nix build .#moq-relay
 ENTRYPOINT ["/build/result/bin/moq-relay"]
 
 # moq-clock target
 FROM builder AS moq-clock
-RUN nix build .#moq-clock
+COPY . .
+RUN --mount=type=cache,target=/root/.cache nix build .#moq-clock
 ENTRYPOINT ["/build/result/bin/moq-clock"]
 
 # hang target
 FROM builder AS hang
-RUN nix build .#hang
+COPY . .
+RUN --mount=type=cache,target=/root/.cache nix build .#hang
 ENTRYPOINT ["/build/result/bin/hang"]
 
-# hang-bbb media preparation layer
+# hang-bbb target (TODO remove)
 FROM builder AS hang-bbb
 
 # Download BBB and fragment it
@@ -39,18 +38,17 @@ RUN nix develop -c bash -c "\
 	\"bbb.mp4\" && \
 	rm tmp.mp4"
 
-RUN nix build .#hang-bbb
+COPY . .
+RUN --mount=type=cache,target=/root/.cache nix build .#hang-bbb
 ENTRYPOINT ["/build/result/bin/hang-bbb"]
 
 # moq-token target
 FROM builder AS moq-token
-RUN nix build .#moq-token
+COPY . .
+RUN --mount=type=cache,target=/root/.cache nix build .#moq-token
 ENTRYPOINT ["/build/result/bin/moq-token"]
 
 # Performed last so it's the default entrypoint
 FROM builder AS all
-COPY --from=moq-relay /bin/moq-relay /bin/moq-relay
-COPY --from=moq-clock /bin/moq-clock /bin/moq-clock
-COPY --from=hang /bin/hang /bin/hang
-COPY --from=moq-token /bin/moq-token /bin/moq-token
-# no hang-bbb
+COPY . .
+RUN --mount=type=cache,target=/root/.cache nix build .
