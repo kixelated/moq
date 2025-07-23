@@ -32,13 +32,19 @@ RUN --mount=type=cache,target=/nix,from=nixos/nix:latest,source=/nix \
 	--mount=type=cache,target=/root/.cache \
 	nix build .#hang && \
 	cp -r $(readlink -f result)/bin/* /bin/
+ENTRYPOINT ["/bin/hang"]
+
+# hang-bbb target
+FROM builder AS hang-bbb
+RUN --mount=type=cache,target=/nix,from=nixos/nix:latest,source=/nix \
+	--mount=type=cache,target=/root/.cache \
+	nix build .#hang-bbb && \
+	cp -r $(readlink -f result)/bin/* /bin/
 
 COPY hang-bbb /bin/hang-bbb
 RUN chmod +x /bin/hang-bbb
 
-# Use nix develop so we get ffmpeg/wget/bash (not cached)
-# TODO: Fix this by having quic.video make it's own image
-ENTRYPOINT ["nix", "develop", "--command", "/bin/hang"]
+ENTRYPOINT ["/bin/hang-bbb"]
 
 # moq-token target
 FROM builder AS moq-token
@@ -54,3 +60,4 @@ COPY --from=moq-relay /bin/moq-relay /bin/moq-relay
 COPY --from=moq-clock /bin/moq-clock /bin/moq-clock
 COPY --from=hang /bin/hang /bin/hang
 COPY --from=moq-token /bin/moq-token /bin/moq-token
+# no hang-bbb

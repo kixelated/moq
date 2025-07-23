@@ -86,6 +86,16 @@
             src = ./.;
           };
 
+          hang-bbb = pkgs.symlinkJoin {
+            name = "hang-bbb";
+            paths = [
+              self.packages.${system}.hang
+              pkgs.ffmpeg
+              pkgs.wget
+              pkgs.bash
+            ];
+          };
+
           moq-token = naersk'.buildPackage {
             pname = "moq-token-cli";
             src = ./.;
