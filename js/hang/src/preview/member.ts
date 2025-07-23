@@ -27,21 +27,21 @@ export class Member {
 
 			effect.spawn(async (cancel) => {
 				try {
-				for (;;) {
-					const frame = await Promise.race([track.nextFrame(), cancel]);
-					if (!frame) break;
+					for (;;) {
+						const frame = await Promise.race([track.nextFrame(), cancel]);
+						if (!frame) break;
 
-					// An empty group wipes the preview.
-					if (frame.data.byteLength === 0) {
-						this.info.set(undefined);
-						continue;
+						// An empty group wipes the preview.
+						if (frame.data.byteLength === 0) {
+							this.info.set(undefined);
+							continue;
+						}
+
+						const decoder = new TextDecoder();
+						const json = decoder.decode(frame.data);
+						const parsed = JSON.parse(json);
+						this.info.set(Preview.InfoSchema.parse(parsed));
 					}
-
-					const decoder = new TextDecoder();
-					const json = decoder.decode(frame.data);
-					const parsed = JSON.parse(json);
-					this.info.set(Preview.InfoSchema.parse(parsed));
-				}
 				} finally {
 					this.info.set(undefined);
 				}

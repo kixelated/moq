@@ -68,7 +68,7 @@ export class Connection {
 				const pending = Moq.Connection.connect(url);
 				const connection = await Promise.race([cancel, pending]);
 				if (!connection) {
-					pending.then((conn) => conn.close()).catch(() => { });
+					pending.then((conn) => conn.close()).catch(() => {});
 					return;
 				}
 
