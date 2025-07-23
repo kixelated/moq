@@ -63,6 +63,9 @@
         # Helper function to get crate info from Cargo.toml
         crateInfo = cargoTomlPath: craneLib.crateNameFromCargoToml { cargoToml = cargoTomlPath; };
 
+        # Apply our overlay to get the package definitions
+        overlayPkgs = pkgs.extend self.overlays.default;
+
       in
       {
         packages = rec {
@@ -76,37 +79,13 @@
             ];
           };
 
-          moq-relay = craneLib.buildPackage (
-            crateInfo ./moq-relay/Cargo.toml
-            // {
-              src = craneLib.cleanCargoSource ./.;
-              cargoExtraArgs = "-p moq-relay";
-            }
-          );
-
-          moq-clock = craneLib.buildPackage (
-            crateInfo ./moq-clock/Cargo.toml
-            // {
-              src = craneLib.cleanCargoSource ./.;
-              cargoExtraArgs = "-p moq-clock";
-            }
-          );
-
-          hang = craneLib.buildPackage (
-            crateInfo ./hang-cli/Cargo.toml
-            // {
-              src = craneLib.cleanCargoSource ./.;
-              cargoExtraArgs = "-p hang-cli";
-            }
-          );
-
-          moq-token = craneLib.buildPackage (
-            crateInfo ./moq-token-cli/Cargo.toml
-            // {
-              src = craneLib.cleanCargoSource ./.;
-              cargoExtraArgs = "-p moq-token-cli";
-            }
-          );
+          # Inherit packages from the overlay
+          inherit (overlayPkgs)
+            moq-relay
+            moq-clock
+            hang
+            moq-token
+            ;
         };
 
         devShells.default = pkgs.mkShell {
