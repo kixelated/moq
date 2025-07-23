@@ -938,7 +938,7 @@ dependencies = [
 
 [[package]]
 name = "hang-cli"
-version = "0.2.1"
+version = "0.2.2"
 dependencies = [
  "anyhow",
  "axum",
@@ -1529,7 +1529,7 @@ dependencies = [
 
 [[package]]
 name = "moq-clock"
-version = "0.7.1"
+version = "0.7.2"
 dependencies = [
  "anyhow",
  "chrono",
@@ -1586,7 +1586,7 @@ dependencies = [
 
 [[package]]
 name = "moq-relay"
-version = "0.8.3"
+version = "0.8.4"
 dependencies = [
  "anyhow",
  "axum",
@@ -1626,7 +1626,7 @@ dependencies = [
 
 [[package]]
 name = "moq-token-cli"
-version = "0.2.1"
+version = "0.2.2"
 dependencies = [
  "anyhow",
  "clap",

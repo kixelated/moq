@@ -3,19 +3,10 @@ set -euo pipefail
 
 # TODO Move to quic.video
 
-URL=${URL:-"http://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4"}
+INPUT=${INPUT:-"bbb.mp4"}
 REGION=${REGION:-"now"}
 
-# Download the funny bunny
-wget -nv "${URL}" -O "tmp.mp4"
-
-# Properly fragment the file
-ffmpeg -y -loglevel error -i tmp.mp4 \
-	-c copy \
-	-f mp4 -movflags cmaf+separate_moof+delay_moov+skip_trailer+frag_every_frame \
-	"fragmented.mp4"
-
-rm tmp.mp4
+# Video is already processed in the bbb layer
 
 # ffmpeg
 #   -hide_banner: Hide the banner
@@ -39,7 +30,7 @@ ffmpeg \
 	-hide_banner \
 	-v quiet \
 	-re \
-    -i "fragmented.mp4" \
+    -i "${INPUT}" \
 	-vf "drawtext=fontfile=/usr/share/fonts/truetype/dejavu/DejaVuSansMono.ttf:text='${REGION}\: %{gmtime\: %H\\\\\:%M\\\\\:%S.%3N}':x=(W-tw)-24:y=24:fontsize=48:fontcolor=white:box=1:boxcolor=black@0.5" \
 	-an \
 	-b:v 3M \

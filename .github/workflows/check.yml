@@ -17,33 +17,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Install Nix
-        uses: cachix/install-nix-action@v31
-        with:
-          extra_nix_config: |
-            access-tokens = github.com=${{ secrets.GITHUB_TOKEN }}
-
-      - name: Enable flakes
-        run: echo "experimental-features = nix-command flakes" | sudo tee -a /etc/nix/nix.conf
-
-      - name: Set up pnpm cache
-        uses: actions/cache@v4
-        with:
-          path: ~/.pnpm-store
-          key: pnpm-${{ runner.os }}-${{ hashFiles('js/pnpm-lock.yaml') }}
-          restore-keys: |
-            pnpm-${{ runner.os }}-
-
-      - name: Set up a Rust cache
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.cargo/git
-            ~/.cargo/registry
-            rs/target/
-          key: rust-${{ runner.os }}-${{ hashFiles('rs/Cargo.lock') }}
-          restore-keys: |
-            rust-${{ runner.os }}-
-
-      - name: Check
-        run: nix develop --command just check --workspace
+      - uses: DeterminateSystems/nix-installer-action@main
+      - uses: DeterminateSystems/magic-nix-cache-action@main
+      - uses: DeterminateSystems/flake-checker-action@main
+      - run: nix develop --command just check --workspace

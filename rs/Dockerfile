@@ -12,47 +12,40 @@ COPY . .
 
 # moq-relay target
 FROM builder AS moq-relay
-RUN --mount=type=cache,target=/nix,from=nixos/nix:latest,source=/nix \
-	--mount=type=cache,target=/root/.cache \
-	nix build .#moq-relay && \
-	cp -r $(readlink -f result)/bin/* /bin/
-ENTRYPOINT ["/bin/moq-relay"]
+RUN nix build .#moq-relay
+ENTRYPOINT ["/build/result/bin/moq-relay"]
 
 # moq-clock target
 FROM builder AS moq-clock
-RUN --mount=type=cache,target=/nix,from=nixos/nix:latest,source=/nix \
-	--mount=type=cache,target=/root/.cache \
-	nix build .#moq-clock && \
-	cp -r $(readlink -f result)/bin/* /bin/
-ENTRYPOINT ["/bin/moq-clock"]
+RUN nix build .#moq-clock
+ENTRYPOINT ["/build/result/bin/moq-clock"]
 
 # hang target
 FROM builder AS hang
-RUN --mount=type=cache,target=/nix,from=nixos/nix:latest,source=/nix \
-	--mount=type=cache,target=/root/.cache \
-	nix build .#hang && \
-	cp -r $(readlink -f result)/bin/* /bin/
-ENTRYPOINT ["/bin/hang"]
+RUN nix build .#hang
+ENTRYPOINT ["/build/result/bin/hang"]
 
-# hang-bbb target
+# hang-bbb media preparation layer
 FROM builder AS hang-bbb
-RUN --mount=type=cache,target=/nix,from=nixos/nix:latest,source=/nix \
-	--mount=type=cache,target=/root/.cache \
-	nix build .#hang-bbb && \
-	cp -r $(readlink -f result)/bin/* /bin/
 
-COPY hang-bbb /bin/hang-bbb
-RUN chmod +x /bin/hang-bbb
+# Download BBB and fragment it
+# It's kind of silly that we're putting it inside of the image, but it avoids a runtime fetch.
+ENV URL="http://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4"
+RUN nix develop -c bash -c "\
+	wget -nv \"${URL}\" -O \"tmp.mp4\" && \
+	ffmpeg -y -loglevel error -i tmp.mp4 \
+	-c copy \
+	-f mp4 -movflags cmaf+separate_moof+delay_moov+skip_trailer+frag_every_frame \
+	\"bbb.mp4\" && \
+	rm tmp.mp4"
 
-ENTRYPOINT ["/bin/hang-bbb"]
+RUN nix build .#hang-bbb
+ENTRYPOINT ["/build/result/bin/hang-bbb"]
 
 # moq-token target
 FROM builder AS moq-token
-RUN --mount=type=cache,target=/nix,from=nixos/nix:latest,source=/nix \
-	--mount=type=cache,target=/root/.cache \
-	nix build .#moq-token && \
-	cp -r $(readlink -f result)/bin/* /bin/
-ENTRYPOINT ["/bin/moq-token"]
+RUN nix build .#moq-token
+ENTRYPOINT ["/build/result/bin/moq-token"]
 
 # Performed last so it's the default entrypoint
 FROM builder AS all

@@ -62,3 +62,17 @@ jobs:
             ${{ env.REGISTRY }}/${{ steps.parse.outputs.target }}:${{ steps.parse.outputs.version }}
             ${{ env.REGISTRY }}/${{ steps.parse.outputs.target }}:latest
           platforms: linux/amd64,linux/arm64
+
+      # Also build hang-bbb when hang tag is pushed
+      - if: steps.parse.outputs.target == 'hang'
+        uses: depot/build-push-action@v1
+        with:
+          project: r257ctfqm6
+          file: rs/Dockerfile
+          context: rs
+          push: true
+          target: hang-bbb
+          tags: |
+            ${{ env.REGISTRY }}/hang-bbb:${{ steps.parse.outputs.version }}
+            ${{ env.REGISTRY }}/hang-bbb:latest
+          platforms: linux/amd64,linux/arm64

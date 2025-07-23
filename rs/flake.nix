@@ -93,6 +93,7 @@
               pkgs.ffmpeg
               pkgs.wget
               pkgs.bash
+              (pkgs.writeScriptBin "hang-bbb" (builtins.readFile ./hang-bbb))
             ];
           };
 
