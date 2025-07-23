@@ -189,9 +189,13 @@ where
 {
 	let s = String::deserialize(deserializer)?;
 
-	// Try to decode as unpadded base64url first
+	// Try to decode as unpadded base64url first (preferred format)
 	base64::engine::general_purpose::URL_SAFE_NO_PAD
 		.decode(&s)
+		.or_else(|_| {
+			// Fall back to padded base64url for backwards compatibility
+			base64::engine::general_purpose::URL_SAFE.decode(&s)
+		})
 		.map_err(serde::de::Error::custom)
 }
 
@@ -557,6 +561,18 @@ mod tests {
 
 		// Should be able to deserialize new format
 		let key: Key = serde_json::from_str(unpadded_json).unwrap();
+		assert_eq!(key.secret, b"test-secret-that-is-long-enough-for-hmac-sha256");
+		assert_eq!(key.algorithm, Algorithm::HS256);
+		assert_eq!(key.kid, Some("test-key-1".to_string()));
+	}
+
+	#[test]
+	fn test_backwards_compatibility_padded_base64url() {
+		// Create a JSON with padded base64url (old format) - same secret but with padding
+		let padded_json = r#"{"alg":"HS256","key_ops":["sign","verify"],"k":"dGVzdC1zZWNyZXQtdGhhdC1pcy1sb25nLWVub3VnaC1mb3ItaG1hYy1zaGEyNTY=","kid":"test-key-1"}"#;
+
+		// Should be able to deserialize old format for backwards compatibility
+		let key: Key = serde_json::from_str(padded_json).unwrap();
 		assert_eq!(key.secret, b"test-secret-that-is-long-enough-for-hmac-sha256");
 		assert_eq!(key.algorithm, Algorithm::HS256);
 		assert_eq!(key.kid, Some("test-key-1".to_string()));
