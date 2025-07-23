@@ -50,7 +50,9 @@ if (pkg.dependencies) {
 	for (const [name, version] of Object.entries(pkg.dependencies)) {
 		if (typeof version === 'string' && version.startsWith('workspace:')) {
 			// Read the actual version from the workspace package
-			const workspacePkgPath = `../${name.split('/')[1]}/package.json`;
+			// Handle both scoped (@scope/name) and unscoped (name) packages
+			const packageDir = name.includes('/') ? name.split('/')[1] : name;
+			const workspacePkgPath = `../${packageDir}/package.json`;
 			try {
 				const workspacePkg = JSON.parse(readFileSync(workspacePkgPath, 'utf8'));
 				pkg.dependencies[name] = `^${workspacePkg.version}`;
