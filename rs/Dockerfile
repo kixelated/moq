@@ -10,10 +10,16 @@ COPY . .
 
 # Build only moq-relay
 FROM builder AS builder-moq-relay
+
+# Okay so we cache /nix/store so we don't have to rebuild everything every time.
+# Docker caches are ephemeral, and unfortunately nix creates a shitload of symlinks to /nix/store.
+# So we use the nix-store command to query the dependencies of the result and copy them to /output/store.
+# We also have to copy the resulting binary of course.
 RUN --mount=type=cache,target=/root/.cache --mount=type=cache,target=/nix,from=nixos/nix:latest,source=/nix \
 	nix build .#moq-relay --out-link result && \
 	cp -r $(nix-store -qR result) /output/store && \
-	cp -r $(readlink -f result) /output/result
+	cp -r $(readlink -f result) /output/result && \
+	rm -rf /output/store/$(basename $(readlink -f result))
 
 # moq-relay target
 FROM scratch AS moq-relay
@@ -26,7 +32,8 @@ FROM builder AS builder-hang
 RUN --mount=type=cache,target=/root/.cache --mount=type=cache,target=/nix,from=nixos/nix:latest,source=/nix \
 	nix build .#hang --out-link result && \
 	cp -r $(nix-store -qR result) /output/store && \
-	cp -r $(readlink -f result) /output/result
+	cp -r $(readlink -f result) /output/result && \
+	rm -rf /output/store/$(basename $(readlink -f result))
 
 # hang target
 FROM scratch AS hang
@@ -39,7 +46,8 @@ FROM builder AS builder-moq-token
 RUN --mount=type=cache,target=/root/.cache --mount=type=cache,target=/nix,from=nixos/nix:latest,source=/nix \
 	nix build .#moq-token --out-link result && \
 	cp -r $(nix-store -qR result) /output/store && \
-	cp -r $(readlink -f result) /output/result
+	cp -r $(readlink -f result) /output/result && \
+	rm -rf /output/store/$(basename $(readlink -f result))
 
 # moq-token target
 FROM scratch AS moq-token
@@ -52,7 +60,8 @@ FROM builder AS builder-hang-bbb
 RUN --mount=type=cache,target=/root/.cache --mount=type=cache,target=/nix,from=nixos/nix:latest,source=/nix \
 	nix build .#hang-bbb --out-link result && \
 	cp -r $(nix-store -qR result) /output/store && \
-	cp -r $(readlink -f result) /output/result
+	cp -r $(readlink -f result) /output/result && \
+	rm -rf /output/store/$(basename $(readlink -f result))
 
 # hang-bbb target (TODO remove)
 FROM scratch AS hang-bbb
@@ -66,7 +75,8 @@ FROM builder AS builder-all
 RUN --mount=type=cache,target=/root/.cache --mount=type=cache,target=/nix,from=nixos/nix:latest,source=/nix \
 	nix build . --out-link result && \
 	cp -r $(nix-store -qR result) /output/store && \
-	cp -r $(readlink -f result) /output/result
+	cp -r $(readlink -f result) /output/result && \
+	rm -rf /output/store/$(basename $(readlink -f result))
 
 # all targets
 FROM scratch
