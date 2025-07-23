@@ -57,7 +57,6 @@ jobs:
           file: rs/Dockerfile
           context: rs
           push: true
-          target: ${{ steps.parse.outputs.target }}
           # Make a smaller image by specifying the package to build
           build-args: |
             package=${{ steps.parse.outputs.target }}
