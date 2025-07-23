@@ -96,7 +96,7 @@
             crateInfo ./hang-cli/Cargo.toml
             // {
               src = craneLib.cleanCargoSource ./.;
-              cargoExtraArgs = "-p hang";
+              cargoExtraArgs = "-p hang-cli";
             }
           );
 
@@ -107,6 +107,7 @@
               cargoExtraArgs = "-p moq-token-cli";
             }
           );
+        };
 
         devShells.default = pkgs.mkShell {
           packages = shell-deps;

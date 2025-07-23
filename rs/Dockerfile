@@ -5,7 +5,7 @@
 # 2. Nix is not required for developers; `docker build .` will work.
 #
 # Unfortunately, it means that caching is more difficult.
-# Nix uses /nix/store for both caching AND the final output (lots of symlinks).
+# Nix uses /nix/store for both caching AND the final output (lots of symlinks)
 FROM nixos/nix:latest AS builder
 ENV NIX_CONFIG="experimental-features = nix-command flakes"
 
@@ -15,63 +15,29 @@ RUN mkdir -p /output/store
 
 COPY . .
 
-# Build only moq-relay
-FROM builder AS builder-moq-relay
+# Build stage that accepts an optional package argument
+ARG package
 
-# Okay so we cache /nix/store so we don't have to rebuild everything every time.
-# Docker caches are ephemeral, and unfortunately nix creates a shitload of symlinks to /nix/store.
-# So we use the nix-store command to query the dependencies of the result and copy them to /output/store.
-# We also have to copy the resulting binary; it's already in the /output/store but we don't know the name.
-# There's probably a better way to do this, but I just delete the duplicate to save another ~15MB.
+# Build the package
 RUN --mount=type=cache,target=/root/.cache --mount=type=cache,target=/nix,from=nixos/nix:latest,source=/nix \
-	nix build .#moq-relay --out-link result && \
+	nix build .#${package} --out-link result && \
 	cp -r $(nix-store -qR result) /output/store && \
 	cp -r $(readlink -f result) /output/result && \
 	rm -rf /output/store/$(basename $(readlink -f result))
 
-# moq-relay target
-FROM scratch AS moq-relay
-COPY --from=builder-moq-relay /output/store /nix/store
-COPY --from=builder-moq-relay /output/result/bin/* /bin/
-ENTRYPOINT ["/bin/moq-relay"]
+# Default to `/bin/sh` for the entrypoint if no package is specified
+ARG package="sh"
 
-# Build only hang
-FROM builder AS builder-hang
-RUN --mount=type=cache,target=/root/.cache --mount=type=cache,target=/nix,from=nixos/nix:latest,source=/nix \
-	nix build .#hang --out-link result && \
-	cp -r $(nix-store -qR result) /output/store && \
-	cp -r $(readlink -f result) /output/result && \
-	rm -rf /output/store/$(basename $(readlink -f result))
+# Create entry.sh script that knows which binary to run
+RUN echo '#!/bin/sh' > /output/entry.sh && \
+	echo "exec /bin/${package} \"\$@\"" >> /output/entry.sh && \
+	chmod +x /output/entry.sh
 
-# hang target
-FROM scratch AS hang
-COPY --from=builder-hang /output/store /nix/store
-COPY --from=builder-hang /output/result/bin/* /bin/
-ENTRYPOINT ["/bin/hang"]
+# Final image (when no specific package is selected, defaults to sh)
+FROM nixos/nix:latest
 
-# Build only moq-token
-FROM builder AS builder-moq-token
-RUN --mount=type=cache,target=/root/.cache --mount=type=cache,target=/nix,from=nixos/nix:latest,source=/nix \
-	nix build .#moq-token --out-link result && \
-	cp -r $(nix-store -qR result) /output/store && \
-	cp -r $(readlink -f result) /output/result && \
-	rm -rf /output/store/$(basename $(readlink -f result))
+COPY --from=builder /output/entry.sh /bin/entry.sh
+COPY --from=builder /output/store /nix/store
+COPY --from=builder /output/result/bin/* /bin/
 
-# moq-token target
-FROM scratch AS moq-token
-COPY --from=builder-moq-token /output/store /nix/store
-COPY --from=builder-moq-token /output/result/bin/* /bin/
-ENTRYPOINT ["/bin/moq-token"]
-
-# Build all packages by default
-FROM builder AS builder-all
-RUN --mount=type=cache,target=/root/.cache --mount=type=cache,target=/nix,from=nixos/nix:latest,source=/nix \
-	nix build . --out-link result && \
-	cp -r $(nix-store -qR result) /output/store && \
-	cp -r $(readlink -f result) /output/result && \
-	rm -rf /output/store/$(basename $(readlink -f result))
-
-# all targets
-FROM scratch
-COPY --from=builder-all /output/store /nix/store
-COPY --from=builder-all /output/result/bin/* /bin/
+ENTRYPOINT ["/bin/entry.sh"]

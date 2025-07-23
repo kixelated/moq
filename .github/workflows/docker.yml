@@ -58,6 +58,9 @@ jobs:
           context: rs
           push: true
           target: ${{ steps.parse.outputs.target }}
+          # Make a smaller image by specifying the package to build
+          build-args: |
+            package=${{ steps.parse.outputs.target }}
           tags: |
             ${{ env.REGISTRY }}/${{ steps.parse.outputs.target }}:${{ steps.parse.outputs.version }}
             ${{ env.REGISTRY }}/${{ steps.parse.outputs.target }}:latest
