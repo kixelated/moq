@@ -1,5 +1,6 @@
 import * as jose from "jose";
 import { z } from "zod";
+import * as base64 from "@hexagon/base64";
 import { AlgorithmSchema } from "./algorithm";
 import { type Claims, ClaimsSchema, validateClaims } from "./claims";
 
@@ -31,10 +32,8 @@ export const KeySchema = z.object({
 			(secret) => {
 				// Validate minimum length (at least 32 bytes when decoded)
 				try {
-					// Convert base64url to base64, then decode using Web APIs
-					const base64 = secret.replace(/-/g, "+").replace(/_/g, "/");
-					const binaryString = atob(base64);
-					return binaryString.length >= 32;
+					const decoded = base64.toArrayBuffer(secret, true); // true for urlSafe
+					return decoded.byteLength >= 32;
 				} catch {
 					return false;
 				}
@@ -50,10 +49,10 @@ export type Key = z.infer<typeof KeySchema>;
 export function load(jwk: string): Key {
 	let data: unknown;
 	try {
-		// First base64url decode the input using Web APIs (compatible with Cloudflare Workers)
-		const binaryString = atob(jwk.replace(/-/g, "+").replace(/_/g, "/"));
-		const decoded = new TextDecoder().decode(new Uint8Array([...binaryString].map((char) => char.charCodeAt(0))));
-		data = JSON.parse(decoded);
+		// First base64url decode the input
+		const decoded = base64.toArrayBuffer(jwk, true); // true for urlSafe
+		const jsonString = new TextDecoder().decode(decoded);
+		data = JSON.parse(jsonString);
 	} catch (error) {
 		if (error instanceof Error && error.message.includes("Invalid character")) {
 			throw new Error("Failed to decode JWK: invalid base64url encoding");
@@ -82,10 +81,9 @@ export async function sign(key: Key, claims: Claims): Promise<string> {
 		throw new Error(`Invalid claims: ${error instanceof Error ? error.message : "unknown error"}`);
 	}
 
-	// Convert base64url to Uint8Array using Web APIs
-	const base64 = key.k.replace(/-/g, "+").replace(/_/g, "/");
-	const binaryString = atob(base64);
-	const secret = new Uint8Array([...binaryString].map((char) => char.charCodeAt(0)));
+	// Convert base64url to Uint8Array
+	const secretBuffer = base64.toArrayBuffer(key.k, true); // true for urlSafe
+	const secret = new Uint8Array(secretBuffer);
 	const jwt = await new jose.SignJWT(claims)
 		.setProtectedHeader({
 			alg: key.alg,
@@ -103,10 +101,9 @@ export async function verify(key: Key, token: string, path: string): Promise<Cla
 		throw new Error("Key does not support verification operation");
 	}
 
-	// Convert base64url to Uint8Array using Web APIs
-	const base64 = key.k.replace(/-/g, "+").replace(/_/g, "/");
-	const binaryString = atob(base64);
-	const secret = new Uint8Array([...binaryString].map((char) => char.charCodeAt(0)));
+	// Convert base64url to Uint8Array
+	const secretBuffer = base64.toArrayBuffer(key.k, true); // true for urlSafe
+	const secret = new Uint8Array(secretBuffer);
 	const { payload } = await jose.jwtVerify(token, secret, {
 		algorithms: [key.alg],
 	});
