@@ -53,13 +53,9 @@ if (pkg.dependencies) {
 			// Handle both scoped (@scope/name) and unscoped (name) packages
 			const packageDir = name.includes("/") ? name.split("/")[1] : name;
 			const workspacePkgPath = `../${packageDir}/package.json`;
-			try {
-				const workspacePkg = JSON.parse(readFileSync(workspacePkgPath, "utf8"));
-				pkg.dependencies[name] = `^${workspacePkg.version}`;
-				console.log(`🔗 Converted ${name}: ${version} → ^${workspacePkg.version}`);
-			} catch (e) {
-				console.warn(`⚠️  Could not resolve workspace dependency ${name}`);
-			}
+			const workspacePkg = JSON.parse(readFileSync(workspacePkgPath, "utf8"));
+			pkg.dependencies[name] = `^${workspacePkg.version}`;
+			console.log(`🔗 Converted ${name}: ${version} → ^${workspacePkg.version}`);
 		}
 	}
 }

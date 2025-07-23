@@ -116,7 +116,7 @@ export async function verify(key: Key, token: string, path: string): Promise<Cla
 	}
 
 	// Validate path matches
-	if (claims.path !== path) {
+	if (claims.root !== path) {
 		throw new Error("Token path does not match provided path");
 	}
 
