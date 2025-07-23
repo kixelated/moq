@@ -48,13 +48,13 @@ if (pkg.files) {
 // Convert workspace dependencies to published versions
 if (pkg.dependencies) {
 	for (const [name, version] of Object.entries(pkg.dependencies)) {
-		if (typeof version === 'string' && version.startsWith('workspace:')) {
+		if (typeof version === "string" && version.startsWith("workspace:")) {
 			// Read the actual version from the workspace package
 			// Handle both scoped (@scope/name) and unscoped (name) packages
-			const packageDir = name.includes('/') ? name.split('/')[1] : name;
+			const packageDir = name.includes("/") ? name.split("/")[1] : name;
 			const workspacePkgPath = `../${packageDir}/package.json`;
 			try {
-				const workspacePkg = JSON.parse(readFileSync(workspacePkgPath, 'utf8'));
+				const workspacePkg = JSON.parse(readFileSync(workspacePkgPath, "utf8"));
 				pkg.dependencies[name] = `^${workspacePkg.version}`;
 				console.log(`🔗 Converted ${name}: ${version} → ^${workspacePkg.version}`);
 			} catch (e) {
