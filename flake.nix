@@ -4,9 +4,17 @@
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixpkgs-unstable";
     flake-utils.url = "github:numtide/flake-utils";
+    crane.url = "github:ipetkov/crane";
 
     js.url = "./js";
-    rs.url = "./rs";
+    rs = {
+      url = "./rs";
+      inputs = {
+        nixpkgs.follows = "nixpkgs";
+        flake-utils.follows = "flake-utils";
+        crane.follows = "crane";
+      };
+    };
   };
 
   outputs =

@@ -1,95 +1,31 @@
-# Accept fenix and naersk as arguments to the overlay
-{ fenix, naersk }:
+# Accept crane as argument to the overlay
+{ crane }:
 final: prev:
 let
-  rust =
-    with fenix.packages.${final.system};
-    combine [
-      stable.rustc
-      stable.cargo
-      stable.clippy
-      stable.rustfmt
-    ];
-
-  naersk' = naersk.lib.${final.system}.override {
-    cargo = rust;
-    rustc = rust;
-  };
+  craneLib = crane.mkLib final;
 in
 {
-  moq-relay = naersk'.buildPackage {
+  moq-relay = craneLib.buildPackage {
     pname = "moq-relay";
-    src = ../.;
-    cargoBuildOptions =
-      opts:
-      opts
-      ++ [
-        "-p"
-        "moq-relay"
-      ];
-    cargoTestOptions =
-      opts:
-      opts
-      ++ [
-        "-p"
-        "moq-relay"
-      ];
+    src = craneLib.cleanCargoSource ../.;
+    cargoExtraArgs = "-p moq-relay";
   };
 
-  moq-clock = naersk'.buildPackage {
+  moq-clock = craneLib.buildPackage {
     pname = "moq-clock";
-    src = ../.;
-    cargoBuildOptions =
-      opts:
-      opts
-      ++ [
-        "-p"
-        "moq-clock"
-      ];
-    cargoTestOptions =
-      opts:
-      opts
-      ++ [
-        "-p"
-        "moq-clock"
-      ];
+    src = craneLib.cleanCargoSource ../.;
+    cargoExtraArgs = "-p moq-clock";
   };
 
-  hang = naersk'.buildPackage {
+  hang = craneLib.buildPackage {
     pname = "hang";
-    src = ../.;
-    cargoBuildOptions =
-      opts:
-      opts
-      ++ [
-        "-p"
-        "hang"
-      ];
-    cargoTestOptions =
-      opts:
-      opts
-      ++ [
-        "-p"
-        "hang"
-      ];
+    src = craneLib.cleanCargoSource ../.;
+    cargoExtraArgs = "-p hang";
   };
 
-  moq-token = naersk'.buildPackage {
+  moq-token = craneLib.buildPackage {
     pname = "moq-token-cli";
-    src = ../.;
-    cargoBuildOptions =
-      opts:
-      opts
-      ++ [
-        "-p"
-        "moq-token-cli"
-      ];
-    cargoTestOptions =
-      opts:
-      opts
-      ++ [
-        "-p"
-        "moq-token-cli"
-      ];
+    src = craneLib.cleanCargoSource ../.;
+    cargoExtraArgs = "-p moq-token-cli";
   };
 }

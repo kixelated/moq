@@ -4,24 +4,22 @@
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
     flake-utils.url = "github:numtide/flake-utils";
-    fenix.url = "github:nix-community/fenix";
-    naersk.url = "github:nmattia/naersk";
+    crane = "github:ipetkov/crane";
   };
 
   outputs =
     {
       self,
-      fenix,
       nixpkgs,
       flake-utils,
-      naersk,
+      crane,
     }:
     {
       nixosModules = {
         moq-relay = import ./nix/modules/moq-relay.nix;
       };
 
-      overlays.default = import ./nix/overlay.nix { inherit fenix naersk; };
+      overlays.default = import ./nix/overlay.nix { inherit crane; };
     }
     // flake-utils.lib.eachDefaultSystem (
       system:
@@ -30,20 +28,7 @@
           inherit system;
         };
 
-        rust =
-          with fenix.packages.${system};
-          combine [
-            stable.rustc
-            stable.cargo
-            stable.clippy
-            stable.rustfmt
-            stable.rust-src
-          ];
-
-        naersk' = naersk.lib.${system}.override {
-          cargo = rust;
-          rustc = rust;
-        };
+        craneLib = crane.mkLib pkgs;
 
         gst-deps = with pkgs.gst_all_1; [
           gstreamer
@@ -55,30 +40,78 @@
           gst-libav
         ];
 
-        shell-deps = [
-          rust
-          pkgs.just
-          pkgs.pkg-config
-          pkgs.glib
-          pkgs.libressl
-          pkgs.ffmpeg
-          pkgs.curl
-          pkgs.cargo-sort
-          pkgs.cargo-shear
-          pkgs.cargo-audit
-        ] ++ gst-deps;
+        shell-deps =
+          with pkgs;
+          [
+            rustc
+            cargo
+            clippy
+            rustfmt
+            rust-analyzer
+            just
+            pkg-config
+            glib
+            libressl
+            ffmpeg
+            curl
+            cargo-sort
+            cargo-shear
+            cargo-audit
+          ]
+          ++ gst-deps;
+
+        # Helper function to get crate info from Cargo.toml
+        crateInfo = cargoTomlPath: craneLib.crateNameFromCargoToml { cargoToml = cargoTomlPath; };
 
       in
       {
-        packages = {
-          default = naersk'.buildPackage {
-            src = ./.;
+        packages = rec {
+          default = pkgs.symlinkJoin {
+            name = "moq-all";
+            paths = [
+              moq-relay
+              moq-clock
+              hang
+              moq-token
+            ];
           };
+
+          moq-relay = craneLib.buildPackage (
+            crateInfo ./moq-relay/Cargo.toml
+            // {
+              src = craneLib.cleanCargoSource ./.;
+              cargoExtraArgs = "-p moq-relay";
+            }
+          );
+
+          moq-clock = craneLib.buildPackage (
+            crateInfo ./moq-clock/Cargo.toml
+            // {
+              src = craneLib.cleanCargoSource ./.;
+              cargoExtraArgs = "-p moq-clock";
+            }
+          );
+
+          hang = craneLib.buildPackage (
+            crateInfo ./hang-cli/Cargo.toml
+            // {
+              src = craneLib.cleanCargoSource ./.;
+              cargoExtraArgs = "-p hang";
+            }
+          );
+
+          moq-token = craneLib.buildPackage (
+            crateInfo ./moq-token-cli/Cargo.toml
+            // {
+              src = craneLib.cleanCargoSource ./.;
+              cargoExtraArgs = "-p moq-token-cli";
+            }
+          );
 
           hang-bbb = pkgs.symlinkJoin {
             name = "hang-bbb";
             paths = [
-              self.packages.${system}.hang
+              hang
               pkgs.ffmpeg
               pkgs.wget
               pkgs.bash
