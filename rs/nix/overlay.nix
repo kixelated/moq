@@ -3,7 +3,7 @@
 final: prev:
 let
   craneLib = crane.mkLib final;
-  
+
   # Helper function to get crate info from Cargo.toml
   crateInfo = cargoTomlPath: craneLib.crateNameFromCargoToml { cargoToml = cargoTomlPath; };
 in
