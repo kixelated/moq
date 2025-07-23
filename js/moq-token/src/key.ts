@@ -1,6 +1,6 @@
+import * as base64 from "@hexagon/base64";
 import * as jose from "jose";
 import { z } from "zod";
-import * as base64 from "@hexagon/base64";
 import { AlgorithmSchema } from "./algorithm";
 import { type Claims, ClaimsSchema, validateClaims } from "./claims";
 

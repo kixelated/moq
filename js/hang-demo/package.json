@@ -11,7 +11,7 @@
 		"check": "tsc --noEmit"
 	},
 	"dependencies": {
-		"@kixelated/hang": "workspace:^0.2.5",
+		"@kixelated/hang": "workspace:~",
 		"solid-js": "^1.9.7"
 	},
 	"devDependencies": {

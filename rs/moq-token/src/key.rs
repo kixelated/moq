@@ -65,8 +65,7 @@ impl Key {
 	pub fn from_file<P: AsRef<StdPath>>(path: P) -> anyhow::Result<Self> {
 		let contents = std::fs::read_to_string(&path)?;
 		// It's base64url encoded
-		let decoded = base64::engine::general_purpose::URL_SAFE_NO_PAD
-			.decode(contents.trim())?;
+		let decoded = base64::engine::general_purpose::URL_SAFE_NO_PAD.decode(contents.trim())?;
 		let json = String::from_utf8(decoded)?;
 		Ok(serde_json::from_str(&json)?)
 	}
@@ -551,7 +550,6 @@ mod tests {
 		assert_eq!(decoded, key.secret);
 	}
 
-
 	#[test]
 	fn test_backwards_compatibility_unpadded_base64url() {
 		// Create a JSON with unpadded base64url (new format)
@@ -598,5 +596,4 @@ mod tests {
 		// Clean up
 		std::fs::remove_file(temp_path).ok();
 	}
-
 }

@@ -490,7 +490,7 @@ test("verify - invalid payload structure", async () => {
 	// Create a token with invalid payload structure
 	const headerData = new TextEncoder().encode(JSON.stringify({ alg: "HS256", typ: "JWT" }));
 	const header = base64.fromArrayBuffer(headerData.buffer, true); // true for urlSafe
-	
+
 	const payloadData = new TextEncoder().encode(JSON.stringify({ invalid: "payload" }));
 	const payload = base64.fromArrayBuffer(payloadData.buffer, true); // true for urlSafe
 	const signature = "invalid";
