@@ -201,10 +201,6 @@ where
 	// Try to decode as unpadded base64url first
 	base64::engine::general_purpose::URL_SAFE_NO_PAD
 		.decode(&s)
-		.or_else(|_| {
-			// Fall back to padded base64url for backwards compatibility
-			base64::engine::general_purpose::URL_SAFE.decode(&s)
-		})
 		.map_err(serde::de::Error::custom)
 }
 

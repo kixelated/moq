@@ -31,8 +31,10 @@ export const KeySchema = z.object({
 			(secret) => {
 				// Validate minimum length (at least 32 bytes when decoded)
 				try {
-					const decoded = Buffer.from(secret, "base64url");
-					return decoded.length >= 32;
+					// Convert base64url to base64, then decode using Web APIs
+					const base64 = secret.replace(/-/g, "+").replace(/_/g, "/");
+					const binaryString = atob(base64);
+					return binaryString.length >= 32;
 				} catch {
 					return false;
 				}
@@ -48,8 +50,9 @@ export type Key = z.infer<typeof KeySchema>;
 export function load(jwk: string): Key {
 	let data: unknown;
 	try {
-		// First base64url decode the input
-		const decoded = Buffer.from(jwk, "base64url").toString("utf-8");
+		// First base64url decode the input using Web APIs (compatible with Cloudflare Workers)
+		const binaryString = atob(jwk.replace(/-/g, "+").replace(/_/g, "/"));
+		const decoded = new TextDecoder().decode(new Uint8Array([...binaryString].map((char) => char.charCodeAt(0))));
 		data = JSON.parse(decoded);
 	} catch (error) {
 		if (error instanceof Error && error.message.includes("Invalid character")) {
@@ -79,7 +82,10 @@ export async function sign(key: Key, claims: Claims): Promise<string> {
 		throw new Error(`Invalid claims: ${error instanceof Error ? error.message : "unknown error"}`);
 	}
 
-	const secret = Buffer.from(key.k, "base64url");
+	// Convert base64url to Uint8Array using Web APIs
+	const base64 = key.k.replace(/-/g, "+").replace(/_/g, "/");
+	const binaryString = atob(base64);
+	const secret = new Uint8Array([...binaryString].map((char) => char.charCodeAt(0)));
 	const jwt = await new jose.SignJWT(claims)
 		.setProtectedHeader({
 			alg: key.alg,
@@ -97,7 +103,10 @@ export async function verify(key: Key, token: string, path: string): Promise<Cla
 		throw new Error("Key does not support verification operation");
 	}
 
-	const secret = Buffer.from(key.k, "base64url");
+	// Convert base64url to Uint8Array using Web APIs
+	const base64 = key.k.replace(/-/g, "+").replace(/_/g, "/");
+	const binaryString = atob(base64);
+	const secret = new Uint8Array([...binaryString].map((char) => char.charCodeAt(0)));
 	const { payload } = await jose.jwtVerify(token, secret, {
 		algorithms: [key.alg],
 	});
