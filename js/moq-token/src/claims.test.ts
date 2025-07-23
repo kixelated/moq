@@ -1,6 +1,6 @@
 import assert from "node:assert";
 import test from "node:test";
-import { type Claims, claimsSchema, validateClaims } from "./claims";
+import { type Claims, ClaimsSchema, validateClaims } from "./claims";
 
 const createTestClaims = (): Claims => ({
 	path: "test-path/",
@@ -13,7 +13,7 @@ const createTestClaims = (): Claims => ({
 
 test("claims schema - valid claims", () => {
 	const claims = createTestClaims();
-	const result = claimsSchema.parse(claims);
+	const result = ClaimsSchema.parse(claims);
 
 	assert.strictEqual(result.path, claims.path);
 	assert.strictEqual(result.pub, claims.pub);
@@ -28,7 +28,7 @@ test("claims schema - minimal valid claims with pub", () => {
 		path: "test-path/",
 		pub: "test-pub",
 	};
-	const result = claimsSchema.parse(claims);
+	const result = ClaimsSchema.parse(claims);
 
 	assert.strictEqual(result.path, claims.path);
 	assert.strictEqual(result.pub, claims.pub);
@@ -43,7 +43,7 @@ test("claims schema - minimal valid claims with sub", () => {
 		path: "test-path/",
 		sub: "test-sub",
 	};
-	const result = claimsSchema.parse(claims);
+	const result = ClaimsSchema.parse(claims);
 
 	assert.strictEqual(result.path, claims.path);
 	assert.strictEqual(result.pub, undefined);
@@ -60,7 +60,7 @@ test("claims schema - invalid claims without pub or sub", () => {
 	};
 
 	assert.throws(() => {
-		claimsSchema.parse(claims);
+		ClaimsSchema.parse(claims);
 	}, /Either pub or sub must be specified/);
 });
 
@@ -70,27 +70,27 @@ test("claims schema - missing required path", () => {
 	};
 
 	assert.throws(() => {
-		claimsSchema.parse(claims);
+		ClaimsSchema.parse(claims);
 	}, /Required|missing|invalid_type/);
 });
 
 test("claims schema - invalid field types", () => {
 	assert.throws(() => {
-		claimsSchema.parse({
+		ClaimsSchema.parse({
 			path: 123, // should be string
 			pub: "test-pub",
 		});
 	}, /Expected string|invalid_type/);
 
 	assert.throws(() => {
-		claimsSchema.parse({
+		ClaimsSchema.parse({
 			path: "test-path/",
 			pub: 123, // should be string
 		});
 	}, /Expected string|invalid_type/);
 
 	assert.throws(() => {
-		claimsSchema.parse({
+		ClaimsSchema.parse({
 			path: "test-path/",
 			pub: "test-pub",
 			cluster: "true", // should be boolean
@@ -98,7 +98,7 @@ test("claims schema - invalid field types", () => {
 	}, /Expected boolean|invalid_type/);
 
 	assert.throws(() => {
-		claimsSchema.parse({
+		ClaimsSchema.parse({
 			path: "test-path/",
 			pub: "test-pub",
 			exp: "123", // should be number
@@ -306,7 +306,7 @@ test("claims schema - additional properties ignored", () => {
 		unexpectedField: "should be ignored",
 	};
 
-	const result = claimsSchema.parse(claims);
+	const result = ClaimsSchema.parse(claims);
 	assert.strictEqual(result.path, claims.path);
 	assert.strictEqual(result.pub, claims.pub);
 	assert.strictEqual((result as Record<string, unknown>).unexpectedField, undefined);
@@ -318,7 +318,7 @@ test("claims schema - optional fields default to undefined", () => {
 		pub: "test-pub",
 	};
 
-	const result = claimsSchema.parse(claims);
+	const result = ClaimsSchema.parse(claims);
 	assert.strictEqual(result.sub, undefined);
 	assert.strictEqual(result.cluster, undefined);
 	assert.strictEqual(result.exp, undefined);

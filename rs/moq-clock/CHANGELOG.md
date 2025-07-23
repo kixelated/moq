@@ -6,6 +6,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.7.1](https://github.com/kixelated/moq/compare/moq-clock-v0.7.0...moq-clock-v0.7.1) - 2025-07-22
+
+### Other
+
+- Add an ANNOUNCE_INIT message. ([#483](https://github.com/kixelated/moq/pull/483))
+
 ## [0.6.7](https://github.com/kixelated/moq/compare/moq-clock-v0.6.6...moq-clock-v0.6.7) - 2025-07-19
 
 ### Other

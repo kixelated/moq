@@ -8,5 +8,5 @@ import { z } from "zod";
  *
  * TODO: Support public key crypto at some point.
  */
-export const algorithmSchema = z.enum(["HS256", "HS384", "HS512"]);
-export type Algorithm = z.infer<typeof algorithmSchema>;
+export const AlgorithmSchema = z.enum(["HS256", "HS384", "HS512"]);
+export type Algorithm = z.infer<typeof AlgorithmSchema>;

@@ -138,9 +138,9 @@ checksum = "c08606f8c3cbf4ce6ec8e28fb0014a2c086708fe954eaa885384a6165172e7e8"
 
 [[package]]
 name = "aws-lc-rs"
-version = "1.13.2"
+version = "1.13.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "08b5d4e069cbc868041a64bd68dc8cb39a0d79585cd6c5a24caa8c2d622121be"
+checksum = "5c953fe1ba023e6b7730c0d4b031d06f267f23a46167dcbd40316644b10a17ba"
 dependencies = [
  "aws-lc-sys",
  "untrusted 0.7.1",
@@ -917,7 +917,7 @@ dependencies = [
 
 [[package]]
 name = "hang"
-version = "0.5.0"
+version = "0.5.1"
 dependencies = [
  "bytes",
  "derive_more",
@@ -938,7 +938,7 @@ dependencies = [
 
 [[package]]
 name = "hang-cli"
-version = "0.2.0"
+version = "0.2.2"
 dependencies = [
  "anyhow",
  "axum",
@@ -954,7 +954,7 @@ dependencies = [
 
 [[package]]
 name = "hang-gst"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "anyhow",
  "gst-plugin-version-helper",
@@ -1101,9 +1101,9 @@ dependencies = [
 
 [[package]]
 name = "hyper-util"
-version = "0.1.15"
+version = "0.1.16"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7f66d5bd4c6f02bf0542fad85d626775bab9258cf795a4256dcaf3161114d1df"
+checksum = "8d9b05277c7e8da2c93a568989bb6207bef0112e8d17df7a6eda4a3cf143bc5e"
 dependencies = [
  "base64",
  "bytes",
@@ -1117,7 +1117,7 @@ dependencies = [
  "libc",
  "percent-encoding",
  "pin-project-lite",
- "socket2",
+ "socket2 0.6.0",
  "tokio",
  "tower-service",
  "tracing",
@@ -1529,7 +1529,7 @@ dependencies = [
 
 [[package]]
 name = "moq-clock"
-version = "0.7.0"
+version = "0.7.2"
 dependencies = [
  "anyhow",
  "chrono",
@@ -1543,7 +1543,7 @@ dependencies = [
 
 [[package]]
 name = "moq-lite"
-version = "0.4.0"
+version = "0.5.0"
 dependencies = [
  "async-channel",
  "bytes",
@@ -1559,7 +1559,7 @@ dependencies = [
 
 [[package]]
 name = "moq-native"
-version = "0.7.4"
+version = "0.7.5"
 dependencies = [
  "anyhow",
  "clap",
@@ -1586,7 +1586,7 @@ dependencies = [
 
 [[package]]
 name = "moq-relay"
-version = "0.8.2"
+version = "0.8.4"
 dependencies = [
  "anyhow",
  "axum",
@@ -1612,7 +1612,7 @@ dependencies = [
 
 [[package]]
 name = "moq-token"
-version = "0.5.0"
+version = "0.5.1"
 dependencies = [
  "anyhow",
  "aws-lc-rs",
@@ -1626,7 +1626,7 @@ dependencies = [
 
 [[package]]
 name = "moq-token-cli"
-version = "0.2.0"
+version = "0.2.2"
 dependencies = [
  "anyhow",
  "clap",
@@ -1973,7 +1973,7 @@ dependencies = [
  "quinn-udp",
  "rustc-hash 2.1.1",
  "rustls",
- "socket2",
+ "socket2 0.5.10",
  "thiserror 2.0.12",
  "tokio",
  "tracing",
@@ -2013,7 +2013,7 @@ dependencies = [
  "cfg_aliases",
  "libc",
  "once_cell",
- "socket2",
+ "socket2 0.5.10",
  "tracing",
  "windows-sys 0.59.0",
 ]
@@ -2576,6 +2576,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "socket2"
+version = "0.6.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "233504af464074f9d066d7b5416c5f9b894a5862a6506e306f7b816cdd6f1807"
+dependencies = [
+ "libc",
+ "windows-sys 0.59.0",
+]
+
+[[package]]
 name = "stable_deref_trait"
 version = "1.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2776,7 +2786,7 @@ dependencies = [
  "pin-project-lite",
  "signal-hook-registry",
  "slab",
- "socket2",
+ "socket2 0.5.10",
  "tokio-macros",
  "windows-sys 0.52.0",
 ]

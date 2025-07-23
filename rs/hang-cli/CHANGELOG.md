@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.1](https://github.com/kixelated/moq/compare/hang-cli-v0.2.0...hang-cli-v0.2.1) - 2025-07-22
+
+### Other
+
+- Add an ANNOUNCE_INIT message. ([#483](https://github.com/kixelated/moq/pull/483))
+- Reject WebTransport connections early ([#479](https://github.com/kixelated/moq/pull/479))
+- The root shouldn't announce itself. ([#473](https://github.com/kixelated/moq/pull/473))
+
 ## [0.1.10](https://github.com/kixelated/moq/compare/hang-cli-v0.1.9...hang-cli-v0.1.10) - 2025-07-19
 
 ### Other
