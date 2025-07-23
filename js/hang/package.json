@@ -37,8 +37,8 @@
 		"release": "tsx ../scripts/release.ts"
 	},
 	"dependencies": {
-		"@kixelated/moq": "workspace:~",
-		"@kixelated/signals": "workspace:~",
+		"@kixelated/moq": "workspace:^",
+		"@kixelated/signals": "workspace:^",
 		"buffer": "^6.0.3",
 		"zod": "^4.0.0"
 	},
