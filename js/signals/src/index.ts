@@ -162,19 +162,38 @@ export class Root {
 
 	// Create a nested signals instance.
 	effect(fn: (effect: Effect) => void) {
-		if (this.#nested === undefined) throw new Error("closed");
+		if (this.#nested === undefined) {
+			if (Root.dev) {
+				console.warn("Root.effect called on closed root, ignoring");
+			}
+			return;
+		}
 		const signals = new Effect(fn);
 		this.#nested.push(signals);
 	}
 
-	set<T>(signal: Setter<T>, value: T, cleanup: T): void {
-		if (this.#dispose === undefined) throw new Error("closed");
-		this.#dispose.push(() => signal.set(cleanup));
+	set<T>(signal: Setter<T>, value: T, cleanup?: undefined extends T ? T : never): void;
+	set<T>(signal: Setter<T>, value: T, cleanup: T): void;
+	set<T>(signal: Setter<T>, value: T, cleanup?: T): void {
+		if (this.#dispose === undefined) {
+			if (Root.dev) {
+				console.warn("Effect.set called on closed root, ignoring");
+			}
+			return;
+		}
+		const cleanupValue = cleanup === undefined ? undefined as T : cleanup;
+		this.#dispose.push(() => signal.set(cleanupValue));
 		signal.set(value);
 	}
 
 	// A helper to call a function when a signal changes.
 	subscribe<T>(signal: Getter<T>, fn: (value: T) => void) {
+		if (this.#nested === undefined) {
+			if (Root.dev) {
+				console.warn("Root.subscribe called on closed root, ignoring");
+			}
+			return;
+		}
 		this.effect((effect) => {
 			const value = effect.get(signal);
 			fn(value);
@@ -182,7 +201,12 @@ export class Root {
 	}
 
 	cleanup(fn: Dispose): void {
-		if (this.#dispose === undefined) throw new Error("closed");
+		if (this.#dispose === undefined) {
+			if (Root.dev) {
+				console.warn("Root.cleanup called on closed root, ignoring");
+			}
+			return;
+		}
 		this.#dispose.push(fn);
 	}
 
@@ -291,7 +315,12 @@ export class Effect {
 
 	// Get the current value of a signal, monitoring it for changes (via ===) and rerunning on change.
 	get<T>(signal: Getter<T>): T {
-		if (this.#dispose === undefined) throw new Error("closed");
+		if (this.#dispose === undefined) {
+			if (Effect.dev) {
+				console.warn("Effect.get called on closed effect, returning current value");
+			}
+			return signal.peek();
+		}
 
 		const value = signal.peek();
 		const dispose = signal.subscribe(() => this.#schedule());
@@ -301,16 +330,29 @@ export class Effect {
 	}
 
 	// Temporarily set the value of a signal, unsetting it on cleanup.
-	set<T>(signal: Setter<T>, value: T, cleanup: T): void {
-		if (this.#dispose === undefined) throw new Error("closed");
+	set<T>(signal: Setter<T>, value: T, cleanup?: undefined extends T ? T : never): void;
+	set<T>(signal: Setter<T>, value: T, cleanup: T): void;
+	set<T>(signal: Setter<T>, value: T, cleanup?: T): void {
+		if (this.#dispose === undefined) {
+			if (Effect.dev) {
+				console.warn("Effect.set called on closed effect, ignoring");
+			}
+			return;
+		}
 
 		signal.set(value);
-		this.cleanup(() => signal.set(cleanup));
+		const cleanupValue = cleanup === undefined ? undefined as T : cleanup;
+		this.cleanup(() => signal.set(cleanupValue));
 	}
 
 	// Get the current value of a signal, monitoring it for changes (via dequal) and rerunning on change.
 	unique<T>(signal: Getter<T>): T {
-		if (this.#dispose === undefined) throw new Error("closed");
+		if (this.#dispose === undefined) {
+			if (Effect.dev) {
+				console.warn("Effect.unique called on closed effect, returning current value");
+			}
+			return signal.peek();
+		}
 
 		const value = signal.peek();
 		const dispose = signal.subscribe((v) => {
@@ -327,6 +369,12 @@ export class Effect {
 	// Spawn an async effect that blocks the effect being rerun until it completes.
 	// The cancel promise is resolved when the effect should cleanup: on close or rerun.
 	spawn(fn: (cancel: Promise<void>) => Promise<void>) {
+		if (this.#dispose === undefined) {
+			if (Effect.dev) {
+				console.warn("Effect.spawn called on closed effect, ignoring");
+			}
+			return;
+		}
 		const cancel = new Promise<void>((resolve) => {
 			this.cleanup(() => resolve());
 		});
@@ -346,7 +394,12 @@ export class Effect {
 	}
 
 	close(): void {
-		if (this.#dispose === undefined) throw new Error("closed");
+		if (this.#dispose === undefined) {
+			if (Effect.dev) {
+				console.warn("Effect.close called on already closed effect, ignoring");
+			}
+			return;
+		}
 		for (const fn of this.#dispose) fn();
 		this.#dispose = undefined;
 
