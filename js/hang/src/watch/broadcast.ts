@@ -1,10 +1,11 @@
 import type * as Moq from "@kixelated/moq";
-import { type Computed, type Effect, Root, Signal } from "@kixelated/signals";
+import { type Effect, Root, Signal } from "@kixelated/signals";
 import * as Catalog from "../catalog";
 import type { Connection } from "../connection";
 import { Audio, type AudioProps } from "./audio";
 import { Chat, type ChatProps } from "./chat";
 import { Location, type LocationProps } from "./location";
+import { type PreviewProps, PreviewWatch } from "./preview";
 import { Video, type VideoProps } from "./video";
 
 export interface BroadcastProps {
@@ -22,6 +23,7 @@ export interface BroadcastProps {
 	audio?: AudioProps;
 	location?: LocationProps;
 	chat?: ChatProps;
+	preview?: PreviewProps;
 }
 
 // A broadcast that (optionally) reloads automatically when live/offline.
@@ -32,12 +34,13 @@ export class Broadcast {
 	enabled: Signal<boolean>;
 	name: Signal<Moq.Path.Valid | undefined>;
 	status = new Signal<"offline" | "loading" | "live">("offline");
-	user: Computed<Catalog.User | undefined>;
+	user = new Signal<Catalog.User | undefined>(undefined);
 
 	audio: Audio;
 	video: Video;
 	location: Location;
 	chat: Chat;
+	preview: PreviewWatch;
 
 	#broadcast = new Signal<Moq.BroadcastConsumer | undefined>(undefined);
 
@@ -59,9 +62,12 @@ export class Broadcast {
 		this.video = new Video(this.#broadcast, this.#catalog, props?.video);
 		this.location = new Location(this.#broadcast, this.#catalog, props?.location);
 		this.chat = new Chat(this.#broadcast, this.#catalog, props?.chat);
+		this.preview = new PreviewWatch(this.#broadcast, this.#catalog, props?.preview);
 		this.#reload = props?.reload ?? true;
 
-		this.user = this.signals.computed((effect) => effect.get(this.#catalog)?.user);
+		this.signals.effect((effect) => {
+			this.user.set(effect.get(this.#catalog)?.user);
+		});
 
 		this.signals.effect(this.#runActive.bind(this));
 		this.signals.effect(this.#runBroadcast.bind(this));
@@ -166,5 +172,6 @@ export class Broadcast {
 		this.video.close();
 		this.location.close();
 		this.chat.close();
+		this.preview.close();
 	}
 }

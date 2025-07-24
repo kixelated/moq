@@ -5,6 +5,7 @@ import type { Connection } from "../connection";
 import { Audio, type AudioProps, type AudioTrack } from "./audio";
 import { Chat, type ChatProps } from "./chat";
 import { Location, type LocationProps } from "./location";
+import { Preview, type PreviewProps } from "./preview";
 import { Video, type VideoProps, type VideoTrack } from "./video";
 
 export type Device = "screen" | "camera";
@@ -18,6 +19,7 @@ export type BroadcastProps = {
 	user?: Catalog.User;
 	device?: Device;
 	chat?: ChatProps;
+	preview?: PreviewProps;
 
 	// You can disable reloading if you want to save a round trip when you know the broadcast is already live.
 	reload?: boolean;
@@ -33,6 +35,9 @@ export class Broadcast {
 	location: Location;
 	user: Signal<Catalog.User | undefined>;
 	chat: Chat;
+
+	// TODO should be a separate broadcast for separate authentication.
+	preview: Preview;
 
 	//catalog: Memo<Catalog.Root>;
 	device: Signal<Device | undefined>;
@@ -53,6 +58,7 @@ export class Broadcast {
 		this.video = new Video(this.#broadcast, props?.video);
 		this.location = new Location(this.#broadcast, props?.location);
 		this.chat = new Chat(this.#broadcast, props?.chat);
+		this.preview = new Preview(this.#broadcast, props?.preview);
 		this.user = new Signal(props?.user);
 
 		this.device = new Signal(props?.device);

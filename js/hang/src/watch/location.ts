@@ -1,5 +1,5 @@
 import type * as Moq from "@kixelated/moq";
-import { type Computed, type Effect, Root, Signal } from "@kixelated/signals";
+import { type Computed, type Effect, Root, Signal, Unique } from "@kixelated/signals";
 import type * as Catalog from "../catalog";
 import * as Container from "../container";
 
@@ -11,13 +11,13 @@ export class Location {
 	enabled: Signal<boolean>;
 
 	broadcast: Signal<Moq.BroadcastConsumer | undefined>;
-	catalog: Computed<Catalog.Location | undefined>;
-	peering: Computed<boolean | undefined>;
+	catalog = new Unique<Catalog.Location | undefined>(undefined);
+	peering = new Signal<boolean | undefined>(undefined);
 
 	#current = new Signal<Catalog.Position | undefined>(undefined);
 	readonly current = this.#current.readonly();
 
-	#updates: Computed<Catalog.Track | undefined>;
+	#updates = new Unique<Catalog.Track | undefined>(undefined);
 
 	#signals = new Root();
 
@@ -30,11 +30,14 @@ export class Location {
 		this.broadcast = broadcast;
 
 		// Grab the location section from the catalog (if it's changed).
-		this.catalog = this.#signals.unique((effect) => {
-			if (!effect.get(this.enabled)) return undefined;
-			return effect.get(catalog)?.location;
+		this.#signals.effect((effect) => {
+			if (!effect.get(this.enabled)) return;
+			this.catalog.set(effect.get(catalog)?.location);
 		});
-		this.peering = this.#signals.computed((effect) => effect.get(this.catalog)?.peering);
+
+		this.#signals.effect((effect) => {
+			this.peering.set(effect.get(this.catalog)?.peering);
+		});
 
 		// TODO This seems kinda wrong and racy
 		this.#signals.effect((effect) => {
@@ -47,17 +50,24 @@ export class Location {
 			this.#current.set(initial);
 		});
 
-		this.#updates = this.#signals.unique((effect) => {
+		this.#signals.effect((effect) => {
 			const broadcast = effect.get(this.broadcast);
-			if (!broadcast) return;
+			if (!broadcast) {
+				return;
+			}
 
 			const catalog = effect.get(this.catalog);
-			if (!catalog) return;
+			if (!catalog) {
+				return;
+			}
 
 			const updates = catalog.updates;
-			if (!updates) return;
+			if (!updates) {
+				return;
+			}
 
-			return updates;
+			this.#updates.set(updates);
+			effect.cleanup(() => this.#updates.set(undefined));
 		});
 
 		this.#signals.effect((effect) => {
@@ -79,7 +89,7 @@ export class Location {
 
 	// Request the location from a specific peer.
 	peer(handle?: string): LocationPeer {
-		return new LocationPeer(this.broadcast, this.catalog, handle);
+		return new LocationPeer(this.broadcast, this.catalog.readonly(), handle);
 	}
 
 	close() {
@@ -113,7 +123,7 @@ export class LocationPeer {
 	location: Signal<Catalog.Position | undefined>;
 	broadcast: Signal<Moq.BroadcastConsumer | undefined>;
 
-	#track: Computed<Catalog.Track | undefined>;
+	#track = new Signal<Catalog.Track | undefined>(undefined);
 	#signals = new Root();
 
 	constructor(
@@ -125,17 +135,24 @@ export class LocationPeer {
 		this.location = new Signal<Catalog.Position | undefined>(undefined);
 		this.broadcast = broadcast;
 
-		this.#track = this.#signals.unique((effect) => {
+		this.#signals.effect((effect) => {
 			const handle = effect.get(this.handle);
-			if (!handle) return undefined;
+			if (!handle) {
+				return;
+			}
 
 			const root = effect.get(catalog);
-			if (!root) return undefined;
+			if (!root) {
+				return;
+			}
 
 			const track = root.peers?.[handle];
-			if (!track) return undefined;
+			if (!track) {
+				return;
+			}
 
-			return track;
+			this.#track.set(track);
+			effect.cleanup(() => this.#track.set(undefined));
 		});
 
 		this.#signals.effect(this.#run.bind(this));

@@ -15,6 +15,10 @@
  * const path2 = Path.from("foo/bar");
  * console.log(path1 === path2); // true
  *
+ * // Multiple arguments are joined with "/"
+ * const path3 = Path.from("api", "v1", "users");
+ * console.log(path3); // "api/v1/users"
+ *
  * // Safe prefix matching
  * const base = Path.from("api/v1");
  * console.log(Path.hasPrefix(Path.from("api"), base)); // true
@@ -26,9 +30,10 @@
  */
 export type Valid = string & { __brand: "Name" };
 
-export function from(path: string): Valid {
-	// Remove leading and trailing slashes, and collapse multiple slashes into one.
-	return path.replace(/\/+/g, "/").replace(/^\/+/, "").replace(/\/+$/, "") as Valid;
+export function from(...paths: string[]): Valid {
+	// Join paths with "/" and then remove leading and trailing slashes, and collapse multiple slashes into one.
+	const joined = paths.join("/");
+	return joined.replace(/\/+/g, "/").replace(/^\/+/, "").replace(/\/+$/, "") as Valid;
 }
 
 /**

@@ -1,5 +1,5 @@
 import type * as Moq from "@kixelated/moq";
-import { type Computed, type Effect, Root, Signal } from "@kixelated/signals";
+import { type Effect, Root, Signal, Unique } from "@kixelated/signals";
 import { Buffer } from "buffer";
 import type * as Catalog from "../catalog";
 import * as Container from "../container";
@@ -22,7 +22,7 @@ export class VideoRenderer {
 
 	#animate?: number;
 
-	#ctx: Computed<CanvasRenderingContext2D | undefined>;
+	#ctx = new Signal<CanvasRenderingContext2D | undefined>(undefined);
 	#signals = new Root();
 
 	constructor(source: Video, props?: VideoRendererProps) {
@@ -30,9 +30,9 @@ export class VideoRenderer {
 		this.canvas = new Signal(props?.canvas);
 		this.paused = new Signal(props?.paused ?? false);
 
-		this.#ctx = this.#signals.computed((effect: Effect) => {
+		this.#signals.effect((effect) => {
 			const canvas = effect.get(this.canvas);
-			return canvas?.getContext("2d", { desynchronized: true }) ?? undefined;
+			this.#ctx.set(canvas?.getContext("2d", { desynchronized: true }) ?? undefined);
 		});
 
 		this.#signals.effect(this.#schedule.bind(this));
@@ -151,8 +151,8 @@ export class Video {
 	broadcast: Signal<Moq.BroadcastConsumer | undefined>;
 	enabled: Signal<boolean>; // Don't download any longer
 	catalog: Signal<Catalog.Root | undefined>;
-	selected: Computed<Catalog.Video | undefined>;
-	active: Computed<boolean>;
+	selected = new Unique<Catalog.Video | undefined>(undefined);
+	active = new Signal<boolean>(false);
 
 	// Unfortunately, browsers don't let us hold on to multiple VideoFrames.
 	// TODO To support higher latencies, keep around the encoded data and decode on demand.
@@ -177,8 +177,11 @@ export class Video {
 		this.enabled = new Signal(props?.enabled ?? false);
 
 		// TODO use isConfigSupported
-		this.selected = this.#signals.computed((effect) => effect.get(this.catalog)?.video?.[0]);
-		this.active = this.#signals.computed((effect) => effect.get(this.selected) !== undefined);
+		this.#signals.effect((effect) => {
+			const selected = effect.get(this.catalog)?.video?.[0];
+			this.selected.set(selected);
+			this.active.set(selected !== undefined);
+		});
 
 		this.#signals.effect(this.#init.bind(this));
 	}
