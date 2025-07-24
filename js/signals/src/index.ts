@@ -4,14 +4,18 @@ export type Dispose = () => void;
 
 type Subscriber<T> = (value: T) => void;
 
-export interface Accessor<T> {
+export interface Getter<T> {
 	peek(): T;
 	subscribe(fn: Subscriber<T>): Dispose;
 	readonly(): Computed<T>;
 }
 
+export interface Setter<T> {
+	set(value: T | ((prev: T) => T)): void;
+}
+
 // A signal that uses dequal instead of === to deduplicate updates.
-export class Unique<T> implements Accessor<T> {
+export class Unique<T> implements Getter<T>, Setter<T> {
 	#value: T;
 	#subscribers: Set<Subscriber<T>> = new Set();
 
@@ -55,7 +59,7 @@ export class Unique<T> implements Accessor<T> {
 	}
 }
 
-export class Signal<T> implements Accessor<T> {
+export class Signal<T> implements Getter<T>, Setter<T> {
 	#value: T;
 	#subscribers: Set<Subscriber<T>> = new Set();
 
@@ -116,10 +120,10 @@ export class Signal<T> implements Accessor<T> {
 }
 
 // Same as Signal but without the `set` method.
-export class Computed<T> implements Accessor<T> {
-	#signal: Accessor<T>;
+export class Computed<T> implements Getter<T> {
+	#signal: Getter<T>;
 
-	constructor(signal: Accessor<T>) {
+	constructor(signal: Getter<T>) {
 		this.#signal = signal;
 	}
 
@@ -164,7 +168,7 @@ export class Root {
 	}
 
 	// A helper to call a function when a signal changes.
-	subscribe<T>(signal: Signal<T> | Computed<T>, fn: (value: T) => void) {
+	subscribe<T>(signal: Getter<T>, fn: (value: T) => void) {
 		this.effect((effect) => {
 			const value = effect.get(signal);
 			fn(value);
@@ -269,7 +273,7 @@ export class Effect {
 	}
 
 	// Get the current value of a signal, monitoring it for changes (via ===) and rerunning on change.
-	get<T>(signal: Accessor<T>): T {
+	get<T>(signal: Getter<T>): T {
 		if (this.#dispose === undefined) throw new Error("closed");
 
 		const value = signal.peek();
@@ -279,8 +283,16 @@ export class Effect {
 		return value;
 	}
 
+	// Temporarily set the value of a signal, unsetting it on cleanup.
+	set<T>(signal: Setter<T>, value: T, cleanup: T): void {
+		if (this.#dispose === undefined) throw new Error("closed");
+
+		signal.set(value);
+		this.cleanup(() => signal.set(cleanup));
+	}
+
 	// Get the current value of a signal, monitoring it for changes (via dequal) and rerunning on change.
-	unique<T>(signal: Accessor<T>): T {
+	unique<T>(signal: Getter<T>): T {
 		if (this.#dispose === undefined) throw new Error("closed");
 
 		const value = signal.peek();

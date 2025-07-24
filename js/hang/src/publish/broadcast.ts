@@ -81,8 +81,7 @@ export class Broadcast {
 			effect.cleanup(() => consume.close());
 			connection.publish(name, consume);
 
-			this.#published.set(true);
-			effect.cleanup(() => this.#published.set(false));
+			effect.set(this.#published, true, false);
 		});
 
 		// These are separate effects because the camera audio/video constraints can be independent.
@@ -107,9 +106,7 @@ export class Broadcast {
 			const media = await mediaPromise;
 			const track = media.getAudioTracks().at(0) as AudioTrack | undefined;
 			effect.cleanup(() => track?.stop());
-
-			this.audio.media.set(track);
-			effect.cleanup(() => this.audio.media.set(undefined));
+			effect.set(this.audio.media, track, undefined);
 		});
 	}
 
@@ -125,9 +122,7 @@ export class Broadcast {
 			const media = await mediaPromise;
 			const track = media.getVideoTracks().at(0) as VideoTrack | undefined;
 			effect.cleanup(() => track?.stop());
-
-			this.video.media.set(track);
-			effect.cleanup(() => this.video.media.set(undefined));
+			effect.set(this.video.media, track, undefined);
 		});
 	}
 
@@ -166,12 +161,8 @@ export class Broadcast {
 
 			effect.cleanup(() => video?.stop());
 			effect.cleanup(() => audio?.stop());
-
-			this.video.media.set(video);
-			effect.cleanup(() => this.video.media.set(undefined));
-
-			this.audio.media.set(audio);
-			effect.cleanup(() => this.audio.media.set(undefined));
+			effect.set(this.video.media, video, undefined);
+			effect.set(this.audio.media, audio, undefined);
 		});
 	}
 

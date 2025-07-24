@@ -78,8 +78,7 @@ export class Broadcast {
 		if (!effect.get(this.enabled)) return;
 
 		if (!this.#reload) {
-			this.#active.set(true);
-			effect.cleanup(() => this.#active.set(false));
+			effect.set(this.#active, true, false);
 			return;
 		}
 
