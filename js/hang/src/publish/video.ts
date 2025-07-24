@@ -81,10 +81,9 @@ export class Video {
 	}
 
 	#runTrack(effect: Effect): void {
-		if (!effect.get(this.enabled)) return;
-
+		const enabled = effect.get(this.enabled);
 		const media = effect.get(this.media);
-		if (!media) return;
+		if (!enabled || !media) return;
 
 		const track = new Moq.TrackProducer(`video-${this.#id++}`, 1);
 		effect.cleanup(() => track.close());

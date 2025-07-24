@@ -115,20 +115,15 @@ export class Broadcast {
 
 	#runBroadcast(effect: Effect): void {
 		const conn = effect.get(this.connection.established);
-		if (!conn) return;
-
-		if (!effect.get(this.enabled)) return;
-
+		const enabled = effect.get(this.enabled);
 		const name = effect.get(this.name);
-		if (!name) return;
-
-		if (!effect.get(this.#active)) return;
+		const active = effect.get(this.#active);
+		if (!conn || !enabled || !name || !active) return;
 
 		const broadcast = conn.consume(name);
 		effect.cleanup(() => broadcast.close());
 
-		this.#broadcast.set(broadcast);
-		effect.cleanup(() => this.#broadcast.set(undefined));
+		effect.set(this.#broadcast, broadcast, undefined);
 	}
 
 	#runCatalog(effect: Effect): void {

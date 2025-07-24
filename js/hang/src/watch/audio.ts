@@ -60,10 +60,8 @@ export class Audio {
 
 	#runWorklet(effect: Effect): void {
 		const enabled = effect.get(this.enabled);
-		if (!enabled) return;
-
 		const selected = effect.get(this.selected);
-		if (!selected) return;
+		if (!enabled || !selected) return;
 
 		const sampleRate = selected.config.sampleRate;
 		const channelCount = selected.config.numberOfChannels;

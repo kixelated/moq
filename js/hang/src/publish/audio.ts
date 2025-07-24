@@ -86,10 +86,9 @@ export class Audio {
 	}
 
 	#runSource(effect: Effect): void {
-		if (!effect.get(this.enabled)) return;
-
+		const enabled = effect.get(this.enabled);
 		const media = effect.get(this.media);
-		if (!media) return;
+		if (!enabled || !media) return;
 
 		const settings = media.getSettings();
 		if (!settings) {
