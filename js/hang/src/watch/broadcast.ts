@@ -1,5 +1,5 @@
 import type * as Moq from "@kixelated/moq";
-import { type Computed, type Effect, Root, Signal } from "@kixelated/signals";
+import { type Effect, Root, Signal } from "@kixelated/signals";
 import * as Catalog from "../catalog";
 import type { Connection } from "../connection";
 import { Audio, type AudioProps } from "./audio";
@@ -34,7 +34,7 @@ export class Broadcast {
 	enabled: Signal<boolean>;
 	name: Signal<Moq.Path.Valid | undefined>;
 	status = new Signal<"offline" | "loading" | "live">("offline");
-	user: Computed<Catalog.User | undefined>;
+	user = new Signal<Catalog.User | undefined>(undefined);
 
 	audio: Audio;
 	video: Video;
@@ -65,7 +65,9 @@ export class Broadcast {
 		this.preview = new PreviewWatch(this.#broadcast, this.#catalog, props?.preview);
 		this.#reload = props?.reload ?? true;
 
-		this.user = this.signals.computed((effect) => effect.get(this.#catalog)?.user);
+		this.signals.effect((effect) => {
+			this.user.set(effect.get(this.#catalog)?.user);
+		});
 
 		this.signals.effect(this.#runActive.bind(this));
 		this.signals.effect(this.#runBroadcast.bind(this));

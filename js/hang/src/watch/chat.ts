@@ -1,5 +1,5 @@
 import type * as Moq from "@kixelated/moq";
-import { type Computed, Root, Signal } from "@kixelated/signals";
+import { Root, Signal, Unique } from "@kixelated/signals";
 import { Container } from "..";
 import type * as Catalog from "../catalog";
 
@@ -9,13 +9,15 @@ export interface ChatProps {
 	enabled?: boolean;
 }
 
+const DEFAULT_TTL = 10_000;
+
 export class Chat {
 	broadcast: Signal<Moq.BroadcastConsumer | undefined>;
 
 	enabled: Signal<boolean>;
-	catalog: Computed<Catalog.Chat | undefined>;
-	track: Computed<Container.ChatConsumer | undefined>;
-	ttl: Computed<DOMHighResTimeStamp | undefined>;
+	catalog = new Unique<Catalog.Chat | undefined>(undefined);
+	track = new Unique<Container.ChatConsumer | undefined>(undefined);
+	ttl = new Signal<DOMHighResTimeStamp | undefined>(undefined);
 
 	#signals = new Root();
 
@@ -28,17 +30,17 @@ export class Chat {
 		this.enabled = new Signal(props?.enabled ?? false);
 
 		// Grab the chat section from the catalog (if it's changed).
-		this.catalog = this.#signals.unique((effect) => {
-			if (!effect.get(this.enabled)) return undefined;
-			return effect.get(catalog)?.chat;
+		this.#signals.effect((effect) => {
+			if (!effect.get(this.enabled)) return;
+			this.catalog.set(effect.get(catalog)?.chat);
 		});
 
 		// TODO enforce the TTL?
-		this.ttl = this.#signals.computed((effect) => {
-			return effect.get(this.catalog)?.ttl;
+		this.#signals.effect((effect) => {
+			this.ttl.set(effect.get(this.catalog)?.ttl ?? DEFAULT_TTL);
 		});
 
-		this.track = this.#signals.computed((effect) => {
+		this.#signals.effect((effect) => {
 			const catalog = effect.get(this.catalog);
 			if (!catalog) return undefined;
 

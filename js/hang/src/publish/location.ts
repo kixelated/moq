@@ -1,5 +1,5 @@
 import * as Moq from "@kixelated/moq";
-import { type Computed, Root, Signal } from "@kixelated/signals";
+import { Root, Signal } from "@kixelated/signals";
 import type * as Catalog from "../catalog";
 import { u8 } from "../catalog/integers";
 import * as Container from "../container";
@@ -26,7 +26,7 @@ export class Location {
 	#track = new Moq.TrackProducer("location.json", 0);
 	#producer = new Container.PositionProducer(this.#track);
 
-	catalog: Computed<Catalog.Location | undefined>;
+	catalog = new Signal<Catalog.Location | undefined>(undefined);
 
 	#peers = new Signal<Record<string, Catalog.Track> | undefined>(undefined);
 
@@ -39,7 +39,7 @@ export class Location {
 		this.current = new Signal(props?.current ?? undefined);
 		this.peering = new Signal(props?.peering ?? undefined);
 
-		this.catalog = this.#signals.computed<Catalog.Location | undefined>((effect) => {
+		this.#signals.effect((effect) => {
 			const enabled = effect.get(this.enabled);
 			if (!enabled) return;
 
@@ -77,7 +77,7 @@ export class LocationPeer {
 	catalog: Signal<Record<string, Catalog.Track> | undefined>;
 	broadcast: Moq.BroadcastProducer;
 	//location: Signal<Catalog.Position | undefined>
-	producer: Computed<Container.PositionProducer | undefined>;
+	producer = new Signal<Container.PositionProducer | undefined>(undefined);
 
 	#signals = new Root();
 
@@ -90,7 +90,7 @@ export class LocationPeer {
 		this.catalog = catalog;
 		this.broadcast = broadcast;
 
-		this.producer = this.#signals.computed((effect) => {
+		this.#signals.effect((effect) => {
 			const handle = effect.get(this.handle);
 			if (!handle) return;
 

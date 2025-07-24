@@ -1,5 +1,5 @@
 import * as Moq from "@kixelated/moq";
-import { type Computed, type Effect, Root, Signal } from "@kixelated/signals";
+import { Root, Signal } from "@kixelated/signals";
 import type * as Catalog from "../catalog";
 import { u8 } from "../catalog/integers";
 import * as Container from "../container";
@@ -19,7 +19,7 @@ export class Chat {
 	// NOTE: Only applies to new messages.
 	ttl: Signal<DOMHighResTimeStamp | undefined>;
 
-	catalog: Computed<Catalog.Chat | undefined>;
+	catalog = new Signal<Catalog.Chat | undefined>(undefined);
 
 	// Always create the track, even if we're not publishing it
 	#track = new Moq.TrackProducer("chat.md", 0);
@@ -31,14 +31,17 @@ export class Chat {
 		this.ttl = new Signal(props?.ttl);
 		this.message = new Signal<string | undefined>(undefined);
 
-		this.catalog = this.#signals.computed<Catalog.Chat | undefined>((effect: Effect) => {
+		this.#signals.effect((effect) => {
 			const enabled = effect.get(this.enabled);
 			if (!enabled) return;
 
 			broadcast.insertTrack(this.#track.consume());
 			effect.cleanup(() => broadcast.removeTrack(this.#track.name));
 
-			return { track: { name: this.#track.name, priority: u8(this.#track.priority) }, ttl: effect.get(this.ttl) };
+			this.catalog.set({
+				track: { name: this.#track.name, priority: u8(this.#track.priority) },
+				ttl: effect.get(this.ttl),
+			});
 		});
 
 		this.#signals.effect((effect) => {

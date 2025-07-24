@@ -1,5 +1,5 @@
 import type * as Moq from "@kixelated/moq";
-import { type Computed, Root, Signal } from "@kixelated/signals";
+import { Root, Signal, Unique } from "@kixelated/signals";
 import { Container } from "..";
 import type * as Catalog from "../catalog";
 import * as Preview from "../preview";
@@ -12,8 +12,8 @@ export class PreviewWatch {
 	broadcast: Signal<Moq.BroadcastConsumer | undefined>;
 	enabled: Signal<boolean>;
 
-	track: Computed<Container.FrameConsumer | undefined>;
-	preview: Computed<Preview.Info | undefined>;
+	track = new Unique<Container.FrameConsumer | undefined>(undefined);
+	preview = new Unique<Preview.Info | undefined>(undefined);
 
 	#signals = new Root();
 
@@ -25,7 +25,7 @@ export class PreviewWatch {
 		this.broadcast = broadcast;
 		this.enabled = new Signal(props?.enabled ?? false);
 
-		this.track = this.#signals.computed((effect) => {
+		this.#signals.effect((effect) => {
 			if (!effect.get(this.enabled)) return undefined;
 
 			const broadcast = effect.get(this.broadcast);
@@ -39,7 +39,7 @@ export class PreviewWatch {
 			return consumer;
 		});
 
-		this.preview = this.#signals.computed((effect) => {
+		this.#signals.effect((effect) => {
 			const track = effect.get(this.track);
 			if (!track) return undefined;
 

@@ -171,46 +171,6 @@ export class Root {
 		});
 	}
 
-	// Create a signal that is derived from other signals.
-	computed<T>(fn: (effect: Effect) => T): Computed<T> {
-		let signal: Signal<T> | undefined;
-
-		this.effect((root) => {
-			const value = fn(root);
-			if (signal === undefined) {
-				signal = new Signal(value);
-			} else {
-				signal.set(value);
-			}
-		});
-
-		if (signal === undefined) {
-			throw new Error("impossible: effect didn't run immediately");
-		}
-
-		return new Computed(signal);
-	}
-
-	// Same as `computed` but performs a deep equality check on the returned value.
-	unique<T>(fn: (effect: Effect) => T): Computed<T> {
-		let signal: Unique<T> | undefined;
-
-		this.effect((root) => {
-			const value = fn(root);
-			if (signal === undefined) {
-				signal = new Unique(value);
-			} else {
-				signal.set(value);
-			}
-		});
-
-		if (signal === undefined) {
-			throw new Error("impossible: effect didn't run immediately");
-		}
-
-		return new Computed(signal);
-	}
-
 	cleanup(fn: Dispose): void {
 		if (this.#dispose === undefined) throw new Error("closed");
 		this.#dispose.push(fn);
@@ -267,12 +227,7 @@ export class Effect {
 			this.#stack = new Error().stack;
 		}
 
-		try {
-			this.#fn(this);
-		} catch (error) {
-			console.error("effect error", error);
-			if (this.#stack) console.error("stack", this.#stack);
-		}
+		this.#schedule();
 	}
 
 	#schedule(): void {

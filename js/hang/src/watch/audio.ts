@@ -1,5 +1,5 @@
 import type * as Moq from "@kixelated/moq";
-import { type Accessor, type Computed, type Effect, Root, Signal } from "@kixelated/signals";
+import { type Accessor, type Computed, type Effect, Root, Signal, Unique } from "@kixelated/signals";
 import { Buffer } from "buffer";
 import type * as Catalog from "../catalog";
 import * as Container from "../container";
@@ -21,7 +21,7 @@ export class Audio {
 	broadcast: Accessor<Moq.BroadcastConsumer | undefined>;
 	catalog: Accessor<Catalog.Root | undefined>;
 	enabled: Signal<boolean>;
-	selected: Computed<Catalog.Audio | undefined>;
+	selected = new Unique<Catalog.Audio | undefined>(undefined);
 
 	// The root of the audio graph, which can be used for custom visualizations.
 	// You can access the audio context via `root.context`.
@@ -50,7 +50,9 @@ export class Audio {
 		this.enabled = new Signal(props?.enabled ?? false);
 		this.latency = props?.latency ?? 100; // TODO Reduce this once fMP4 stuttering is fixed.
 
-		this.selected = this.#signals.unique((effect) => effect.get(this.catalog)?.audio?.[0]);
+		this.#signals.effect((effect) => {
+			this.selected.set(effect.get(this.catalog)?.audio?.[0]);
+		});
 
 		this.#signals.effect(this.#runWorklet.bind(this));
 		this.#signals.effect(this.#runDecoder.bind(this));
