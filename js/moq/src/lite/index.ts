@@ -1,4 +1,5 @@
 export * from "./announce";
+export * from "./connection";
 export * from "./group";
 export * from "./message";
 export * from "./session";

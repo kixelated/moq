@@ -1,11 +1,11 @@
-import { type AnnouncedConsumer, AnnouncedProducer } from "./announced";
-import { type BroadcastConsumer, BroadcastProducer } from "./broadcast";
-import { GroupProducer } from "./group";
-import * as Lite from "./lite";
-import * as Path from "./path";
-import { type Reader, Stream } from "./stream";
-import type { TrackProducer } from "./track";
-import { error } from "./util/error";
+import { type AnnouncedConsumer, AnnouncedProducer } from "../announced";
+import { type BroadcastConsumer, BroadcastProducer } from "../broadcast";
+import { GroupProducer } from "../group";
+import * as Path from "../path";
+import { type Reader, Stream } from "../stream";
+import type { TrackProducer } from "../track";
+import { error } from "../util/error";
+import * as Lite from ".";
 
 /**
  * Handles subscribing to broadcasts and managing their lifecycle.
