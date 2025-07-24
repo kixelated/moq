@@ -48,7 +48,6 @@ export class Subscriber {
 				const stream = await Stream.open(this.#quic);
 				await stream.writer.u8(Lite.AnnounceInterest.StreamID);
 				await msg.encode(stream.writer);
-				stream.writer.close();
 
 				// First, receive ANNOUNCE_INIT
 				const init = await Lite.AnnounceInit.decode(stream.reader);
@@ -132,7 +131,6 @@ export class Subscriber {
 		const stream = await Stream.open(this.#quic);
 		await stream.writer.u8(Lite.Subscribe.StreamID);
 		await msg.encode(stream.writer);
-		stream.writer.close();
 
 		try {
 			await Lite.SubscribeOk.decode(stream.reader);

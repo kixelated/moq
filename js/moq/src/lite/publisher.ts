@@ -190,7 +190,6 @@ export class Publisher {
 			const stream = await Writer.open(this.#quic);
 			await stream.u8(Lite.Group.StreamID);
 			await msg.encode(stream);
-			stream.close();
 
 			try {
 				for (;;) {

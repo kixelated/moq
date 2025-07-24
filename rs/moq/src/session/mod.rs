@@ -142,7 +142,7 @@ impl Session {
 
 	// TODO do something useful with this
 	async fn run_session(mut stream: Stream) -> Result<(), Error> {
-		while let Some(_info) = stream.reader.decode_maybe::<message::SubscribeOk>().await? {}
+		while let Some(_info) = stream.reader.decode_maybe::<message::SessionInfo>().await? {}
 		Err(Error::Cancel)
 	}
 

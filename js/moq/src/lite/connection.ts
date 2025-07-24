@@ -110,7 +110,6 @@ export class Connection implements ConnectionInterface {
 		const stream = await Stream.open(quic);
 		await stream.writer.u8(SessionClient.StreamID);
 		await msg.encode(stream.writer);
-		stream.writer.close();
 
 		const server = await SessionServer.decode(stream.reader);
 		if (server.version !== CURRENT_VERSION) {
@@ -198,6 +197,8 @@ export class Connection implements ConnectionInterface {
 			if (!msg) break;
 			// TODO use the session info
 		}
+
+		console.warn("session stream closed");
 	}
 
 	async #runBidis() {
