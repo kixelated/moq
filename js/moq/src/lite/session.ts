@@ -1,5 +1,5 @@
+import type { Reader, Writer } from "../stream";
 import * as Message from "./message";
-import type { Reader, Writer } from "./stream";
 
 export const Version = {
 	DRAFT_00: 0xff000000,

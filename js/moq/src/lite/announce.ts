@@ -1,6 +1,6 @@
 import type { Valid } from "../path";
+import type { Reader, Writer } from "../stream";
 import * as Message from "./message";
-import type { Reader, Writer } from "./stream";
 
 export class Announce {
 	suffix: Valid;

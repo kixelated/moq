@@ -1,10 +1,11 @@
 import { type AnnouncedConsumer, AnnouncedProducer } from "./announced";
 import { type BroadcastConsumer, BroadcastProducer } from "./broadcast";
 import { GroupProducer } from "./group";
+import * as Lite from "./lite";
 import * as Path from "./path";
+import { type Reader, Stream } from "./stream";
 import type { TrackProducer } from "./track";
 import { error } from "./util/error";
-import * as Wire from "./wire";
 
 /**
  * Handles subscribing to broadcasts and managing their lifecycle.
@@ -39,14 +40,18 @@ export class Subscriber {
 		const producer = new AnnouncedProducer();
 		const consumer = producer.consume(prefix);
 
-		const msg = new Wire.AnnounceInterest(prefix);
+		const msg = new Lite.AnnounceInterest(prefix);
 
 		(async () => {
 			try {
-				const stream = await Wire.Stream.open(this.#quic, msg);
+				// Open a stream and send the announce interest.
+				const stream = await Stream.open(this.#quic);
+				await stream.writer.u8(Lite.AnnounceInterest.StreamID);
+				await msg.encode(stream.writer);
+				stream.writer.close();
 
 				// First, receive ANNOUNCE_INIT
-				const init = await Wire.AnnounceInit.decode(stream.reader);
+				const init = await Lite.AnnounceInit.decode(stream.reader);
 
 				// Process initial announcements
 				for (const suffix of init.suffixes) {
@@ -57,7 +62,7 @@ export class Subscriber {
 
 				// Then receive updates
 				for (;;) {
-					const announce = await Wire.Announce.decode_maybe(stream.reader);
+					const announce = await Lite.Announce.decode_maybe(stream.reader);
 					if (!announce) {
 						break;
 					}
@@ -122,11 +127,15 @@ export class Subscriber {
 		// Save the writer so we can append groups to it.
 		this.#subscribes.set(id, track);
 
-		const msg = new Wire.Subscribe(id, broadcast, track.name, track.priority);
+		const msg = new Lite.Subscribe(id, broadcast, track.name, track.priority);
 
-		const stream = await Wire.Stream.open(this.#quic, msg);
+		const stream = await Stream.open(this.#quic);
+		await stream.writer.u8(Lite.Subscribe.StreamID);
+		await msg.encode(stream.writer);
+		stream.writer.close();
+
 		try {
-			await Wire.SubscribeOk.decode(stream.reader);
+			await Lite.SubscribeOk.decode(stream.reader);
 			console.debug(`subscribe ok: id=${id} broadcast=${broadcast} track=${track.name}`);
 
 			await Promise.race([stream.reader.closed(), track.unused()]);
@@ -149,7 +158,7 @@ export class Subscriber {
 	 *
 	 * @internal
 	 */
-	async runGroup(group: Wire.Group, stream: Wire.Reader) {
+	async runGroup(group: Lite.Group, stream: Reader) {
 		const subscribe = this.#subscribes.get(group.subscribe);
 		if (!subscribe) {
 			console.warn(`unknown subscription: id=${group.subscribe}`);

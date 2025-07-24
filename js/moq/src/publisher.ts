@@ -1,10 +1,11 @@
 import { AnnouncedProducer } from "./announced";
 import type { BroadcastConsumer } from "./broadcast";
 import type { GroupConsumer } from "./group";
+import * as Lite from "./lite";
 import * as Path from "./path";
+import { type Stream, Writer } from "./stream";
 import type { TrackConsumer } from "./track";
 import { error } from "./util/error";
-import * as Wire from "./wire";
 
 /**
  * Handles publishing broadcasts and managing their lifecycle.
@@ -83,7 +84,7 @@ export class Publisher {
 	 *
 	 * @internal
 	 */
-	async runAnnounce(msg: Wire.AnnounceInterest, stream: Wire.Stream) {
+	async runAnnounce(msg: Lite.AnnounceInterest, stream: Stream) {
 		const consumer = this.#announced.consume(msg.prefix);
 
 		// Send ANNOUNCE_INIT as the first message with all currently active paths
@@ -94,7 +95,7 @@ export class Publisher {
 			activePaths.push(suffix);
 		}
 
-		const init = new Wire.AnnounceInit(activePaths);
+		const init = new Lite.AnnounceInit(activePaths);
 		await init.encode(stream.writer);
 
 		// Then send updates as they occur
@@ -102,7 +103,7 @@ export class Publisher {
 			const announcement = await consumer.next();
 			if (!announcement) break;
 
-			const wire = new Wire.Announce(announcement.name, announcement.active);
+			const wire = new Lite.Announce(announcement.name, announcement.active);
 			await wire.encode(stream.writer);
 		}
 	}
@@ -114,7 +115,7 @@ export class Publisher {
 	 *
 	 * @internal
 	 */
-	async runSubscribe(msg: Wire.Subscribe, stream: Wire.Stream) {
+	async runSubscribe(msg: Lite.Subscribe, stream: Stream) {
 		const broadcast = this.#broadcasts.get(msg.broadcast);
 		if (!broadcast) {
 			console.debug(`publish unknown: broadcast=${msg.broadcast}`);
@@ -123,7 +124,7 @@ export class Publisher {
 		}
 
 		const track = broadcast.subscribe(msg.track, msg.priority);
-		const info = new Wire.SubscribeOk(track.priority);
+		const info = new Lite.SubscribeOk(track.priority);
 		await info.encode(stream.writer);
 
 		console.debug(`publish ok: broadcast=${msg.broadcast} track=${track.name}`);
@@ -131,12 +132,12 @@ export class Publisher {
 		const serving = this.#runTrack(msg.id, msg.broadcast, track, stream.writer);
 
 		for (;;) {
-			const decode = Wire.SubscribeUpdate.decode_maybe(stream.reader);
+			const decode = Lite.SubscribeUpdate.decode_maybe(stream.reader);
 
 			const result = await Promise.any([serving, decode]);
 			if (!result) break;
 
-			if (result instanceof Wire.SubscribeUpdate) {
+			if (result instanceof Lite.SubscribeUpdate) {
 				// TODO use the update
 				console.warn("subscribe update not supported", result);
 			}
@@ -152,7 +153,7 @@ export class Publisher {
 	 *
 	 * @internal
 	 */
-	async #runTrack(sub: bigint, broadcast: Path.Valid, track: TrackConsumer, stream: Wire.Writer) {
+	async #runTrack(sub: bigint, broadcast: Path.Valid, track: TrackConsumer, stream: Writer) {
 		try {
 			for (;;) {
 				const next = track.nextGroup();
@@ -184,9 +185,13 @@ export class Publisher {
 	 * @internal
 	 */
 	async #runGroup(sub: bigint, group: GroupConsumer) {
-		const msg = new Wire.Group(sub, group.id);
+		const msg = new Lite.Group(sub, group.id);
 		try {
-			const stream = await Wire.Writer.open(this.#quic, msg);
+			const stream = await Writer.open(this.#quic);
+			await stream.u8(Lite.Group.StreamID);
+			await msg.encode(stream);
+			stream.close();
+
 			try {
 				for (;;) {
 					const frame = await Promise.race([group.nextFrame(), stream.closed()]);

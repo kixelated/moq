@@ -1,4 +1,4 @@
-import { Reader, Writer } from "./stream";
+import { Reader, Writer } from "../stream";
 
 /**
  * Interface for messages that are automatically size-prefixed during encoding/decoding.

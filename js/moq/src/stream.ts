@@ -1,6 +1,5 @@
-import type { Valid } from "../path";
-import * as Path from "../path";
-import * as Wire from ".";
+import type { Valid } from "./path";
+import * as Path from "./path";
 
 const MAX_U6 = 2 ** 6 - 1;
 const MAX_U14 = 2 ** 14 - 1;
@@ -10,9 +9,6 @@ const MAX_U53 = Number.MAX_SAFE_INTEGER;
 
 // TODO: Figure out why webpack is converting this to Math.pow
 //const MAX_U62: bigint = 2n ** 62n - 1n;
-
-export type StreamBi = Wire.SessionClient | Wire.AnnounceInterest | Wire.Subscribe;
-export type StreamUni = Wire.Group;
 
 export class Stream {
 	reader: Reader;
@@ -26,9 +22,7 @@ export class Stream {
 		this.reader = new Reader(props.readable);
 	}
 
-	// TODO accept/parse streams in parallel.
-	// I just added this for incoming unidirectional streams, but holding off on bidirectional streams for now.
-	static async accept(quic: WebTransport): Promise<[StreamBi, Stream] | undefined> {
+	static async accept(quic: WebTransport): Promise<Stream | undefined> {
 		for (;;) {
 			const reader =
 				quic.incomingBidirectionalStreams.getReader() as ReadableStreamDefaultReader<WebTransportBidirectionalStream>;
@@ -36,46 +30,12 @@ export class Stream {
 			reader.releaseLock();
 
 			if (next.done) return;
-
-			try {
-				const stream = new Stream(next.value);
-				let msg: StreamBi;
-
-				const typ = await stream.reader.u8();
-				if (typ === Wire.SessionClient.StreamID) {
-					msg = await Wire.SessionClient.decode(stream.reader);
-				} else if (typ === Wire.AnnounceInterest.StreamID) {
-					msg = await Wire.AnnounceInterest.decode(stream.reader);
-				} else if (typ === Wire.Subscribe.StreamID) {
-					msg = await Wire.Subscribe.decode(stream.reader);
-				} else {
-					throw new Error(`unknown stream type: ${typ.toString()}`);
-				}
-
-				return [msg, stream];
-			} catch (err) {
-				console.warn("error accepting stream", err);
-				// Continue to the next stream.
-			}
+			return new Stream(next.value);
 		}
 	}
 
-	static async open(quic: WebTransport, msg: StreamBi, priority?: number): Promise<Stream> {
-		const stream = new Stream(await quic.createBidirectionalStream({ sendOrder: priority }));
-
-		if (msg instanceof Wire.SessionClient) {
-			await stream.writer.u8(Wire.SessionClient.StreamID);
-		} else if (msg instanceof Wire.AnnounceInterest) {
-			await stream.writer.u8(Wire.AnnounceInterest.StreamID);
-		} else if (msg instanceof Wire.Subscribe) {
-			await stream.writer.u8(Wire.Subscribe.StreamID);
-		} else {
-			throw new Error("invalid message type");
-		}
-
-		await msg.encode(stream.writer);
-
-		return stream;
+	static async open(quic: WebTransport, priority?: number): Promise<Stream> {
+		return new Stream(await quic.createBidirectionalStream({ sendOrder: priority }));
 	}
 
 	close() {
@@ -305,19 +265,9 @@ export class Writer {
 		this.#writer.abort(reason).catch(() => void 0);
 	}
 
-	static async open(quic: WebTransport, msg: StreamUni): Promise<Writer> {
+	static async open(quic: WebTransport): Promise<Writer> {
 		const writable = (await quic.createUnidirectionalStream()) as WritableStream<Uint8Array>;
-		const stream = new Writer(writable);
-
-		if (msg instanceof Wire.Group) {
-			await stream.u8(Wire.Group.StreamID);
-		} else {
-			throw new Error("invalid message type");
-		}
-
-		await msg.encode(stream);
-
-		return stream;
+		return new Writer(writable);
 	}
 }
 
@@ -386,60 +336,23 @@ export function setUint64(dst: Uint8Array, v: bigint): Uint8Array {
 	return new Uint8Array(view.buffer, view.byteOffset, view.byteLength);
 }
 
-// Returns the next stream from the connection, processing the stream headers in parallel.
+// Returns the next stream from the connection
 export class Readers {
-	#reader: ReadableStreamDefaultReader<[StreamUni, Reader]>;
+	#reader: ReadableStreamDefaultReader<ReadableStream<Uint8Array>>;
 
 	constructor(quic: WebTransport) {
-		this.#reader = new ReadableStream({
-			async start(controller) {
-				try {
-					await runConnection(quic, controller);
-					controller.close();
-				} catch (err) {
-					controller.error(err);
-				}
-			},
-		}).getReader();
+		this.#reader = quic.incomingUnidirectionalStreams.getReader() as ReadableStreamDefaultReader<
+			ReadableStream<Uint8Array>
+		>;
 	}
 
-	async next(): Promise<[StreamUni, Reader] | undefined> {
+	async next(): Promise<Reader | undefined> {
 		const next = await this.#reader.read();
 		if (next.done) return;
-		return next.value;
+		return new Reader(next.value);
 	}
 
 	close() {
 		this.#reader.cancel();
 	}
-}
-
-async function runConnection(quic: WebTransport, controller: ReadableStreamDefaultController<[StreamUni, Reader]>) {
-	const reader = quic.incomingUnidirectionalStreams.getReader() as ReadableStreamDefaultReader<
-		ReadableStream<Uint8Array>
-	>;
-
-	for (;;) {
-		const next = await reader.read();
-		if (next.done) return;
-
-		const stream = new Reader(next.value);
-
-		// Run each stream in parallel, enqueuing the result.
-		runStream(stream, controller).catch((err) => {
-			console.warn("ignoring stream", err);
-			stream.stop(err);
-		});
-	}
-}
-
-async function runStream(stream: Reader, controller: ReadableStreamDefaultController<[StreamUni, Reader]>) {
-	const typ = await stream.u8();
-
-	if (typ !== Wire.Group.StreamID) {
-		throw new Error(`unknown stream type: ${typ.toString()}`);
-	}
-
-	const msg = await Wire.Group.decode(stream);
-	controller.enqueue([msg, stream]);
 }

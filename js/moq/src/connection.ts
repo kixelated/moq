@@ -1,10 +1,10 @@
 import type { AnnouncedConsumer } from "./announced";
 import type { BroadcastConsumer } from "./broadcast";
+import * as Lite from "./lite";
 import * as Path from "./path";
 import { Publisher } from "./publisher";
+import { type Reader, Readers, Stream } from "./stream";
 import { Subscriber } from "./subscriber";
-import { unreachable } from "./util";
-import * as Wire from "./wire";
 
 /**
  * Represents a connection to a MoQ server.
@@ -19,7 +19,7 @@ export class Connection {
 	#quic: WebTransport;
 
 	// Use to receive/send session messages.
-	#session: Wire.Stream;
+	#session: Stream;
 
 	// Module for contributing tracks.
 	#publisher: Publisher;
@@ -35,7 +35,7 @@ export class Connection {
 	 *
 	 * @internal
 	 */
-	private constructor(url: URL, quic: WebTransport, session: Wire.Stream) {
+	private constructor(url: URL, quic: WebTransport, session: Stream) {
 		this.url = url;
 		this.#quic = quic;
 		this.#session = session;
@@ -101,11 +101,15 @@ export class Connection {
 		const quic = new WebTransport(adjustedUrl, options);
 		await quic.ready;
 
-		const client = new Wire.SessionClient([Wire.CURRENT_VERSION]);
-		const stream = await Wire.Stream.open(quic, client);
+		const msg = new Lite.SessionClient([Lite.CURRENT_VERSION]);
 
-		const server = await Wire.SessionServer.decode(stream.reader);
-		if (server.version !== Wire.CURRENT_VERSION) {
+		const stream = await Stream.open(quic);
+		await stream.writer.u8(Lite.SessionClient.StreamID);
+		await msg.encode(stream.writer);
+		stream.writer.close();
+
+		const server = await Lite.SessionServer.decode(stream.reader);
+		if (server.version !== Lite.CURRENT_VERSION) {
 			throw new Error(`unsupported server version: ${server.version.toString()}`);
 		}
 
@@ -186,7 +190,7 @@ export class Connection {
 	async #runSession() {
 		// Receive messages until the connection is closed.
 		for (;;) {
-			const msg = await Wire.SessionInfo.decode_maybe(this.#session.reader);
+			const msg = await Lite.SessionInfo.decode_maybe(this.#session.reader);
 			if (!msg) break;
 			// TODO use the session info
 		}
@@ -194,13 +198,12 @@ export class Connection {
 
 	async #runBidis() {
 		for (;;) {
-			const next = await Wire.Stream.accept(this.#quic);
-			if (!next) {
+			const stream = await Stream.accept(this.#quic);
+			if (!stream) {
 				break;
 			}
 
-			const [msg, stream] = next;
-			this.#runBidi(msg, stream)
+			this.#runBidi(stream)
 				.catch((err: unknown) => {
 					stream.writer.reset(err);
 				})
@@ -210,35 +213,34 @@ export class Connection {
 		}
 	}
 
-	async #runBidi(msg: Wire.StreamBi, stream: Wire.Stream) {
-		if (msg instanceof Wire.SessionClient) {
-			throw new Error("duplicate session stream");
-		}
+	async #runBidi(stream: Stream) {
+		const typ = await stream.reader.u8();
 
-		if (msg instanceof Wire.AnnounceInterest) {
+		if (typ === Lite.SessionClient.StreamID) {
+			throw new Error("duplicate session stream");
+		} else if (typ === Lite.AnnounceInterest.StreamID) {
+			const msg = await Lite.AnnounceInterest.decode(stream.reader);
 			await this.#publisher.runAnnounce(msg, stream);
 			return;
-		}
-
-		if (msg instanceof Wire.Subscribe) {
+		} else if (typ === Lite.Subscribe.StreamID) {
+			const msg = await Lite.Subscribe.decode(stream.reader);
 			await this.#publisher.runSubscribe(msg, stream);
 			return;
+		} else {
+			throw new Error(`unknown stream type: ${typ.toString()}`);
 		}
-
-		unreachable(msg);
 	}
 
 	async #runUnis() {
-		const readers = new Wire.Readers(this.#quic);
+		const readers = new Readers(this.#quic);
 
 		for (;;) {
-			const next = await readers.next();
-			if (!next) {
+			const stream = await readers.next();
+			if (!stream) {
 				break;
 			}
 
-			const [msg, stream] = next;
-			this.#runUni(msg, stream)
+			this.#runUni(stream)
 				.then(() => {
 					stream.stop(new Error("cancel"));
 				})
@@ -248,9 +250,13 @@ export class Connection {
 		}
 	}
 
-	async #runUni(msg: Wire.StreamUni, stream: Wire.Reader) {
-		if (msg instanceof Wire.Group) {
+	async #runUni(stream: Reader) {
+		const typ = await stream.u8();
+		if (typ === Lite.Group.StreamID) {
+			const msg = await Lite.Group.decode(stream);
 			await this.#subscriber.runGroup(msg, stream);
+		} else {
+			throw new Error(`unknown stream type: ${typ.toString()}`);
 		}
 	}
 
