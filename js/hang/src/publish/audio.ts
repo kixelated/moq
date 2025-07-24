@@ -177,7 +177,7 @@ export class Audio {
 			},
 		};
 
-		effect.set(this.#catalog, catalog, undefined);
+		effect.set(this.#catalog, catalog);
 
 		const encoder = new AudioEncoder({
 			output: (frame) => {

@@ -123,7 +123,7 @@ export class Broadcast {
 		const broadcast = conn.consume(name);
 		effect.cleanup(() => broadcast.close());
 
-		effect.set(this.#broadcast, broadcast, undefined);
+		effect.set(this.#broadcast, broadcast);
 	}
 
 	#runCatalog(effect: Effect): void {

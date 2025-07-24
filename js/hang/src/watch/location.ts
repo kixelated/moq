@@ -56,7 +56,7 @@ export class Location {
 			const updates = catalog?.updates;
 
 			if (!broadcast || !catalog || !updates) return;
-			effect.set(this.#updates, updates, undefined);
+			effect.set(this.#updates, updates);
 		});
 
 		this.#signals.effect((effect) => {
@@ -134,7 +134,7 @@ export class LocationPeer {
 			const track = root.peers?.[handle];
 			if (!track) return;
 
-			effect.set(this.#track, track, undefined);
+			effect.set(this.#track, track);
 		});
 
 		this.#signals.effect(this.#run.bind(this));

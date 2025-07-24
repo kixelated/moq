@@ -90,7 +90,7 @@ export class Audio {
 
 			worklet.port.postMessage({ type: "init", sampleRate, channelCount, latency: this.latency });
 
-			effect.set(this.#worklet, worklet, undefined);
+			effect.set(this.#worklet, worklet);
 		});
 	}
 
@@ -237,7 +237,7 @@ export class AudioEmitter {
 			gain.connect(root.context.destination); // speakers
 			effect.cleanup(() => gain.disconnect());
 
-			effect.set(this.#gain, gain, undefined);
+			effect.set(this.#gain, gain);
 		});
 
 		this.#signals.effect((effect) => {

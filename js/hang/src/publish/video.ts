@@ -91,7 +91,7 @@ export class Video {
 		this.broadcast.insertTrack(track.consume());
 		effect.cleanup(() => this.broadcast.removeTrack(track.name));
 
-		effect.set(this.#track, track, undefined);
+		effect.set(this.#track, track);
 	}
 
 	#runEncoder(effect: Effect): void {
@@ -377,7 +377,7 @@ export class Video {
 			},
 		};
 
-		effect.set(this.#catalog, catalog, undefined);
+		effect.set(this.#catalog, catalog);
 	}
 
 	frame(now: DOMHighResTimeStamp): { frame: VideoFrame; lag: DOMHighResTimeStamp } | undefined {

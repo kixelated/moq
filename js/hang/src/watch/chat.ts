@@ -51,7 +51,7 @@ export class Chat {
 			const consumer = new Container.ChatConsumer(track);
 
 			effect.cleanup(() => consumer.close());
-			effect.set(this.track, consumer, undefined);
+			effect.set(this.track, consumer);
 		});
 	}
 

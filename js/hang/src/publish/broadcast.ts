@@ -106,7 +106,7 @@ export class Broadcast {
 			const media = await mediaPromise;
 			const track = media.getAudioTracks().at(0) as AudioTrack | undefined;
 			effect.cleanup(() => track?.stop());
-			effect.set(this.audio.media, track, undefined);
+			effect.set(this.audio.media, track);
 		});
 	}
 
@@ -122,7 +122,7 @@ export class Broadcast {
 			const media = await mediaPromise;
 			const track = media.getVideoTracks().at(0) as VideoTrack | undefined;
 			effect.cleanup(() => track?.stop());
-			effect.set(this.video.media, track, undefined);
+			effect.set(this.video.media, track);
 		});
 	}
 
@@ -161,8 +161,8 @@ export class Broadcast {
 
 			effect.cleanup(() => video?.stop());
 			effect.cleanup(() => audio?.stop());
-			effect.set(this.video.media, video, undefined);
-			effect.set(this.audio.media, audio, undefined);
+			effect.set(this.video.media, video);
+			effect.set(this.audio.media, audio);
 		});
 	}
 

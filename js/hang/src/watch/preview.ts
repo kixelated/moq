@@ -36,7 +36,7 @@ export class PreviewWatch {
 			const consumer = new Container.FrameConsumer(track);
 
 			effect.cleanup(() => track.close());
-			effect.set(this.track, consumer, undefined);
+			effect.set(this.track, consumer);
 		});
 
 		this.#signals.effect((effect) => {
