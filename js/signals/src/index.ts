@@ -164,7 +164,7 @@ export class Root {
 	effect(fn: (effect: Effect) => void) {
 		if (this.#nested === undefined) {
 			if (Root.dev) {
-				console.warn("Root.effect called on closed root, ignoring");
+				console.warn("Root.effect called when closed, ignoring");
 			}
 			return;
 		}
@@ -177,7 +177,7 @@ export class Root {
 	set<T>(signal: Setter<T>, value: T, cleanup?: T): void {
 		if (this.#dispose === undefined) {
 			if (Root.dev) {
-				console.warn("Effect.set called on closed root, ignoring");
+				console.warn("Root.set called when closed, ignoring");
 			}
 			return;
 		}
@@ -190,8 +190,9 @@ export class Root {
 	subscribe<T>(signal: Getter<T>, fn: (value: T) => void) {
 		if (this.#nested === undefined) {
 			if (Root.dev) {
-				console.warn("Root.subscribe called on closed root, ignoring");
+				console.warn("Root.subscribe called when closed, running once");
 			}
+			fn(signal.peek());
 			return;
 		}
 		this.effect((effect) => {
@@ -203,8 +204,9 @@ export class Root {
 	cleanup(fn: Dispose): void {
 		if (this.#dispose === undefined) {
 			if (Root.dev) {
-				console.warn("Root.cleanup called on closed root, ignoring");
+				console.warn("Root.cleanup called when closed, running immediately");
 			}
+			fn();
 			return;
 		}
 		this.#dispose.push(fn);
@@ -249,6 +251,9 @@ export class Effect {
 	#stack?: string;
 	#scheduled = false;
 
+	#stop!: () => void;
+	#stopped: Promise<void>;
+
 	constructor(fn: (effect: Effect) => void) {
 		if (Effect.dev) {
 			const debug = new Error("created here:").stack ?? "No stack";
@@ -260,6 +265,10 @@ export class Effect {
 		if (Effect.dev) {
 			this.#stack = new Error().stack;
 		}
+
+		this.#stopped = new Promise((resolve) => {
+			this.#stop = resolve;
+		});
 
 		this.#schedule();
 	}
@@ -275,11 +284,16 @@ export class Effect {
 	async #run(): Promise<void> {
 		if (this.#dispose === undefined) return; // closed, no error because this is a microtask
 
+		this.#stop();
+		this.#stopped = new Promise((resolve) => {
+			this.#stop = resolve;
+		});
+
 		// Wait for all async effects to complete.
-		// There's a 1s timeout here to print warnings if cleanup functions don't exit.
 		try {
 			let warn: NodeJS.Timeout | undefined;
 			if (Effect.dev) {
+				// There's a 1s timeout here to print warnings if cleanup functions don't exit.
 				warn = setTimeout(() => {
 					console.warn("spawn is still running after 1s", this.#stack)
 				}, 1000);
@@ -301,6 +315,7 @@ export class Effect {
 		for (const fn of this.#dispose) fn();
 		this.#dispose.length = 0;
 
+
 		// IMPORTANT: must run all of the dispose functions before unscheduling.
 		// Otherwise, cleanup functions could get us stuck in an infinite loop.
 		this.#scheduled = false;
@@ -317,7 +332,7 @@ export class Effect {
 	get<T>(signal: Getter<T>): T {
 		if (this.#dispose === undefined) {
 			if (Effect.dev) {
-				console.warn("Effect.get called on closed effect, returning current value");
+				console.warn("Effect.get called when closed, returning current value");
 			}
 			return signal.peek();
 		}
@@ -335,7 +350,7 @@ export class Effect {
 	set<T>(signal: Setter<T>, value: T, cleanup?: T): void {
 		if (this.#dispose === undefined) {
 			if (Effect.dev) {
-				console.warn("Effect.set called on closed effect, ignoring");
+				console.warn("Effect.set called when closed, ignoring");
 			}
 			return;
 		}
@@ -349,7 +364,7 @@ export class Effect {
 	unique<T>(signal: Getter<T>): T {
 		if (this.#dispose === undefined) {
 			if (Effect.dev) {
-				console.warn("Effect.unique called on closed effect, returning current value");
+				console.warn("Effect.unique called when closed, returning current value");
 			}
 			return signal.peek();
 		}
@@ -369,23 +384,26 @@ export class Effect {
 	// Spawn an async effect that blocks the effect being rerun until it completes.
 	// The cancel promise is resolved when the effect should cleanup: on close or rerun.
 	spawn(fn: (cancel: Promise<void>) => Promise<void>) {
+		const promise = fn(this.#stopped);
+
 		if (this.#dispose === undefined) {
 			if (Effect.dev) {
-				console.warn("Effect.spawn called on closed effect, ignoring");
+				console.warn("Effect.spawn called when closed");
 			}
+
 			return;
 		}
-		const cancel = new Promise<void>((resolve) => {
-			this.cleanup(() => resolve());
-		});
 
-		const promise = fn(cancel);
 		this.#async.push(promise);
 	}
 
 	// Register a cleanup function.
 	cleanup(fn: Dispose): void {
 		if (this.#dispose === undefined) {
+			if (Effect.dev) {
+				console.warn("Effect.cleanup called when closed, running immediately");
+			}
+
 			fn();
 			return;
 		}
@@ -396,15 +414,20 @@ export class Effect {
 	close(): void {
 		if (this.#dispose === undefined) {
 			if (Effect.dev) {
-				console.warn("Effect.close called on already closed effect, ignoring");
+				console.warn("Effect.close called when closed, ignoring");
 			}
 			return;
 		}
+
+		this.#stop();
+
 		for (const fn of this.#dispose) fn();
 		this.#dispose = undefined;
 
 		for (const signal of this.#unwatch) signal();
 		this.#unwatch.length = 0;
+
+		this.#async.length = 0;
 
 		if (Effect.dev) {
 			Effect.#finalizer.unregister(this);
