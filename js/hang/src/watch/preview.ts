@@ -27,13 +27,11 @@ export class PreviewWatch {
 
 		this.#signals.effect((effect) => {
 			if (!effect.get(this.enabled)) {
-				this.track.set(undefined);
 				return;
 			}
 
 			const broadcast = effect.get(this.broadcast);
 			if (!broadcast) {
-				this.track.set(undefined);
 				return;
 			}
 
@@ -43,14 +41,16 @@ export class PreviewWatch {
 
 			effect.cleanup(() => track.close());
 			this.track.set(consumer);
+			effect.cleanup(() => this.track.set(undefined));
 		});
 
 		this.#signals.effect((effect) => {
 			const track = effect.get(this.track);
 			if (!track) {
-				this.preview.set(undefined);
 				return;
 			}
+
+			effect.cleanup(() => this.preview.set(undefined));
 
 			effect.spawn(async () => {
 				try {

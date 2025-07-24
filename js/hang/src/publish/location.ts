@@ -42,7 +42,6 @@ export class Location {
 		this.#signals.effect((effect) => {
 			const enabled = effect.get(this.enabled);
 			if (!enabled) {
-				this.catalog.set(undefined);
 				return;
 			}
 
@@ -55,6 +54,7 @@ export class Location {
 				peering: effect.get(this.peering),
 				peers: effect.get(this.#peers),
 			});
+			effect.cleanup(() => this.catalog.set(undefined));
 		});
 
 		this.#signals.effect((effect) => {
@@ -96,7 +96,6 @@ export class LocationPeer {
 		this.#signals.effect((effect) => {
 			const handle = effect.get(this.handle);
 			if (!handle) {
-				this.producer.set(undefined);
 				return;
 			}
 
@@ -129,6 +128,7 @@ export class LocationPeer {
 			effect.cleanup(() => producer.close());
 
 			this.producer.set(producer);
+			effect.cleanup(() => this.producer.set(undefined));
 		});
 	}
 

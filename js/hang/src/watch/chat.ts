@@ -43,13 +43,11 @@ export class Chat {
 		this.#signals.effect((effect) => {
 			const catalog = effect.get(this.catalog);
 			if (!catalog) {
-				this.track.set(undefined);
 				return;
 			}
 
 			const broadcast = effect.get(this.broadcast);
 			if (!broadcast) {
-				this.track.set(undefined);
 				return;
 			}
 
@@ -58,6 +56,7 @@ export class Chat {
 
 			effect.cleanup(() => consumer.close());
 			this.track.set(consumer);
+			effect.cleanup(() => this.track.set(undefined));
 		});
 	}
 
