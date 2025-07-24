@@ -73,7 +73,7 @@ export default class HangMeet extends HTMLElement {
 			// TODO Reuse the connection instead of dialing a new one.
 			this.#signals.effect((effect) => {
 				const url = effect.get(this.connection.url);
-				effect.set(publish.connection.url, url, undefined);
+				effect.set(publish.connection.url, url);
 			});
 		}
 	}

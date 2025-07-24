@@ -119,13 +119,13 @@ export class Audio {
 				channelCount: settings.channelCount,
 			});
 
-			effect.set(this.#worklet, worklet, undefined);
+			effect.set(this.#worklet, worklet);
 
 			gain.connect(worklet);
 			effect.cleanup(() => worklet.disconnect());
 
 			// Only set the gain after the worklet is registered.
-			effect.set(this.#gain, gain, undefined);
+			effect.set(this.#gain, gain);
 		});
 	}
 

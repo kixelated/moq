@@ -172,16 +172,15 @@ export class Root {
 		this.#nested.push(signals);
 	}
 
-	set<T>(signal: Setter<T>, value: T, cleanup?: undefined extends T ? T : never): void;
-	set<T>(signal: Setter<T>, value: T, cleanup: T): void;
-	set<T>(signal: Setter<T>, value: T, cleanup?: T): void {
+	set<S extends Setter<unknown>>(signal: S, value: SetterType<S>, ...args: undefined extends SetterType<S> ? [cleanup?: SetterType<S>] : [cleanup: SetterType<S>]): void {
 		if (this.#dispose === undefined) {
 			if (Root.dev) {
 				console.warn("Root.set called when closed, ignoring");
 			}
 			return;
 		}
-		const cleanupValue = cleanup === undefined ? undefined as T : cleanup;
+		const cleanup = args[0];
+		const cleanupValue = cleanup === undefined ? (undefined as SetterType<S>) : cleanup;
 		this.#dispose.push(() => signal.set(cleanupValue));
 		signal.set(value);
 	}
@@ -231,6 +230,9 @@ export class Root {
 		}
 	}
 }
+
+type SetterType<S> = S extends Setter<infer T> ? T : never;
+
 
 // TODO Make this a single instance of an Effect, so close() can work correctly from async code.
 export class Effect {
@@ -295,7 +297,7 @@ export class Effect {
 			if (Effect.dev) {
 				// There's a 1s timeout here to print warnings if cleanup functions don't exit.
 				warn = setTimeout(() => {
-					console.warn("spawn is still running after 1s", this.#stack)
+					console.warn("spawn is still running after 1s", this.#stack);
 				}, 1000);
 			}
 			await Promise.all(this.#async);
@@ -314,7 +316,6 @@ export class Effect {
 		// Run the cleanup functions for the previous run.
 		for (const fn of this.#dispose) fn();
 		this.#dispose.length = 0;
-
 
 		// IMPORTANT: must run all of the dispose functions before unscheduling.
 		// Otherwise, cleanup functions could get us stuck in an infinite loop.
@@ -345,9 +346,9 @@ export class Effect {
 	}
 
 	// Temporarily set the value of a signal, unsetting it on cleanup.
-	set<T>(signal: Setter<T>, value: T, cleanup?: undefined extends T ? T : never): void;
-	set<T>(signal: Setter<T>, value: T, cleanup: T): void;
-	set<T>(signal: Setter<T>, value: T, cleanup?: T): void {
+	// The last argument is the cleanup value, set before the effect is rerun.
+	// It's optional only if T can be undefined.
+	set<S extends Setter<unknown>>(signal: S, value: SetterType<S>, ...args: undefined extends SetterType<S> ? [cleanup?: SetterType<S>] : [cleanup: SetterType<S>]): void {
 		if (this.#dispose === undefined) {
 			if (Effect.dev) {
 				console.warn("Effect.set called when closed, ignoring");
@@ -356,7 +357,8 @@ export class Effect {
 		}
 
 		signal.set(value);
-		const cleanupValue = cleanup === undefined ? undefined as T : cleanup;
+		const cleanup = args[0];
+		const cleanupValue = cleanup === undefined ? (undefined as SetterType<S>) : cleanup;
 		this.cleanup(() => signal.set(cleanupValue));
 	}
 
