@@ -21,7 +21,10 @@ all: dev
 # Run the relay, web server, and publish bbb.
 dev:
 	# We use pnpm for concurrently, unfortunately, so make sure it's installed.
-	@cd js && pnpm i
+	cd js && pnpm i
+
+	# Build the rust packages so `cargo run` has a head start.
+	cd rs && just build
 
 	# Generate auth tokens if needed
 	@cd rs && just auth
@@ -43,7 +46,10 @@ cluster:
 	cd js && pnpm i
 
 	# Generate auth tokens if needed
-	cd rs && just auth
+	@cd rs && just auth
+
+	# Build the rust packages so `cargo run` has a head start.
+	cd rs && just build
 
 	# Then run a BOATLOAD of services to make sure they all work correctly.
 	# Publish the funny bunny to the root node.
