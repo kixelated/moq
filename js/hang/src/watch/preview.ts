@@ -26,25 +26,31 @@ export class PreviewWatch {
 		this.enabled = new Signal(props?.enabled ?? false);
 
 		this.#signals.effect((effect) => {
-			if (!effect.get(this.enabled)) return undefined;
+			if (!effect.get(this.enabled)) {
+				this.track.set(undefined);
+				return;
+			}
 
 			const broadcast = effect.get(this.broadcast);
-			if (!broadcast) return undefined;
+			if (!broadcast) {
+				this.track.set(undefined);
+				return;
+			}
 
 			// Subscribe to the preview.json track directly
 			const track = broadcast.subscribe("preview.json", 0);
 			const consumer = new Container.FrameConsumer(track);
 
 			effect.cleanup(() => track.close());
-			return consumer;
+			this.track.set(consumer);
 		});
 
 		this.#signals.effect((effect) => {
 			const track = effect.get(this.track);
-			if (!track) return undefined;
-
-			// Create an async effect to fetch and parse the preview
-			const preview = new Signal<Preview.Info | undefined>(undefined);
+			if (!track) {
+				this.preview.set(undefined);
+				return;
+			}
 
 			effect.spawn(async () => {
 				try {
@@ -54,13 +60,11 @@ export class PreviewWatch {
 					const decoder = new TextDecoder();
 					const json = decoder.decode(frame.data);
 					const parsed = JSON.parse(json);
-					preview.set(Preview.PreviewSchema.parse(parsed));
+					this.preview.set(Preview.PreviewSchema.parse(parsed));
 				} catch (error) {
 					console.warn("Failed to parse preview JSON:", error);
 				}
 			});
-
-			return effect.get(preview);
 		});
 	}
 

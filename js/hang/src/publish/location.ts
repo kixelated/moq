@@ -41,17 +41,20 @@ export class Location {
 
 		this.#signals.effect((effect) => {
 			const enabled = effect.get(this.enabled);
-			if (!enabled) return;
+			if (!enabled) {
+				this.catalog.set(undefined);
+				return;
+			}
 
 			broadcast.insertTrack(this.#track.consume());
 			effect.cleanup(() => broadcast.removeTrack(this.#track.name));
 
-			return {
+			this.catalog.set({
 				initial: this.current.peek(), // Doesn't trigger a re-render
 				updates: { name: this.#track.name, priority: u8(this.#track.priority) },
 				peering: effect.get(this.peering),
 				peers: effect.get(this.#peers),
-			};
+			});
 		});
 
 		this.#signals.effect((effect) => {
@@ -92,7 +95,10 @@ export class LocationPeer {
 
 		this.#signals.effect((effect) => {
 			const handle = effect.get(this.handle);
-			if (!handle) return;
+			if (!handle) {
+				this.producer.set(undefined);
+				return;
+			}
 
 			const track = new Moq.TrackProducer(`peer/${handle}/location.json`, 0);
 			effect.cleanup(() => track.close());
@@ -122,7 +128,7 @@ export class LocationPeer {
 			const producer = new Container.PositionProducer(track);
 			effect.cleanup(() => producer.close());
 
-			return producer;
+			this.producer.set(producer);
 		});
 	}
 

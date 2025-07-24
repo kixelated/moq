@@ -63,11 +63,14 @@ export class Chat {
 			group.writeFrame(buffer);
 			group.close();
 
-			const expires = window.setTimeout(() => {
-				this.message.set(undefined);
-			}, this.ttl.peek());
+			const ttl = this.ttl.peek();
+			if (ttl !== undefined) {
+				const expires = window.setTimeout(() => {
+					this.message.set(undefined);
+				}, ttl);
 
-			effect.cleanup(() => clearTimeout(expires));
+				effect.cleanup(() => clearTimeout(expires));
+			}
 		});
 	}
 

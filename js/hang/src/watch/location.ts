@@ -52,15 +52,24 @@ export class Location {
 
 		this.#signals.effect((effect) => {
 			const broadcast = effect.get(this.broadcast);
-			if (!broadcast) return;
+			if (!broadcast) {
+				this.#updates.set(undefined);
+				return;
+			}
 
 			const catalog = effect.get(this.catalog);
-			if (!catalog) return;
+			if (!catalog) {
+				this.#updates.set(undefined);
+				return;
+			}
 
 			const updates = catalog.updates;
-			if (!updates) return;
+			if (!updates) {
+				this.#updates.set(undefined);
+				return;
+			}
 
-			return updates;
+			this.#updates.set(updates);
 		});
 
 		this.#signals.effect((effect) => {
@@ -130,15 +139,24 @@ export class LocationPeer {
 
 		this.#signals.effect((effect) => {
 			const handle = effect.get(this.handle);
-			if (!handle) return undefined;
+			if (!handle) {
+				this.#track.set(undefined);
+				return;
+			}
 
 			const root = effect.get(catalog);
-			if (!root) return undefined;
+			if (!root) {
+				this.#track.set(undefined);
+				return;
+			}
 
 			const track = root.peers?.[handle];
-			if (!track) return undefined;
+			if (!track) {
+				this.#track.set(undefined);
+				return;
+			}
 
-			return track;
+			this.#track.set(track);
 		});
 
 		this.#signals.effect(this.#run.bind(this));
