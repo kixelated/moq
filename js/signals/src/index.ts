@@ -172,7 +172,11 @@ export class Root {
 		this.#nested.push(signals);
 	}
 
-	set<S extends Setter<unknown>>(signal: S, value: SetterType<S>, ...args: undefined extends SetterType<S> ? [cleanup?: SetterType<S>] : [cleanup: SetterType<S>]): void {
+	set<S extends Setter<unknown>>(
+		signal: S,
+		value: SetterType<S>,
+		...args: undefined extends SetterType<S> ? [cleanup?: SetterType<S>] : [cleanup: SetterType<S>]
+	): void {
 		if (this.#dispose === undefined) {
 			if (Root.dev) {
 				console.warn("Root.set called when closed, ignoring");
@@ -232,7 +236,6 @@ export class Root {
 }
 
 type SetterType<S> = S extends Setter<infer T> ? T : never;
-
 
 // TODO Make this a single instance of an Effect, so close() can work correctly from async code.
 export class Effect {
@@ -348,7 +351,11 @@ export class Effect {
 	// Temporarily set the value of a signal, unsetting it on cleanup.
 	// The last argument is the cleanup value, set before the effect is rerun.
 	// It's optional only if T can be undefined.
-	set<S extends Setter<unknown>>(signal: S, value: SetterType<S>, ...args: undefined extends SetterType<S> ? [cleanup?: SetterType<S>] : [cleanup: SetterType<S>]): void {
+	set<S extends Setter<unknown>>(
+		signal: S,
+		value: SetterType<S>,
+		...args: undefined extends SetterType<S> ? [cleanup?: SetterType<S>] : [cleanup: SetterType<S>]
+	): void {
 		if (this.#dispose === undefined) {
 			if (Effect.dev) {
 				console.warn("Effect.set called when closed, ignoring");
