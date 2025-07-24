@@ -167,6 +167,12 @@ export class Root {
 		this.#nested.push(signals);
 	}
 
+	set<T>(signal: Setter<T>, value: T, cleanup: T): void {
+		if (this.#dispose === undefined) throw new Error("closed");
+		this.#dispose.push(() => signal.set(cleanup));
+		signal.set(value);
+	}
+
 	// A helper to call a function when a signal changes.
 	subscribe<T>(signal: Getter<T>, fn: (value: T) => void) {
 		this.effect((effect) => {
@@ -237,6 +243,8 @@ export class Effect {
 	#schedule(): void {
 		if (this.#scheduled) return;
 		this.#scheduled = true;
+
+		// We always queue a microtask to make it more difficult to get stuck in an infinite loop.
 		queueMicrotask(() => this.#run());
 	}
 
@@ -244,10 +252,17 @@ export class Effect {
 		if (this.#dispose === undefined) return; // closed, no error because this is a microtask
 
 		// Wait for all async effects to complete.
-		// There's a 1s timeout here to catch cleanup functions that don't exit.
+		// There's a 1s timeout here to print warnings if cleanup functions don't exit.
 		try {
-			const timeout = new Promise((reject) => setTimeout(() => reject(new Error("cleanup timeout")), 1000));
-			await Promise.race([timeout, Promise.all(this.#async)]);
+			let warn: NodeJS.Timeout | undefined;
+			if (Effect.dev) {
+				warn = setTimeout(() => {
+					console.warn("spawn is still running after 1s", this.#stack)
+				}, 1000);
+			}
+			await Promise.all(this.#async);
+			if (warn) clearTimeout(warn);
+
 			this.#async.length = 0;
 		} catch (error) {
 			console.error("async effect error", error);
@@ -262,6 +277,8 @@ export class Effect {
 		for (const fn of this.#dispose) fn();
 		this.#dispose.length = 0;
 
+		// IMPORTANT: must run all of the dispose functions before unscheduling.
+		// Otherwise, cleanup functions could get us stuck in an infinite loop.
 		this.#scheduled = false;
 
 		try {
