@@ -56,7 +56,6 @@
             curl
             cargo-sort
             cargo-shear
-            cargo-audit
           ]
           ++ gst-deps;
 

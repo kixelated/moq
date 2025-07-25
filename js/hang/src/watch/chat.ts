@@ -42,21 +42,16 @@ export class Chat {
 
 		this.#signals.effect((effect) => {
 			const catalog = effect.get(this.catalog);
-			if (!catalog) {
-				return;
-			}
+			if (!catalog) return;
 
 			const broadcast = effect.get(this.broadcast);
-			if (!broadcast) {
-				return;
-			}
+			if (!broadcast) return;
 
 			const track = broadcast.subscribe(catalog.track.name, catalog.track.priority);
 			const consumer = new Container.ChatConsumer(track);
 
 			effect.cleanup(() => consumer.close());
-			this.track.set(consumer);
-			effect.cleanup(() => this.track.set(undefined));
+			effect.set(this.track, consumer);
 		});
 	}
 

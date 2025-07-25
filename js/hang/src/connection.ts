@@ -60,8 +60,7 @@ export class Connection {
 		const url = effect.get(this.url);
 		if (!url) return;
 
-		this.status.set("connecting");
-		effect.cleanup(() => this.status.set("disconnected"));
+		effect.set(this.status, "connecting", "disconnected");
 
 		effect.spawn(async (cancel) => {
 			try {

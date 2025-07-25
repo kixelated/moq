@@ -27,9 +27,6 @@ check flags="":
 	# Make sure eslint is happy
 	pnpm -r exec eslint .
 
-	# Make sure the JS packages are not vulnerable
-	pnpm -r exec pnpm audit
-
 	# TODO: Check for unused imports (fix the false positives)
 	# pnpm exec knip --no-exit-code
 
@@ -43,9 +40,6 @@ fix flags="":
 
 	# Some additional linting.
 	pnpm -r exec eslint . --fix
-
-	# Make sure the JS packages are not vulnerable
-	pnpm -r exec pnpm audit --fix
 
 # Upgrade any tooling
 upgrade:

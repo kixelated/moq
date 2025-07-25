@@ -81,10 +81,9 @@ export class Video {
 	}
 
 	#runTrack(effect: Effect): void {
-		if (!effect.get(this.enabled)) return;
-
+		const enabled = effect.get(this.enabled);
 		const media = effect.get(this.media);
-		if (!media) return;
+		if (!enabled || !media) return;
 
 		const track = new Moq.TrackProducer(`video-${this.#id++}`, 1);
 		effect.cleanup(() => track.close());
@@ -92,8 +91,7 @@ export class Video {
 		this.broadcast.insertTrack(track.consume());
 		effect.cleanup(() => this.broadcast.removeTrack(track.name));
 
-		this.#track.set(track);
-		effect.cleanup(() => this.#track.set(undefined));
+		effect.set(this.#track, track);
 	}
 
 	#runEncoder(effect: Effect): void {
@@ -379,8 +377,7 @@ export class Video {
 			},
 		};
 
-		this.#catalog.set(catalog);
-		effect.cleanup(() => this.#catalog.set(undefined));
+		effect.set(this.#catalog, catalog);
 	}
 
 	frame(now: DOMHighResTimeStamp): { frame: VideoFrame; lag: DOMHighResTimeStamp } | undefined {

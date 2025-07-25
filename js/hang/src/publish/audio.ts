@@ -86,10 +86,9 @@ export class Audio {
 	}
 
 	#runSource(effect: Effect): void {
-		if (!effect.get(this.enabled)) return;
-
+		const enabled = effect.get(this.enabled);
 		const media = effect.get(this.media);
-		if (!media) return;
+		if (!enabled || !media) return;
 
 		const settings = media.getSettings();
 		if (!settings) {
@@ -120,15 +119,13 @@ export class Audio {
 				channelCount: settings.channelCount,
 			});
 
-			this.#worklet.set(worklet);
-			effect.cleanup(() => this.#worklet.set(undefined));
+			effect.set(this.#worklet, worklet);
 
 			gain.connect(worklet);
 			effect.cleanup(() => worklet.disconnect());
 
 			// Only set the gain after the worklet is registered.
-			this.#gain.set(gain);
-			effect.cleanup(() => this.#gain.set(undefined));
+			effect.set(this.#gain, gain);
 		});
 	}
 
@@ -180,8 +177,7 @@ export class Audio {
 			},
 		};
 
-		this.#catalog.set(catalog);
-		effect.cleanup(() => this.#catalog.set(undefined));
+		effect.set(this.#catalog, catalog);
 
 		const encoder = new AudioEncoder({
 			output: (frame) => {

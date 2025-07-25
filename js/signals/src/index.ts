@@ -4,14 +4,18 @@ export type Dispose = () => void;
 
 type Subscriber<T> = (value: T) => void;
 
-export interface Accessor<T> {
+export interface Getter<T> {
 	peek(): T;
 	subscribe(fn: Subscriber<T>): Dispose;
 	readonly(): Computed<T>;
 }
 
+export interface Setter<T> {
+	set(value: T | ((prev: T) => T)): void;
+}
+
 // A signal that uses dequal instead of === to deduplicate updates.
-export class Unique<T> implements Accessor<T> {
+export class Unique<T> implements Getter<T>, Setter<T> {
 	#value: T;
 	#subscribers: Set<Subscriber<T>> = new Set();
 
@@ -55,7 +59,7 @@ export class Unique<T> implements Accessor<T> {
 	}
 }
 
-export class Signal<T> implements Accessor<T> {
+export class Signal<T> implements Getter<T>, Setter<T> {
 	#value: T;
 	#subscribers: Set<Subscriber<T>> = new Set();
 
@@ -116,10 +120,10 @@ export class Signal<T> implements Accessor<T> {
 }
 
 // Same as Signal but without the `set` method.
-export class Computed<T> implements Accessor<T> {
-	#signal: Accessor<T>;
+export class Computed<T> implements Getter<T> {
+	#signal: Getter<T>;
 
-	constructor(signal: Accessor<T>) {
+	constructor(signal: Getter<T>) {
 		this.#signal = signal;
 	}
 
@@ -158,13 +162,42 @@ export class Root {
 
 	// Create a nested signals instance.
 	effect(fn: (effect: Effect) => void) {
-		if (this.#nested === undefined) throw new Error("closed");
+		if (this.#nested === undefined) {
+			if (Root.dev) {
+				console.warn("Root.effect called when closed, ignoring");
+			}
+			return;
+		}
 		const signals = new Effect(fn);
 		this.#nested.push(signals);
 	}
 
+	set<S extends Setter<unknown>>(
+		signal: S,
+		value: SetterType<S>,
+		...args: undefined extends SetterType<S> ? [cleanup?: SetterType<S>] : [cleanup: SetterType<S>]
+	): void {
+		if (this.#dispose === undefined) {
+			if (Root.dev) {
+				console.warn("Root.set called when closed, ignoring");
+			}
+			return;
+		}
+		const cleanup = args[0];
+		const cleanupValue = cleanup === undefined ? (undefined as SetterType<S>) : cleanup;
+		this.#dispose.push(() => signal.set(cleanupValue));
+		signal.set(value);
+	}
+
 	// A helper to call a function when a signal changes.
-	subscribe<T>(signal: Signal<T> | Computed<T>, fn: (value: T) => void) {
+	subscribe<T>(signal: Getter<T>, fn: (value: T) => void) {
+		if (this.#nested === undefined) {
+			if (Root.dev) {
+				console.warn("Root.subscribe called when closed, running once");
+			}
+			fn(signal.peek());
+			return;
+		}
 		this.effect((effect) => {
 			const value = effect.get(signal);
 			fn(value);
@@ -172,7 +205,13 @@ export class Root {
 	}
 
 	cleanup(fn: Dispose): void {
-		if (this.#dispose === undefined) throw new Error("closed");
+		if (this.#dispose === undefined) {
+			if (Root.dev) {
+				console.warn("Root.cleanup called when closed, running immediately");
+			}
+			fn();
+			return;
+		}
 		this.#dispose.push(fn);
 	}
 
@@ -196,6 +235,8 @@ export class Root {
 	}
 }
 
+type SetterType<S> = S extends Setter<infer T> ? T : never;
+
 // TODO Make this a single instance of an Effect, so close() can work correctly from async code.
 export class Effect {
 	// eslint-disable-next-line @typescript-eslint/ban-ts-comment
@@ -215,6 +256,9 @@ export class Effect {
 	#stack?: string;
 	#scheduled = false;
 
+	#stop!: () => void;
+	#stopped: Promise<void>;
+
 	constructor(fn: (effect: Effect) => void) {
 		if (Effect.dev) {
 			const debug = new Error("created here:").stack ?? "No stack";
@@ -227,23 +271,41 @@ export class Effect {
 			this.#stack = new Error().stack;
 		}
 
+		this.#stopped = new Promise((resolve) => {
+			this.#stop = resolve;
+		});
+
 		this.#schedule();
 	}
 
 	#schedule(): void {
 		if (this.#scheduled) return;
 		this.#scheduled = true;
+
+		// We always queue a microtask to make it more difficult to get stuck in an infinite loop.
 		queueMicrotask(() => this.#run());
 	}
 
 	async #run(): Promise<void> {
 		if (this.#dispose === undefined) return; // closed, no error because this is a microtask
 
+		this.#stop();
+		this.#stopped = new Promise((resolve) => {
+			this.#stop = resolve;
+		});
+
 		// Wait for all async effects to complete.
-		// There's a 1s timeout here to catch cleanup functions that don't exit.
 		try {
-			const timeout = new Promise((reject) => setTimeout(() => reject(new Error("cleanup timeout")), 1000));
-			await Promise.race([timeout, Promise.all(this.#async)]);
+			let warn: NodeJS.Timeout | undefined;
+			if (Effect.dev) {
+				// There's a 1s timeout here to print warnings if cleanup functions don't exit.
+				warn = setTimeout(() => {
+					console.warn("spawn is still running after 1s", this.#stack);
+				}, 1000);
+			}
+			await Promise.all(this.#async);
+			if (warn) clearTimeout(warn);
+
 			this.#async.length = 0;
 		} catch (error) {
 			console.error("async effect error", error);
@@ -258,6 +320,8 @@ export class Effect {
 		for (const fn of this.#dispose) fn();
 		this.#dispose.length = 0;
 
+		// IMPORTANT: must run all of the dispose functions before unscheduling.
+		// Otherwise, cleanup functions could get us stuck in an infinite loop.
 		this.#scheduled = false;
 
 		try {
@@ -269,8 +333,13 @@ export class Effect {
 	}
 
 	// Get the current value of a signal, monitoring it for changes (via ===) and rerunning on change.
-	get<T>(signal: Accessor<T>): T {
-		if (this.#dispose === undefined) throw new Error("closed");
+	get<T>(signal: Getter<T>): T {
+		if (this.#dispose === undefined) {
+			if (Effect.dev) {
+				console.warn("Effect.get called when closed, returning current value");
+			}
+			return signal.peek();
+		}
 
 		const value = signal.peek();
 		const dispose = signal.subscribe(() => this.#schedule());
@@ -279,9 +348,35 @@ export class Effect {
 		return value;
 	}
 
+	// Temporarily set the value of a signal, unsetting it on cleanup.
+	// The last argument is the cleanup value, set before the effect is rerun.
+	// It's optional only if T can be undefined.
+	set<S extends Setter<unknown>>(
+		signal: S,
+		value: SetterType<S>,
+		...args: undefined extends SetterType<S> ? [cleanup?: SetterType<S>] : [cleanup: SetterType<S>]
+	): void {
+		if (this.#dispose === undefined) {
+			if (Effect.dev) {
+				console.warn("Effect.set called when closed, ignoring");
+			}
+			return;
+		}
+
+		signal.set(value);
+		const cleanup = args[0];
+		const cleanupValue = cleanup === undefined ? (undefined as SetterType<S>) : cleanup;
+		this.cleanup(() => signal.set(cleanupValue));
+	}
+
 	// Get the current value of a signal, monitoring it for changes (via dequal) and rerunning on change.
-	unique<T>(signal: Accessor<T>): T {
-		if (this.#dispose === undefined) throw new Error("closed");
+	unique<T>(signal: Getter<T>): T {
+		if (this.#dispose === undefined) {
+			if (Effect.dev) {
+				console.warn("Effect.unique called when closed, returning current value");
+			}
+			return signal.peek();
+		}
 
 		const value = signal.peek();
 		const dispose = signal.subscribe((v) => {
@@ -298,17 +393,26 @@ export class Effect {
 	// Spawn an async effect that blocks the effect being rerun until it completes.
 	// The cancel promise is resolved when the effect should cleanup: on close or rerun.
 	spawn(fn: (cancel: Promise<void>) => Promise<void>) {
-		const cancel = new Promise<void>((resolve) => {
-			this.cleanup(() => resolve());
-		});
+		const promise = fn(this.#stopped);
 
-		const promise = fn(cancel);
+		if (this.#dispose === undefined) {
+			if (Effect.dev) {
+				console.warn("Effect.spawn called when closed");
+			}
+
+			return;
+		}
+
 		this.#async.push(promise);
 	}
 
 	// Register a cleanup function.
 	cleanup(fn: Dispose): void {
 		if (this.#dispose === undefined) {
+			if (Effect.dev) {
+				console.warn("Effect.cleanup called when closed, running immediately");
+			}
+
 			fn();
 			return;
 		}
@@ -317,12 +421,22 @@ export class Effect {
 	}
 
 	close(): void {
-		if (this.#dispose === undefined) throw new Error("closed");
+		if (this.#dispose === undefined) {
+			if (Effect.dev) {
+				console.warn("Effect.close called when closed, ignoring");
+			}
+			return;
+		}
+
+		this.#stop();
+
 		for (const fn of this.#dispose) fn();
 		this.#dispose = undefined;
 
 		for (const signal of this.#unwatch) signal();
 		this.#unwatch.length = 0;
+
+		this.#async.length = 0;
 
 		if (Effect.dev) {
 			Effect.#finalizer.unregister(this);

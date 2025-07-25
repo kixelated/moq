@@ -1,5 +1,5 @@
 import type * as Moq from "@kixelated/moq";
-import { type Accessor, type Computed, type Effect, Root, Signal, Unique } from "@kixelated/signals";
+import { type Computed, type Effect, type Getter, Root, Signal, Unique } from "@kixelated/signals";
 import { Buffer } from "buffer";
 import type * as Catalog from "../catalog";
 import * as Container from "../container";
@@ -18,8 +18,8 @@ export type AudioProps = {
 // Downloads audio from a track and emits it to an AudioContext.
 // The user is responsible for hooking up audio to speakers, an analyzer, etc.
 export class Audio {
-	broadcast: Accessor<Moq.BroadcastConsumer | undefined>;
-	catalog: Accessor<Catalog.Root | undefined>;
+	broadcast: Getter<Moq.BroadcastConsumer | undefined>;
+	catalog: Getter<Catalog.Root | undefined>;
 	enabled: Signal<boolean>;
 	selected = new Unique<Catalog.Audio | undefined>(undefined);
 
@@ -41,8 +41,8 @@ export class Audio {
 	#signals = new Root();
 
 	constructor(
-		broadcast: Accessor<Moq.BroadcastConsumer | undefined>,
-		catalog: Accessor<Catalog.Root | undefined>,
+		broadcast: Getter<Moq.BroadcastConsumer | undefined>,
+		catalog: Getter<Catalog.Root | undefined>,
 		props?: AudioProps,
 	) {
 		this.broadcast = broadcast;
@@ -60,10 +60,8 @@ export class Audio {
 
 	#runWorklet(effect: Effect): void {
 		const enabled = effect.get(this.enabled);
-		if (!enabled) return;
-
 		const selected = effect.get(this.selected);
-		if (!selected) return;
+		if (!enabled || !selected) return;
 
 		const sampleRate = selected.config.sampleRate;
 		const channelCount = selected.config.numberOfChannels;
@@ -92,8 +90,7 @@ export class Audio {
 
 			worklet.port.postMessage({ type: "init", sampleRate, channelCount, latency: this.latency });
 
-			this.#worklet.set(worklet);
-			effect.cleanup(() => this.#worklet.set(undefined));
+			effect.set(this.#worklet, worklet);
 		});
 	}
 
@@ -240,8 +237,7 @@ export class AudioEmitter {
 			gain.connect(root.context.destination); // speakers
 			effect.cleanup(() => gain.disconnect());
 
-			this.#gain.set(gain);
-			effect.cleanup(() => this.#gain.set(undefined));
+			effect.set(this.#gain, gain);
 		});
 
 		this.#signals.effect((effect) => {

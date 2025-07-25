@@ -26,22 +26,17 @@ export class PreviewWatch {
 		this.enabled = new Signal(props?.enabled ?? false);
 
 		this.#signals.effect((effect) => {
-			if (!effect.get(this.enabled)) {
-				return;
-			}
+			if (!effect.get(this.enabled)) return;
 
 			const broadcast = effect.get(this.broadcast);
-			if (!broadcast) {
-				return;
-			}
+			if (!broadcast) return;
 
 			// Subscribe to the preview.json track directly
 			const track = broadcast.subscribe("preview.json", 0);
 			const consumer = new Container.FrameConsumer(track);
 
 			effect.cleanup(() => track.close());
-			this.track.set(consumer);
-			effect.cleanup(() => this.track.set(undefined));
+			effect.set(this.track, consumer);
 		});
 
 		this.#signals.effect((effect) => {

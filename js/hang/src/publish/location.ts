@@ -48,13 +48,16 @@ export class Location {
 			broadcast.insertTrack(this.#track.consume());
 			effect.cleanup(() => broadcast.removeTrack(this.#track.name));
 
-			this.catalog.set({
-				initial: this.current.peek(), // Doesn't trigger a re-render
-				updates: { name: this.#track.name, priority: u8(this.#track.priority) },
-				peering: effect.get(this.peering),
-				peers: effect.get(this.#peers),
-			});
-			effect.cleanup(() => this.catalog.set(undefined));
+			effect.set(
+				this.catalog,
+				{
+					initial: this.current.peek(), // Doesn't trigger a re-render
+					updates: { name: this.#track.name, priority: u8(this.#track.priority) },
+					peering: effect.get(this.peering),
+					peers: effect.get(this.#peers),
+				},
+				undefined,
+			);
 		});
 
 		this.#signals.effect((effect) => {
@@ -127,8 +130,7 @@ export class LocationPeer {
 			const producer = new Container.PositionProducer(track);
 			effect.cleanup(() => producer.close());
 
-			this.producer.set(producer);
-			effect.cleanup(() => this.producer.set(undefined));
+			effect.set(this.producer, producer);
 		});
 	}
 
