@@ -101,7 +101,11 @@ export class Reader {
 	// Consumes the first size bytes of the buffer.
 	#slice(size: number): Uint8Array {
 		const result = new Uint8Array(this.#buffer.buffer, this.#buffer.byteOffset, size);
-		this.#buffer = new Uint8Array(this.#buffer.buffer, this.#buffer.byteOffset + size, this.#buffer.byteLength - size);
+		this.#buffer = new Uint8Array(
+			this.#buffer.buffer,
+			this.#buffer.byteOffset + size,
+			this.#buffer.byteLength - size,
+		);
 
 		return result;
 	}
