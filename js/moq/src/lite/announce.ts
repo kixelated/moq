@@ -1,12 +1,11 @@
-import { Path } from "..";
-import type { Valid } from "../path";
+import * as Path from "../path";
 import type { Reader, Writer } from "../stream";
 
 export class Announce {
-	suffix: Valid;
+	suffix: Path.Valid;
 	active: boolean;
 
-	constructor(suffix: Valid, active: boolean) {
+	constructor(suffix: Path.Valid, active: boolean) {
 		this.suffix = suffix;
 		this.active = active;
 	}
@@ -37,9 +36,9 @@ export class Announce {
 
 export class AnnounceInterest {
 	static StreamID = 0x1;
-	prefix: Valid;
+	prefix: Path.Valid;
 
-	constructor(prefix: Valid) {
+	constructor(prefix: Path.Valid) {
 		this.prefix = prefix;
 	}
 
@@ -62,9 +61,9 @@ export class AnnounceInterest {
 }
 
 export class AnnounceInit {
-	suffixes: Valid[];
+	suffixes: Path.Valid[];
 
-	constructor(paths: Valid[]) {
+	constructor(paths: Path.Valid[]) {
 		this.suffixes = paths;
 	}
 
@@ -77,7 +76,7 @@ export class AnnounceInit {
 
 	static async #decode(r: Reader): Promise<AnnounceInit> {
 		const count = await r.u53();
-		const suffixes: Valid[] = [];
+		const suffixes: Path.Valid[] = [];
 		for (let i = 0; i < count; i++) {
 			suffixes.push(Path.from(await r.string()));
 		}

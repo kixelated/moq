@@ -5,11 +5,12 @@ import * as Path from "../path";
 import type { Reader, Writer } from "../stream";
 import type { TrackProducer } from "../track";
 import { error } from "../util/error";
-import { type Announce, type AnnounceCancel, AnnounceError, type AnnounceOk, type Unannounce } from "./announce";
+import type { Announce, Unannounce } from "./announce";
 import * as Control from "./control";
-import { ObjectStatus, ObjectStream, type StreamHeaderSubgroup } from "./object";
-import { Subscribe, type SubscribeDone, SubscribeError, type SubscribeOk, type Unsubscribe } from "./subscribe";
-import { TrackStatus } from "./track";
+import { Frame, type Group } from "./object";
+import { Subscribe, type SubscribeDone, type SubscribeError, type SubscribeOk, Unsubscribe } from "./subscribe";
+import type { SubscribeAnnouncesError, SubscribeAnnouncesOk } from "./subscribe_announces";
+import type { TrackStatus } from "./track";
 
 /**
  * Handles subscribing to broadcasts using moq-transport protocol with lite-compatibility restrictions.
@@ -17,7 +18,8 @@ import { TrackStatus } from "./track";
  * @internal
  */
 export class Subscriber {
-	#controlWriter: Writer;
+	#control: Writer;
+	#root: Path.Valid;
 
 	// Our subscribed tracks - keyed by subscription ID
 	#subscribes = new Map<bigint, TrackProducer>();
@@ -28,20 +30,33 @@ export class Subscriber {
 		bigint,
 		{
 			resolve: (msg: SubscribeOk) => void;
-			reject: (msg: SubscribeError) => void;
+			reject: (msg: Error) => void;
 		}
 	>();
+
+	#announced: AnnouncedProducer;
 
 	/**
 	 * Creates a new Subscriber instance.
 	 * @param quic - The WebTransport session to use
-	 * @param controlWriter - The control stream writer for sending control messages
+	 * @param control - The control stream writer for sending control messages
 	 *
 	 * @internal
 	 */
-	constructor(controlWriter: Writer) {
-		this.#controlWriter = controlWriter;
+	constructor(control: Writer, root: Path.Valid) {
+		this.#control = control;
+		this.#root = root;
+		this.#announced = new AnnouncedProducer();
+		//void this.#runAnnounced();
 	}
+
+	/* TODO once the remote server actually supports it
+	async #runAnnounced() {
+		// Send me everything at the root.
+		const msg = new SubscribeAnnounces(this.#root);
+		await Control.write(this.#control, msg);
+	}
+	*/
 
 	/**
 	 * Gets an announced reader for the specified prefix.
@@ -49,32 +64,8 @@ export class Subscriber {
 	 * @returns An AnnounceConsumer instance
 	 */
 	announced(prefix: Path.Valid = Path.empty()): AnnouncedConsumer {
-		console.debug(`announce please: prefix=${prefix}`);
-
-		const producer = new AnnouncedProducer();
-		const consumer = producer.consume(prefix);
-
-		// In moq-transport, announcements are typically handled differently
-		// For lite compatibility, we simulate the announce/unannounce pattern
-		// by creating a mock announced stream that immediately provides available broadcasts
-
-		// Since moq-transport doesn't have explicit announce streams like moq-lite,
-		// we provide a compatibility layer that simulates announcements
-		(async () => {
-			try {
-				// For moq-transport compatibility, we would typically discover tracks
-				// through other means (catalog, out-of-band, etc.)
-				// For now, we provide an empty announcement stream
-				console.warn(
-					"MOQLITE_COMPATIBILITY: Announcements in moq-transport require external catalog/discovery",
-				);
-				producer.close();
-			} catch (err: unknown) {
-				producer.abort(error(err));
-			}
-		})();
-
-		return consumer;
+		const full = Path.join(this.#root, prefix);
+		return this.#announced.consume(full);
 	}
 
 	/**
@@ -122,37 +113,26 @@ export class Subscriber {
 		// Save the writer so we can append groups to it.
 		this.#subscribes.set(subscribeId, track);
 
-		const msg = new Subscribe(
-			subscribeId,
-			subscribeId,
-			broadcast,
-			track.name,
-			track.priority,
-			0, // groupOrder (default)
-			0, // filterType (no filter for lite compatibility)
-		);
+		const msg = new Subscribe(subscribeId, subscribeId, broadcast, track.name, track.priority);
 
 		// Send SUBSCRIBE message on control stream and wait for response
 		const responsePromise = new Promise<SubscribeOk>((resolve, reject) => {
 			this.#subscribeCallbacks.set(subscribeId, { resolve, reject });
 		});
 
-		await Control.write(this.#controlWriter, msg);
+		await Control.write(this.#control, msg);
 
 		try {
-			const okMsg = await responsePromise;
-			this.#validateSubscribeOk(okMsg);
-			console.debug(`subscribe ok: id=${subscribeId} broadcast=${broadcast} track=${track.name}`);
-
-			await Promise.race([track.unused()]);
+			await responsePromise;
+			await track.unused();
 
 			track.close();
-			console.debug(`subscribe close: id=${subscribeId} broadcast=${broadcast} track=${track.name}`);
+
+			const msg = new Unsubscribe(subscribeId);
+			await Control.write(this.#control, msg);
 		} catch (err) {
-			track.abort(error(err));
-			console.warn(
-				`subscribe error: id=${subscribeId} broadcast=${broadcast} track=${track.name} error=${error(err)}`,
-			);
+			const e = error(err);
+			track.abort(e);
 		} finally {
 			this.#subscribes.delete(subscribeId);
 			this.#subscribeCallbacks.delete(subscribeId);
@@ -169,8 +149,6 @@ export class Subscriber {
 		const callback = this.#subscribeCallbacks.get(msg.subscribeId);
 		if (callback) {
 			callback.resolve(msg);
-		} else {
-			console.warn(`received SUBSCRIBE_OK for unknown subscription: ${msg.subscribeId}`);
 		}
 	}
 
@@ -183,26 +161,7 @@ export class Subscriber {
 	async handleSubscribeError(msg: SubscribeError) {
 		const callback = this.#subscribeCallbacks.get(msg.subscribeId);
 		if (callback) {
-			callback.reject(msg);
-		} else {
-			console.warn(`received SUBSCRIBE_ERROR for unknown subscription: ${msg.subscribeId}`);
-		}
-	}
-
-	/**
-	 * Validates that a SUBSCRIBE_OK response uses only lite-compatible features.
-	 * @param msg - The SUBSCRIBE_OK message to validate
-	 * @throws Error if unsupported features are detected
-	 */
-	#validateSubscribeOk(msg: SubscribeOk): void {
-		// Check group order - we only support the default
-		if (msg.groupOrder !== 0) {
-			throw new Error(`MOQLITE_INCOMPATIBLE: Non-default group order not supported: ${msg.groupOrder}`);
-		}
-
-		// Expires field is informational only for lite compatibility
-		if (msg.expires > 0) {
-			console.debug(`MOQLITE_COMPATIBILITY: Subscription expires in ${msg.expires}ms (informational only)`);
+			callback.reject(new Error(`SUBSCRIBE_ERROR: code=${msg.errorCode} reason=${msg.reasonPhrase}`));
 		}
 	}
 
@@ -213,109 +172,36 @@ export class Subscriber {
 	 *
 	 * @internal
 	 */
-	async runObjectStream(header: StreamHeaderSubgroup, stream: Reader) {
-		const subscribe = this.#subscribes.get(header.subscribeId);
-		if (!subscribe) {
-			console.warn(`unknown subscription: id=${header.subscribeId}`);
-			return;
-		}
-
-		// Convert to Group (moq-lite equivalent)
-		const groupId = Number(header.groupId);
-		const producer = new GroupProducer(groupId);
-		subscribe.insertGroup(producer.consume());
+	async handleGroup(group: Group, stream: Reader) {
+		const producer = new GroupProducer(group.groupId);
 
 		try {
+			const track = this.#subscribes.get(group.trackAlias);
+			if (!track) {
+				throw new Error(`unknown track: alias=${group.trackAlias}`);
+			}
+
+			// Convert to Group (moq-lite equivalent)
+			track.insertGroup(producer.consume());
+
 			// Read objects from the stream until end of group
 			for (;;) {
-				const done = await Promise.race([stream.done(), subscribe.unused(), producer.unused()]);
+				const done = await Promise.race([stream.done(), track.unused(), producer.unused()]);
 				if (done !== false) break;
 
-				const obj = await ObjectStream.decode(stream);
-
-				// Handle object status
-				if (obj.objectStatus === ObjectStatus.EndOfGroup) {
-					break;
-				}
-				if (obj.objectStatus === ObjectStatus.EndOfTrack) {
-					break;
-				}
-				if (obj.objectStatus !== ObjectStatus.Normal) {
-					console.warn(`Unsupported object status: ${obj.objectStatus}`);
-					continue;
-				}
+				const frame = await Frame.decode(stream);
+				if (frame.payload === undefined) break;
 
 				// Treat each object payload as a frame
-				producer.writeFrame(obj.objectPayload);
+				producer.writeFrame(frame.payload);
 			}
 
 			producer.close();
 		} catch (err: unknown) {
-			producer.abort(error(err));
+			const e = error(err);
+			producer.abort(e);
+			stream.stop(e);
 		}
-	}
-
-	/**
-	 * Handles a TrackStatus message.
-	 * @param msg - The TrackStatus message
-	 *
-	 * @internal
-	 */
-	async runTrackStatus(msg: TrackStatus) {
-		// TrackStatus messages are informational in moq-transport
-		// For lite compatibility, we log them but don't take action
-		console.debug(
-			`track status: ${msg.trackNamespace}/${msg.trackName} status=${msg.statusCode} lastGroup=${msg.lastGroupId} lastObject=${msg.lastObjectId}`,
-		);
-
-		// Validate status codes
-		if (
-			msg.statusCode !== TrackStatus.STATUS_IN_PROGRESS &&
-			msg.statusCode !== TrackStatus.STATUS_NOT_FOUND &&
-			msg.statusCode !== TrackStatus.STATUS_NOT_AUTHORIZED &&
-			msg.statusCode !== TrackStatus.STATUS_ENDED
-		) {
-			console.warn(`MOQLITE_COMPATIBILITY: Unknown track status code: ${msg.statusCode}`);
-		}
-	}
-
-	/**
-	 * Handles an ANNOUNCE_OK control message received on the control stream.
-	 * @param msg - The ANNOUNCE_OK message
-	 */
-	async handleAnnounceOk(msg: AnnounceOk) {
-		console.warn(`MOQLITE_INCOMPATIBLE: Received ANNOUNCE_OK for namespace: ${msg.trackNamespace}`);
-		// moq-lite doesn't support track namespace announcements
-	}
-
-	/**
-	 * Handles an ANNOUNCE_ERROR control message received on the control stream.
-	 * @param msg - The ANNOUNCE_ERROR message
-	 */
-	async handleAnnounceError(msg: AnnounceError) {
-		console.warn(
-			`MOQLITE_INCOMPATIBLE: Received ANNOUNCE_ERROR for namespace: ${msg.trackNamespace}, error: ${msg.errorCode} - ${msg.reasonPhrase}`,
-		);
-		// moq-lite doesn't support track namespace announcements
-	}
-
-	/**
-	 * Handles an ANNOUNCE_CANCEL control message received on the control stream.
-	 * @param msg - The ANNOUNCE_CANCEL message
-	 */
-	async handleAnnounceCancel(msg: AnnounceCancel) {
-		console.warn(`MOQLITE_INCOMPATIBLE: Received ANNOUNCE_CANCEL for namespace: ${msg.trackNamespace}`);
-		// moq-lite doesn't support track namespace announcements
-	}
-
-	/**
-	 * Handles an UNSUBSCRIBE control message received on the control stream.
-	 * @param msg - The UNSUBSCRIBE message
-	 */
-	async handleUnsubscribe(msg: Unsubscribe) {
-		console.warn(`MOQLITE_INCOMPATIBLE: Received UNSUBSCRIBE for subscription: ${msg.subscribeId}`);
-		// In moq-lite, subscriptions are tied to stream lifecycle, not explicit unsubscribe messages
-		// We could potentially close the corresponding subscription here, but for now we log it
 	}
 
 	/**
@@ -323,21 +209,10 @@ export class Subscriber {
 	 * @param msg - The SUBSCRIBE_DONE message
 	 */
 	async handleSubscribeDone(msg: SubscribeDone) {
-		console.debug(`subscribe done: id=${msg.subscribeId} status=${msg.statusCode} reason=${msg.reasonPhrase}`);
-
 		// For lite compatibility, we treat this as subscription completion
 		const callback = this.#subscribeCallbacks.get(msg.subscribeId);
 		if (callback) {
-			// Treat SUBSCRIBE_DONE as an error since the subscription ended
-			const error = new SubscribeError(
-				msg.subscribeId,
-				msg.statusCode,
-				msg.reasonPhrase,
-				0n, // No track alias in SUBSCRIBE_DONE
-			);
-			callback.reject(error);
-		} else {
-			console.warn(`received SUBSCRIBE_DONE for unknown subscription: ${msg.subscribeId}`);
+			callback.reject(new Error(`SUBSCRIBE_DONE: code=${msg.statusCode} reason=${msg.reasonPhrase}`));
 		}
 	}
 
@@ -346,16 +221,10 @@ export class Subscriber {
 	 * @param msg - The ANNOUNCE message
 	 */
 	async handleAnnounce(msg: Announce) {
-		console.warn(`MOQLITE_INCOMPATIBLE: Received ANNOUNCE for namespace: ${msg.trackNamespace}`);
-		// In moq-transport, ANNOUNCE is sent by publishers to advertise track namespaces
-		// moq-lite doesn't support track namespace announcements
-		// Send ANNOUNCE_ERROR response
-		const errorMsg = new AnnounceError(
-			msg.trackNamespace,
-			501, // Not implemented
-			"ANNOUNCE not supported in moq-lite compatibility mode",
-		);
-		await Control.write(this.#controlWriter, errorMsg);
+		this.#announced.write({
+			name: msg.trackNamespace,
+			active: true,
+		});
 	}
 
 	/**
@@ -363,30 +232,25 @@ export class Subscriber {
 	 * @param msg - The UNANNOUNCE message
 	 */
 	async handleUnannounce(msg: Unannounce) {
-		console.warn(`MOQLITE_INCOMPATIBLE: Received UNANNOUNCE for namespace: ${msg.trackNamespace}`);
-		// In moq-transport, UNANNOUNCE is sent by publishers to stop serving track namespaces
-		// moq-lite doesn't support track namespace announcements, so nothing to unannounce
+		this.#announced.write({
+			name: msg.trackNamespace,
+			active: false,
+		});
+	}
+
+	async handleSubscribeAnnouncesOk(_msg: SubscribeAnnouncesOk) {
+		// TODO
+	}
+
+	async handleSubscribeAnnouncesError(_msg: SubscribeAnnouncesError) {
+		// TODO
 	}
 
 	/**
 	 * Handles a TRACK_STATUS control message received on the control stream.
 	 * @param msg - The TRACK_STATUS message
 	 */
-	async handleTrackStatus(msg: TrackStatus) {
-		// TrackStatus messages are informational in moq-transport
-		// For lite compatibility, we log them but don't take action
-		console.debug(
-			`track status: ${msg.trackNamespace}/${msg.trackName} status=${msg.statusCode} lastGroup=${msg.lastGroupId} lastObject=${msg.lastObjectId}`,
-		);
-
-		// Validate status codes
-		if (
-			msg.statusCode !== TrackStatus.STATUS_IN_PROGRESS &&
-			msg.statusCode !== TrackStatus.STATUS_NOT_FOUND &&
-			msg.statusCode !== TrackStatus.STATUS_NOT_AUTHORIZED &&
-			msg.statusCode !== TrackStatus.STATUS_ENDED
-		) {
-			console.warn(`MOQLITE_COMPATIBILITY: Unknown track status code: ${msg.statusCode}`);
-		}
+	async handleTrackStatus(_msg: TrackStatus) {
+		// TODO
 	}
 }

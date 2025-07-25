@@ -52,7 +52,7 @@ export class Preview {
 			group.writeFrame(buffer);
 		}
 
-		console.log("published preview", preview);
+		console.debug("published preview", preview);
 
 		group.close();
 	}

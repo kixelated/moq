@@ -76,34 +76,34 @@ test("stripPrefix accepts Path instances", () => {
 	assert.strictEqual(result, "baz");
 });
 
-test("join paths with slashes", () => {
+test("from paths with slashes", () => {
 	const base = Path.from("foo");
-	const joined = Path.join(base, Path.from("bar"));
-	assert.strictEqual(joined, "foo/bar");
+	const fromed = Path.from(base, Path.from("bar"));
+	assert.strictEqual(fromed, "foo/bar");
 });
 
-test("join handles empty base", () => {
+test("from handles empty base", () => {
 	const base = Path.empty();
-	const joined = Path.join(base, Path.from("bar"));
-	assert.strictEqual(joined, "bar");
+	const fromed = Path.from(base, Path.from("bar"));
+	assert.strictEqual(fromed, "bar");
 });
 
-test("join handles empty suffix", () => {
+test("from handles empty suffix", () => {
 	const base = Path.from("foo");
-	const joined = Path.join(base, Path.empty());
-	assert.strictEqual(joined, "foo");
+	const fromed = Path.from(base, Path.empty());
+	assert.strictEqual(fromed, "foo");
 });
 
-test("join accepts Path instances", () => {
+test("from accepts Path instances", () => {
 	const base = Path.from("foo");
 	const suffix = Path.from("bar");
-	const joined = Path.join(base, suffix);
-	assert.strictEqual(joined, "foo/bar");
+	const fromed = Path.from(base, suffix);
+	assert.strictEqual(fromed, "foo/bar");
 });
 
-test("join handles multiple joins", () => {
-	const path = Path.join(
-		Path.join(Path.join(Path.from("api"), Path.from("v1")), Path.from("users")),
+test("from handles multiple froms", () => {
+	const path = Path.from(
+		Path.from(Path.from(Path.from("api"), Path.from("v1")), Path.from("users")),
 		Path.from("123"),
 	);
 	assert.strictEqual(path, "api/v1/users/123");
@@ -166,7 +166,7 @@ test("removes multiple slashes comprehensively", () => {
 	const pathWithSlashes = Path.from("foo//bar///baz");
 	assert.strictEqual(Path.hasPrefix(Path.from("foo/bar"), pathWithSlashes), true);
 	assert.strictEqual(Path.stripPrefix(Path.from("foo"), pathWithSlashes), "bar/baz");
-	assert.strictEqual(Path.join(pathWithSlashes, Path.from("qux")), "foo/bar/baz/qux");
+	assert.strictEqual(Path.from(pathWithSlashes, Path.from("qux")), "foo/bar/baz/qux");
 });
 
 test("handles special characters", () => {

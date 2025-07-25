@@ -1,8 +1,10 @@
 import type { Reader, Writer } from "../stream";
 import { Announce, AnnounceCancel, AnnounceError, AnnounceOk, Unannounce } from "./announce";
+import { Fetch, FetchCancel, FetchError, FetchOk } from "./fetch";
 import { GoAway } from "./goaway";
 import * as Setup from "./setup";
 import { Subscribe, SubscribeDone, SubscribeError, SubscribeOk, Unsubscribe } from "./subscribe";
+import { SubscribeAnnounces, SubscribeAnnouncesError, SubscribeAnnouncesOk, UnsubscribeAnnounces } from "./subscribe_announces";
 import { TrackStatus, TrackStatusRequest } from "./track";
 
 /**
@@ -24,6 +26,14 @@ const Messages = {
 	[TrackStatusRequest.id]: TrackStatusRequest,
 	[TrackStatus.id]: TrackStatus,
 	[GoAway.id]: GoAway,
+	[Fetch.id]: Fetch,
+	[FetchOk.id]: FetchOk,
+	[FetchError.id]: FetchError,
+	[FetchCancel.id]: FetchCancel,
+	[SubscribeAnnounces.id]: SubscribeAnnounces,
+	[SubscribeAnnouncesOk.id]: SubscribeAnnouncesOk,
+	[SubscribeAnnouncesError.id]: SubscribeAnnouncesError,
+	[UnsubscribeAnnounces.id]: UnsubscribeAnnounces,
 } as const;
 
 export type MessageId = keyof typeof Messages;
@@ -38,6 +48,8 @@ export type Message = InstanceType<MessageType>;
  * Format: Message Type (varint) + Message Length (varint) + Message Payload
  */
 export async function write<T extends Message>(writer: Writer, message: T): Promise<void> {
+	console.debug("control message write", message);
+
 	// Write message type
 	await writer.u53((message.constructor as MessageType).id);
 
@@ -57,5 +69,7 @@ export async function read(reader: Reader): Promise<Message> {
 	}
 
 	const f: (r: Reader) => Promise<Message> = Messages[messageType].decodeMessage;
-	return reader.message(f);
+	const msg = await reader.message(f);
+	console.debug("control message read", msg);
+	return msg;
 }

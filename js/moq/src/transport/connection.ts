@@ -6,11 +6,13 @@ import { type Reader, Readers, Stream } from "../stream";
 import { unreachable } from "../util";
 import { Announce, AnnounceCancel, AnnounceError, AnnounceOk, Unannounce } from "./announce";
 import * as Control from "./control";
+import { Fetch, FetchCancel, FetchError, FetchOk } from "./fetch";
 import { GoAway } from "./goaway";
-import { readStreamType, StreamHeaderSubgroup, StreamType } from "./object";
+import { Group, readStreamType } from "./object";
 import { Publisher } from "./publisher";
 import * as Setup from "./setup";
 import { Subscribe, SubscribeDone, SubscribeError, SubscribeOk, Unsubscribe } from "./subscribe";
+import { SubscribeAnnounces, SubscribeAnnouncesError, SubscribeAnnouncesOk, UnsubscribeAnnounces } from "./subscribe_announces";
 import { Subscriber } from "./subscriber";
 import { TrackStatus, TrackStatusRequest } from "./track";
 
@@ -48,8 +50,11 @@ export class Connection implements ConnectionInterface {
 		this.#quic = quic;
 		this.#controlStream = controlStream;
 
-		this.#publisher = new Publisher(this.#quic, this.#controlStream.writer);
-		this.#subscriber = new Subscriber(this.#controlStream.writer);
+		// The root path of the connection, to emulate moq-lite.
+		const root = Path.from(url.pathname);
+
+		this.#publisher = new Publisher(this.#quic, this.#controlStream.writer, root);
+		this.#subscriber = new Subscriber(this.#controlStream.writer, root);
 
 		this.#run();
 	}
@@ -129,6 +134,8 @@ export class Connection implements ConnectionInterface {
 					await this.#publisher.handleAnnounceOk(msg);
 				} else if (msg instanceof AnnounceError) {
 					await this.#publisher.handleAnnounceError(msg);
+				} else if (msg instanceof AnnounceCancel) {
+					await this.#publisher.handleAnnounceCancel(msg);
 					// Messages sent by Publisher, received by Subscriber:
 				} else if (msg instanceof Announce) {
 					await this.#subscriber.handleAnnounce(msg);
@@ -142,8 +149,6 @@ export class Connection implements ConnectionInterface {
 					await this.#subscriber.handleSubscribeDone(msg);
 				} else if (msg instanceof TrackStatus) {
 					await this.#subscriber.handleTrackStatus(msg);
-				} else if (msg instanceof AnnounceCancel) {
-					await this.#subscriber.handleAnnounceCancel(msg);
 					// Other messages:
 				} else if (msg instanceof GoAway) {
 					await this.#handleGoAway(msg);
@@ -151,6 +156,22 @@ export class Connection implements ConnectionInterface {
 					await this.#handleClientSetup(msg);
 				} else if (msg instanceof Setup.Server) {
 					await this.#handleServerSetup(msg);
+				} else if (msg instanceof SubscribeAnnounces) {
+					await this.#publisher.handleSubscribeAnnounces(msg);
+				} else if (msg instanceof SubscribeAnnouncesOk) {
+					await this.#subscriber.handleSubscribeAnnouncesOk(msg);
+				} else if (msg instanceof SubscribeAnnouncesError) {
+					await this.#subscriber.handleSubscribeAnnouncesError(msg);
+				} else if (msg instanceof UnsubscribeAnnounces) {
+					await this.#publisher.handleUnsubscribeAnnounces(msg);
+				} else if (msg instanceof Fetch) {
+					// no
+				} else if (msg instanceof FetchOk) {
+					// no
+				} else if (msg instanceof FetchError) {
+					// no
+				} else if (msg instanceof FetchCancel) {
+					// no
 				} else {
 					unreachable(msg);
 				}
@@ -219,20 +240,11 @@ export class Connection implements ConnectionInterface {
 	 */
 	async #runObjectStream(stream: Reader) {
 		try {
-			const streamType = await readStreamType(stream);
+			await readStreamType(stream);
 
-			// Handle different stream types
-			if (streamType === StreamType.StreamHeaderSubgroup) {
-				// Stream-per-group delivery (moq-lite compatible)
-				const header = await StreamHeaderSubgroup.decode(stream);
-				await this.#subscriber.runObjectStream(header, stream);
-			} else if (streamType === StreamType.ObjectDatagram) {
-				// Datagram delivery - not supported in lite compatibility
-				throw new Error("Datagram delivery mode not supported in moq-lite compatibility");
-			} else {
-				// Unknown stream type
-				throw new Error(`MOQLITE_INCOMPATIBLE: Unsupported object stream type: ${streamType}`);
-			}
+
+			const header = await Group.decode(stream);
+			await this.#subscriber.handleGroup(header, stream);
 		} catch (err) {
 			console.error("error processing object stream", err);
 		}

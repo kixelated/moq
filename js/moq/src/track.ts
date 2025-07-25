@@ -62,6 +62,16 @@ export class TrackProducer {
 	}
 
 	/**
+	 * Appends a frame to the track in its own group.
+	 * @param frame - The frame to append
+	 */
+	appendFrame(frame: Uint8Array) {
+		const group = this.appendGroup();
+		group.writeFrame(frame);
+		group.close();
+	}
+
+	/**
 	 * Closes the publisher and all associated groups.
 	 */
 	close() {

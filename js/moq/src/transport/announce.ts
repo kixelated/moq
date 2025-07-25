@@ -13,10 +13,15 @@ export class Announce {
 
 	async encodeMessage(w: Writer): Promise<void> {
 		await Namespace.encode(w, this.trackNamespace);
+		await w.u8(0); // number of parameters
 	}
 
 	static async decodeMessage(r: Reader): Promise<Announce> {
 		const trackNamespace = await Namespace.decode(r);
+		const numParams = await r.u8();
+		if (numParams > 0) {
+			throw new Error("unsupported announce parameters");
+		}
 		return new Announce(trackNamespace);
 	}
 }
@@ -89,25 +94,18 @@ export class AnnounceCancel {
 export class Unannounce {
 	static readonly id = 0x09;
 
-	trackNamespace: string[];
+	trackNamespace: Path.Valid;
 
-	constructor(trackNamespace: string[]) {
+	constructor(trackNamespace: Path.Valid) {
 		this.trackNamespace = trackNamespace;
 	}
 
 	async encodeMessage(w: Writer): Promise<void> {
-		await w.u53(this.trackNamespace.length);
-		for (const part of this.trackNamespace) {
-			await w.string(part);
-		}
+		await Namespace.encode(w, this.trackNamespace);
 	}
 
 	static async decodeMessage(r: Reader): Promise<Unannounce> {
-		const trackNamespaceLength = await r.u53();
-		const trackNamespace: string[] = [];
-		for (let i = 0; i < trackNamespaceLength; i++) {
-			trackNamespace.push(await r.string());
-		}
+		const trackNamespace = await Namespace.decode(r);
 		return new Unannounce(trackNamespace);
 	}
 }
