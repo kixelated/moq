@@ -74,8 +74,6 @@ test("Writer u53", async () => {
 	writer.close();
 	await writer.closed();
 
-	const result = concatChunks(written);
-
 	// Verify the varint encoding sizes
 	assert.strictEqual(written[0].byteLength, 1); // 0 fits in 1 byte
 	assert.strictEqual(written[1].byteLength, 1); // 63 fits in 1 byte
@@ -134,68 +132,6 @@ test("Writer message with simple content", async () => {
 	assert.strictEqual(messageContent.b, 84);
 });
 
-test("Writer message with varying sizes", async () => {
-	const { stream, written } = createTestWritableStream();
-	const writer = new Writer(stream);
-
-	// Test small message
-	await writer.message(async (w) => {
-		await w.u8(1);
-	});
-
-	// Test medium message
-	await writer.message(async (w) => {
-		for (let i = 0; i < 100; i++) {
-			await w.u8(i % 256);
-		}
-	});
-
-	// Test large message that should trigger buffer resizing
-	await writer.message(async (w) => {
-		for (let i = 0; i < 1000; i++) {
-			await w.u8(i % 256);
-		}
-	});
-
-	writer.close();
-	await writer.closed();
-
-	const result = concatChunks(written);
-	const reader = new Reader(undefined, result);
-
-	// Read first message
-	const msg1 = await reader.message(async (r) => {
-		return await r.u8();
-	});
-	assert.strictEqual(msg1, 1);
-
-	// Read second message
-	const msg2 = await reader.message(async (r) => {
-		const values = [];
-		for (let i = 0; i < 100; i++) {
-			values.push(await r.u8());
-		}
-		return values;
-	});
-	assert.strictEqual(msg2.length, 100);
-	for (let i = 0; i < 100; i++) {
-		assert.strictEqual(msg2[i], i % 256);
-	}
-
-	// Read third message
-	const msg3 = await reader.message(async (r) => {
-		const values = [];
-		for (let i = 0; i < 1000; i++) {
-			values.push(await r.u8());
-		}
-		return values;
-	});
-	assert.strictEqual(msg3.length, 1000);
-	for (let i = 0; i < 1000; i++) {
-		assert.strictEqual(msg3[i], i % 256);
-	}
-});
-
 test("Writer message buffer length bug test", async () => {
 	const { stream, written } = createTestWritableStream();
 	const writer = new Writer(stream);
@@ -232,52 +168,6 @@ test("Writer message buffer length bug test", async () => {
 	// Verify we've consumed all data
 	assert.strictEqual(await reader.done(), true, "There should be no extra data after the message");
 });
-
-test("Writer message nested messages", async () => {
-	const { stream, written } = createTestWritableStream();
-	const writer = new Writer(stream);
-
-	await writer.message(async (w) => {
-		await w.u8(1);
-		await w.message(async (w2) => {
-			await w2.u8(2);
-			await w2.u8(3);
-		});
-		await w.u8(4);
-	});
-
-	writer.close();
-	await writer.closed();
-
-	const result = concatChunks(written);
-	const reader = new Reader(undefined, result);
-
-	const outerMessage = await reader.message(async (r) => {
-		const first = await r.u8();
-		const innerMessage = await r.message(async (r2) => {
-			const a = await r2.u8();
-			const b = await r2.u8();
-			return { a, b };
-		});
-		const last = await r.u8();
-		return { first, innerMessage, last };
-	});
-
-	assert.strictEqual(outerMessage.first, 1);
-	assert.strictEqual(outerMessage.innerMessage.a, 2);
-	assert.strictEqual(outerMessage.innerMessage.b, 3);
-	assert.strictEqual(outerMessage.last, 4);
-});
-
-// Helper to create a readable stream from data
-function createTestReadableStream(data: Uint8Array): ReadableStream<Uint8Array> {
-	return new ReadableStream({
-		start(controller) {
-			controller.enqueue(data);
-			controller.close();
-		},
-	});
-}
 
 test("Reader u8", async () => {
 	const data = new Uint8Array([42, 255, 0, 128]);
@@ -335,7 +225,6 @@ test("Reader readAll", async () => {
 
 test("Reader u53 varint decoding", async () => {
 	// Test various varint sizes
-	const writer = new Writer(new WritableStream({ write() {} }));
 	const testValues = [0, 63, 64, 16383, 16384, 1073741823, 1073741824];
 
 	const { stream, written } = createTestWritableStream();

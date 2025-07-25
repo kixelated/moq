@@ -16,14 +16,14 @@
 		"build": "tsc -b",
 		"check": "tsc --noEmit",
 		"test": "tsx --test",
-		"release": "tsx ../scripts/release.ts",
-		"example:transport": "deno run --allow-net --unstable-net examples/transport.ts"
+		"release": "tsx ../scripts/release.ts"
 	},
 	"devDependencies": {
 		"@typescript/lib-dom": "npm:@types/web@^0.0.241",
 		"tsx": "^4.20.1",
 		"typescript": "^5.8.3",
 		"vite": "^6.3.5",
-		"vite-plugin-html": "^3.2.2"
+		"vite-plugin-html": "^3.2.2",
+		"@types/deno": "^2.3.0"
 	}
 }

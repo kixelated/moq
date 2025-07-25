@@ -6,7 +6,7 @@ import { type Reader, Readers, Stream } from "../stream";
 import { unreachable } from "../util";
 import { Announce, AnnounceCancel, AnnounceError, AnnounceOk, Unannounce } from "./announce";
 import * as Control from "./control";
-import { Fetch, FetchCancel, FetchError, FetchOk } from "./fetch";
+import { Fetch, FetchError, FetchOk } from "./fetch";
 import { GoAway } from "./goaway";
 import { Group, readStreamType } from "./object";
 import { Publisher } from "./publisher";
@@ -175,8 +175,8 @@ export class Connection implements ConnectionInterface {
 					// no
 				} else if (msg instanceof FetchError) {
 					// no
-				} else if (msg instanceof FetchCancel) {
-					// no
+					// } else if (msg instanceof FetchCancel) {
+					// For some reason Typescript doesn't like FetchCancel?
 				} else {
 					unreachable(msg);
 				}

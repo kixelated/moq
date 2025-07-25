@@ -1,14 +1,24 @@
-#!/usr/bin/env deno run --allow-net --unstable-net --unstable-sloppy-imports examples/transport_publish.ts
+#!/usr/bin/env -S deno run --allow-net --allow-env --unstable-net
 
 /**
  * Usage:
- *   deno run --allow-net --unstable-net examples/transport.ts
+ *   ./transport_publish.ts [hostname]
+ *   MOQ_HOST=relay.example.com ./transport_publish.ts
+ *   deno run --allow-net --allow-env --unstable-net examples/transport_publish.ts relay.example.com
  */
 
 import { BroadcastProducer, Path } from "../src";
 import { connect } from "../src/transport";
 
-const SERVER_URL = new URL("https://relay.cloudflare.mediaoverquic.com");
+// Get hostname from command line argument or environment variable
+const hostname = Deno.args[0] || Deno.env.get("MOQ_HOST");
+if (!hostname) {
+	console.error("Error: No hostname provided");
+	console.error("Usage: ./transport_publish.ts [hostname]");
+	console.error("   or: MOQ_HOST=relay.example.com ./transport_publish.ts");
+	Deno.exit(1);
+}
+const SERVER_URL = new URL(`https://${hostname}`);
 const connection = await connect(SERVER_URL);
 
 console.log("✅ Connected to moq-transport-07 server");
