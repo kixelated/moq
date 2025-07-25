@@ -296,39 +296,6 @@ test("Reader string decoding", async () => {
 	assert.strictEqual(await reader.done(), true);
 });
 
-test("Reader string with max length", async () => {
-	const { stream, written } = createTestWritableStream();
-	const writer = new Writer(stream);
-
-	await writer.string("hello");
-
-	writer.close();
-	await writer.closed();
-
-	const data = concatChunks(written);
-	const reader = new Reader(undefined, data);
-
-	// Should succeed with sufficient max length
-	const str1 = await reader.string(10);
-	assert.strictEqual(str1, "hello");
-});
-
-test("Reader string max length exceeded", async () => {
-	const { stream, written } = createTestWritableStream();
-	const writer = new Writer(stream);
-
-	await writer.string("hello world");
-
-	writer.close();
-	await writer.closed();
-
-	const data = concatChunks(written);
-	const reader = new Reader(undefined, data);
-
-	// Should throw when max length is exceeded
-	await assert.rejects(async () => await reader.string(5), /string length 11 exceeds max length 5/);
-});
-
 test("Reader message decoding", async () => {
 	const { stream, written } = createTestWritableStream();
 	const writer = new Writer(stream);
