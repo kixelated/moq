@@ -11,14 +11,6 @@ The compatibility layer allows the same client API to work with both moq-lite an
 ### Directory Structure
 - **src/lite/**: Contains moq-lite protocol implementation (renamed from src/wire/)
 - **src/transport/**: Contains moq-transport-07 protocol implementation
-- **src/stream.ts**: Generic stream handling utilities (moved from src/wire/stream.ts)
-
-### Generic Stream Layer
-The stream.ts file has been made protocol-agnostic:
-- Removed hardcoded message type handling
-- Added generic interfaces `StreamMessage` and `StreamMessageDecoder<T>`
-- Made `Stream.accept()`, `Stream.open()`, and `Writer.open()` methods generic
-- Updated `Readers<T>` class to accept decoder maps
 
 ## Compatibility Layer Design
 
@@ -26,11 +18,16 @@ The stream.ts file has been made protocol-agnostic:
 Since moq-lite and moq-transport use different handshake messages, **users must explicitly specify the protocol version during connection setup**:
 
 ```typescript
-// For moq-lite
-const client = new MoQClient({ protocol: 'lite' });
+import * as Moq from "@kixelated/moq"
 
-// For moq-transport  
-const client = new MoQClient({ protocol: 'transport' });
+// For moq-lite
+const client = Moq.Lite.connect(url);
+
+// For moq-transport
+const client = Moq.Transport.connect(url);
+
+// Defaults to moq-lite
+const client = Moq.connect(url);
 ```
 
 **Rationale**: The handshake messages are fundamentally different:
@@ -49,7 +46,7 @@ The compatibility layer will **ONLY** support features equivalent to moq-lite ca
 
 #### ❌ Unsupported (moq-transport extensions)
 - **Track delivery mode**: Objects delivered per track stream
-- **Datagram delivery mode**: Objects delivered via datagrams  
+- **Datagram delivery mode**: Objects delivered via datagrams
 - **Complex subscription filters**: Latest Group/Object, Absolute Start/Range
 - **Relay features**: Namespace routing, caching hints
 - **Partial object retrieval**: Object range requests
@@ -60,12 +57,10 @@ When connected to a moq-transport server that attempts to use unsupported featur
 
 ```typescript
 // If server sends Track or Datagram delivery mode
-throw new MoQError("UNSUPPORTED_DELIVERY_MODE", 
-  "Server attempted to use delivery mode not supported by moq-lite compatibility");
+throw new Error("Server attempted to use delivery mode not supported by moq-lite compatibility");
 
-// If server uses complex subscription filters  
-throw new MoQError("UNSUPPORTED_FILTER", 
-  "Server attempted to use subscription filter not supported by moq-lite compatibility");
+// If server uses complex subscription filters
+throw new Error("Server attempted to use subscription filter not supported by moq-lite compatibility");
 ```
 
 **Connection Behavior**: These errors will close the connection immediately since they indicate fundamental protocol mismatches.
@@ -75,36 +70,26 @@ throw new MoQError("UNSUPPORTED_FILTER",
 The client API remains identical regardless of underlying protocol:
 
 ```typescript
-interface MoQClient {
-  // Same API for both protocols
-  subscribe(track: string, priority?: number): Promise<Subscription>;
-  publish(track: string): Promise<Publisher>; 
-  close(): Promise<void>;
+// Same API for both
+interface Connection {
+	readonly url: URL;
+
+	announced(prefix?: Path.Valid): AnnouncedConsumer;
+	publish(name: Path.Valid, broadcast: BroadcastConsumer): void;
+	consume(broadcast: Path.Valid): BroadcastConsumer;
+	close(): void;
+	closed(): Promise<void>;
 }
+
 ```
 
 **Internal Translation**:
 - moq-lite: Direct message mapping
-- moq-transport: 
+- moq-transport:
   - `Subscribe` messages use only basic track-level subscriptions
   - Force `DeliveryMode.Subgroup` for all subscriptions
   - Ignore advanced parameters/filters
 
-### 5. Implementation Strategy
-
-```typescript
-// Protocol factory pattern
-class MoQClientFactory {
-  static create(options: { protocol: 'lite' | 'transport' }): MoQClient {
-    switch (options.protocol) {
-      case 'lite':
-        return new MoQLiteClient();
-      case 'transport': 
-        return new MoQTransportClient(); // Limited to lite-equivalent features
-    }
-  }
-}
-```
 
 ### 6. Message Mapping
 
@@ -123,7 +108,7 @@ class MoQClientFactory {
 // moq-lite versions
 const LITE_VERSIONS = [0xff0dad04, 0xff0dad03, 0xff0dad02];
 
-// moq-transport versions  
+// moq-transport versions
 const TRANSPORT_VERSIONS = [0x00000001];
 ```
 
@@ -138,7 +123,7 @@ Since handshakes are different, no automatic version negotiation is possible. Us
 ## Implementation Status
 
 - [x] Refactor stream.ts to be protocol-agnostic
-- [x] Create src/lite/ directory with moq-lite implementation  
+- [x] Create src/lite/ directory with moq-lite implementation
 - [x] Create src/transport/ directory with basic moq-transport messages
 - [ ] Implement MoQClient factory and protocol switching
 - [ ] Add comprehensive error handling for unsupported features
@@ -156,6 +141,6 @@ Since handshakes are different, no automatic version negotiation is possible. Us
 
 The compatibility layer should be tested with:
 - moq-lite servers using all supported message types
-- moq-transport servers configured to use only lite-equivalent features  
+- moq-transport servers configured to use only lite-equivalent features
 - moq-transport servers that attempt to use unsupported features (error cases)
 - Integration tests ensuring API compatibility across both protocols

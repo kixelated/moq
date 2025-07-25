@@ -132,7 +132,7 @@ export class Publisher {
 		const serving = this.#runTrack(msg.id, msg.broadcast, track, stream.writer);
 
 		for (;;) {
-			const decode = Lite.SubscribeUpdate.decode_maybe(stream.reader);
+			const decode = Lite.SubscribeUpdate.decodeMaybe(stream.reader);
 
 			const result = await Promise.any([serving, decode]);
 			if (!result) break;

@@ -1,6 +1,3 @@
-import type { Valid } from "./path";
-import * as Path from "./path";
-
 const MAX_U6 = 2 ** 6 - 1;
 const MAX_U14 = 2 ** 14 - 1;
 const MAX_U30 = 2 ** 30 - 1;
@@ -53,19 +50,22 @@ export class Stream {
 // Unfortunately we can't use a BYOB reader because it's not supported with WebTransport+WebWorkers yet.
 export class Reader {
 	#buffer: Uint8Array;
-	#stream: ReadableStream<Uint8Array>;
-	#reader: ReadableStreamDefaultReader<Uint8Array>;
+	#stream?: ReadableStream<Uint8Array>; // if undefined, the buffer is consumed then EOF
+	#reader?: ReadableStreamDefaultReader<Uint8Array>;
 
-	constructor(stream: ReadableStream<Uint8Array>, buffer = new Uint8Array()) {
-		this.#buffer = buffer;
+	// Either stream or buffer MUST be provided.
+	constructor(stream: ReadableStream<Uint8Array>, buffer?: Uint8Array);
+	constructor(stream: undefined, buffer: Uint8Array);
+	constructor(stream?: ReadableStream<Uint8Array>, buffer?: Uint8Array) {
+		this.#buffer = buffer ?? new Uint8Array();
 		this.#stream = stream;
-		this.#reader = this.#stream.getReader();
+		this.#reader = this.#stream?.getReader();
 	}
 
 	// Adds more data to the buffer, returning true if more data was added.
 	async #fill(): Promise<boolean> {
-		const result = await this.#reader.read();
-		if (result.done) {
+		const result = await this.#reader?.read();
+		if (!result || result.done) {
 			return false;
 		}
 
@@ -124,9 +124,25 @@ export class Reader {
 		return new TextDecoder().decode(buffer);
 	}
 
-	async path(): Promise<Valid> {
-		const str = await this.string();
-		return Path.from(str);
+	// Reads a message with a varint size prefix.
+	async message<T>(f: (r: Reader) => Promise<T>): Promise<T> {
+		const size = await this.u53();
+		const messageData = await this.read(size);
+
+		const limit = new Reader(undefined, messageData);
+		const msg = await f(limit);
+
+		// Check that we consumed exactly the right number of bytes
+		if (!(await limit.done())) {
+			throw new Error("Message decoding consumed too few bytes");
+		}
+
+		return msg;
+	}
+
+	async messageMaybe<T>(f: (r: Reader) => Promise<T>): Promise<T | undefined> {
+		if (await this.done()) return;
+		return await this.message(f);
 	}
 
 	async u8(): Promise<number> {
@@ -181,23 +197,31 @@ export class Reader {
 	}
 
 	stop(reason: unknown) {
-		this.#reader.cancel(reason).catch(() => void 0);
+		this.#reader?.cancel(reason).catch(() => void 0);
 	}
 
 	async closed() {
-		return this.#reader.closed;
+		await this.#reader?.closed;
 	}
 }
 
 // Writer wraps a stream and writes chunks of data
 export class Writer {
-	#scratch: Uint8Array;
 	#writer: WritableStreamDefaultWriter<Uint8Array>;
 	#stream: WritableStream<Uint8Array>;
 
+	// Scratch buffer for writing varints.
+	// Fixed at 8 bytes.
+	#scratch: ArrayBuffer;
+
+	// Scratch buffer for writing messages.
+	// Starts at 0 bytes, grows as needed.
+	#message: ArrayBuffer;
+
 	constructor(stream: WritableStream<Uint8Array>) {
 		this.#stream = stream;
-		this.#scratch = new Uint8Array(8);
+		this.#scratch = new ArrayBuffer(8);
+		this.#message = new ArrayBuffer(0);
 		this.#writer = this.#stream.getWriter();
 	}
 
@@ -243,14 +267,50 @@ export class Writer {
 		await this.#writer.write(v);
 	}
 
+	// Writes a message with a varint size prefix.
+	async message(f: (w: Writer) => Promise<void>) {
+		let scratch = new Uint8Array(this.#message, 0, 0);
+
+		const temp = new Writer(
+			new WritableStream({
+				write(chunk: Uint8Array) {
+					const needed = scratch.byteLength + chunk.byteLength;
+					if (needed > scratch.buffer.byteLength) {
+						// Resize the buffer to the needed size.
+						const capacity = Math.max(needed, scratch.buffer.byteLength * 2);
+						const newBuffer = new ArrayBuffer(capacity);
+						const newScratch = new Uint8Array(newBuffer, 0, needed);
+
+						// Copy the old data into the new buffer.
+						newScratch.set(scratch);
+
+						// Copy the new chunk into the new buffer.
+						newScratch.set(chunk, scratch.byteLength);
+
+						scratch = newScratch;
+					} else {
+						// Copy chunk data into buffer
+						scratch = new Uint8Array(scratch.buffer, 0, needed);
+						scratch.set(chunk, needed - chunk.byteLength);
+					}
+				},
+			}),
+		);
+
+		await f(temp);
+		temp.close();
+		await temp.closed();
+
+		await this.u53(scratch.byteLength);
+		await this.write(scratch);
+
+		this.#message = scratch.buffer;
+	}
+
 	async string(str: string) {
 		const data = new TextEncoder().encode(str);
 		await this.u53(data.byteLength);
 		await this.write(data);
-	}
-
-	async path(path: Valid) {
-		await this.string(path);
 	}
 
 	close() {
@@ -271,33 +331,31 @@ export class Writer {
 	}
 }
 
-export function setUint8(dst: Uint8Array, v: number): Uint8Array {
-	dst[0] = v;
-	return dst.slice(0, 1);
+export function setUint8(dst: ArrayBuffer, v: number): Uint8Array {
+	const buffer = new Uint8Array(dst, 0, 1);
+	buffer[0] = v;
+	return buffer
 }
 
-export function setUint16(dst: Uint8Array, v: number): Uint8Array {
-	const view = new DataView(dst.buffer, dst.byteOffset, 2);
+export function setUint16(dst: ArrayBuffer, v: number): Uint8Array {
+	const view = new DataView(dst, 0, 2);
 	view.setUint16(0, v);
-
 	return new Uint8Array(view.buffer, view.byteOffset, view.byteLength);
 }
 
-export function setInt32(dst: Uint8Array, v: number): Uint8Array {
-	const view = new DataView(dst.buffer, dst.byteOffset, 4);
+export function setInt32(dst: ArrayBuffer, v: number): Uint8Array {
+	const view = new DataView(dst, 0, 4);
 	view.setInt32(0, v);
-
 	return new Uint8Array(view.buffer, view.byteOffset, view.byteLength);
 }
 
-export function setUint32(dst: Uint8Array, v: number): Uint8Array {
-	const view = new DataView(dst.buffer, dst.byteOffset, 4);
+export function setUint32(dst: ArrayBuffer, v: number): Uint8Array {
+	const view = new DataView(dst, 0, 4);
 	view.setUint32(0, v);
-
 	return new Uint8Array(view.buffer, view.byteOffset, view.byteLength);
 }
 
-export function setVint53(dst: Uint8Array, v: number): Uint8Array {
+export function setVint53(dst: ArrayBuffer, v: number): Uint8Array {
 	if (v <= MAX_U6) {
 		return setUint8(dst, v);
 	}
@@ -313,7 +371,7 @@ export function setVint53(dst: Uint8Array, v: number): Uint8Array {
 	throw new Error(`overflow, value larger than 53-bits: ${v.toString()}`);
 }
 
-export function setVint62(dst: Uint8Array, v: bigint): Uint8Array {
+export function setVint62(dst: ArrayBuffer, v: bigint): Uint8Array {
 	if (v < MAX_U6) {
 		return setUint8(dst, Number(v));
 	}
@@ -329,10 +387,9 @@ export function setVint62(dst: Uint8Array, v: bigint): Uint8Array {
 	//throw new Error(`overflow, value larger than 62-bits: ${v}`);
 }
 
-export function setUint64(dst: Uint8Array, v: bigint): Uint8Array {
-	const view = new DataView(dst.buffer, dst.byteOffset, 8);
+export function setUint64(dst: ArrayBuffer, v: bigint): Uint8Array {
+	const view = new DataView(dst, 0, 8);
 	view.setBigUint64(0, v);
-
 	return new Uint8Array(view.buffer, view.byteOffset, view.byteLength);
 }
 

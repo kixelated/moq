@@ -1,6 +1,6 @@
+import { Path } from "..";
 import type { Valid } from "../path";
 import type { Reader, Writer } from "../stream";
-import * as Message from "./message";
 
 export class Announce {
 	suffix: Valid;
@@ -11,29 +11,27 @@ export class Announce {
 		this.active = active;
 	}
 
-	async encodeBody(w: Writer) {
+	async #encode(w: Writer) {
 		await w.u8(this.active ? 1 : 0);
-		await w.path(this.suffix);
+		await w.string(this.suffix);
 	}
 
-	static async decodeBody(r: Reader): Promise<Announce> {
+	static async #decode(r: Reader): Promise<Announce> {
 		const active = (await r.u8()) === 1;
-		const suffix = await r.path();
+		const suffix = Path.from(await r.string());
 		return new Announce(suffix, active);
 	}
 
-	// Wrapper methods that automatically handle size prefixing
 	async encode(w: Writer): Promise<void> {
-		return Message.encode(this, w);
+		return w.message(this.#encode.bind(this));
 	}
 
 	static async decode(r: Reader): Promise<Announce> {
-		return Message.decode(Announce, r);
+		return r.message(Announce.#decode);
 	}
 
-	static async decode_maybe(r: Reader): Promise<Announce | undefined> {
-		if (await r.done()) return;
-		return Announce.decode(r);
+	static async decodeMaybe(r: Reader): Promise<Announce | undefined> {
+		return r.messageMaybe(Announce.#decode);
 	}
 }
 
@@ -45,22 +43,21 @@ export class AnnounceInterest {
 		this.prefix = prefix;
 	}
 
-	async encodeBody(w: Writer) {
-		await w.path(this.prefix);
+	async #encode(w: Writer) {
+		await w.string(this.prefix);
 	}
 
-	static async decodeBody(r: Reader): Promise<AnnounceInterest> {
-		const prefix = await r.path();
+	static async #decode(r: Reader): Promise<AnnounceInterest> {
+		const prefix = Path.from(await r.string());
 		return new AnnounceInterest(prefix);
 	}
 
-	// Wrapper methods that automatically handle size prefixing
 	async encode(w: Writer): Promise<void> {
-		return Message.encode(this, w);
+		return w.message(this.#encode.bind(this));
 	}
 
 	static async decode(r: Reader): Promise<AnnounceInterest> {
-		return Message.decode(AnnounceInterest, r);
+		return r.message(AnnounceInterest.#decode);
 	}
 }
 
@@ -71,28 +68,27 @@ export class AnnounceInit {
 		this.suffixes = paths;
 	}
 
-	async encodeBody(w: Writer) {
+	async #encode(w: Writer) {
 		await w.u53(this.suffixes.length);
 		for (const path of this.suffixes) {
-			await w.path(path);
+			await w.string(path);
 		}
 	}
 
-	static async decodeBody(r: Reader): Promise<AnnounceInit> {
+	static async #decode(r: Reader): Promise<AnnounceInit> {
 		const count = await r.u53();
 		const suffixes: Valid[] = [];
 		for (let i = 0; i < count; i++) {
-			suffixes.push(await r.path());
+			suffixes.push(Path.from(await r.string()));
 		}
 		return new AnnounceInit(suffixes);
 	}
 
-	// Wrapper methods that automatically handle size prefixing
 	async encode(w: Writer): Promise<void> {
-		return Message.encode(this, w);
+		return w.message(this.#encode.bind(this));
 	}
 
 	static async decode(r: Reader): Promise<AnnounceInit> {
-		return Message.decode(AnnounceInit, r);
+		return r.message(AnnounceInit.#decode);
 	}
 }

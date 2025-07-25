@@ -61,7 +61,7 @@ export class Subscriber {
 
 				// Then receive updates
 				for (;;) {
-					const announce = await Lite.Announce.decode_maybe(stream.reader);
+					const announce = await Lite.Announce.decodeMaybe(stream.reader);
 					if (!announce) {
 						break;
 					}

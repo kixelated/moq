@@ -1,120 +1,186 @@
 import type { Reader, Writer } from "../stream";
-import * as Message from "./message";
 
-export class ClientSetup implements Message.Encode {
-	static StreamID = 0x40;
+export const Version = 0xff000007;
 
-	supportedVersions: number[];
-	parameters: Map<number, Uint8Array>;
+export class Role {
+	static id = 0x00;
+	role: "publisher" | "subscriber" | "both";
 
-	constructor(supportedVersions: number[], parameters: Map<number, Uint8Array> = new Map()) {
-		this.supportedVersions = supportedVersions;
+	constructor(role: "publisher" | "subscriber" | "both") {
+		this.role = role;
+	}
+
+	async encodeMessage(w: Writer): Promise<void> {
+		const value = this.role === "publisher" ? 0x01 : this.role === "subscriber" ? 0x02 : 0x03;
+		await w.u53(value);
+	}
+
+	static async decodeMessage(r: Reader): Promise<Role> {
+		const value = await r.u53();
+		switch (value) {
+			case 0x01:
+				return new Role("publisher");
+			case 0x02:
+				return new Role("subscriber");
+			case 0x03:
+				return new Role("both");
+			default:
+				throw new Error(`invalid role: ${value}`);
+		}
+	}
+}
+
+export class Path {
+	static id = 0x01;
+
+	path: string;
+
+	constructor(path: string) {
+		this.path = path;
+	}
+
+	async encodeMessage(w: Writer): Promise<void> {
+		await w.string(this.path);
+	}
+
+	static async decodeMessage(r: Reader): Promise<Path> {
+		const path = await r.string();
+		return new Path(path);
+	}
+}
+
+export class MaxSubscribeId {
+	static id = 0x02;
+
+	maxSubscribeId: number;
+
+	constructor(maxSubscribeId: number) {
+		this.maxSubscribeId = maxSubscribeId;
+	}
+
+	async encodeMessage(w: Writer): Promise<void> {
+		await w.u53(this.maxSubscribeId);
+	}
+
+	static async decodeMessage(r: Reader): Promise<MaxSubscribeId> {
+		const maxSubscribeId = await r.u53();
+		return new MaxSubscribeId(maxSubscribeId);
+	}
+}
+
+const Parameters = {
+	[Role.id]: Role,
+	[Path.id]: Path,
+	[MaxSubscribeId.id]: MaxSubscribeId,
+} as const;
+
+export type ParameterId = keyof typeof Parameters;
+
+export type ParameterType = (typeof Parameters)[keyof typeof Parameters];
+
+// Type for control message instances (not constructors)
+export type Parameter = InstanceType<ParameterType>;
+
+export class Client{
+	static id = 0x40;
+
+	parameters: Parameter[];
+
+	constructor(...parameters: Parameter[]) {
 		this.parameters = parameters;
 	}
 
-	async encode(w: Writer): Promise<void> {
-		await Message.encode(w, this, this.encodeBody);
-	}
-
-	async encodeBody(w: Writer): Promise<void> {
-		// Number of supported versions
-		await w.u53(this.supportedVersions.length);
-
-		// Supported versions
-		for (const version of this.supportedVersions) {
-			await w.u53(version);
-		}
+	async encodeMessage(w: Writer): Promise<void> {
+		await w.u8(0x01); // 1 support version
+		await w.u53(Version);
 
 		// Number of parameters
-		await w.u53(this.parameters.size);
+		await w.u53(this.parameters.length);
 
 		// Parameters
-		for (const [key, value] of this.parameters) {
-			await w.u53(key);
-			await w.u53(value.length);
-			await w.write(value);
+		for (const parameter of this.parameters) {
+			await w.u53((parameter.constructor as ParameterType).id);
+			await w.message(parameter.encodeMessage.bind(parameter));
 		}
 	}
 
-	static async decodeBody(r: Reader): Promise<ClientSetup> {
+	static async decodeMessage(r: Reader): Promise<Client> {
 		// Number of supported versions
 		const numVersions = await r.u53();
 		const supportedVersions: number[] = [];
 
 		for (let i = 0; i < numVersions; i++) {
-			supportedVersions.push(await r.u53());
+			const version = await r.u53();
+			supportedVersions.push(version);
+		}
+
+		if (!supportedVersions.some((v) => v === Version)) {
+			throw new Error(`unsupported versions: ${supportedVersions.join(", ")}`);
 		}
 
 		// Number of parameters
 		const numParams = await r.u53();
-		const parameters = new Map<number, Uint8Array>();
+		const parameters: Parameter[] = [];
 
 		for (let i = 0; i < numParams; i++) {
 			const key = await r.u53();
-			const length = await r.u53();
-			const value = await r.read(length);
-			parameters.set(key, value);
+			const f = Parameters[key];
+			if (!f) {
+				throw new Error(`unknown parameter: ${key}`);
+			}
+			parameters.push(await f.decodeMessage(r));
 		}
 
-		return new ClientSetup(supportedVersions, parameters);
+		return new Client(...parameters);
 	}
 }
 
-export class ServerSetup implements Message.Encode {
-	static StreamID = 0x41;
+export class Server {
+	static id = 0x41;
 
-	selectedVersion: number;
-	parameters: Map<number, Uint8Array>;
+	parameters: Parameter[];
 
-	constructor(selectedVersion: number, parameters: Map<number, Uint8Array> = new Map()) {
-		this.selectedVersion = selectedVersion;
+	constructor(...parameters: Parameter[]) {
 		this.parameters = parameters;
 	}
 
-	async encode(w: Writer): Promise<void> {
-		await Message.encode(w, this, this.encodeBody);
-	}
-
-	async encodeBody(w: Writer): Promise<void> {
+	async encodeMessage(w: Writer): Promise<void> {
 		// Selected version
-		await w.u53(this.selectedVersion);
+		await w.u53(Version);
 
 		// Number of parameters
-		await w.u53(this.parameters.size);
+		await w.u53(this.parameters.length);
 
 		// Parameters
-		for (const [key, value] of this.parameters) {
-			await w.u53(key);
-			await w.u53(value.length);
-			await w.write(value);
+		for (const parameter of this.parameters) {
+			await w.u53((parameter.constructor as ParameterType).id);
+			await w.message(parameter.encodeMessage.bind(parameter));
 		}
 	}
 
-	static async decodeBody(r: Reader): Promise<ServerSetup> {
+	static async decodeMessage(r: Reader): Promise<Server> {
 		// Selected version
 		const selectedVersion = await r.u53();
+		if (selectedVersion !== Version) {
+			throw new Error(`unsupported server version: ${selectedVersion.toString(16)}`);
+		}
 
 		// Number of parameters
 		const numParams = await r.u53();
-		const parameters = new Map<number, Uint8Array>();
+		const parameters: Parameter[] = [];
 
 		for (let i = 0; i < numParams; i++) {
-			const key = await r.u53();
-			const length = await r.u53();
-			const value = await r.read(length);
-			parameters.set(key, value);
+			// Read message type
+			const parameterType = await r.u53();
+			if (!(parameterType in Parameters)) {
+				throw new Error(`Unknown parameter type: ${parameterType}`);
+			}
+
+			const f: (r: Reader) => Promise<Parameter> = Parameters[parameterType].decodeMessage;
+			const parameter = await r.message(f);
+			parameters.push(parameter);
 		}
 
-		return new ServerSetup(selectedVersion, parameters);
+		return new Server(...parameters);
 	}
-
-	// Standard parameter keys from the spec
-	static readonly PARAM_ROLE = 0x00;
-	static readonly PARAM_PATH = 0x01;
-	static readonly PARAM_MAX_SUBSCRIBE_ID = 0x02;
-
-	// Role values
-	static readonly ROLE_PUBLISHER = 0x01;
-	static readonly ROLE_SUBSCRIBER = 0x02;
-	static readonly ROLE_PUBSUB = 0x03;
 }

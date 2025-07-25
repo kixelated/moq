@@ -1,6 +1,5 @@
-import type { Valid } from "../path";
+import * as Path from "../path";
 import type { Reader, Writer } from "../stream";
-import * as Message from "./message";
 
 export class SubscribeUpdate {
 	priority: number;
@@ -9,66 +8,65 @@ export class SubscribeUpdate {
 		this.priority = priority;
 	}
 
-	async encodeBody(w: Writer) {
+	async #encode(w: Writer) {
 		await w.u8(this.priority);
 	}
 
-	static async decodeBody(r: Reader): Promise<SubscribeUpdate> {
+	static async #decode(r: Reader): Promise<SubscribeUpdate> {
 		const priority = await r.u8();
 		return new SubscribeUpdate(priority);
 	}
 
-	// Wrapper methods that automatically handle size prefixing
 	async encode(w: Writer): Promise<void> {
-		return Message.encode(this, w);
+		return w.message(this.#encode.bind(this));
 	}
 
 	static async decode(r: Reader): Promise<SubscribeUpdate> {
-		return Message.decode(SubscribeUpdate, r);
+		return r.message(SubscribeUpdate.#decode);
 	}
 
-	static async decode_maybe(r: Reader): Promise<SubscribeUpdate | undefined> {
+	static async decodeMaybe(r: Reader): Promise<SubscribeUpdate | undefined> {
 		if (await r.done()) return;
 		return SubscribeUpdate.decode(r);
 	}
 }
 
-export class Subscribe extends SubscribeUpdate {
+export class Subscribe {
 	id: bigint;
-	broadcast: Valid;
+	broadcast: Path.Valid;
 	track: string;
+	priority: number;
 
 	static StreamID = 0x2;
 
-	constructor(id: bigint, broadcast: Valid, track: string, priority: number) {
-		super(priority);
+	constructor(id: bigint, broadcast: Path.Valid, track: string, priority: number) {
 		this.id = id;
 		this.broadcast = broadcast;
 		this.track = track;
+		this.priority = priority;
 	}
 
-	override async encodeBody(w: Writer) {
+	async #encode(w: Writer) {
 		await w.u62(this.id);
-		await w.path(this.broadcast);
+		await w.string(this.broadcast);
 		await w.string(this.track);
-		await super.encodeBody(w);
+		await w.u8(this.priority);
 	}
 
-	static override async decodeBody(r: Reader): Promise<Subscribe> {
+	static async #decode(r: Reader): Promise<Subscribe> {
 		const id = await r.u62();
-		const broadcast = await r.path();
+		const broadcast = Path.from(await r.string());
 		const track = await r.string();
-		const update = await SubscribeUpdate.decodeBody(r);
-		return new Subscribe(id, broadcast, track, update.priority);
+		const priority = await r.u8();
+		return new Subscribe(id, broadcast, track, priority);
 	}
 
-	// Wrapper methods that automatically handle size prefixing
-	override async encode(w: Writer): Promise<void> {
-		return Message.encode(this, w);
+	async encode(w: Writer): Promise<void> {
+		return w.message(this.#encode.bind(this));
 	}
 
-	static override async decode(r: Reader): Promise<Subscribe> {
-		return Message.decode(Subscribe, r);
+	static async decode(r: Reader): Promise<Subscribe> {
+		return r.message(Subscribe.#decode);
 	}
 }
 
@@ -79,21 +77,20 @@ export class SubscribeOk {
 		this.priority = priority;
 	}
 
-	async encodeBody(w: Writer) {
+	async #encode(w: Writer) {
 		await w.u8(this.priority);
 	}
 
-	static async decodeBody(r: Reader): Promise<SubscribeOk> {
+	static async #decode(r: Reader): Promise<SubscribeOk> {
 		const priority = await r.u8();
 		return new SubscribeOk(priority);
 	}
 
-	// Wrapper methods that automatically handle size prefixing
 	async encode(w: Writer): Promise<void> {
-		return Message.encode(this, w);
+		return w.message(this.#encode.bind(this));
 	}
 
 	static async decode(r: Reader): Promise<SubscribeOk> {
-		return Message.decode(SubscribeOk, r);
+		return r.message(SubscribeOk.#decode);
 	}
 }

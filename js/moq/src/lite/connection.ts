@@ -39,7 +39,7 @@ export class Connection implements ConnectionInterface {
 	 *
 	 * @internal
 	 */
-	private constructor(url: URL, quic: WebTransport, session: Stream) {
+	constructor(url: URL, quic: WebTransport, session: Stream) {
 		this.url = url;
 		this.#quic = quic;
 		this.#session = session;
@@ -48,90 +48,6 @@ export class Connection implements ConnectionInterface {
 		this.#subscriber = new Subscriber(this.#quic);
 
 		this.#run();
-	}
-
-	/**
-	 * Establishes a connection to a MOQ server.
-	 *
-	 * @param url - The URL of the server to connect to
-	 * @returns A promise that resolves to a Connection instance
-	 */
-	static async connect(url: URL): Promise<Connection> {
-		const options: WebTransportOptions = {
-			allowPooling: false,
-			congestionControl: "low-latency",
-			requireUnreliable: true,
-		};
-
-		const hexToBytes = (hex: string) => {
-			hex = hex.startsWith("0x") ? hex.slice(2) : hex;
-			if (hex.length % 2) {
-				throw new Error("invalid hex string length");
-			}
-
-			const matches = hex.match(/.{2}/g);
-			if (!matches) {
-				throw new Error("invalid hex string format");
-			}
-
-			return new Uint8Array(matches.map((byte) => parseInt(byte, 16)));
-		};
-
-		let adjustedUrl = url;
-
-		if (url.protocol === "http:") {
-			const fingerprintUrl = new URL(url);
-			fingerprintUrl.pathname = "/certificate.sha256";
-			console.warn(
-				fingerprintUrl.toString(),
-				"performing an insecure fingerprint fetch; use https:// in production",
-			);
-
-			// Fetch the fingerprint from the server.
-			const fingerprint = await fetch(fingerprintUrl);
-			const fingerprintText = await fingerprint.text();
-
-			options.serverCertificateHashes = [
-				{
-					algorithm: "sha-256",
-					value: hexToBytes(fingerprintText),
-				},
-			];
-
-			adjustedUrl = new URL(url);
-			adjustedUrl.protocol = "https:";
-		}
-
-		const quic = new WebTransport(adjustedUrl, options);
-		await quic.ready;
-
-		const msg = new SessionClient([CURRENT_VERSION]);
-
-		const stream = await Stream.open(quic);
-		await stream.writer.u8(SessionClient.StreamID);
-		await msg.encode(stream.writer);
-
-		const server = await SessionServer.decode(stream.reader);
-		if (server.version !== CURRENT_VERSION) {
-			throw new Error(`unsupported server version: ${server.version.toString()}`);
-		}
-
-		const conn = new Connection(adjustedUrl, quic, stream);
-
-		// The connection is now ready to use
-		// Note: ANNOUNCE_INIT will be handled when announce streams are actually requested
-
-		const cleanup = () => {
-			conn.close();
-		};
-
-		// Attempt to close the connection when the window is closed.
-		document.addEventListener("pagehide", cleanup);
-		void conn.closed().then(() => {
-			document.removeEventListener("pagehide", cleanup);
-		});
-
-		return conn;
 	}
 
 	/**
@@ -193,7 +109,7 @@ export class Connection implements ConnectionInterface {
 	async #runSession() {
 		// Receive messages until the connection is closed.
 		for (;;) {
-			const msg = await SessionInfo.decode_maybe(this.#session.reader);
+			const msg = await SessionInfo.decodeMaybe(this.#session.reader);
 			if (!msg) break;
 			// TODO use the session info
 		}
@@ -273,3 +189,72 @@ export class Connection implements ConnectionInterface {
 		await this.#quic.closed;
 	}
 }
+
+	/**
+	 * Establishes a connection to a MOQ server.
+	 *
+	 * @param url - The URL of the server to connect to
+	 * @returns A promise that resolves to a Connection instance
+	 */
+	export async function connect(url: URL): Promise<Connection> {
+		const options: WebTransportOptions = {
+			allowPooling: false,
+			congestionControl: "low-latency",
+			requireUnreliable: true,
+		};
+
+		const hexToBytes = (hex: string) => {
+			hex = hex.startsWith("0x") ? hex.slice(2) : hex;
+			if (hex.length % 2) {
+				throw new Error("invalid hex string length");
+			}
+
+			const matches = hex.match(/.{2}/g);
+			if (!matches) {
+				throw new Error("invalid hex string format");
+			}
+
+			return new Uint8Array(matches.map((byte) => parseInt(byte, 16)));
+		};
+
+		let adjustedUrl = url;
+
+		if (url.protocol === "http:") {
+			const fingerprintUrl = new URL(url);
+			fingerprintUrl.pathname = "/certificate.sha256";
+			console.warn(
+				fingerprintUrl.toString(),
+				"performing an insecure fingerprint fetch; use https:// in production",
+			);
+
+			// Fetch the fingerprint from the server.
+			const fingerprint = await fetch(fingerprintUrl);
+			const fingerprintText = await fingerprint.text();
+
+			options.serverCertificateHashes = [
+				{
+					algorithm: "sha-256",
+					value: hexToBytes(fingerprintText),
+				},
+			];
+
+			adjustedUrl = new URL(url);
+			adjustedUrl.protocol = "https:";
+		}
+
+		const quic = new WebTransport(adjustedUrl, options);
+		await quic.ready;
+
+		const msg = new SessionClient([CURRENT_VERSION]);
+
+		const stream = await Stream.open(quic);
+		await stream.writer.u8(SessionClient.StreamID);
+		await msg.encode(stream.writer);
+
+		const server = await SessionServer.decode(stream.reader);
+		if (server.version !== CURRENT_VERSION) {
+			throw new Error(`unsupported server version: ${server.version.toString()}`);
+		}
+
+		return new Connection(adjustedUrl, quic, stream);
+	}

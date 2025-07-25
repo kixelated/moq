@@ -1,5 +1,4 @@
 import type { Reader, Writer } from "../stream";
-import * as Message from "./message";
 
 export class Group {
 	subscribe: bigint;
@@ -12,22 +11,25 @@ export class Group {
 		this.sequence = sequence;
 	}
 
-	async encodeBody(w: Writer) {
+	async #encode(w: Writer) {
 		await w.u62(this.subscribe);
 		await w.u53(this.sequence);
 	}
 
-	static async decodeBody(r: Reader): Promise<Group> {
+	static async #decode(r: Reader): Promise<Group> {
 		return new Group(await r.u62(), await r.u53());
 	}
 
-	// Wrapper methods that automatically handle size prefixing
 	async encode(w: Writer): Promise<void> {
-		return Message.encode(this, w);
+		return w.message(this.#encode.bind(this));
 	}
 
 	static async decode(r: Reader): Promise<Group> {
-		return Message.decode(Group, r);
+		return r.message(Group.#decode);
+	}
+
+	static async decodeMaybe(r: Reader): Promise<Group | undefined> {
+		return r.messageMaybe(Group.#decode);
 	}
 }
 
@@ -42,23 +44,26 @@ export class GroupDrop {
 		this.error = error;
 	}
 
-	async encodeBody(w: Writer) {
+	async #encode(w: Writer) {
 		await w.u53(this.sequence);
 		await w.u53(this.count);
 		await w.u53(this.error);
 	}
 
-	static async decodeBody(r: Reader): Promise<GroupDrop> {
+	static async #decode(r: Reader): Promise<GroupDrop> {
 		return new GroupDrop(await r.u53(), await r.u53(), await r.u53());
 	}
 
-	// Wrapper methods that automatically handle size prefixing
 	async encode(w: Writer): Promise<void> {
-		return Message.encode(this, w);
+		return w.message(this.#encode.bind(this));
 	}
 
 	static async decode(r: Reader): Promise<GroupDrop> {
-		return Message.decode(GroupDrop, r);
+		return r.message(GroupDrop.#decode);
+	}
+
+	static async decodeMaybe(r: Reader): Promise<GroupDrop | undefined> {
+		return r.messageMaybe(GroupDrop.#decode);
 	}
 }
 
@@ -69,23 +74,20 @@ export class Frame {
 		this.payload = payload;
 	}
 
-	async encodeBody(w: Writer) {
-		await w.u53(this.payload.byteLength);
+	async #encode(w: Writer) {
 		await w.write(this.payload);
 	}
 
-	static async decodeBody(r: Reader): Promise<Frame> {
-		const size = await r.u53();
-		const payload = await r.read(size);
+	static async #decode(r: Reader): Promise<Frame> {
+		const payload = await r.readAll();
 		return new Frame(payload);
 	}
 
-	// Wrapper methods that automatically handle size prefixing
 	async encode(w: Writer): Promise<void> {
-		return Message.encode(this, w);
+		return w.message(this.#encode.bind(this));
 	}
 
 	static async decode(r: Reader): Promise<Frame> {
-		return Message.decode(Frame, r);
+		return r.message(Frame.#decode);
 	}
 }
