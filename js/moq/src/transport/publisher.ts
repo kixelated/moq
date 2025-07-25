@@ -223,9 +223,7 @@ export class Publisher {
 		// TODO
 	}
 
-	async handleSubscribeAnnounces(_msg: SubscribeAnnounces) {
-	}
+	async handleSubscribeAnnounces(_msg: SubscribeAnnounces) {}
 
-	async handleUnsubscribeAnnounces(_msg: UnsubscribeAnnounces) {
-	}
+	async handleUnsubscribeAnnounces(_msg: UnsubscribeAnnounces) {}
 }

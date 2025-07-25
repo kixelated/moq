@@ -61,13 +61,7 @@ export class Subscribe {
 			throw new Error(`SUBSCRIBE: parameters not supported: ${numParams}`);
 		}
 
-		return new Subscribe(
-			subscribeId,
-			trackAlias,
-			trackNamespace,
-			trackName,
-			subscriberPriority,
-		);
+		return new Subscribe(subscribeId, trackAlias, trackNamespace, trackName, subscriberPriority);
 	}
 }
 

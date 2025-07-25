@@ -9,7 +9,6 @@ export async function encode(w: Writer, namespace: Path.Valid): Promise<void> {
 	}
 }
 
-
 export async function decode(r: Reader): Promise<Path.Valid> {
 	const parts: string[] = [];
 	const count = await r.u53();

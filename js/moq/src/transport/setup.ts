@@ -81,7 +81,7 @@ export type ParameterType = (typeof Parameters)[keyof typeof Parameters];
 // Type for control message instances (not constructors)
 export type Parameter = InstanceType<ParameterType>;
 
-export class Client{
+export class Client {
 	static id = 0x40;
 
 	parameters: Parameter[];

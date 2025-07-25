@@ -12,7 +12,12 @@ import { Group, readStreamType } from "./object";
 import { Publisher } from "./publisher";
 import * as Setup from "./setup";
 import { Subscribe, SubscribeDone, SubscribeError, SubscribeOk, Unsubscribe } from "./subscribe";
-import { SubscribeAnnounces, SubscribeAnnouncesError, SubscribeAnnouncesOk, UnsubscribeAnnounces } from "./subscribe_announces";
+import {
+	SubscribeAnnounces,
+	SubscribeAnnouncesError,
+	SubscribeAnnouncesOk,
+	UnsubscribeAnnounces,
+} from "./subscribe_announces";
 import { Subscriber } from "./subscriber";
 import { TrackStatus, TrackStatusRequest } from "./track";
 
@@ -241,7 +246,6 @@ export class Connection implements ConnectionInterface {
 	async #runObjectStream(stream: Reader) {
 		try {
 			await readStreamType(stream);
-
 
 			const header = await Group.decode(stream);
 			await this.#subscriber.handleGroup(header, stream);

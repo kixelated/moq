@@ -334,7 +334,7 @@ export class Writer {
 export function setUint8(dst: ArrayBuffer, v: number): Uint8Array {
 	const buffer = new Uint8Array(dst, 0, 1);
 	buffer[0] = v;
-	return buffer
+	return buffer;
 }
 
 export function setUint16(dst: ArrayBuffer, v: number): Uint8Array {
