@@ -1,6 +1,7 @@
 import type { Reader, Writer } from "../stream";
 
 export const Version = 0xff000007;
+const MAX_VERSIONS = 128;
 
 export class Role {
 	static id = 0x00;
@@ -107,6 +108,10 @@ export class Client {
 	static async decodeMessage(r: Reader): Promise<Client> {
 		// Number of supported versions
 		const numVersions = await r.u53();
+		if (numVersions > MAX_VERSIONS) {
+			throw new Error(`too many versions: ${numVersions}`);
+		}
+
 		const supportedVersions: number[] = [];
 
 		for (let i = 0; i < numVersions; i++) {

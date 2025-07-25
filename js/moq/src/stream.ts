@@ -7,6 +7,8 @@ const MAX_U53 = Number.MAX_SAFE_INTEGER;
 // TODO: Figure out why webpack is converting this to Math.pow
 //const MAX_U62: bigint = 2n ** 62n - 1n;
 
+const MAX_READ_SIZE = 1024 * 1024 * 64; // don't allocate more than 64MB for a message
+
 export class Stream {
 	reader: Reader;
 	writer: Writer;
@@ -85,6 +87,10 @@ export class Reader {
 
 	// Add more data to the buffer until it's at least size bytes.
 	async #fillTo(size: number) {
+		if (size > MAX_READ_SIZE) {
+			throw new Error(`read size ${size} exceeds max size ${MAX_READ_SIZE}`);
+		}
+
 		while (this.#buffer.byteLength < size) {
 			if (!(await this.#fill())) {
 				throw new Error("unexpected end of stream");
@@ -114,12 +120,8 @@ export class Reader {
 		return this.#slice(this.#buffer.byteLength);
 	}
 
-	async string(maxLength?: number): Promise<string> {
+	async string(): Promise<string> {
 		const length = await this.u53();
-		if (maxLength !== undefined && length > maxLength) {
-			throw new Error(`string length ${length.toString()} exceeds max length ${maxLength.toString()}`);
-		}
-
 		const buffer = await this.read(length);
 		return new TextDecoder().decode(buffer);
 	}
