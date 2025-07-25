@@ -362,8 +362,13 @@ impl Import {
 	/// This should be called before [`read_from`](Self::read_from) to process the
 	/// initialization section of the fMP4 file.
 	pub async fn init_from<T: AsyncRead + Unpin>(&mut self, input: &mut T) -> Result<()> {
-		let _ftyp = mp4_atom::Ftyp::read_from(input).await?;
+		match mp4_atom::Any::read_from(input).await? {
+			Any::Styp(_) => {}
+			Any::Ftyp(_) => {}
+			_ => return Err(Error::ExpectedBox(mp4_atom::Styp::KIND)),
+		}
 		let moov = Moov::read_from(input).await?;
+
 		self.init(moov)
 	}
 
