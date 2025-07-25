@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.1](https://github.com/kixelated/moq/compare/moq-lite-v0.5.0...moq-lite-v0.5.1) - 2025-07-25
+
+### Other
+
+- Add a compatibility layer for moq-transport-07 ([#500](https://github.com/kixelated/moq/pull/500))
+- Try to fix docker again. ([#492](https://github.com/kixelated/moq/pull/492))
+
 ## [0.5.0](https://github.com/kixelated/moq/compare/moq-lite-v0.4.0...moq-lite-v0.5.0) - 2025-07-22
 
 ### Other
