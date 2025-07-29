@@ -296,7 +296,7 @@ export class Effect {
 
 		// Wait for all async effects to complete.
 		try {
-			let warn: NodeJS.Timeout | undefined;
+			let warn: ReturnType<typeof setTimeout> | undefined;
 			if (Effect.dev) {
 				// There's a 1s timeout here to print warnings if cleanup functions don't exit.
 				warn = setTimeout(() => {
