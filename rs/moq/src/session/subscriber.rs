@@ -1,5 +1,5 @@
 use std::{
-	collections::HashMap,
+	collections::{hash_map::Entry, HashMap},
 	sync::{atomic, Arc},
 };
 
@@ -88,10 +88,15 @@ impl Subscriber {
 			tracing::debug!(broadcast = %path, "announced (init)");
 
 			let producer = BroadcastProducer::new();
-			let consumer = producer.consume();
 
+			// Make sure the peer doesn't double announce.
+			match producers.entry(path.clone()) {
+				Entry::Occupied(_) => return Err(Error::Duplicate),
+				Entry::Vacant(entry) => entry.insert(producer.clone()),
+			};
+
+			let consumer = producer.consume();
 			self.origin.as_mut().unwrap().publish(&path, consumer);
-			producers.insert(path.clone(), producer.clone());
 
 			spawn(self.clone().run_broadcast(path, producer));
 		}
@@ -102,13 +107,17 @@ impl Subscriber {
 			match announce {
 				message::Announce::Active { suffix: path } => {
 					tracing::debug!(broadcast = %path, "announced (update)");
-
 					let producer = BroadcastProducer::new();
-					let consumer = producer.consume();
+
+					// Make sure the peer doesn't double announce.
+					match producers.entry(path.clone()) {
+						Entry::Occupied(_) => return Err(Error::Duplicate),
+						Entry::Vacant(entry) => entry.insert(producer.clone()),
+					};
 
 					// Run the broadcast in the background until all consumers are dropped.
+					let consumer = producer.consume();
 					self.origin.as_mut().unwrap().publish(&path, consumer);
-					producers.insert(path.clone(), producer.clone());
 
 					spawn(self.clone().run_broadcast(path, producer));
 				}
