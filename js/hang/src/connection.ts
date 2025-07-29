@@ -64,7 +64,7 @@ export class Connection {
 
 		effect.spawn(async (cancel) => {
 			try {
-				const pending = Moq.Connection.connect(url);
+				const pending = Moq.connect(url);
 				const connection = await Promise.race([cancel, pending]);
 				if (!connection) {
 					pending.then((conn) => conn.close()).catch(() => {});

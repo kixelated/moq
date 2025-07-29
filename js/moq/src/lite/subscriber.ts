@@ -1,10 +1,13 @@
-import { type AnnouncedConsumer, AnnouncedProducer } from "./announced";
-import { type BroadcastConsumer, BroadcastProducer } from "./broadcast";
-import { GroupProducer } from "./group";
-import * as Path from "./path";
-import type { TrackProducer } from "./track";
-import { error } from "./util/error";
-import * as Wire from "./wire";
+import { type AnnouncedConsumer, AnnouncedProducer } from "../announced";
+import { type BroadcastConsumer, BroadcastProducer } from "../broadcast";
+import { GroupProducer } from "../group";
+import * as Path from "../path";
+import { type Reader, Stream } from "../stream";
+import type { TrackProducer } from "../track";
+import { error } from "../util/error";
+import { Announce, AnnounceInit, AnnounceInterest } from "./announce";
+import type { Group } from "./group";
+import { Subscribe, SubscribeOk } from "./subscribe";
 
 /**
  * Handles subscribing to broadcasts and managing their lifecycle.
@@ -39,14 +42,17 @@ export class Subscriber {
 		const producer = new AnnouncedProducer();
 		const consumer = producer.consume(prefix);
 
-		const msg = new Wire.AnnounceInterest(prefix);
+		const msg = new AnnounceInterest(prefix);
 
 		(async () => {
 			try {
-				const stream = await Wire.Stream.open(this.#quic, msg);
+				// Open a stream and send the announce interest.
+				const stream = await Stream.open(this.#quic);
+				await stream.writer.u8(AnnounceInterest.StreamID);
+				await msg.encode(stream.writer);
 
 				// First, receive ANNOUNCE_INIT
-				const init = await Wire.AnnounceInit.decode(stream.reader);
+				const init = await AnnounceInit.decode(stream.reader);
 
 				// Process initial announcements
 				for (const suffix of init.suffixes) {
@@ -57,7 +63,7 @@ export class Subscriber {
 
 				// Then receive updates
 				for (;;) {
-					const announce = await Wire.Announce.decode_maybe(stream.reader);
+					const announce = await Announce.decodeMaybe(stream.reader);
 					if (!announce) {
 						break;
 					}
@@ -122,11 +128,14 @@ export class Subscriber {
 		// Save the writer so we can append groups to it.
 		this.#subscribes.set(id, track);
 
-		const msg = new Wire.Subscribe(id, broadcast, track.name, track.priority);
+		const msg = new Subscribe(id, broadcast, track.name, track.priority);
 
-		const stream = await Wire.Stream.open(this.#quic, msg);
+		const stream = await Stream.open(this.#quic);
+		await stream.writer.u8(Subscribe.StreamID);
+		await msg.encode(stream.writer);
+
 		try {
-			await Wire.SubscribeOk.decode(stream.reader);
+			await SubscribeOk.decode(stream.reader);
 			console.debug(`subscribe ok: id=${id} broadcast=${broadcast} track=${track.name}`);
 
 			await Promise.race([stream.reader.closed(), track.unused()]);
@@ -134,8 +143,9 @@ export class Subscriber {
 			track.close();
 			console.debug(`subscribe close: id=${id} broadcast=${broadcast} track=${track.name}`);
 		} catch (err) {
-			track.abort(error(err));
-			console.warn(`subscribe error: id=${id} broadcast=${broadcast} track=${track.name} error=${error(err)}`);
+			const e = error(err);
+			track.abort(e);
+			console.warn(`subscribe error: id=${id} broadcast=${broadcast} track=${track.name} error=${e.message}`);
 		} finally {
 			this.#subscribes.delete(id);
 			stream.close();
@@ -149,7 +159,7 @@ export class Subscriber {
 	 *
 	 * @internal
 	 */
-	async runGroup(group: Wire.Group, stream: Wire.Reader) {
+	async runGroup(group: Group, stream: Reader) {
 		const subscribe = this.#subscribes.get(group.subscribe);
 		if (!subscribe) {
 			console.warn(`unknown subscription: id=${group.subscribe}`);

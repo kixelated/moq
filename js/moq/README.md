@@ -26,22 +26,22 @@ yarn add @kixelated/moq
 ### Basic Connection
 
 ```typescript
-import { Connection } from "@kixelated/moq";
+import * as Moq from "@kixelated/moq";
 
 // Connect to a MoQ relay server
-const connection = await Connection.connect("https://relay.quic.video/anon");
+const connection = await Moq.connect("https://relay.quic.video/anon");
 console.log("Connected to MoQ relay!");
 ```
 
 ### Publishing Data
 
 ```typescript
-import { Connection, BroadcastProducer } from "@kixelated/moq";
+import * as Moq from "@kixelated/moq";
 
-const connection = await Connection.connect("https://relay.quic.video/anon");
+const connection = await Moq.connect("https://relay.quic.video/anon");
 
 // Create a broadcast, not associated with any connection/name yet.
-const broadcast = new BroadcastProducer();
+const broadcast = new Moq.BroadcastProducer();
 
 // Create a track within the broadcast
 const track = broadcast.createTrack("chat");
@@ -59,9 +59,9 @@ console.log("Published data to my-broadcast");
 ### Subscribing to Data
 
 ```typescript
-import { Connection, BroadcastConsumer } from "@kixelated/moq";
+import * as Moq from "@kixelated/moq";
 
-const connection = await Connection.connect("https://relay.quic.video/anon");
+const connection = await Moq.connect("https://relay.quic.video/anon");
 
 // Subscribe to a broadcast
 const broadcast = connection.consume("my-broadcast");
@@ -87,9 +87,9 @@ for (;;) {
 ### Stream Discovery
 
 ```typescript
-import { Connection } from "@kixelated/moq";
+import * as Moq from "@kixelated/moq";
 
-const connection = await Connection.connect("https://relay.quic.video/anon");
+const connection = await Moq.connect("https://relay.quic.video/anon");
 
 // Discover streams with an optional prefix
 const announced = connection.announced("");

@@ -1,10 +1,13 @@
-import { AnnouncedProducer } from "./announced";
-import type { BroadcastConsumer } from "./broadcast";
-import type { GroupConsumer } from "./group";
-import * as Path from "./path";
-import type { TrackConsumer } from "./track";
-import { error } from "./util/error";
-import * as Wire from "./wire";
+import { AnnouncedProducer } from "../announced";
+import type { BroadcastConsumer } from "../broadcast";
+import type { GroupConsumer } from "../group";
+import * as Path from "../path";
+import { type Stream, Writer } from "../stream";
+import type { TrackConsumer } from "../track";
+import { error } from "../util/error";
+import { Announce, AnnounceInit, type AnnounceInterest } from "./announce";
+import { Group } from "./group";
+import { type Subscribe, SubscribeOk, SubscribeUpdate } from "./subscribe";
 
 /**
  * Handles publishing broadcasts and managing their lifecycle.
@@ -32,15 +35,6 @@ export class Publisher {
 	}
 
 	/**
-	 * Gets a broadcast reader for the specified broadcast.
-	 * @param name - The name of the broadcast to consume
-	 * @returns A BroadcastConsumer instance or undefined if not found
-	 */
-	consume(name: Path.Valid): BroadcastConsumer | undefined {
-		return this.#broadcasts.get(name)?.clone();
-	}
-
-	/**
 	 * Publishes a broadcast with any associated tracks.
 	 * @param name - The broadcast to publish
 	 */
@@ -63,7 +57,8 @@ export class Publisher {
 
 			console.debug(`announce: broadcast=${name} active=false`);
 		} catch (err: unknown) {
-			console.warn(`announce: broadcast=${name} error=${error(err)}`);
+			const e = error(err);
+			console.warn(`announce: broadcast=${name} error=${e.message}`);
 		} finally {
 			broadcast.close();
 
@@ -83,7 +78,7 @@ export class Publisher {
 	 *
 	 * @internal
 	 */
-	async runAnnounce(msg: Wire.AnnounceInterest, stream: Wire.Stream) {
+	async runAnnounce(msg: AnnounceInterest, stream: Stream) {
 		const consumer = this.#announced.consume(msg.prefix);
 
 		// Send ANNOUNCE_INIT as the first message with all currently active paths
@@ -94,7 +89,7 @@ export class Publisher {
 			activePaths.push(suffix);
 		}
 
-		const init = new Wire.AnnounceInit(activePaths);
+		const init = new AnnounceInit(activePaths);
 		await init.encode(stream.writer);
 
 		// Then send updates as they occur
@@ -102,7 +97,7 @@ export class Publisher {
 			const announcement = await consumer.next();
 			if (!announcement) break;
 
-			const wire = new Wire.Announce(announcement.name, announcement.active);
+			const wire = new Announce(announcement.name, announcement.active);
 			await wire.encode(stream.writer);
 		}
 	}
@@ -114,7 +109,7 @@ export class Publisher {
 	 *
 	 * @internal
 	 */
-	async runSubscribe(msg: Wire.Subscribe, stream: Wire.Stream) {
+	async runSubscribe(msg: Subscribe, stream: Stream) {
 		const broadcast = this.#broadcasts.get(msg.broadcast);
 		if (!broadcast) {
 			console.debug(`publish unknown: broadcast=${msg.broadcast}`);
@@ -123,7 +118,7 @@ export class Publisher {
 		}
 
 		const track = broadcast.subscribe(msg.track, msg.priority);
-		const info = new Wire.SubscribeOk(track.priority);
+		const info = new SubscribeOk(track.priority);
 		await info.encode(stream.writer);
 
 		console.debug(`publish ok: broadcast=${msg.broadcast} track=${track.name}`);
@@ -131,12 +126,12 @@ export class Publisher {
 		const serving = this.#runTrack(msg.id, msg.broadcast, track, stream.writer);
 
 		for (;;) {
-			const decode = Wire.SubscribeUpdate.decode_maybe(stream.reader);
+			const decode = SubscribeUpdate.decodeMaybe(stream.reader);
 
 			const result = await Promise.any([serving, decode]);
 			if (!result) break;
 
-			if (result instanceof Wire.SubscribeUpdate) {
+			if (result instanceof SubscribeUpdate) {
 				// TODO use the update
 				console.warn("subscribe update not supported", result);
 			}
@@ -152,7 +147,7 @@ export class Publisher {
 	 *
 	 * @internal
 	 */
-	async #runTrack(sub: bigint, broadcast: Path.Valid, track: TrackConsumer, stream: Wire.Writer) {
+	async #runTrack(sub: bigint, broadcast: Path.Valid, track: TrackConsumer, stream: Writer) {
 		try {
 			for (;;) {
 				const next = track.nextGroup();
@@ -169,7 +164,7 @@ export class Publisher {
 			stream.close();
 		} catch (err: unknown) {
 			const e = error(err);
-			console.warn(`publish error: broadcast=${broadcast} track=${track.name} error=${e}`);
+			console.warn(`publish error: broadcast=${broadcast} track=${track.name} error=${e.message}`);
 			stream.reset(e);
 		} finally {
 			track.close();
@@ -184,9 +179,12 @@ export class Publisher {
 	 * @internal
 	 */
 	async #runGroup(sub: bigint, group: GroupConsumer) {
-		const msg = new Wire.Group(sub, group.id);
+		const msg = new Group(sub, group.id);
 		try {
-			const stream = await Wire.Writer.open(this.#quic, msg);
+			const stream = await Writer.open(this.#quic);
+			await stream.u8(Group.StreamID);
+			await msg.encode(stream);
+
 			try {
 				for (;;) {
 					const frame = await Promise.race([group.nextFrame(), stream.closed()]);
