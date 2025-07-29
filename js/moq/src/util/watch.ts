@@ -97,7 +97,7 @@ export class WatchProducer<T> {
 	async unused(): Promise<void> {
 		// We use a while loop here because of race conditions.
 		// Maybe the consumer immediately closed then reopened.
-		while (this.#consumers > 0) {
+		while (this.#unused.pending) {
 			await this.#unused.promise;
 		}
 	}
