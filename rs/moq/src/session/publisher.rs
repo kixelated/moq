@@ -58,6 +58,8 @@ impl Publisher {
 		// Just for logging the fully qualified prefix.
 		let prefix = self.origin.prefix().join(&interest.prefix);
 
+		tracing::trace!(%prefix, "announcing start");
+
 		let res = self.run_announce(stream, &interest.prefix).await;
 		match res {
 			Err(Error::Cancel) => tracing::debug!(%prefix, "announcing cancelled"),
@@ -77,11 +79,11 @@ impl Publisher {
 		// We use `now_or_never` so `announced` keeps track of what has been sent for us.
 		while let Some(Some(OriginUpdate { suffix, active })) = announced.next().now_or_never() {
 			if active.is_some() {
-				tracing::debug!(broadcast = %prefix.join(&suffix), "announce");
+				tracing::debug!(broadcast = %prefix.join(&suffix), "announce (init)");
 				init.push(suffix);
 			} else {
 				// A potential race.
-				tracing::debug!(broadcast = %prefix.join(&suffix), "unannounce");
+				tracing::debug!(broadcast = %prefix.join(&suffix), "unannounce (init)");
 				init.retain(|path| path != &suffix);
 			}
 		}
@@ -98,11 +100,11 @@ impl Publisher {
 					match announced {
 						Some(OriginUpdate { suffix, active }) => {
 							if active.is_some() {
-								tracing::debug!(broadcast = %prefix.join(&suffix), "announce");
+								tracing::debug!(broadcast = %prefix.join(&suffix), "announce (update)");
 								let msg = message::Announce::Active { suffix };
 								stream.writer.encode(&msg).await?;
 							} else {
-								tracing::debug!(broadcast = %prefix.join(&suffix), "unannounce");
+								tracing::debug!(broadcast = %prefix.join(&suffix), "unannounce (update)");
 								let msg = message::Announce::Ended { suffix };
 								stream.writer.encode(&msg).await?;
 							}

@@ -50,20 +50,12 @@ export class Publisher {
 				active: true,
 			});
 
-			console.debug(`announce: broadcast=${name} active=true`);
-
 			// Wait until the broadcast is closed, then remove it from the lookup.
 			await broadcast.closed();
-
-			console.debug(`announce: broadcast=${name} active=false`);
-		} catch (err: unknown) {
-			const e = error(err);
-			console.warn(`announce: broadcast=${name} error=${e.message}`);
 		} finally {
 			broadcast.close();
 
 			this.#broadcasts.delete(name);
-
 			this.#announced.write({
 				name,
 				active: false,
@@ -83,10 +75,29 @@ export class Publisher {
 
 		// Send ANNOUNCE_INIT as the first message with all currently active paths
 		const activePaths: Path.Valid[] = [];
-		for (const [name] of this.#broadcasts) {
-			const suffix = Path.stripPrefix(msg.prefix, name);
-			if (suffix === null) continue;
-			activePaths.push(suffix);
+
+		// Make a resolved promise so we can avoid blocking.
+		// This abuses the fact that Promise.race will prioritize the first resolved promise.
+		const timeout = Promise.resolve();
+
+		let next = consumer.next();
+
+		for (;;) {
+			const announcement = await Promise.race([next, timeout]);
+			if (!announcement) break;
+
+			console.debug(`announce: broadcast=${announcement.name} active=${announcement.active} init=true`);
+
+			const suffix = Path.stripPrefix(msg.prefix, announcement.name);
+			if (suffix === null) throw new Error("invalid suffix");
+
+			if (announcement.active) {
+				activePaths.push(suffix);
+			} else {
+				activePaths.splice(activePaths.indexOf(suffix), 1);
+			}
+
+			next = consumer.next();
 		}
 
 		const init = new AnnounceInit(activePaths);
@@ -94,12 +105,18 @@ export class Publisher {
 
 		// Then send updates as they occur
 		for (;;) {
-			const announcement = await consumer.next();
+			const announcement = await next;
 			if (!announcement) break;
+
+			console.debug(`announce: broadcast=${announcement.name} active=${announcement.active} init=false`);
 
 			const wire = new Announce(announcement.name, announcement.active);
 			await wire.encode(stream.writer);
+
+			next = consumer.next();
 		}
+
+		consumer.close();
 	}
 
 	/**
@@ -201,5 +218,15 @@ export class Publisher {
 		} finally {
 			group.close();
 		}
+	}
+
+	close() {
+		this.#announced.close();
+
+		for (const broadcast of this.#broadcasts.values()) {
+			broadcast.close();
+		}
+
+		this.#broadcasts.clear();
 	}
 }

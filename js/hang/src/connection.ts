@@ -65,26 +65,26 @@ export class Connection {
 		effect.spawn(async (cancel) => {
 			try {
 				const pending = Moq.connect(url);
+
 				const connection = await Promise.race([cancel, pending]);
 				if (!connection) {
 					pending.then((conn) => conn.close()).catch(() => {});
 					return;
 				}
 
-				try {
-					this.established.set(connection);
-					this.status.set("connected");
+				effect.set(this.established, connection);
+				effect.cleanup(() => connection.close());
 
-					// Reset the exponential backoff on success.
-					this.#delay = this.delay;
+				effect.set(this.status, "connected", "disconnected");
 
-					await Promise.race([cancel, connection.closed()]);
-				} finally {
-					connection.close();
-				}
+				// Reset the exponential backoff on success.
+				this.#delay = this.delay;
+
+				await Promise.race([cancel, connection.closed()]);
 			} catch (err) {
 				console.warn("connection error:", err);
 
+				// Exponential backoff.
 				if (this.reload) {
 					const tick = this.#tick.peek() + 1;
 
@@ -95,17 +95,7 @@ export class Connection {
 					// Exponential backoff.
 					this.#delay = Math.min(this.#delay * 2, this.maxDelay);
 				}
-			} finally {
-				this.established.set(undefined);
-				this.status.set("disconnected");
 			}
-		});
-
-		effect.cleanup(() => {
-			this.established.set((prev) => {
-				prev?.close();
-				return undefined;
-			});
 		});
 	}
 

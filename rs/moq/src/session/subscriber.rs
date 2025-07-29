@@ -76,6 +76,8 @@ impl Subscriber {
 
 		let mut stream = Stream::open(&mut self.session, message::ControlType::Announce).await?;
 
+		tracing::trace!("announced start");
+
 		let msg = message::AnnouncePlease { prefix: "".into() };
 		stream.writer.encode(&msg).await?;
 
@@ -83,7 +85,7 @@ impl Subscriber {
 
 		let msg: message::AnnounceInit = stream.reader.decode().await?;
 		for path in msg.suffixes {
-			tracing::debug!(broadcast = %path, "received announce");
+			tracing::debug!(broadcast = %path, "announced (init)");
 
 			let producer = BroadcastProducer::new();
 			let consumer = producer.consume();
@@ -99,7 +101,7 @@ impl Subscriber {
 		while let Some(announce) = stream.reader.decode_maybe::<message::Announce>().await? {
 			match announce {
 				message::Announce::Active { suffix: path } => {
-					tracing::debug!(broadcast = %path, "received announce");
+					tracing::debug!(broadcast = %path, "announced (update)");
 
 					let producer = BroadcastProducer::new();
 					let consumer = producer.consume();
@@ -111,7 +113,7 @@ impl Subscriber {
 					spawn(self.clone().run_broadcast(path, producer));
 				}
 				message::Announce::Ended { suffix } => {
-					tracing::debug!(%suffix, "received unannounce");
+					tracing::debug!(%suffix, "unannounced");
 
 					// Close the producer.
 					let mut producer = producers.remove(&suffix).ok_or(Error::NotFound)?;

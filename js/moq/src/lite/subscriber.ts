@@ -186,4 +186,12 @@ export class Subscriber {
 			producer.abort(error(err));
 		}
 	}
+
+	close() {
+		for (const track of this.#subscribes.values()) {
+			track.close();
+		}
+
+		this.#subscribes.clear();
+	}
 }
