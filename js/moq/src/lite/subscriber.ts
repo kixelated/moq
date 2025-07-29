@@ -98,20 +98,9 @@ export class Subscriber {
 		const consumer = producer.consume();
 
 		producer.unknownTrack((track) => {
-			// Save the track in the cache to deduplicate.
-			// NOTE: We don't clone it (yet) so it doesn't count as an active consumer.
-			// When we do clone it, we'll only get the most recent (consumed) group.
-			producer.insertTrack(track.consume());
-
+			// NOTE: We intentionally don't deduplicate because BUGS.
 			// Perform the subscription in the background.
-			this.#runSubscribe(broadcast, track).finally(() => {
-				try {
-					producer.removeTrack(track.name);
-				} catch {
-					// Already closed.
-					console.warn("track already removed");
-				}
-			});
+			this.#runSubscribe(broadcast, track);
 		});
 
 		// Close when the producer has no more consumers.
@@ -127,6 +116,8 @@ export class Subscriber {
 
 		// Save the writer so we can append groups to it.
 		this.#subscribes.set(id, track);
+
+		console.debug(`subscribe start: id=${id} broadcast=${broadcast} track=${track.name}`);
 
 		const msg = new Subscribe(id, broadcast, track.name, track.priority);
 
@@ -165,6 +156,8 @@ export class Subscriber {
 			console.warn(`unknown subscription: id=${group.subscribe}`);
 			return;
 		}
+
+		console.debug(`runGroup: id=${group.subscribe} broadcast=${subscribe.name} sequence=${group.sequence}`);
 
 		const producer = new GroupProducer(group.sequence);
 		subscribe.insertGroup(producer.consume());

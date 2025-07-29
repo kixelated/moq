@@ -173,7 +173,7 @@ export class Publisher {
 				const next = track.nextGroup();
 				const group = await Promise.race([next, stream.closed()]);
 				if (!group) {
-					next.then((group) => group?.close());
+					next.then((group) => group?.close()).catch(() => {});
 					break;
 				}
 

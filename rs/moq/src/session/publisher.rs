@@ -199,6 +199,8 @@ impl Publisher {
 			let sequence = group.info.sequence;
 			let latest = new_sequence.as_ref().unwrap_or(&0);
 
+			tracing::debug!(id = %subscribe.id, track = %track.info.name, sequence, latest, "serving group");
+
 			// If this group is older than the oldest group we're serving, skip it.
 			// We always serve at most two groups, but maybe we should serve only sequence >= MAX-1.
 			if sequence < *old_sequence.as_ref().unwrap_or(&0) {

@@ -4,6 +4,10 @@ export type Dispose = () => void;
 
 type Subscriber<T> = (value: T) => void;
 
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore depends on the bundler.
+const dev = import.meta.env?.MODE !== "production";
+
 export interface Getter<T> {
 	peek(): T;
 	subscribe(fn: Subscriber<T>): Dispose;
@@ -80,7 +84,11 @@ export class Signal<T> implements Getter<T>, Setter<T> {
 			// It's a VERY common pitfall so we err on the side of spurious updates.
 		} else {
 			newValue = value;
-			if (newValue === this.#value) return;
+			if (newValue === this.#value) {
+				return;
+			} else if (dev && dequal(newValue, this.#value)) {
+				console.warn("use Unique: dequal but not ===", newValue);
+			}
 		}
 
 		this.#value = newValue;
@@ -141,10 +149,6 @@ export class Computed<T> implements Getter<T> {
 }
 
 export class Root {
-	// eslint-disable-next-line @typescript-eslint/ban-ts-comment
-	// @ts-ignore depends on the bundler.
-	static dev = import.meta.env?.MODE !== "production";
-
 	// Sanity check to make sure roots are being disposed on dev.
 	static #finalizer = new FinalizationRegistry<string>((debugInfo) => {
 		console.warn(`Signals was garbage collected without being closed:\n${debugInfo}`);
@@ -154,7 +158,7 @@ export class Root {
 	#dispose?: Dispose[] = [];
 
 	constructor() {
-		if (Root.dev) {
+		if (dev) {
 			const debug = new Error("created here:").stack ?? "No stack";
 			Root.#finalizer.register(this, debug, this);
 		}
@@ -163,7 +167,7 @@ export class Root {
 	// Create a nested signals instance.
 	effect(fn: (effect: Effect) => void) {
 		if (this.#nested === undefined) {
-			if (Root.dev) {
+			if (dev) {
 				console.warn("Root.effect called when closed, ignoring");
 			}
 			return;
@@ -178,7 +182,7 @@ export class Root {
 		...args: undefined extends SetterType<S> ? [cleanup?: SetterType<S>] : [cleanup: SetterType<S>]
 	): void {
 		if (this.#dispose === undefined) {
-			if (Root.dev) {
+			if (dev) {
 				console.warn("Root.set called when closed, ignoring");
 			}
 			return;
@@ -192,7 +196,7 @@ export class Root {
 	// A helper to call a function when a signal changes.
 	subscribe<T>(signal: Getter<T>, fn: (value: T) => void) {
 		if (this.#nested === undefined) {
-			if (Root.dev) {
+			if (dev) {
 				console.warn("Root.subscribe called when closed, running once");
 			}
 			fn(signal.peek());
@@ -206,7 +210,7 @@ export class Root {
 
 	cleanup(fn: Dispose): void {
 		if (this.#dispose === undefined) {
-			if (Root.dev) {
+			if (dev) {
 				console.warn("Root.cleanup called when closed, running immediately");
 			}
 			fn();
@@ -229,7 +233,7 @@ export class Root {
 		this.#dispose = undefined;
 		this.#nested = undefined;
 
-		if (Root.dev) {
+		if (dev) {
 			Root.#finalizer.unregister(this);
 		}
 	}

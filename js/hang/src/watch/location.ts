@@ -14,7 +14,7 @@ export class Location {
 	catalog = new Unique<Catalog.Location | undefined>(undefined);
 	peering = new Signal<boolean | undefined>(undefined);
 
-	#current = new Signal<Catalog.Position | undefined>(undefined);
+	#current = new Unique<Catalog.Position | undefined>(undefined);
 	readonly current = this.#current.readonly();
 
 	#updates = new Unique<Catalog.Track | undefined>(undefined);
@@ -88,7 +88,7 @@ export class Location {
 
 async function runConsumer(
 	consumer: Container.PositionConsumer,
-	location: Signal<Catalog.Position | undefined>,
+	location: Unique<Catalog.Position | undefined>,
 	cancel: Promise<void>,
 ) {
 	try {
@@ -109,10 +109,10 @@ async function runConsumer(
 
 export class LocationPeer {
 	handle: Signal<string | undefined>;
-	location: Signal<Catalog.Position | undefined>;
+	location: Unique<Catalog.Position | undefined>;
 	broadcast: Signal<Moq.BroadcastConsumer | undefined>;
 
-	#track = new Signal<Catalog.Track | undefined>(undefined);
+	#track = new Unique<Catalog.Track | undefined>(undefined);
 	#signals = new Root();
 
 	constructor(
@@ -121,7 +121,7 @@ export class LocationPeer {
 		handle?: string,
 	) {
 		this.handle = new Signal(handle);
-		this.location = new Signal<Catalog.Position | undefined>(undefined);
+		this.location = new Unique<Catalog.Position | undefined>(undefined);
 		this.broadcast = broadcast;
 
 		this.#signals.effect((effect) => {

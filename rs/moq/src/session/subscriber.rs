@@ -222,8 +222,6 @@ impl Subscriber {
 	pub async fn recv_group(&mut self, stream: &mut Reader) -> Result<(), Error> {
 		let group: message::Group = stream.decode().await?;
 
-		tracing::trace!(group = %group.sequence, "received group");
-
 		let group = {
 			let mut subs = self.subscribes.lock();
 			let track = subs.get_mut(&group.subscribe).ok_or(Error::Cancel)?;
