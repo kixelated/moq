@@ -91,10 +91,13 @@ export class Publisher {
 			const suffix = Path.stripPrefix(msg.prefix, announcement.name);
 			if (suffix === null) throw new Error("invalid suffix");
 
+			const index = activePaths.indexOf(suffix);
 			if (announcement.active) {
+				if (index !== -1) throw new Error("duplicate announce");
 				activePaths.push(suffix);
 			} else {
-				activePaths.splice(activePaths.indexOf(suffix), 1);
+				if (index === -1) throw new Error("unknown announce");
+				activePaths.splice(index, 1);
 			}
 
 			next = consumer.next();
