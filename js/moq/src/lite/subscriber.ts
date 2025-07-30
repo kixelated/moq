@@ -157,8 +157,6 @@ export class Subscriber {
 			return;
 		}
 
-		console.debug(`runGroup: id=${group.subscribe} broadcast=${subscribe.name} sequence=${group.sequence}`);
-
 		const producer = new GroupProducer(group.sequence);
 		subscribe.insertGroup(producer.consume());
 
