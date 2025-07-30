@@ -3,7 +3,7 @@ import { type Computed, type Effect, Root, Signal } from "@kixelated/signals";
 import type * as Catalog from "../catalog";
 import { u8, u53 } from "../catalog/integers";
 import * as Container from "../container";
-import type {VAD}from "../worker";
+import type { VAD } from "../worker";
 import VAD_WORKER_URL from "../worker/vad?worker&url";
 import type * as Worklet from "../worklet";
 import WORKLET_URL from "../worklet/capture?worker&url";
@@ -306,10 +306,13 @@ export class Audio {
 			effect.cleanup(() => worklet.disconnect());
 
 			// Sent the worklet to the VAD worker, so the main thread doesn't have to be involved.
-			worker.postMessage({
-				type: "init",
-				worklet: worklet.port,
-			}, [worklet.port]);
+			worker.postMessage(
+				{
+					type: "init",
+					worklet: worklet.port,
+				},
+				[worklet.port],
+			);
 		});
 	}
 
