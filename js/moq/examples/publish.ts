@@ -1,7 +1,7 @@
 #!/usr/bin/env -S deno run --allow-net --allow-env --unstable-net --unstable-sloppy-imports
 
 // Replace with "@kixelated/moq"
-import { BroadcastProducer, connect, Path } from "../src"
+import { BroadcastProducer, connect, Path } from "../src";
 
 // Get hostname from command line argument or environment variable
 const url = Deno.args[0] || Deno.env.get("MOQ_URL");
@@ -26,7 +26,7 @@ console.log("✅ Published broadcast:", name);
 const trackProducer = broadcastProducer.createTrack("clock");
 
 // Send the current timestamp over the wire as a test.
-let now = Date.now()
+let now = Date.now();
 console.log("✅ Publishing the current time");
 
 // NOTE: No data flows over the network until there's an active subscription
@@ -35,7 +35,7 @@ console.log("✅ Publishing the current time");
 for (;;) {
 	// Create a JSON message just because it's easy.
 	// Any binary encoding will work.
-	const json = JSON.stringify({now});
+	const json = JSON.stringify({ now });
 
 	// NOTE: `appendFrame` automatically create a new group for you.
 	// This means the previous message is not a dependency, and will be dropped from cache.
@@ -45,5 +45,5 @@ for (;;) {
 	// Sleep for a second
 	// I'm too lazy to sleep for the correct amount of time, so just += 1
 	await new Promise((resolve) => setTimeout(resolve, 1000));
-	now += 1
+	now += 1;
 }

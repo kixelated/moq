@@ -1,7 +1,7 @@
 #!/usr/bin/env -S deno run --allow-net --allow-env --unstable-net --unstable-sloppy-imports
 
 // Replace with "@kixelated/moq"
-import { connect, Path } from "../src"
+import { connect, Path } from "../src";
 
 // Get hostname from command line argument or environment variable
 const url = Deno.args[0] || Deno.env.get("MOQ_HOST");
