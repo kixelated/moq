@@ -1,11 +1,11 @@
-import { AutoModel, Tensor } from "@huggingface/transformers";
 import * as Moq from "@kixelated/moq";
 import { type Computed, type Effect, Root, Signal } from "@kixelated/signals";
 import type * as Catalog from "../catalog";
 import { u8, u53 } from "../catalog/integers";
 import * as Container from "../container";
+import type {VAD}from "../worker";
+import VAD_WORKER_URL from "../worker/vad?worker&url";
 import type * as Worklet from "../worklet";
-
 import WORKLET_URL from "../worklet/capture?worker&url";
 
 // Create a group every half a second
@@ -72,6 +72,8 @@ export class Audio {
 	// Downcast to AudioNode so it matches Watch.
 	readonly root = this.#gain.readonly() as Computed<AudioNode | undefined>;
 
+	#vadWorker = new Signal<Worker | undefined>(undefined);
+
 	#group?: Moq.GroupProducer;
 	#groupTimestamp = 0;
 
@@ -90,6 +92,7 @@ export class Audio {
 		this.#signals.effect(this.#runSource.bind(this));
 		this.#signals.effect(this.#runGain.bind(this));
 		this.#signals.effect(this.#runEncoder.bind(this));
+		this.#signals.effect(this.#runVadWorker.bind(this));
 		this.#signals.effect(this.#runVad.bind(this));
 	}
 
@@ -245,9 +248,22 @@ export class Audio {
 		};
 	}
 
-	#runVad(effect: Effect): void {
+	#runVadWorker(effect: Effect): void {
 		if (!effect.get(this.vad)) return;
+
+		// Create and initialize VAD worker as soon as VAD is enabled
+		const vadWorker = new Worker(VAD_WORKER_URL, { type: "module" });
+		effect.cleanup(() => vadWorker.terminate());
+
+		// Store the worker for use in #runVad
+		effect.set(this.#vadWorker, vadWorker);
+	}
+
+	#runVad(effect: Effect): void {
 		effect.cleanup(() => this.speaking.set(undefined));
+
+		const worker = effect.get(this.#vadWorker);
+		if (!worker) return;
 
 		const media = effect.get(this.media);
 		if (!media) return;
@@ -257,7 +273,19 @@ export class Audio {
 		});
 		effect.cleanup(() => context.close());
 
-		effect.spawn(async (cancel) => {
+		// Handle messages from the VAD worker
+		worker.onmessage = ({ data }: MessageEvent<VAD.Response>) => {
+			if (data.type === "result") {
+				// Use heuristics to determine if we've toggled speaking or not
+				this.speaking.set(data.speaking);
+			} else if (data.type === "error") {
+				console.error("VAD worker error:", data.message);
+				this.speaking.set(undefined);
+			}
+		};
+
+		// Start the worklet asynchronously.
+		effect.spawn(async () => {
 			// Async because we need to wait for the worklet to be registered.
 			await context.audioWorklet.addModule(WORKLET_URL);
 
@@ -277,111 +305,11 @@ export class Audio {
 			root.connect(worklet);
 			effect.cleanup(() => worklet.disconnect());
 
-			let backpressure = false;
-
-			// Uint8Array because so we can use BYOB.
-			const MAX_CHUNK_SIZE = 1024 * Float32Array.BYTES_PER_ELEMENT;
-			const MIN_CHUNK_SIZE = 512 * Float32Array.BYTES_PER_ELEMENT;
-
-			// A queue of audio chunks.
-			const queue = new ReadableStream(
-				{
-					type: "bytes",
-					start: (controller: ReadableByteStreamController) => {
-						worklet.port.onmessage = async ({ data: { channels } }: { data: Worklet.AudioFrame }) => {
-							const samples = channels[0];
-							const view = controller.byobRequest?.view;
-
-							let mono = new Uint8Array(
-								samples.buffer as ArrayBuffer,
-								samples.byteOffset,
-								samples.byteLength,
-							);
-
-							if (view) {
-								const written = Math.min(view.byteLength, mono.byteLength);
-								new Uint8Array(view.buffer, view.byteOffset, view.byteLength).set(
-									new Uint8Array(mono.buffer, mono.byteOffset, written),
-								);
-								controller.byobRequest.respond(written);
-
-								if (written === mono.byteLength) {
-									if (backpressure) {
-										console.warn("backpressure resolved");
-										backpressure = false;
-									}
-									return;
-								}
-
-								mono = new Uint8Array(
-									mono.buffer,
-									mono.byteOffset + written,
-									mono.byteLength - written,
-								);
-								if (mono.byteLength === 0) {
-									return;
-								}
-							}
-
-							if (controller.desiredSize && controller.desiredSize > mono.byteLength) {
-								controller.enqueue(mono);
-							} else if (!backpressure) {
-								console.warn("backpressure");
-								backpressure = true;
-							}
-						};
-					},
-				},
-				{
-					highWaterMark: MAX_CHUNK_SIZE,
-				},
-			);
-			effect.cleanup(() => queue.cancel());
-
-			// Load models
-			const silero_vad = await AutoModel.from_pretrained("onnx-community/silero-vad", {
-				// @ts-expect-error Not sure why this is needed.
-				config: { model_type: "custom" },
-				dtype: "fp32", // Full-precision
-			});
-
-			// Initial state for VAD
-			const sr = new Tensor("int64", [context.sampleRate], []);
-			let state = new Tensor("float32", new Float32Array(2 * 1 * 128), [2, 1, 128]);
-
-			const reader = queue.getReader({ mode: "byob" });
-			effect.cleanup(() => reader.cancel());
-
-			let buffer = new Uint8Array(new ArrayBuffer(MAX_CHUNK_SIZE), 0, 0);
-
-			for (;;) {
-				const offset = buffer.byteLength;
-				const result = await Promise.race([reader.read(new Uint8Array(buffer.buffer, offset)), cancel]);
-				if (!result || result.done) break;
-
-				buffer = new Uint8Array(result.value.buffer, 0, offset + result.value.byteLength);
-				if (buffer.byteLength < MIN_CHUNK_SIZE) continue;
-
-				const sampleCount = Math.floor(buffer.byteLength / Float32Array.BYTES_PER_ELEMENT);
-				const samples = new Float32Array(buffer.buffer, 0, sampleCount);
-
-				const input = new Tensor("float32", samples, [1, samples.length]);
-				const { stateN, output } = await silero_vad({ input, sr, state });
-				state = stateN;
-
-				const isSpeech = output.data[0];
-
-				// Use heuristics to determine if we've toggled speaking or not
-				this.speaking.set((speaking) => {
-					return speaking ? isSpeech > 0.3 : isSpeech >= 0.1;
-				});
-
-				// Copy over the 0-3 remaining bytes for the next iteration.
-				const remaining = buffer.byteLength - (sampleCount * Float32Array.BYTES_PER_ELEMENT);
-				const newBuffer = new Uint8Array(buffer.buffer, 0, remaining);
-				newBuffer.set(new Uint8Array(buffer.buffer, offset, remaining));
-				buffer = newBuffer;
-			};
+			// Sent the worklet to the VAD worker, so the main thread doesn't have to be involved.
+			worker.postMessage({
+				type: "init",
+				worklet: worklet.port,
+			}, [worklet.port]);
 		});
 	}
 
