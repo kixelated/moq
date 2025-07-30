@@ -1,3 +1,4 @@
+import { AutoModel, Tensor } from "@huggingface/transformers";
 import * as Moq from "@kixelated/moq";
 import { type Computed, type Effect, Root, Signal } from "@kixelated/signals";
 import type * as Catalog from "../catalog";
@@ -45,6 +46,7 @@ export type AudioProps = {
 
 	muted?: boolean;
 	volume?: number;
+	vad?: boolean;
 };
 
 export class Audio {
@@ -53,6 +55,10 @@ export class Audio {
 
 	muted: Signal<boolean>;
 	volume: Signal<number>;
+	vad: Signal<boolean>;
+
+	// Set by VAD when it detects speech. undefined when VAD is disabled.
+	speaking = new Signal<boolean | undefined>(undefined);
 
 	media: Signal<AudioTrack | undefined>;
 	constraints: Signal<AudioConstraints | undefined>;
@@ -79,10 +85,12 @@ export class Audio {
 		this.constraints = new Signal(props?.constraints);
 		this.muted = new Signal(props?.muted ?? false);
 		this.volume = new Signal(props?.volume ?? 1);
+		this.vad = new Signal(props?.vad ?? false);
 
 		this.#signals.effect(this.#runSource.bind(this));
 		this.#signals.effect(this.#runGain.bind(this));
 		this.#signals.effect(this.#runEncoder.bind(this));
+		this.#signals.effect(this.#runVad.bind(this));
 	}
 
 	#runSource(effect: Effect): void {
@@ -235,6 +243,146 @@ export class Audio {
 			encoder.encode(frame);
 			frame.close();
 		};
+	}
+
+	#runVad(effect: Effect): void {
+		if (!effect.get(this.vad)) return;
+		effect.cleanup(() => this.speaking.set(undefined));
+
+		const media = effect.get(this.media);
+		if (!media) return;
+
+		const context = new AudioContext({
+			sampleRate: 16000, // required by the model.
+		});
+		effect.cleanup(() => context.close());
+
+		effect.spawn(async (cancel) => {
+			// Async because we need to wait for the worklet to be registered.
+			await context.audioWorklet.addModule(WORKLET_URL);
+
+			const worklet = new AudioWorkletNode(context, "capture", {
+				numberOfInputs: 1,
+				numberOfOutputs: 0,
+				channelCount: 1,
+				channelCountMode: "explicit",
+				channelInterpretation: "discrete",
+			});
+
+			const root = new MediaStreamAudioSourceNode(context, {
+				mediaStream: new MediaStream([media]),
+			});
+			effect.cleanup(() => root.disconnect());
+
+			root.connect(worklet);
+			effect.cleanup(() => worklet.disconnect());
+
+			let backpressure = false;
+
+			// Uint8Array because so we can use BYOB.
+			const MAX_CHUNK_SIZE = 1024 * Float32Array.BYTES_PER_ELEMENT;
+			const MIN_CHUNK_SIZE = 512 * Float32Array.BYTES_PER_ELEMENT;
+
+			// A queue of audio chunks.
+			const queue = new ReadableStream(
+				{
+					type: "bytes",
+					start: (controller: ReadableByteStreamController) => {
+						worklet.port.onmessage = async ({ data: { channels } }: { data: Worklet.AudioFrame }) => {
+							const samples = channels[0];
+							const view = controller.byobRequest?.view;
+
+							let mono = new Uint8Array(
+								samples.buffer as ArrayBuffer,
+								samples.byteOffset,
+								samples.byteLength,
+							);
+
+							if (view) {
+								const written = Math.min(view.byteLength, mono.byteLength);
+								new Uint8Array(view.buffer, view.byteOffset, view.byteLength).set(
+									new Uint8Array(mono.buffer, mono.byteOffset, written),
+								);
+								controller.byobRequest.respond(written);
+
+								if (written === mono.byteLength) {
+									if (backpressure) {
+										console.warn("backpressure resolved");
+										backpressure = false;
+									}
+									return;
+								}
+
+								mono = new Uint8Array(
+									mono.buffer,
+									mono.byteOffset + written,
+									mono.byteLength - written,
+								);
+								if (mono.byteLength === 0) {
+									return;
+								}
+							}
+
+							if (controller.desiredSize && controller.desiredSize > mono.byteLength) {
+								controller.enqueue(mono);
+							} else if (!backpressure) {
+								console.warn("backpressure");
+								backpressure = true;
+							}
+						};
+					},
+				},
+				{
+					highWaterMark: MAX_CHUNK_SIZE,
+				},
+			);
+			effect.cleanup(() => queue.cancel());
+
+			// Load models
+			const silero_vad = await AutoModel.from_pretrained("onnx-community/silero-vad", {
+				// @ts-expect-error Not sure why this is needed.
+				config: { model_type: "custom" },
+				dtype: "fp32", // Full-precision
+			});
+
+			// Initial state for VAD
+			const sr = new Tensor("int64", [context.sampleRate], []);
+			let state = new Tensor("float32", new Float32Array(2 * 1 * 128), [2, 1, 128]);
+
+			const reader = queue.getReader({ mode: "byob" });
+			effect.cleanup(() => reader.cancel());
+
+			let buffer = new Uint8Array(new ArrayBuffer(MAX_CHUNK_SIZE), 0, 0);
+
+			for (;;) {
+				const offset = buffer.byteLength;
+				const result = await Promise.race([reader.read(new Uint8Array(buffer.buffer, offset)), cancel]);
+				if (!result || result.done) break;
+
+				buffer = new Uint8Array(result.value.buffer, 0, offset + result.value.byteLength);
+				if (buffer.byteLength < MIN_CHUNK_SIZE) continue;
+
+				const sampleCount = Math.floor(buffer.byteLength / Float32Array.BYTES_PER_ELEMENT);
+				const samples = new Float32Array(buffer.buffer, 0, sampleCount);
+
+				const input = new Tensor("float32", samples, [1, samples.length]);
+				const { stateN, output } = await silero_vad({ input, sr, state });
+				state = stateN;
+
+				const isSpeech = output.data[0];
+
+				// Use heuristics to determine if we've toggled speaking or not
+				this.speaking.set((speaking) => {
+					return speaking ? isSpeech > 0.3 : isSpeech >= 0.1;
+				});
+
+				// Copy over the 0-3 remaining bytes for the next iteration.
+				const remaining = buffer.byteLength - (sampleCount * Float32Array.BYTES_PER_ELEMENT);
+				const newBuffer = new Uint8Array(buffer.buffer, 0, remaining);
+				newBuffer.set(new Uint8Array(buffer.buffer, offset, remaining));
+				buffer = newBuffer;
+			};
+		});
 	}
 
 	close() {
