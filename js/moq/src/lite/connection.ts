@@ -226,6 +226,7 @@ export async function connect(url: URL): Promise<Connection> {
 	if (url.protocol === "http:") {
 		const fingerprintUrl = new URL(url);
 		fingerprintUrl.pathname = "/certificate.sha256";
+		fingerprintUrl.search = "";
 		console.warn(fingerprintUrl.toString(), "performing an insecure fingerprint fetch; use https:// in production");
 
 		// Fetch the fingerprint from the server.

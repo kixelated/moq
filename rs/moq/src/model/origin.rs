@@ -160,21 +160,20 @@ impl ConsumerState {
 /// Announces broadcasts to consumers over the network.
 #[derive(Clone, Default)]
 pub struct OriginProducer {
+	/// All broadcasts are relative to this path.
+	root: Path,
+
+	/// All published broadcasts start with this prefix, relative to root.
+	///
+	/// NOTE: consumers are relative to the root.
 	prefix: Path,
+
 	state: Lock<ProducerState>,
 }
 
 impl OriginProducer {
-	/// Create a new origin producer with an optional prefix applied to all broadcasts.
-	pub fn new<T: Into<Path>>(prefix: T) -> Self {
-		let prefix = prefix.into();
-		Self {
-			state: Lock::new(ProducerState {
-				active: HashMap::new(),
-				consumers: Vec::new(),
-			}),
-			prefix,
-		}
+	pub fn new() -> Self {
+		Self::default()
 	}
 
 	/// Publish a broadcast, announcing it to all consumers.
@@ -183,11 +182,13 @@ impl OriginProducer {
 	/// If there is already a broadcast with the same path, then it will be replaced and reannounced.
 	/// If the old broadcast is closed before the new one, then nothing will happen.
 	/// If the new broadcast is closed before the old one, then the old broadcast will be reannounced.
-	pub fn publish<'a>(&mut self, suffix: impl Into<PathRef<'a>>, broadcast: BroadcastConsumer) {
-		let path = self.prefix.join(suffix.into());
+	pub fn publish<'a>(&mut self, path: impl Into<PathRef<'a>>, broadcast: BroadcastConsumer) {
+		let path = path.into();
+		let full = self.root.join(&self.prefix).join(&path);
 
-		if !self.state.lock().publish(path.clone(), broadcast.clone()) {
-			// This is not a big deal, but we want to avoid spawning additional cleanup tasks.
+		if !self.state.lock().publish(full.clone(), broadcast.clone()) {
+			// The exact same BroadcastConsumer was published with the same path twice.
+			// This is not a huge deal, but we break early to avoid redundant cleanup work.
 			tracing::warn!(?path, "duplicate publish");
 			return;
 		}
@@ -198,25 +199,28 @@ impl OriginProducer {
 		web_async::spawn(async move {
 			broadcast.closed().await;
 			if let Some(state) = state.upgrade() {
-				state.lock().remove(path, broadcast);
+				state.lock().remove(full, broadcast);
 			}
 		});
 	}
 
-	/// Create a new origin producer for the given sub-prefix.
-	pub fn publish_prefix<'a>(&mut self, prefix: impl Into<PathRef<'a>>) -> OriginProducer {
-		OriginProducer {
-			prefix: self.prefix.join(prefix.into()),
+	/// Returns a new OriginProducer where all published broadcasts are relative to the prefix.
+	pub fn publish_prefix<'a>(&self, prefix: impl Into<PathRef<'a>>) -> Self {
+		Self {
+			prefix: self.prefix.join(prefix),
 			state: self.state.clone(),
+			root: self.root.clone(),
 		}
 	}
 
 	/// Get a specific broadcast by path.
 	///
 	/// The most recent, non-closed broadcast will be returned if there are duplicates.
-	pub fn consume<'a>(&self, suffix: impl Into<PathRef<'a>>) -> Option<BroadcastConsumer> {
-		let path = self.prefix.join(suffix.into());
-		self.state.lock().active.get(&path).map(|b| b.active.clone())
+	pub fn consume<'a>(&self, path: impl Into<PathRef<'a>>) -> Option<BroadcastConsumer> {
+		let path = path.into();
+
+		let full = self.root.join(path);
+		self.state.lock().active.get(&full).map(|b| b.active.clone())
 	}
 
 	/// Subscribe to all announced broadcasts.
@@ -228,15 +232,15 @@ impl OriginProducer {
 	///
 	/// NOTE: This takes a Suffix because it's appended to the existing prefix to get a new prefix.
 	/// Confusing I know, but it means that we don't have to return a Result.
-	pub fn consume_prefix<'a>(&self, prefix: impl Into<PathRef<'a>>) -> OriginConsumer {
-		// Combine the consumer's prefix with the publisher's prefix.
-		let prefix = self.prefix.join(prefix.into());
+	pub fn consume_prefix(&self, prefix: impl Into<Path>) -> OriginConsumer {
+		let prefix = prefix.into();
+		let full = self.root.join(&prefix);
 
 		let mut state = self.state.lock();
 
 		let (tx, rx) = mpsc::unbounded_channel();
 		let mut consumer = ConsumerState {
-			prefix: prefix.clone(),
+			prefix: full,
 			updates: tx,
 		};
 
@@ -246,9 +250,28 @@ impl OriginProducer {
 		state.consumers.push(consumer);
 
 		OriginConsumer {
+			root: self.root.clone(),
 			prefix,
 			updates: rx,
 			producer: self.state.clone().downgrade(),
+		}
+	}
+
+	pub fn with_root(&self, root: impl Into<Path>) -> Self {
+		let root = root.into();
+
+		// Make sure the new root matches any existing configured prefix.
+		// ex. if you only allow publishing /foo, it's not legal to change the root to /bar
+		let prefix = match self.prefix.strip_prefix(&root) {
+			Some(prefix) => prefix.to_owned(),
+			None if self.prefix.is_empty() => Path::default(),
+			None => panic!("with_root doesn't match existing prefix"),
+		};
+
+		Self {
+			root: self.root.join(&root),
+			prefix,
+			state: self.state.clone(),
 		}
 	}
 
@@ -277,6 +300,10 @@ impl OriginProducer {
 		None
 	}
 
+	pub fn root(&self) -> &Path {
+		&self.root
+	}
+
 	pub fn prefix(&self) -> &Path {
 		&self.prefix
 	}
@@ -287,6 +314,11 @@ pub struct OriginConsumer {
 	// We need a weak reference to the producer so that we can clone it.
 	producer: LockWeak<ProducerState>,
 	updates: mpsc::UnboundedReceiver<OriginUpdate>,
+
+	/// All broadcasts are relative to this root path.
+	root: Path,
+
+	/// Only fetch broadcasts matching this prefix.
 	prefix: Path,
 }
 
@@ -305,12 +337,12 @@ impl OriginConsumer {
 	///
 	/// This is relative to the consumer's prefix.
 	/// Returns None if the path hasn't been announced yet.
-	pub fn consume<'a>(&self, suffix: impl Into<PathRef<'a>>) -> Option<BroadcastConsumer> {
-		let path = self.prefix.join(suffix.into());
+	pub fn consume<'a>(&self, path: impl Into<PathRef<'a>>) -> Option<BroadcastConsumer> {
+		let full = self.root.join(&self.prefix).join(path.into());
 
 		let state = self.producer.upgrade()?;
 		let state = state.lock();
-		state.active.get(&path).map(|b| b.active.clone())
+		state.active.get(&full).map(|b| b.active.clone())
 	}
 
 	pub fn consume_all(&self) -> OriginConsumer {
@@ -318,14 +350,17 @@ impl OriginConsumer {
 	}
 
 	pub fn consume_prefix<'a>(&self, prefix: impl Into<PathRef<'a>>) -> OriginConsumer {
+		// The prefix is relative to the existing prefix.
+		let prefix = self.prefix.join(prefix);
+
 		// Combine the consumer's prefix with the existing consumer's prefix.
-		let prefix = self.prefix.join(prefix.into());
+		let full = self.root.join(&prefix);
 
 		let (tx, rx) = mpsc::unbounded_channel();
 
 		// NOTE: consumer is immediately dropped, signalling FIN, if the producer can't be upgraded.
 		let mut consumer = ConsumerState {
-			prefix: prefix.clone(),
+			prefix: full,
 			updates: tx,
 		};
 
@@ -340,10 +375,15 @@ impl OriginConsumer {
 		}
 
 		OriginConsumer {
+			root: self.root.clone(),
 			prefix,
 			updates: rx,
 			producer: self.producer.clone(),
 		}
+	}
+
+	pub fn root(&self) -> &Path {
+		&self.root
 	}
 
 	pub fn prefix(&self) -> &Path {

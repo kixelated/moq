@@ -54,6 +54,9 @@ pub enum Error {
 
 	#[error("protocol violation")]
 	ProtocolViolation,
+
+	#[error("unauthorized")]
+	Unauthorized,
 }
 
 impl Error {
@@ -66,6 +69,7 @@ impl Error {
 			Self::Timeout => 3,
 			Self::WebTransport(_) => 4,
 			Self::Decode(_) => 5,
+			Self::Unauthorized => 6,
 			Self::Version(..) => 9,
 			Self::UnexpectedStream(_) => 10,
 			Self::BoundsExceeded(_) => 11,
