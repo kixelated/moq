@@ -239,7 +239,7 @@ impl Subscriber {
 			let group = Group {
 				sequence: group.sequence,
 			};
-			track.create_group(group).ok_or(Error::Old)?
+			track.create(group).ok_or(Error::Old)?
 		};
 
 		let res = tokio::select! {
@@ -267,7 +267,7 @@ impl Subscriber {
 
 	async fn run_group(&mut self, stream: &mut Reader, mut group: GroupProducer) -> Result<(), Error> {
 		while let Some(size) = stream.decode_maybe::<u64>().await? {
-			let frame = group.create_frame(Frame { size });
+			let frame = group.create(Frame { size });
 
 			let res = tokio::select! {
 				_ = frame.unused() => Err(Error::Cancel),

@@ -1,7 +1,7 @@
 use futures::FutureExt;
 use web_async::FuturesExt;
 
-use crate::{message, model::GroupConsumer, Error, Origin, OriginConsumer, OriginUpdate, Path, Track, TrackConsumer};
+use crate::{message, model::GroupConsumer, Error, Origin, OriginAnnounce, OriginConsumer, Path, Track, TrackConsumer};
 
 use super::{Stream, Writer};
 
@@ -81,7 +81,7 @@ impl Publisher {
 
 		// Send ANNOUNCE_INIT as the first message with all currently active paths
 		// We use `now_or_never` so `announced` keeps track of what has been sent for us.
-		while let Some(Some(OriginUpdate { suffix, active })) = announced.next().now_or_never() {
+		while let Some(Some(OriginAnnounce { suffix, active })) = announced.announced().now_or_never() {
 			let full = self.origin.root().join(&prefix).join(&suffix);
 			if active.is_some() {
 				tracing::debug!(broadcast = %full, "announce");
@@ -101,9 +101,9 @@ impl Publisher {
 			tokio::select! {
 				biased;
 				res = stream.reader.finished() => return res,
-				announced = announced.next() => {
+				announced = announced.announced() => {
 					match announced {
-						Some(OriginUpdate { suffix, active }) => {
+						Some(OriginAnnounce { suffix, active }) => {
 							let full = self.origin.root().join(&prefix).join(&suffix);
 							if active.is_some() {
 								tracing::debug!(broadcast = %full, "announce");
@@ -192,7 +192,7 @@ impl Publisher {
 		loop {
 			let group = tokio::select! {
 				biased;
-				Some(group) = track.next_group().transpose() => group,
+				Some(group) = track.next().transpose() => group,
 				Some(_) = async { Some(old_group.as_mut()?.await) } => {
 					old_group = None;
 					old_sequence = None;
@@ -264,7 +264,7 @@ impl Publisher {
 			let frame = tokio::select! {
 				biased;
 				_ = stream.closed() => return Err(Error::Cancel),
-				frame = group.next_frame() => frame,
+				frame = group.next() => frame,
 			};
 
 			let mut frame = match frame? {

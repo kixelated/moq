@@ -117,24 +117,26 @@ impl Import {
 			let track = match handler.as_ref() {
 				b"vide" => {
 					let info = Self::init_video(trak)?;
-					let track = self.broadcast.create_track(info.track.clone()).into();
+					let track = info.track.clone().produce();
+					self.broadcast.insert(track.consumer);
 					self.catalog.add_video(info);
-					self.catalog.publish();
-					track
+					track.producer
 				}
 				b"soun" => {
 					let info = Self::init_audio(trak)?;
-					let track = self.broadcast.create_track(info.track.clone()).into();
+					let track = info.track.clone().produce();
+					self.broadcast.insert(track.consumer);
 					self.catalog.add_audio(info);
-					self.catalog.publish();
-					track
+					track.producer
 				}
 				b"sbtl" => return Err(Error::UnsupportedTrack("subtitle")),
 				_ => return Err(Error::UnsupportedTrack("unknown")),
 			};
 
-			self.tracks.insert(track_id, track);
+			self.tracks.insert(track_id, track.into());
 		}
+
+		self.catalog.publish();
 
 		self.moov = Some(moov);
 

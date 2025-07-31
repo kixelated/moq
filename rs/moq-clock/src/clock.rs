@@ -20,7 +20,7 @@ impl Publisher {
 		let mut sequence = start.minute();
 
 		loop {
-			let segment = self.track.create_group(sequence.into()).unwrap();
+			let segment = self.track.create(sequence.into()).unwrap();
 
 			sequence += 1;
 
@@ -44,11 +44,11 @@ impl Publisher {
 		// Everything but the second.
 		let base = now.format("%Y-%m-%d %H:%M:").to_string();
 
-		segment.write_frame(base.clone());
+		segment.write(base.clone());
 
 		loop {
 			let delta = now.format("%S").to_string();
-			segment.write_frame(delta.clone());
+			segment.write(delta.clone());
 
 			let next = now + chrono::Duration::try_seconds(1).unwrap();
 			let next = next.with_nanosecond(0).unwrap();
@@ -80,16 +80,16 @@ impl Subscriber {
 	}
 
 	pub async fn run(mut self) -> anyhow::Result<()> {
-		while let Some(mut group) = self.track.next_group().await? {
+		while let Some(mut group) = self.track.next().await? {
 			let base = group
-				.read_frame()
+				.read()
 				.await
 				.context("failed to get first object")?
 				.context("empty group")?;
 
 			let base = String::from_utf8_lossy(&base);
 
-			while let Some(object) = group.read_frame().await? {
+			while let Some(object) = group.read().await? {
 				let str = String::from_utf8_lossy(&object);
 				println!("{base}{str}");
 			}

@@ -1,7 +1,9 @@
 use std::{collections::HashMap, path::PathBuf};
 
 use anyhow::Context;
-use moq_lite::{Broadcast, BroadcastConsumer, BroadcastProducer, Origin, OriginConsumer, OriginProducer, OriginUpdate};
+use moq_lite::{
+	Broadcast, BroadcastConsumer, BroadcastProducer, Origin, OriginAnnounce, OriginConsumer, OriginProducer,
+};
 use tracing::Instrument;
 use url::Url;
 
@@ -111,13 +113,13 @@ impl Cluster {
 		let mut secondary = self.secondary.consumer.clone();
 
 		loop {
-			let OriginUpdate {
+			let OriginAnnounce {
 				suffix: name,
 				active: broadcast,
 			} = tokio::select! {
 				biased;
-				Some(primary) = primary.next() => primary,
-				Some(secondary) = secondary.next() => secondary,
+				Some(primary) = primary.announced() => primary,
+				Some(secondary) = secondary.announced() => secondary,
 				else => return Ok(()),
 			};
 
@@ -137,10 +139,10 @@ impl Cluster {
 		// Discover other origins.
 		// NOTE: The root node will connect to all other nodes as a client, ignoring the existing (server) connection.
 		// This ensures that nodes are advertising a valid hostname before any tracks get announced.
-		while let Some(OriginUpdate {
+		while let Some(OriginAnnounce {
 			suffix: node,
 			active: origin,
-		}) = origins.next().await
+		}) = origins.announced().await
 		{
 			if Some(node.as_str()) == self.config.advertise.as_deref() {
 				// Skip ourselves.

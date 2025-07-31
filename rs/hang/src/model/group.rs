@@ -50,16 +50,16 @@ impl GroupConsumer {
 	/// - Tracks the maximum timestamp seen
 	///
 	/// Returns `None` when the group has ended.
-	pub async fn read_frame(&mut self) -> Result<Option<Frame>> {
+	pub async fn read(&mut self) -> Result<Option<Frame>> {
 		if let Some(frame) = self.buffered.pop_front() {
 			Ok(Some(frame))
 		} else {
-			self.read_frame_unbuffered().await
+			self.read_unbuffered().await
 		}
 	}
 
-	async fn read_frame_unbuffered(&mut self) -> Result<Option<Frame>> {
-		let mut payload = match self.group.read_frame().await? {
+	async fn read_unbuffered(&mut self) -> Result<Option<Frame>> {
+		let mut payload = match self.group.read().await? {
 			Some(payload) => payload,
 			None => return Ok(None),
 		};
@@ -82,14 +82,14 @@ impl GroupConsumer {
 	// Keep reading and buffering new frames, returning when `max` is larger than or equal to the cutoff.
 	// Not publish because the API is super weird.
 	// This will BLOCK FOREVER if the group has ended early; it's intended to be used within select!
-	pub(super) async fn buffer_frames_until(&mut self, cutoff: Timestamp) -> Timestamp {
+	pub(super) async fn buffer_until(&mut self, cutoff: Timestamp) -> Timestamp {
 		loop {
 			match self.max_timestamp {
 				Some(timestamp) if timestamp >= cutoff => return timestamp,
 				_ => (),
 			}
 
-			match self.read_frame().await {
+			match self.read().await {
 				Ok(Some(frame)) => self.buffered.push_back(frame),
 				// Otherwise block forever so we don't return from FuturesUnordered
 				_ => std::future::pending().await,

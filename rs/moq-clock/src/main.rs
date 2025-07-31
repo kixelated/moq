@@ -58,7 +58,7 @@ async fn main() -> anyhow::Result<()> {
 	match config.role {
 		Command::Publish => {
 			let mut broadcast = moq_lite::Broadcast::produce();
-			let track = broadcast.producer.create_track(track);
+			let track = broadcast.producer.create(track);
 			let clock = clock::Publisher::new(track);
 
 			let mut origin = moq_lite::Origin::default().produce();

@@ -114,14 +114,14 @@ fn retain_mut_unordered<T, F: Fn(&mut T) -> bool>(vec: &mut Vec<T>, f: F) {
 
 /// A broadcast path and its associated consumer, or None if closed.
 /// The returned path is relative to the consumer's prefix.
-pub struct OriginUpdate {
+pub struct OriginAnnounce {
 	pub suffix: Path,
 	pub active: Option<BroadcastConsumer>,
 }
 
 struct ConsumerState {
 	prefix: Path,
-	updates: mpsc::UnboundedSender<OriginUpdate>,
+	updates: mpsc::UnboundedSender<OriginAnnounce>,
 }
 
 impl ConsumerState {
@@ -131,7 +131,7 @@ impl ConsumerState {
 
 		if let Some(suffix) = path_ref.to_owned().strip_prefix(&self.prefix) {
 			// Send the absolute path, not the relative suffix
-			let update = OriginUpdate {
+			let update = OriginAnnounce {
 				suffix: suffix.into(),
 				active: Some(consumer.clone()),
 			};
@@ -146,7 +146,7 @@ impl ConsumerState {
 
 		if let Some(suffix) = path_ref.to_owned().strip_prefix(&self.prefix) {
 			// Send the absolute path, not the relative suffix
-			let update = OriginUpdate {
+			let update = OriginAnnounce {
 				suffix: suffix.into(),
 				active: None,
 			};
@@ -298,7 +298,7 @@ impl OriginProducer {
 	}
 
 	// Returns the closed notify of any consumer.
-	fn unused_inner(&self) -> Option<mpsc::UnboundedSender<OriginUpdate>> {
+	fn unused_inner(&self) -> Option<mpsc::UnboundedSender<OriginAnnounce>> {
 		let mut state = self.state.lock();
 
 		while let Some(consumer) = state.consumers.last() {
@@ -325,7 +325,7 @@ impl OriginProducer {
 pub struct OriginConsumer {
 	// We need a weak reference to the producer so that we can clone it.
 	producer: LockWeak<ProducerState>,
-	updates: mpsc::UnboundedReceiver<OriginUpdate>,
+	updates: mpsc::UnboundedReceiver<OriginAnnounce>,
 
 	/// All broadcasts are relative to this root path.
 	root: Path,
@@ -341,7 +341,7 @@ impl OriginConsumer {
 	/// The same path won't be announced/unannounced twice, instead it will toggle.
 	///
 	/// Note: The returned path is absolute and will always match this consumer's prefix.
-	pub async fn next(&mut self) -> Option<OriginUpdate> {
+	pub async fn announced(&mut self) -> Option<OriginAnnounce> {
 		self.updates.recv().await
 	}
 
@@ -410,24 +410,24 @@ use futures::FutureExt;
 #[cfg(test)]
 impl OriginConsumer {
 	pub fn assert_next(&mut self, path: &str, broadcast: &BroadcastConsumer) {
-		let next = self.next().now_or_never().expect("next blocked").expect("no next");
+		let next = self.announced().now_or_never().expect("next blocked").expect("no next");
 		assert_eq!(next.suffix.as_str(), path, "wrong path");
 		assert!(next.active.unwrap().is_clone(broadcast), "should be the same broadcast");
 	}
 
 	pub fn assert_next_none(&mut self, path: &str) {
-		let next = self.next().now_or_never().expect("next blocked").expect("no next");
+		let next = self.announced().now_or_never().expect("next blocked").expect("no next");
 		assert_eq!(next.suffix.as_str(), path, "wrong path");
 		assert!(next.active.is_none(), "should be unannounced");
 	}
 
 	pub fn assert_next_wait(&mut self) {
-		assert!(self.next().now_or_never().is_none(), "next should block");
+		assert!(self.announced().now_or_never().is_none(), "next should block");
 	}
 
 	pub fn assert_next_closed(&mut self) {
 		assert!(
-			self.next().now_or_never().expect("next blocked").is_none(),
+			self.announced().now_or_never().expect("next blocked").is_none(),
 			"next should be closed"
 		);
 	}
@@ -446,8 +446,6 @@ mod tests {
 		let broadcast2 = Broadcast::produce();
 
 		let mut consumer1 = origin.consumer;
-		let mut consumer2 = origin.producer.consume();
-
 		// Make a new consumer that should get it.
 		consumer1.assert_next_wait();
 
@@ -458,8 +456,8 @@ mod tests {
 		consumer1.assert_next_wait();
 
 		// Make a new consumer that should get the existing broadcast.
-		let mut consumer3 = origin.producer.consume();
 		// But we don't consume it yet.
+		let mut consumer2 = origin.producer.consume();
 
 		// Publish the second broadcast.
 		origin.producer.publish("test2", broadcast2.consumer);
@@ -484,6 +482,7 @@ mod tests {
 		consumer2.assert_next_wait();
 
 		// And a new consumer only gets the last broadcast.
+		let mut consumer3 = origin.producer.consume();
 		consumer3.assert_next("test2", &broadcast2.producer.consume());
 		consumer3.assert_next_wait();
 

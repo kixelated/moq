@@ -51,11 +51,11 @@ impl TrackProducer {
 
 		let mut group = match self.group.take() {
 			Some(group) => group,
-			None => self.inner.append_group(),
+			None => self.inner.append(),
 		};
 
 		let size = header.len() + frame.payload.len();
-		let mut chunked = group.create_frame(size.into());
+		let mut chunked = group.create(size.into());
 		chunked.write(header.freeze());
 		chunked.write(frame.payload);
 		chunked.finish();
@@ -131,12 +131,12 @@ impl TrackConsumer {
 			// TODO is there a way to do this without FuturesUnordered?
 			let mut buffering = FuturesUnordered::new();
 			for (index, pending) in self.pending.iter_mut().enumerate() {
-				buffering.push(async move { (index, pending.buffer_frames_until(cutoff).await) })
+				buffering.push(async move { (index, pending.buffer_until(cutoff).await) })
 			}
 
 			tokio::select! {
 				biased;
-				Some(res) = async { Some(self.current.as_mut()?.read_frame().await) } => {
+				Some(res) = async { Some(self.current.as_mut()?.read().await) } => {
 					drop(buffering);
 
 					match res? {
@@ -152,7 +152,7 @@ impl TrackConsumer {
 						}
 					};
 				},
-				Some(res) = async { self.inner.next_group().await.transpose() } => {
+				Some(res) = async { self.inner.next().await.transpose() } => {
 					let group = GroupConsumer::new(res?);
 					drop(buffering);
 
