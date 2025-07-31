@@ -1,5 +1,5 @@
 import * as Moq from "@kixelated/moq";
-import { type Effect, Root, Signal, Unique } from "@kixelated/signals";
+import { type Effect, Root, Signal } from "@kixelated/signals";
 
 export type ConnectionProps = {
 	// The URL of the relay server.
@@ -21,7 +21,7 @@ export type ConnectionProps = {
 export type ConnectionStatus = "connecting" | "connected" | "disconnected" | "unsupported";
 
 export class Connection {
-	url: Unique<URL | undefined>;
+	url: Signal<URL | undefined>;
 	status = new Signal<ConnectionStatus>("disconnected");
 	established = new Signal<Moq.Connection | undefined>(undefined);
 
@@ -36,7 +36,7 @@ export class Connection {
 	#tick = new Signal(0);
 
 	constructor(props?: ConnectionProps) {
-		this.url = new Unique(props?.url);
+		this.url = new Signal(props?.url);
 		this.reload = props?.reload ?? true;
 		this.delay = props?.delay ?? 1000;
 		this.maxDelay = props?.maxDelay ?? 30000;
@@ -65,26 +65,26 @@ export class Connection {
 		effect.spawn(async (cancel) => {
 			try {
 				const pending = Moq.connect(url);
+
 				const connection = await Promise.race([cancel, pending]);
 				if (!connection) {
 					pending.then((conn) => conn.close()).catch(() => {});
 					return;
 				}
 
-				try {
-					this.established.set(connection);
-					this.status.set("connected");
+				effect.set(this.established, connection);
+				effect.cleanup(() => connection.close());
 
-					// Reset the exponential backoff on success.
-					this.#delay = this.delay;
+				effect.set(this.status, "connected", "disconnected");
 
-					await Promise.race([cancel, connection.closed()]);
-				} finally {
-					connection.close();
-				}
+				// Reset the exponential backoff on success.
+				this.#delay = this.delay;
+
+				await Promise.race([cancel, connection.closed()]);
 			} catch (err) {
 				console.warn("connection error:", err);
 
+				// Exponential backoff.
 				if (this.reload) {
 					const tick = this.#tick.peek() + 1;
 
@@ -95,17 +95,7 @@ export class Connection {
 					// Exponential backoff.
 					this.#delay = Math.min(this.#delay * 2, this.maxDelay);
 				}
-			} finally {
-				this.established.set(undefined);
-				this.status.set("disconnected");
 			}
-		});
-
-		effect.cleanup(() => {
-			this.established.set((prev) => {
-				prev?.close();
-				return undefined;
-			});
 		});
 	}
 

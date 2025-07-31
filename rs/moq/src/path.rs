@@ -41,6 +41,46 @@ impl<'a> PathRef<'a> {
 		}
 	}
 
+	/// Check if this path has the given prefix, respecting path boundaries.
+	///
+	/// Unlike String::starts_with, this ensures that "foo" does not match "foobar".
+	/// The prefix must either:
+	/// - Be exactly equal to this path
+	/// - Be followed by a '/' delimiter in the original path
+	/// - Be empty (matches everything)
+	///
+	/// # Examples
+	/// ```
+	/// use moq_lite::Path;
+	///
+	/// let path = Path::new("foo/bar");
+	/// assert!(path.has_prefix("foo"));
+	/// assert!(path.has_prefix(&Path::new("foo")));
+	/// assert!(path.has_prefix("foo/"));
+	/// assert!(!path.has_prefix("fo"));
+	///
+	/// let path = Path::new("foobar");
+	/// assert!(!path.has_prefix("foo"));
+	/// ```
+	pub fn has_prefix<'b>(&self, prefix: impl Into<PathRef<'b>>) -> bool {
+		let prefix = prefix.into();
+		if prefix.is_empty() {
+			return true;
+		}
+
+		if !self.0.starts_with(prefix.as_str()) {
+			return false;
+		}
+
+		// Check if the prefix is the exact match
+		if self.0.len() == prefix.len() {
+			return true;
+		}
+
+		// Otherwise, ensure the character after the prefix is a delimiter
+		self.0.chars().nth(prefix.len()) == Some('/')
+	}
+
 	/// Get the path as a string slice.
 	pub fn as_str(&self) -> &str {
 		&self.0
@@ -189,22 +229,8 @@ impl Path {
 	/// assert!(!path.has_prefix("foo"));
 	/// ```
 	pub fn has_prefix<'a>(&self, prefix: impl Into<PathRef<'a>>) -> bool {
-		let prefix = prefix.into();
-		if prefix.is_empty() {
-			return true;
-		}
-
-		if !self.0.starts_with(prefix.as_str()) {
-			return false;
-		}
-
-		// Check if the prefix is the exact match
-		if self.0.len() == prefix.len() {
-			return true;
-		}
-
-		// Otherwise, ensure the character after the prefix is a delimiter
-		self.0.chars().nth(prefix.len()) == Some('/')
+		let inner: PathRef = self.into();
+		inner.has_prefix(prefix)
 	}
 
 	/// Strip the given prefix from this path, returning the suffix.

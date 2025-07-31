@@ -261,7 +261,7 @@ export class TrackConsumer {
 	close() {
 		this.#groups.close();
 
-		this.#nextGroup?.then((group) => group?.close());
+		this.#nextGroup?.then((group) => group?.close()).catch(() => {});
 		this.#nextGroup = undefined;
 		this.#nextFrame = undefined;
 		this.#currentGroup?.close();

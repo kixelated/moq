@@ -3,8 +3,9 @@ import { type Computed, type Effect, Root, Signal } from "@kixelated/signals";
 import type * as Catalog from "../catalog";
 import { u8, u53 } from "../catalog/integers";
 import * as Container from "../container";
+import type { VAD } from "../worker";
+import VAD_WORKER_URL from "../worker/vad?worker&url";
 import type * as Worklet from "../worklet";
-
 import WORKLET_URL from "../worklet/capture?worker&url";
 
 // Create a group every half a second
@@ -45,6 +46,7 @@ export type AudioProps = {
 
 	muted?: boolean;
 	volume?: number;
+	vad?: boolean;
 };
 
 export class Audio {
@@ -53,6 +55,10 @@ export class Audio {
 
 	muted: Signal<boolean>;
 	volume: Signal<number>;
+	vad: Signal<boolean>;
+
+	// Set by VAD when it detects speech. undefined when VAD is disabled.
+	speaking = new Signal<boolean | undefined>(undefined);
 
 	media: Signal<AudioTrack | undefined>;
 	constraints: Signal<AudioConstraints | undefined>;
@@ -65,6 +71,8 @@ export class Audio {
 	#gain = new Signal<GainNode | undefined>(undefined);
 	// Downcast to AudioNode so it matches Watch.
 	readonly root = this.#gain.readonly() as Computed<AudioNode | undefined>;
+
+	#vadWorker = new Signal<Worker | undefined>(undefined);
 
 	#group?: Moq.GroupProducer;
 	#groupTimestamp = 0;
@@ -79,10 +87,13 @@ export class Audio {
 		this.constraints = new Signal(props?.constraints);
 		this.muted = new Signal(props?.muted ?? false);
 		this.volume = new Signal(props?.volume ?? 1);
+		this.vad = new Signal(props?.vad ?? false);
 
 		this.#signals.effect(this.#runSource.bind(this));
 		this.#signals.effect(this.#runGain.bind(this));
 		this.#signals.effect(this.#runEncoder.bind(this));
+		this.#signals.effect(this.#runVadWorker.bind(this));
+		this.#signals.effect(this.#runVad.bind(this));
 	}
 
 	#runSource(effect: Effect): void {
@@ -235,6 +246,74 @@ export class Audio {
 			encoder.encode(frame);
 			frame.close();
 		};
+	}
+
+	#runVadWorker(effect: Effect): void {
+		if (!effect.get(this.vad)) return;
+
+		// Create and initialize VAD worker as soon as VAD is enabled
+		const vadWorker = new Worker(VAD_WORKER_URL, { type: "module" });
+		effect.cleanup(() => vadWorker.terminate());
+
+		// Store the worker for use in #runVad
+		effect.set(this.#vadWorker, vadWorker);
+	}
+
+	#runVad(effect: Effect): void {
+		effect.cleanup(() => this.speaking.set(undefined));
+
+		const worker = effect.get(this.#vadWorker);
+		if (!worker) return;
+
+		const media = effect.get(this.media);
+		if (!media) return;
+
+		const context = new AudioContext({
+			sampleRate: 16000, // required by the model.
+		});
+		effect.cleanup(() => context.close());
+
+		// Handle messages from the VAD worker
+		worker.onmessage = ({ data }: MessageEvent<VAD.Response>) => {
+			if (data.type === "result") {
+				// Use heuristics to determine if we've toggled speaking or not
+				this.speaking.set(data.speaking);
+			} else if (data.type === "error") {
+				console.error("VAD worker error:", data.message);
+				this.speaking.set(undefined);
+			}
+		};
+
+		// Start the worklet asynchronously.
+		effect.spawn(async () => {
+			// Async because we need to wait for the worklet to be registered.
+			await context.audioWorklet.addModule(WORKLET_URL);
+
+			const worklet = new AudioWorkletNode(context, "capture", {
+				numberOfInputs: 1,
+				numberOfOutputs: 0,
+				channelCount: 1,
+				channelCountMode: "explicit",
+				channelInterpretation: "discrete",
+			});
+
+			const root = new MediaStreamAudioSourceNode(context, {
+				mediaStream: new MediaStream([media]),
+			});
+			effect.cleanup(() => root.disconnect());
+
+			root.connect(worklet);
+			effect.cleanup(() => worklet.disconnect());
+
+			// Sent the worklet to the VAD worker, so the main thread doesn't have to be involved.
+			worker.postMessage(
+				{
+					type: "init",
+					worklet: worklet.port,
+				},
+				[worklet.port],
+			);
+		});
 	}
 
 	close() {

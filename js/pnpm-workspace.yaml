@@ -9,6 +9,9 @@ onlyBuiltDependencies:
   - '@tailwindcss/oxide'
   - core-js
   - esbuild
+  - onnxruntime-node
+  - protobufjs
+  - sharp
   - wasm-pack
 
 overrides:

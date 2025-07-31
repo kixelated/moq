@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.2](https://github.com/kixelated/moq/compare/moq-token-v0.5.1...moq-token-v0.5.2) - 2025-07-31
+
+### Other
+
+- Fix some token nonsense. ([#497](https://github.com/kixelated/moq/pull/497))
+- Don't require node.js for moq-token ([#496](https://github.com/kixelated/moq/pull/496))
+
 ## [0.5.1](https://github.com/kixelated/moq/compare/moq-token-v0.5.0...moq-token-v0.5.1) - 2025-07-22
 
 ### Other

@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.0](https://github.com/kixelated/moq/compare/moq-lite-v0.5.0...moq-lite-v0.6.0) - 2025-07-31
+
+### Other
+
+- Fix paths so they're relative to the root, not root + role. ([#508](https://github.com/kixelated/moq/pull/508))
+- Fix some JS race conditions and bugs. ([#504](https://github.com/kixelated/moq/pull/504))
+- Fix duplicate JS announcements. ([#503](https://github.com/kixelated/moq/pull/503))
+- Add a compatibility layer for moq-transport-07 ([#500](https://github.com/kixelated/moq/pull/500))
+- Try to fix docker again. ([#492](https://github.com/kixelated/moq/pull/492))
+
 ## [0.5.0](https://github.com/kixelated/moq/compare/moq-lite-v0.4.0...moq-lite-v0.5.0) - 2025-07-22
 
 ### Other

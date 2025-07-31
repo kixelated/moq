@@ -11,7 +11,7 @@ pub struct Connection {
 
 impl Connection {
 	#[tracing::instrument("conn", skip_all, fields(id = self.id))]
-	pub async fn run(mut self) -> anyhow::Result<()> {
+	pub async fn run(self) -> anyhow::Result<()> {
 		// Verify the URL before accepting the connection.
 		let token = match self.auth.verify(self.request.url()) {
 			Ok(token) => token,
@@ -27,12 +27,16 @@ impl Connection {
 		// These broadcasts will be served to the session (when it subscribes).
 		let mut subscribe = None;
 		if let Some(prefix) = &token.subscribe {
-			let prefix = token.root.join(prefix);
+			// If this is a cluster node, then only publish our primary broadcasts.
+			// Otherwise publish everything.
+			let origin = match token.cluster {
+				true => &self.cluster.primary,
+				false => &self.cluster.combined,
+			};
 
-			subscribe = Some(match token.cluster {
-				true => self.cluster.primary.consume_prefix(&prefix),
-				false => self.cluster.combined.consume_prefix(&prefix),
-			});
+			// Scope the origin to our root.
+			let origin = origin.with_root(&token.root);
+			subscribe = Some(origin.consume_prefix(prefix));
 		}
 
 		// These broadcasts will be received from the session (when it publishes).
@@ -40,15 +44,16 @@ impl Connection {
 		if let Some(prefix) = &token.publish {
 			// If this is a cluster node, then add its broadcasts to the secondary origin.
 			// That way we won't publish them to other cluster nodes.
-			let prefix = token.root.join(prefix);
+			let origin = match token.cluster {
+				true => &self.cluster.secondary,
+				false => &self.cluster.primary,
+			};
 
-			publish = Some(match token.cluster {
-				true => self.cluster.secondary.publish_prefix(&prefix),
-				false => self.cluster.primary.publish_prefix(&prefix),
-			});
+			let origin = origin.with_root(&token.root);
+			publish = Some(origin.publish_prefix(prefix))
 		}
 
-		tracing::info!(subscribe = ?subscribe.as_ref().map(|s| s.prefix()), publish = ?publish.as_ref().map(|p| p.prefix()), "session accepted");
+		tracing::info!(root = %token.root, subscribe = %subscribe.as_ref().map(|s| s.prefix().as_str()).unwrap_or("(none)"), publish = %publish.as_ref().map(|p| p.prefix().as_str()).unwrap_or("(none)"), "session accepted");
 
 		// NOTE: subscribe and publish seem backwards because of how relays work.
 		// We publish the tracks the client is allowed to subscribe to.

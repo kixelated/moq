@@ -56,32 +56,41 @@ impl Publisher {
 		let interest = stream.reader.decode::<message::AnnouncePlease>().await?;
 
 		// Just for logging the fully qualified prefix.
-		let prefix = self.origin.prefix().join(&interest.prefix);
+		let full = self.origin.root().join(&interest.prefix);
+
+		tracing::trace!(prefix = %full, "announcing start");
 
 		let res = self.run_announce(stream, &interest.prefix).await;
 		match res {
-			Err(Error::Cancel) => tracing::debug!(%prefix, "announcing cancelled"),
-			Err(err) => tracing::debug!(?err, %prefix, "announcing error"),
-			_ => tracing::trace!(%prefix, "announcing complete"),
+			Err(Error::Cancel) => tracing::debug!(prefix = %full, "announcing cancelled"),
+			Err(err) => tracing::debug!(?err, prefix = %full, "announcing error"),
+			_ => tracing::trace!(prefix = %full, "announcing complete"),
 		}
 
 		Ok(())
 	}
 
 	async fn run_announce(&mut self, stream: &mut Stream, prefix: &Path) -> Result<(), Error> {
-		let mut announced = self.origin.consume_prefix(prefix);
+		// Complain when the user is trying to access more than they're allowed.
+		let prefix = prefix
+			.strip_prefix(self.origin.prefix())
+			.ok_or(Error::Unauthorized)?
+			.to_owned();
+
+		let mut announced = self.origin.consume_prefix(&prefix);
 
 		let mut init = Vec::new();
 
 		// Send ANNOUNCE_INIT as the first message with all currently active paths
 		// We use `now_or_never` so `announced` keeps track of what has been sent for us.
 		while let Some(Some(OriginUpdate { suffix, active })) = announced.next().now_or_never() {
+			let full = self.origin.root().join(&prefix).join(&suffix);
 			if active.is_some() {
-				tracing::debug!(broadcast = %prefix.join(&suffix), "announce");
+				tracing::debug!(broadcast = %full, "announce");
 				init.push(suffix);
 			} else {
 				// A potential race.
-				tracing::debug!(broadcast = %prefix.join(&suffix), "unannounce");
+				tracing::debug!(broadcast = %full, "unannounce");
 				init.retain(|path| path != &suffix);
 			}
 		}
@@ -97,12 +106,13 @@ impl Publisher {
 				announced = announced.next() => {
 					match announced {
 						Some(OriginUpdate { suffix, active }) => {
+							let full = self.origin.root().join(&prefix).join(&suffix);
 							if active.is_some() {
-								tracing::debug!(broadcast = %prefix.join(&suffix), "announce");
+								tracing::debug!(broadcast = %full, "announce");
 								let msg = message::Announce::Active { suffix };
 								stream.writer.encode(&msg).await?;
 							} else {
-								tracing::debug!(broadcast = %prefix.join(&suffix), "unannounce");
+								tracing::debug!(broadcast = %full, "unannounce");
 								let msg = message::Announce::Ended { suffix };
 								stream.writer.encode(&msg).await?;
 							}
@@ -117,20 +127,20 @@ impl Publisher {
 	pub async fn recv_subscribe(mut self, stream: &mut Stream) -> Result<(), Error> {
 		let mut subscribe = stream.reader.decode::<message::Subscribe>().await?;
 
-		tracing::debug!(id = %subscribe.id, broadcast = %subscribe.broadcast, track = %subscribe.track, "subscribed started");
+		// Get the full path just for logging.
+		let broadcast = self.origin.root().join(self.origin.prefix()).join(&subscribe.broadcast);
+
+		tracing::debug!(id = %subscribe.id, %broadcast, track = %subscribe.track, "subscribed started");
 
 		let res = self.run_subscribe(stream, &mut subscribe).await;
+		let track = &subscribe.track;
 
 		match res {
 			Err(Error::Cancel) | Err(Error::WebTransport(_)) => {
-				tracing::debug!(id = %subscribe.id, broadcast = %subscribe.broadcast, track = %subscribe.track, "subscribed cancelled");
+				tracing::debug!(id = %subscribe.id, %broadcast, %track, "subscribed cancelled")
 			}
-			Err(err) => {
-				tracing::warn!(?err, id = %subscribe.id, broadcast = %subscribe.broadcast, track = %subscribe.track, "subscribed error");
-			}
-			_ => {
-				tracing::debug!(id = %subscribe.id, broadcast = %subscribe.broadcast, track = %subscribe.track, "subscribed complete");
-			}
+			Err(err) => tracing::warn!(?err, id = %subscribe.id, %broadcast, %track, "subscribed error"),
+			_ => tracing::debug!(id = %subscribe.id, %broadcast, %track, "subscribed complete"),
 		}
 
 		Ok(())
@@ -142,7 +152,13 @@ impl Publisher {
 			priority: subscribe.priority,
 		};
 
-		let broadcast = self.origin.consume(&subscribe.broadcast).ok_or(Error::NotFound)?;
+		// Make sure the path matches what we're allowed to fetch
+		let path = subscribe
+			.broadcast
+			.strip_prefix(self.origin.prefix())
+			.ok_or(Error::Unauthorized)?;
+
+		let broadcast = self.origin.consume(&path).ok_or(Error::NotFound)?;
 		let track = broadcast.subscribe(&track);
 
 		// TODO wait until track.info() to get the *real* priority
@@ -197,10 +213,12 @@ impl Publisher {
 			let sequence = group.info.sequence;
 			let latest = new_sequence.as_ref().unwrap_or(&0);
 
+			tracing::debug!(subscribe = %subscribe.id, track = %track.info.name, sequence, latest, "serving group");
+
 			// If this group is older than the oldest group we're serving, skip it.
 			// We always serve at most two groups, but maybe we should serve only sequence >= MAX-1.
 			if sequence < *old_sequence.as_ref().unwrap_or(&0) {
-				tracing::debug!(track = %track.info.name, old = %sequence, %latest, "skipping group");
+				tracing::debug!(subscribe = %subscribe.id, track = %track.info.name, old = %sequence, %latest, "skipping group");
 				continue;
 			}
 
@@ -216,7 +234,7 @@ impl Publisher {
 
 			// Terminate the old group if it's still running.
 			if let Some(old_sequence) = old_sequence.take() {
-				tracing::debug!(track = %track.info.name, old = %old_sequence, %latest, "aborting group");
+				tracing::debug!(subscribe = %subscribe.id, track = %track.info.name, old = %old_sequence, %latest, "aborting group");
 				old_group.take(); // Drop the future to cancel it.
 			}
 

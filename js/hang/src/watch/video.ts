@@ -1,5 +1,5 @@
 import type * as Moq from "@kixelated/moq";
-import { type Effect, Root, Signal, Unique } from "@kixelated/signals";
+import { type Effect, Root, Signal } from "@kixelated/signals";
 import { Buffer } from "buffer";
 import type * as Catalog from "../catalog";
 import * as Container from "../container";
@@ -151,7 +151,7 @@ export class Video {
 	broadcast: Signal<Moq.BroadcastConsumer | undefined>;
 	enabled: Signal<boolean>; // Don't download any longer
 	catalog: Signal<Catalog.Root | undefined>;
-	selected = new Unique<Catalog.Video | undefined>(undefined);
+	selected = new Signal<Catalog.Video | undefined>(undefined);
 	active = new Signal<boolean>(false);
 
 	// Unfortunately, browsers don't let us hold on to multiple VideoFrames.

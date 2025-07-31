@@ -1,5 +1,5 @@
 import type * as Moq from "@kixelated/moq";
-import { type Computed, type Effect, type Getter, Root, Signal, Unique } from "@kixelated/signals";
+import { type Computed, type Effect, type Getter, Root, Signal } from "@kixelated/signals";
 import { Buffer } from "buffer";
 import type * as Catalog from "../catalog";
 import * as Container from "../container";
@@ -21,7 +21,7 @@ export class Audio {
 	broadcast: Getter<Moq.BroadcastConsumer | undefined>;
 	catalog: Getter<Catalog.Root | undefined>;
 	enabled: Signal<boolean>;
-	selected = new Unique<Catalog.Audio | undefined>(undefined);
+	selected = new Signal<Catalog.Audio | undefined>(undefined);
 
 	// The root of the audio graph, which can be used for custom visualizations.
 	// You can access the audio context via `root.context`.

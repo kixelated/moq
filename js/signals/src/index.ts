@@ -4,6 +4,10 @@ export type Dispose = () => void;
 
 type Subscriber<T> = (value: T) => void;
 
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore depends on the bundler.
+const dev = import.meta.env?.MODE !== "production";
+
 export interface Getter<T> {
 	peek(): T;
 	subscribe(fn: Subscriber<T>): Dispose;
@@ -12,51 +16,6 @@ export interface Getter<T> {
 
 export interface Setter<T> {
 	set(value: T | ((prev: T) => T)): void;
-}
-
-// A signal that uses dequal instead of === to deduplicate updates.
-export class Unique<T> implements Getter<T>, Setter<T> {
-	#value: T;
-	#subscribers: Set<Subscriber<T>> = new Set();
-
-	constructor(value: T) {
-		this.#value = value;
-	}
-
-	peek(): T {
-		return this.#value;
-	}
-
-	// We don't support functions here because we don't know if the function mutated the value.
-	set(value: T): void {
-		if (dequal(value, this.#value)) return;
-		this.#value = value;
-
-		for (const subscriber of this.#subscribers) {
-			subscriber(value);
-		}
-	}
-
-	subscribe(fn: Subscriber<T>): Dispose {
-		this.#subscribers.add(fn);
-		return () => this.#subscribers.delete(fn);
-	}
-
-	// Receive a notification when the value changes AND with the current value.
-	watch(fn: Subscriber<T>): Dispose {
-		const dispose = this.subscribe(fn);
-		try {
-			fn(this.#value);
-		} catch (e) {
-			dispose();
-			throw e;
-		}
-		return dispose;
-	}
-
-	readonly(): Computed<T> {
-		return new Computed(this);
-	}
 }
 
 export class Signal<T> implements Getter<T>, Setter<T> {
@@ -76,11 +35,14 @@ export class Signal<T> implements Getter<T>, Setter<T> {
 		let newValue: T;
 		if (typeof value === "function") {
 			newValue = (value as (prev: T) => T)(this.#value);
-			// NOTE: We can't use === here because we don't know if the function mutated the value.
-			// It's a VERY common pitfall so we err on the side of spurious updates.
+			// NOTE: We can't check for equality because the function could mutate the value.
 		} else {
+			// NOTE: This uses a more expensive dequal check to avoid spurious updates.
+			// Other libraries use === but it's a massive footgun unless you're using primatives.
+			if (dequal(value, this.#value)) {
+				return;
+			}
 			newValue = value;
-			if (newValue === this.#value) return;
 		}
 
 		this.#value = newValue;
@@ -141,10 +103,6 @@ export class Computed<T> implements Getter<T> {
 }
 
 export class Root {
-	// eslint-disable-next-line @typescript-eslint/ban-ts-comment
-	// @ts-ignore depends on the bundler.
-	static dev = import.meta.env?.MODE !== "production";
-
 	// Sanity check to make sure roots are being disposed on dev.
 	static #finalizer = new FinalizationRegistry<string>((debugInfo) => {
 		console.warn(`Signals was garbage collected without being closed:\n${debugInfo}`);
@@ -154,7 +112,7 @@ export class Root {
 	#dispose?: Dispose[] = [];
 
 	constructor() {
-		if (Root.dev) {
+		if (dev) {
 			const debug = new Error("created here:").stack ?? "No stack";
 			Root.#finalizer.register(this, debug, this);
 		}
@@ -163,7 +121,7 @@ export class Root {
 	// Create a nested signals instance.
 	effect(fn: (effect: Effect) => void) {
 		if (this.#nested === undefined) {
-			if (Root.dev) {
+			if (dev) {
 				console.warn("Root.effect called when closed, ignoring");
 			}
 			return;
@@ -178,7 +136,7 @@ export class Root {
 		...args: undefined extends SetterType<S> ? [cleanup?: SetterType<S>] : [cleanup: SetterType<S>]
 	): void {
 		if (this.#dispose === undefined) {
-			if (Root.dev) {
+			if (dev) {
 				console.warn("Root.set called when closed, ignoring");
 			}
 			return;
@@ -192,7 +150,7 @@ export class Root {
 	// A helper to call a function when a signal changes.
 	subscribe<T>(signal: Getter<T>, fn: (value: T) => void) {
 		if (this.#nested === undefined) {
-			if (Root.dev) {
+			if (dev) {
 				console.warn("Root.subscribe called when closed, running once");
 			}
 			fn(signal.peek());
@@ -206,7 +164,7 @@ export class Root {
 
 	cleanup(fn: Dispose): void {
 		if (this.#dispose === undefined) {
-			if (Root.dev) {
+			if (dev) {
 				console.warn("Root.cleanup called when closed, running immediately");
 			}
 			fn();
@@ -229,7 +187,7 @@ export class Root {
 		this.#dispose = undefined;
 		this.#nested = undefined;
 
-		if (Root.dev) {
+		if (dev) {
 			Root.#finalizer.unregister(this);
 		}
 	}
@@ -296,7 +254,7 @@ export class Effect {
 
 		// Wait for all async effects to complete.
 		try {
-			let warn: NodeJS.Timeout | undefined;
+			let warn: ReturnType<typeof setTimeout> | undefined;
 			if (Effect.dev) {
 				// There's a 1s timeout here to print warnings if cleanup functions don't exit.
 				warn = setTimeout(() => {
@@ -367,25 +325,6 @@ export class Effect {
 		const cleanup = args[0];
 		const cleanupValue = cleanup === undefined ? (undefined as SetterType<S>) : cleanup;
 		this.cleanup(() => signal.set(cleanupValue));
-	}
-
-	// Get the current value of a signal, monitoring it for changes (via dequal) and rerunning on change.
-	unique<T>(signal: Getter<T>): T {
-		if (this.#dispose === undefined) {
-			if (Effect.dev) {
-				console.warn("Effect.unique called when closed, returning current value");
-			}
-			return signal.peek();
-		}
-
-		const value = signal.peek();
-		const dispose = signal.subscribe((v) => {
-			if (dequal(v, value)) return;
-			this.#schedule();
-		});
-
-		this.#unwatch.push(dispose);
-		return value;
 	}
 
 	// TODO: Add effect for another layer of nesting

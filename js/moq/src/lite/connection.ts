@@ -31,6 +31,9 @@ export class Connection implements ConnectionInterface {
 	// Module for distributing tracks.
 	#subscriber: Subscriber;
 
+	// Just to avoid logging when `close()` is called.
+	#closed = false;
+
 	/**
 	 * Creates a new Connection instance.
 	 * @param url - The URL of the connection
@@ -54,11 +57,10 @@ export class Connection implements ConnectionInterface {
 	 * Closes the connection.
 	 */
 	close() {
-		try {
-			this.#quic.close();
-		} catch {
-			// ignore
-		}
+		this.#closed = true;
+		this.#publisher.close();
+		this.#subscriber.close();
+		this.#quic.close();
 	}
 
 	async #run(): Promise<void> {
@@ -69,7 +71,9 @@ export class Connection implements ConnectionInterface {
 		try {
 			await Promise.all([session, bidis, unis]);
 		} catch (err) {
-			console.error("fatal error running connection", err);
+			if (!this.#closed) {
+				console.error("fatal error running connection", err);
+			}
 		} finally {
 			this.close();
 		}
@@ -222,6 +226,7 @@ export async function connect(url: URL): Promise<Connection> {
 	if (url.protocol === "http:") {
 		const fingerprintUrl = new URL(url);
 		fingerprintUrl.pathname = "/certificate.sha256";
+		fingerprintUrl.search = "";
 		console.warn(fingerprintUrl.toString(), "performing an insecure fingerprint fetch; use https:// in production");
 
 		// Fetch the fingerprint from the server.

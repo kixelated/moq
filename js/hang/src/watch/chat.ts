@@ -1,5 +1,5 @@
 import type * as Moq from "@kixelated/moq";
-import { Root, Signal, Unique } from "@kixelated/signals";
+import { Root, Signal } from "@kixelated/signals";
 import { Container } from "..";
 import type * as Catalog from "../catalog";
 
@@ -15,8 +15,8 @@ export class Chat {
 	broadcast: Signal<Moq.BroadcastConsumer | undefined>;
 
 	enabled: Signal<boolean>;
-	catalog = new Unique<Catalog.Chat | undefined>(undefined);
-	track = new Unique<Container.ChatConsumer | undefined>(undefined);
+	catalog = new Signal<Catalog.Chat | undefined>(undefined);
+	track = new Signal<Container.ChatConsumer | undefined>(undefined);
 	ttl = new Signal<DOMHighResTimeStamp | undefined>(undefined);
 
 	#signals = new Root();
