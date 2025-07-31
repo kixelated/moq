@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.8.7](https://github.com/kixelated/moq/compare/moq-relay-v0.8.6...moq-relay-v0.8.7) - 2025-07-31
+
+### Other
+
+- Update moq-lite dependency to v0.6.1
+
 ## [0.8.6](https://github.com/kixelated/moq/compare/moq-relay-v0.8.5...moq-relay-v0.8.6) - 2025-07-31
 
 ### Other
