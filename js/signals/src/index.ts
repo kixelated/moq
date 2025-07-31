@@ -18,51 +18,6 @@ export interface Setter<T> {
 	set(value: T | ((prev: T) => T)): void;
 }
 
-// A signal that uses dequal instead of === to deduplicate updates.
-export class Unique<T> implements Getter<T>, Setter<T> {
-	#value: T;
-	#subscribers: Set<Subscriber<T>> = new Set();
-
-	constructor(value: T) {
-		this.#value = value;
-	}
-
-	peek(): T {
-		return this.#value;
-	}
-
-	// We don't support functions here because we don't know if the function mutated the value.
-	set(value: T): void {
-		if (dequal(value, this.#value)) return;
-		this.#value = value;
-
-		for (const subscriber of this.#subscribers) {
-			subscriber(value);
-		}
-	}
-
-	subscribe(fn: Subscriber<T>): Dispose {
-		this.#subscribers.add(fn);
-		return () => this.#subscribers.delete(fn);
-	}
-
-	// Receive a notification when the value changes AND with the current value.
-	watch(fn: Subscriber<T>): Dispose {
-		const dispose = this.subscribe(fn);
-		try {
-			fn(this.#value);
-		} catch (e) {
-			dispose();
-			throw e;
-		}
-		return dispose;
-	}
-
-	readonly(): Computed<T> {
-		return new Computed(this);
-	}
-}
-
 export class Signal<T> implements Getter<T>, Setter<T> {
 	#value: T;
 	#subscribers: Set<Subscriber<T>> = new Set();
@@ -80,15 +35,14 @@ export class Signal<T> implements Getter<T>, Setter<T> {
 		let newValue: T;
 		if (typeof value === "function") {
 			newValue = (value as (prev: T) => T)(this.#value);
-			// NOTE: We can't use === here because we don't know if the function mutated the value.
-			// It's a VERY common pitfall so we err on the side of spurious updates.
+			// NOTE: We can't check for equality because the function could mutate the value.
 		} else {
-			newValue = value;
-			if (newValue === this.#value) {
+			// NOTE: This uses a more expensive dequal check to avoid spurious updates.
+			// Other libraries use === but it's a massive footgun unless you're using primatives.
+			if (dequal(value, this.#value)) {
 				return;
-			} else if (dev && dequal(newValue, this.#value)) {
-				console.warn("use Unique: dequal but not ===", newValue);
 			}
+			newValue = value;
 		}
 
 		this.#value = newValue;
@@ -371,25 +325,6 @@ export class Effect {
 		const cleanup = args[0];
 		const cleanupValue = cleanup === undefined ? (undefined as SetterType<S>) : cleanup;
 		this.cleanup(() => signal.set(cleanupValue));
-	}
-
-	// Get the current value of a signal, monitoring it for changes (via dequal) and rerunning on change.
-	unique<T>(signal: Getter<T>): T {
-		if (this.#dispose === undefined) {
-			if (Effect.dev) {
-				console.warn("Effect.unique called when closed, returning current value");
-			}
-			return signal.peek();
-		}
-
-		const value = signal.peek();
-		const dispose = signal.subscribe((v) => {
-			if (dequal(v, value)) return;
-			this.#schedule();
-		});
-
-		this.#unwatch.push(dispose);
-		return value;
 	}
 
 	// TODO: Add effect for another layer of nesting

@@ -1,5 +1,5 @@
 import type * as Moq from "@kixelated/moq";
-import { type Effect, Root, Signal, Unique } from "@kixelated/signals";
+import { type Effect, Root, Signal } from "@kixelated/signals";
 import * as Catalog from "../catalog";
 import type { Connection } from "../connection";
 import { Audio, type AudioProps } from "./audio";
@@ -34,7 +34,7 @@ export class Broadcast {
 	enabled: Signal<boolean>;
 	name: Signal<Moq.Path.Valid | undefined>;
 	status = new Signal<"offline" | "loading" | "live">("offline");
-	user = new Unique<Catalog.User | undefined>(undefined);
+	user = new Signal<Catalog.User | undefined>(undefined);
 
 	audio: Audio;
 	video: Video;

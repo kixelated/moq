@@ -1,5 +1,5 @@
 import type * as Moq from "@kixelated/moq";
-import { type Computed, type Effect, Root, Signal, Unique } from "@kixelated/signals";
+import { type Computed, type Effect, Root, Signal } from "@kixelated/signals";
 import type * as Catalog from "../catalog";
 import * as Container from "../container";
 
@@ -11,13 +11,13 @@ export class Location {
 	enabled: Signal<boolean>;
 
 	broadcast: Signal<Moq.BroadcastConsumer | undefined>;
-	catalog = new Unique<Catalog.Location | undefined>(undefined);
+	catalog = new Signal<Catalog.Location | undefined>(undefined);
 	peering = new Signal<boolean | undefined>(undefined);
 
-	#current = new Unique<Catalog.Position | undefined>(undefined);
+	#current = new Signal<Catalog.Position | undefined>(undefined);
 	readonly current = this.#current.readonly();
 
-	#updates = new Unique<Catalog.Track | undefined>(undefined);
+	#updates = new Signal<Catalog.Track | undefined>(undefined);
 
 	#signals = new Root();
 
@@ -88,7 +88,7 @@ export class Location {
 
 async function runConsumer(
 	consumer: Container.PositionConsumer,
-	location: Unique<Catalog.Position | undefined>,
+	location: Signal<Catalog.Position | undefined>,
 	cancel: Promise<void>,
 ) {
 	try {
@@ -109,10 +109,10 @@ async function runConsumer(
 
 export class LocationPeer {
 	handle: Signal<string | undefined>;
-	location: Unique<Catalog.Position | undefined>;
+	location: Signal<Catalog.Position | undefined>;
 	broadcast: Signal<Moq.BroadcastConsumer | undefined>;
 
-	#track = new Unique<Catalog.Track | undefined>(undefined);
+	#track = new Signal<Catalog.Track | undefined>(undefined);
 	#signals = new Root();
 
 	constructor(
@@ -121,7 +121,7 @@ export class LocationPeer {
 		handle?: string,
 	) {
 		this.handle = new Signal(handle);
-		this.location = new Unique<Catalog.Position | undefined>(undefined);
+		this.location = new Signal<Catalog.Position | undefined>(undefined);
 		this.broadcast = broadcast;
 
 		this.#signals.effect((effect) => {
