@@ -156,6 +156,8 @@ export class Publisher {
 				console.warn("subscribe update not supported", result);
 			}
 		}
+
+		console.debug(`publish done: broadcast=${msg.broadcast} track=${track.name}`);
 	}
 
 	/**
