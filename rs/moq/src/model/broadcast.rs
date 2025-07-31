@@ -194,7 +194,12 @@ impl BroadcastConsumer {
 		state.requested.insert(producer.info.name.clone(), producer.clone());
 
 		// Remove the track from the lookup when it's unused.
-		web_async::spawn(Self::cleanup(producer.clone(), self.state.clone()));
+		let state = self.state.clone();
+		let track_name = producer.info.name.clone();
+		web_async::spawn(async move {
+			producer.unused().await;
+			state.lock().requested.remove(&track_name);
+		});
 
 		// Insert the producer into the lookup so we will deduplicate requests.
 		// This is not a subscriber so it doesn't count towards "used" subscribers.
@@ -221,21 +226,6 @@ impl BroadcastConsumer {
 		self.closed.same_channel(&other.closed)
 	}
 
-	// Remove the track from the lookup when it's unused.
-	async fn cleanup(track: TrackProducer, state: Lock<State>) {
-		// Wait until the track is unused and remove it from the lookup.
-		track.unused().await;
-
-		// Remove the track from the lookup.
-		let mut state = state.lock();
-		match state.requested.remove(&track.info.name) {
-			// Make sure we are removing the correct track.
-			Some(other) if other.is_clone(&track) => true,
-			// Put it back if it's not the same track.
-			Some(other) => state.requested.insert(track.info.name.clone(), other.clone()).is_some(),
-			None => false,
-		};
-	}
 }
 
 #[cfg(test)]
