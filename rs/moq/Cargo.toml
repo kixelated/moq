@@ -30,3 +30,17 @@ tokio = { workspace = true, features = [
 tracing = "0.1"
 web-async = { workspace = true }
 web-transport = { workspace = true }
+
+[dev-dependencies]
+anyhow = "1"
+clap = { version = "4", features = ["derive", "env"] }
+moq-native = { path = "../moq-native" }
+serde_json = "1"
+tracing-subscriber = "0.3"
+url = "2"
+
+[[example]]
+name = "publish"
+
+[[example]]
+name = "subscribe"
