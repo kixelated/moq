@@ -83,15 +83,18 @@ impl Catalog {
 
 	/// Produce a catalog track that describes the available media tracks.
 	pub fn produce(self) -> Produce<CatalogProducer, CatalogConsumer> {
-		let track = moq_lite::Track {
-			name: Catalog::DEFAULT_NAME.to_string(),
-			priority: 100,
-		}
-		.produce();
+		let track = Catalog::default_track().produce();
 
 		Produce {
 			producer: CatalogProducer::new(track.producer, self),
 			consumer: track.consumer.into(),
+		}
+	}
+
+	pub fn default_track() -> moq_lite::Track {
+		moq_lite::Track {
+			name: Catalog::DEFAULT_NAME.to_string(),
+			priority: 100,
 		}
 	}
 }

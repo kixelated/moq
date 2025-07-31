@@ -933,7 +933,6 @@ dependencies = [
  "thiserror 2.0.12",
  "tokio",
  "tracing",
- "web-async",
 ]
 
 [[package]]
@@ -1557,7 +1556,6 @@ dependencies = [
  "thiserror 2.0.12",
  "tokio",
  "tracing",
- "tracing-subscriber",
  "url",
  "web-async",
  "web-transport",

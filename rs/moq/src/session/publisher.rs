@@ -14,7 +14,7 @@ pub(super) struct Publisher {
 impl Publisher {
 	pub fn new(session: web_transport::Session, origin: Option<OriginConsumer>) -> Self {
 		// Default to a dummy origin that is immediately closed.
-		let origin = origin.unwrap_or_else(|| Origin::default().produce().consumer);
+		let origin = origin.unwrap_or_else(|| Origin::produce().consumer);
 		Self { session, origin }
 	}
 

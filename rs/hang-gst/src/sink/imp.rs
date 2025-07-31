@@ -170,17 +170,17 @@ impl HangSink {
 		RUNTIME.block_on(async move {
 			let session = client.connect(url.clone()).await.expect("failed to connect");
 
-			let mut publisher = moq_lite::OriginProducer::default();
+			let mut origin = moq_lite::Origin::produce();
+			let broadcast = moq_lite::Broadcast::produce();
 
-			let broadcast = hang::BroadcastProducer::new();
 			let name = settings.broadcast.as_ref().expect("broadcast is required");
-			publisher.publish(name, broadcast.consume().inner);
+			origin.producer.publish(name, broadcast.consumer);
 
-			let _session = moq_lite::Session::connect(session, publisher.consume_all(), None)
+			let _session = moq_lite::Session::connect(session, origin.consumer, None)
 				.await
 				.expect("failed to connect");
 
-			let media = hang::cmaf::Import::new(broadcast);
+			let media = hang::cmaf::Import::new(broadcast.producer);
 
 			let mut state = self.state.lock().unwrap();
 			state.media = Some(media);

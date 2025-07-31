@@ -44,7 +44,7 @@ async fn main() -> anyhow::Result<()> {
 	let mut broadcast = moq_lite::Broadcast::produce();
 
 	// Create an origin producer to publish to the broadcast
-	let mut origin = moq_lite::Origin::default().produce();
+	let mut origin = moq_lite::Origin::produce();
 	origin.producer.publish(&args.name, broadcast.consumer);
 
 	// Establish the session (no subscriber)

@@ -41,7 +41,7 @@ async fn main() -> anyhow::Result<()> {
 	tracing::info!("✅ Connected to relay");
 
 	// Create an origin producer to receive broadcasts
-	let mut origin = moq_lite::Origin::default().produce();
+	let mut origin = moq_lite::Origin::produce();
 
 	// Establish the session (with a subscriber)
 	let session = moq_lite::Session::connect(session, None, Some(origin.producer))
@@ -72,10 +72,7 @@ async fn main() -> anyhow::Result<()> {
 	}
 
 	// Subscribe to the broadcast
-	let broadcast = origin
-		.consumer
-		.get(&args.name)
-		.context("Broadcast not found")?;
+	let broadcast = origin.consumer.get(&args.name).context("Broadcast not found")?;
 	let track = moq_lite::Track::new("clock");
 	let mut track_consumer = broadcast.subscribe(&track);
 

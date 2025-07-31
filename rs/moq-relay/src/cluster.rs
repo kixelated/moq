@@ -59,10 +59,10 @@ impl Cluster {
 		Cluster {
 			config,
 			client,
-			primary: Origin::default().produce(),
+			primary: Origin::produce(),
 			noop: Broadcast::produce(),
-			secondary: Origin::default().produce(),
-			combined: Origin::default().produce(),
+			secondary: Origin::produce(),
+			combined: Origin::produce(),
 		}
 	}
 

@@ -61,7 +61,7 @@ async fn main() -> anyhow::Result<()> {
 			let track = broadcast.producer.create(track);
 			let clock = clock::Publisher::new(track);
 
-			let mut origin = moq_lite::Origin::default().produce();
+			let mut origin = moq_lite::Origin::produce();
 			origin.producer.publish(&config.broadcast, broadcast.consumer);
 
 			let session = moq_lite::Session::connect(session, origin.consumer, None).await?;
@@ -72,7 +72,7 @@ async fn main() -> anyhow::Result<()> {
 			}
 		}
 		Command::Subscribe => {
-			let origin = moq_lite::Origin::default().produce();
+			let origin = moq_lite::Origin::produce();
 			let session = moq_lite::Session::connect(session, None, Some(origin.producer)).await?;
 
 			// The broadcast name is empty because the URL contains the name

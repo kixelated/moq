@@ -157,18 +157,10 @@ impl ConsumerState {
 	}
 }
 
-#[derive(Clone, Default)]
-pub struct Origin {
-	/// All broadcasts are relative to this (optional) path.
-	pub root: Path,
-}
+pub struct Origin {}
 
 impl Origin {
-	pub fn new(root: Path) -> Self {
-		Self { root }
-	}
-
-	pub fn produce(&self) -> Produce<OriginProducer, OriginConsumer> {
+	pub fn produce() -> Produce<OriginProducer, OriginConsumer> {
 		let producer = OriginProducer::new();
 		let consumer = producer.consume();
 		Produce { producer, consumer }
@@ -441,7 +433,7 @@ mod tests {
 
 	#[tokio::test]
 	async fn test_announce() {
-		let mut origin = Origin::default().produce();
+		let mut origin = Origin::produce();
 		let broadcast1 = Broadcast::produce();
 		let broadcast2 = Broadcast::produce();
 
@@ -503,7 +495,7 @@ mod tests {
 
 	#[tokio::test]
 	async fn test_duplicate() {
-		let mut origin = Origin::default().produce();
+		let mut origin = Origin::produce();
 		let broadcast1 = Broadcast::produce();
 		let broadcast2 = Broadcast::produce();
 
@@ -526,7 +518,7 @@ mod tests {
 
 	#[tokio::test]
 	async fn test_duplicate_reverse() {
-		let mut origin = Origin::default().produce();
+		let mut origin = Origin::produce();
 		let broadcast1 = Broadcast::produce();
 		let broadcast2 = Broadcast::produce();
 
@@ -550,7 +542,7 @@ mod tests {
 
 	#[tokio::test]
 	async fn test_double_publish() {
-		let mut origin = Origin::default().produce();
+		let mut origin = Origin::produce();
 		let broadcast = Broadcast::produce();
 
 		// Ensure it doesn't crash.

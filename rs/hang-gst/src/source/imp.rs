@@ -177,16 +177,19 @@ impl HangSrc {
 		};
 
 		let session = client.connect(url).await?;
-		let origin = moq_lite::OriginProducer::default();
-		let _session = moq_lite::Session::connect(session, None, origin.clone()).await?;
+		let origin = moq_lite::Origin::produce();
+		let _session = moq_lite::Session::connect(session, None, origin.producer).await?;
 
 		let broadcast = origin
-			.consume(&name)
+			.consumer
+			.get(&name)
 			.ok_or_else(|| anyhow::anyhow!("Broadcast '{}' not found", name))?;
-		let mut broadcast = hang::BroadcastConsumer::new(broadcast);
+
+		let catalog = broadcast.subscribe(hang::Catalog::default_track());
+		let mut catalog = hang::catalog::CatalogConsumer::new(catalog);
 
 		// TODO handle catalog updates
-		let catalog = broadcast.catalog.next().await?.context("no catalog found")?.clone();
+		let catalog = catalog.next().await?.context("no catalog found")?.clone();
 
 		for video in catalog.video {
 			let mut track = broadcast.subscribe(&video.track);
