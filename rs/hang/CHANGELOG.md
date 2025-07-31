@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.2](https://github.com/kixelated/moq/compare/hang-v0.5.1...hang-v0.5.2) - 2025-07-31
+
+### Other
+
+- Styp ([#501](https://github.com/kixelated/moq/pull/501))
+
 ## [0.5.1](https://github.com/kixelated/moq/compare/hang-v0.5.0...hang-v0.5.1) - 2025-07-22
 
 ### Other
