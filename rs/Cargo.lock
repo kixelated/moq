@@ -1544,19 +1544,14 @@ dependencies = [
 name = "moq-lite"
 version = "0.6.0"
 dependencies = [
- "anyhow",
  "async-channel",
  "bytes",
- "clap",
  "futures",
- "moq-native",
  "num_enum",
  "serde",
- "serde_json",
  "thiserror 2.0.12",
  "tokio",
  "tracing",
- "url",
  "web-async",
  "web-transport",
 ]

@@ -1,0 +1,31 @@
+{
+	"name": "@kixelated/moq-clock",
+	"type": "module",
+	"version": "0.1.0",
+	"description": "MoQ clock example with publish/subscribe functionality",
+	"license": "(MIT OR Apache-2.0)",
+	"repository": "github:kixelated/moq",
+	"files": [
+		"./src",
+		"README.md"
+	],
+	"exports": {
+		".": "./src/main.ts"
+	},
+	"bin": {
+		"moq-clock": "./src/main.ts"
+	},
+	"scripts": {
+		"build": "tsc -b",
+		"check": "tsc --noEmit",
+		"publish": "deno run --allow-net --allow-env --unstable-net --unstable-sloppy-imports ./src/main.ts publish",
+		"subscribe": "deno run --allow-net --allow-env --unstable-net --unstable-sloppy-imports ./src/main.ts subscribe"
+	},
+	"dependencies": {
+		"@kixelated/moq": "workspace:*"
+	},
+	"devDependencies": {
+		"@types/deno": "^2.3.0",
+		"typescript": "^5.8.3"
+	}
+}
