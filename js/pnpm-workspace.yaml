@@ -1,5 +1,6 @@
 packages:
   - moq
+  - moq-clock  
   - moq-token
   - hang
   - hang-demo
