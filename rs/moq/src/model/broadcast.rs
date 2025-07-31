@@ -191,22 +191,28 @@ impl BroadcastConsumer {
 		// Otherwise we have never seen this track before and need to create a new producer.
 		let producer = track.clone().produce();
 		let consumer = producer.consume();
+
+		// Insert the producer into the lookup so we will deduplicate requests.
+		// This is not a subscriber so it doesn't count towards "used" subscribers.
+		match self.requested.try_send(producer.clone()) {
+			Ok(()) => {}
+			Err(_) => {
+				// If the BroadcastProducer is closed, immediately close the track.
+				// This is a bit more ergonomic than returning None.
+				producer.abort(Error::Cancel);
+				return consumer;
+			}
+		}
+
+		// Insert the producer into the lookup so we will deduplicate requests.
 		state.requested.insert(producer.info.name.clone(), producer.clone());
 
 		// Remove the track from the lookup when it's unused.
 		let state = self.state.clone();
-		let track_name = producer.info.name.clone();
 		web_async::spawn(async move {
 			producer.unused().await;
-			state.lock().requested.remove(&track_name);
+			state.lock().requested.remove(&producer.info.name);
 		});
-
-		// Insert the producer into the lookup so we will deduplicate requests.
-		// This is not a subscriber so it doesn't count towards "used" subscribers.
-		match self.requested.try_send(producer) {
-			Ok(()) => {}
-			Err(error) => error.into_inner().abort(Error::Cancel),
-		}
 
 		consumer
 	}
@@ -225,7 +231,6 @@ impl BroadcastConsumer {
 	pub fn is_clone(&self, other: &Self) -> bool {
 		self.closed.same_channel(&other.closed)
 	}
-
 }
 
 #[cfg(test)]
