@@ -53,7 +53,7 @@ async fn main() -> anyhow::Result<()> {
 
 	// Start a 1 second timeout because announcements are technically not required
 	let announce_result = timeout(Duration::from_secs(1), async {
-		while let Some(update) = origin.consumer.next().await {
+		while let Some(update) = origin.consumer.announced().await {
 			if update.suffix.as_str() == args.name && update.active.is_some() {
 				return Some(update);
 			}
@@ -72,7 +72,10 @@ async fn main() -> anyhow::Result<()> {
 	}
 
 	// Subscribe to the broadcast
-	let broadcast = origin.consumer.get(&args.name).context("Broadcast not found")?;
+	let broadcast = origin
+		.consumer
+		.get(&args.name)
+		.context("Broadcast not found")?;
 	let track = moq_lite::Track::new("clock");
 	let mut track_consumer = broadcast.subscribe(&track);
 
@@ -81,7 +84,7 @@ async fn main() -> anyhow::Result<()> {
 		// NOTE: Groups may arrive out of order and in parallel.
 		// This crude example reads sequentially, but a proper application should handle this.
 		let mut group = tokio::select! {
-			res = track_consumer.next_group() => match res? {
+			res = track_consumer.next() => match res? {
 				Some(group) => group,
 				None => {
 					// The producer can close the track at any time without an error.
@@ -97,7 +100,7 @@ async fn main() -> anyhow::Result<()> {
 		// For JSON blobs this is a good idea because messages are independent.
 		// But for something delta encoded like video frames, you want frames to be in dependency order.
 		let frame = tokio::select! {
-			res = group.read_frame() => match res? {
+			res = group.read() => match res? {
 				Some(frame) => frame,
 				None => {
 					// Our example won't do this, but it is legal to produce empty groups.
@@ -112,7 +115,7 @@ async fn main() -> anyhow::Result<()> {
 		tracing::info!("🎉 Got group {} message: {}", group.info.sequence, message);
 
 		// Optional sanity testing
-		if (group.read_frame().await?).is_some() {
+		if (group.read().await?).is_some() {
 			tracing::warn!("⚠️ Group should only have one frame");
 		}
 	}

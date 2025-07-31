@@ -43,12 +43,12 @@ Live media is built on top of this layer using something like [hang](../hang).
 
 	// Create a group.
 	// Each group is independent and the newest group(s) will be prioritized.
-	let group = track.append_group();
+	let group = track.append();
 
 	// Write frames to the group.
 	// Each frame is dependent on the previous frame, so older frames are prioritized.
-	group.append_frame(b"Hello");
-	group.append_frame(b"World");
+	group.append(b"Hello");
+	group.append(b"World");
 
 	// Finally, publish the broadcast to the session.
 	// You can provide a broadcast path which gets appended to the URL.

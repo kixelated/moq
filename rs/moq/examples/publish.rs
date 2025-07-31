@@ -56,7 +56,7 @@ async fn main() -> anyhow::Result<()> {
 
 	// Create a "clock" track within our broadcast
 	let track = moq_lite::Track::new("clock");
-	let mut track_producer = broadcast.producer.create_track(track);
+	let mut track_producer = broadcast.producer.create(track);
 
 	tracing::info!("✅ Publishing the current time");
 
@@ -72,8 +72,8 @@ async fn main() -> anyhow::Result<()> {
 		let data = json_msg.to_string().into_bytes();
 
 		// Create a new group for each frame
-		let mut group = track_producer.append_group();
-		group.write_frame(data);
+		let mut group = track_producer.append();
+		group.write(data);
 		group.finish();
 
 		// Sleep for a second
