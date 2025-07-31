@@ -1,7 +1,6 @@
 use anyhow::Context;
 use hang::cmaf::Import;
 use hang::moq_lite;
-use hang::{BroadcastConsumer, BroadcastProducer};
 use tokio::io::AsyncRead;
 use url::Url;
 
@@ -11,15 +10,13 @@ pub async fn client<T: AsyncRead + Unpin>(
 	name: String,
 	input: &mut T,
 ) -> anyhow::Result<()> {
-	let producer = BroadcastProducer::new();
-	let consumer = producer.consume();
-
+	let broadcast = moq_lite::Broadcast::produce();
 	let client = config.init()?;
 
 	// Connect to the remote and start parsing stdin in parallel.
 	tokio::select! {
-		res = connect(client, url, name, consumer) => res,
-		res = publish(producer, input) => res,
+		res = connect(client, url, name, broadcast.consumer) => res,
+		res = publish(broadcast.producer, input) => res,
 	}
 }
 
@@ -27,18 +24,18 @@ async fn connect(
 	client: moq_native::Client,
 	url: Url,
 	name: String,
-	consumer: BroadcastConsumer,
+	consumer: moq_lite::BroadcastConsumer,
 ) -> anyhow::Result<()> {
 	tracing::info!(%url, %name, "connecting");
 
 	let session = client.connect(url).await?;
 
 	// Create an origin producer to publish to the broadcast.
-	let mut publisher = moq_lite::OriginProducer::default();
-	publisher.publish(&name, consumer.inner.clone());
+	let mut origin = moq_lite::Origin::default().produce();
+	origin.producer.publish(&name, consumer);
 
 	// Establish the connection, not providing a subscriber.
-	let session = moq_lite::Session::connect(session, publisher.consume_all(), None).await?;
+	let session = moq_lite::Session::connect(session, origin.consumer, None).await?;
 
 	tokio::select! {
 		// On ctrl-c, close the session and exit.
@@ -55,7 +52,7 @@ async fn connect(
 	}
 }
 
-async fn publish<T: AsyncRead + Unpin>(producer: BroadcastProducer, input: &mut T) -> anyhow::Result<()> {
+async fn publish<T: AsyncRead + Unpin>(producer: moq_lite::BroadcastProducer, input: &mut T) -> anyhow::Result<()> {
 	let mut import = Import::new(producer);
 
 	import

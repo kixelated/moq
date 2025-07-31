@@ -4,7 +4,6 @@ use axum::http::StatusCode;
 use axum::response::IntoResponse;
 use axum::{http::Method, routing::get, Router};
 use hang::{cmaf, moq_lite};
-use hang::{BroadcastConsumer, BroadcastProducer};
 use moq_lite::web_transport;
 use std::net::SocketAddr;
 use std::path::PathBuf;
@@ -28,17 +27,20 @@ pub async fn server<T: AsyncRead + Unpin>(
 	let server = config.init()?;
 	let fingerprints = server.fingerprints().to_vec();
 
-	let producer = BroadcastProducer::new();
-	let consumer = producer.consume();
+	let broadcast = moq_lite::Broadcast::produce();
 
 	tokio::select! {
-		res = accept(server, name, consumer) => res,
-		res = publish(producer, input) => res,
+		res = accept(server, name, broadcast.consumer) => res,
+		res = publish(broadcast.producer, input) => res,
 		res = web(listen, fingerprints, public) => res,
 	}
 }
 
-async fn accept(mut server: moq_native::Server, name: String, consumer: BroadcastConsumer) -> anyhow::Result<()> {
+async fn accept(
+	mut server: moq_native::Server,
+	name: String,
+	consumer: moq_lite::BroadcastConsumer,
+) -> anyhow::Result<()> {
 	let mut conn_id = 0;
 
 	tracing::info!(addr = ?server.local_addr(), "listening");
@@ -47,9 +49,9 @@ async fn accept(mut server: moq_native::Server, name: String, consumer: Broadcas
 		let id = conn_id;
 		conn_id += 1;
 
-		let consumer = consumer.clone();
 		let name = name.clone();
 
+		let consumer = consumer.clone();
 		// Handle the connection in a new task.
 		tokio::spawn(async move {
 			if let Err(err) = run_session(id, session, name, consumer).await {
@@ -66,16 +68,16 @@ async fn run_session(
 	id: u64,
 	session: web_transport::quinn::Request,
 	name: String,
-	consumer: BroadcastConsumer,
+	consumer: moq_lite::BroadcastConsumer,
 ) -> anyhow::Result<()> {
 	// Blindly accept the WebTransport session, regardless of the URL.
 	let session = session.ok().await.context("failed to accept session")?;
 
 	// Create an origin producer to publish to the broadcast.
-	let mut publisher = moq_lite::OriginProducer::default();
-	publisher.publish(&name, consumer.inner.clone());
+	let mut origin = moq_lite::Origin::default().produce();
+	origin.producer.publish(&name, consumer);
 
-	let session = moq_lite::Session::accept(session, publisher.consume_all(), None)
+	let session = moq_lite::Session::accept(session, origin.consumer, None)
 		.await
 		.context("failed to accept session")?;
 
@@ -84,7 +86,7 @@ async fn run_session(
 	Err(session.closed().await.into())
 }
 
-async fn publish<T: AsyncRead + Unpin>(producer: BroadcastProducer, input: &mut T) -> anyhow::Result<()> {
+async fn publish<T: AsyncRead + Unpin>(producer: moq_lite::BroadcastProducer, input: &mut T) -> anyhow::Result<()> {
 	let mut import = cmaf::Import::new(producer);
 
 	import

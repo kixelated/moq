@@ -12,7 +12,7 @@ use std::future::Future;
 use bytes::Bytes;
 use tokio::sync::watch;
 
-use crate::{Error, Result};
+use crate::{Error, Produce, Result};
 
 use super::{Frame, FrameConsumer, FrameProducer};
 
@@ -23,8 +23,10 @@ pub struct Group {
 }
 
 impl Group {
-	pub fn produce(self) -> GroupProducer {
-		GroupProducer::new(self)
+	pub fn produce(self) -> Produce<GroupProducer, GroupConsumer> {
+		let producer = GroupProducer::new(self);
+		let consumer = producer.consume();
+		Produce { producer, consumer }
 	}
 }
 
@@ -78,7 +80,7 @@ pub struct GroupProducer {
 }
 
 impl GroupProducer {
-	pub fn new(info: Group) -> Self {
+	fn new(info: Group) -> Self {
 		Self {
 			info,
 			state: Default::default(),
@@ -101,9 +103,9 @@ impl GroupProducer {
 
 	/// Create a frame with an upfront size
 	pub fn create_frame(&mut self, info: Frame) -> FrameProducer {
-		let producer = FrameProducer::new(info);
-		self.append_frame(producer.consume());
-		producer
+		let frame = Frame::produce(info);
+		self.append_frame(frame.consumer);
+		frame.producer
 	}
 
 	/// Append a frame to the group.

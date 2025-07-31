@@ -78,7 +78,7 @@ impl Web {
 
 /// Serve the announced broadcasts for a given prefix.
 async fn serve_announced(Path(prefix): Path<String>, cluster: Cluster) -> impl IntoResponse {
-	let mut origin = cluster.combined.consume_prefix(&prefix);
+	let mut origin = cluster.combined.consumer.with_prefix(&prefix);
 	let mut broadcasts = Vec::new();
 
 	while let Some(Some(OriginUpdate { suffix, active })) = origin.next().now_or_never() {

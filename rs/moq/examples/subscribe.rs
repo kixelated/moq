@@ -1,6 +1,5 @@
 use anyhow::Context;
 use clap::Parser;
-use moq_lite::{OriginProducer, Session};
 use std::time::Duration;
 use tokio::time::timeout;
 use url::Url;
@@ -42,11 +41,10 @@ async fn main() -> anyhow::Result<()> {
 	tracing::info!("✅ Connected to relay");
 
 	// Create an origin producer to receive broadcasts
-	let origin = OriginProducer::default();
-	let mut consumer = origin.consume_all();
+	let mut origin = moq_lite::Origin::default().produce();
 
 	// Establish the session (with a subscriber)
-	let session = Session::connect(session, None, Some(origin))
+	let session = moq_lite::Session::connect(session, None, Some(origin.producer))
 		.await
 		.context("Failed to establish session")?;
 
@@ -55,7 +53,7 @@ async fn main() -> anyhow::Result<()> {
 
 	// Start a 1 second timeout because announcements are technically not required
 	let announce_result = timeout(Duration::from_secs(1), async {
-		while let Some(update) = consumer.next().await {
+		while let Some(update) = origin.consumer.next().await {
 			if update.suffix.as_str() == args.name && update.active.is_some() {
 				return Some(update);
 			}
@@ -74,7 +72,7 @@ async fn main() -> anyhow::Result<()> {
 	}
 
 	// Subscribe to the broadcast
-	let broadcast = consumer.consume(&args.name).context("Broadcast not found")?;
+	let broadcast = origin.consumer.get(&args.name).context("Broadcast not found")?;
 	let track = moq_lite::Track::new("clock");
 	let mut track_consumer = broadcast.subscribe(&track);
 
@@ -114,10 +112,9 @@ async fn main() -> anyhow::Result<()> {
 		tracing::info!("🎉 Got group {} message: {}", group.info.sequence, message);
 
 		// Optional sanity testing
-		match group.read_frame().await? {
-			Some(_) => tracing::warn!("⚠️ Group should only have one frame"),
-			None => {}
-		};
+		if (group.read_frame().await?).is_some() {
+			tracing::warn!("⚠️ Group should only have one frame");
+		}
 	}
 
 	Ok(())

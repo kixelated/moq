@@ -1,9 +1,7 @@
 use futures::FutureExt;
 use web_async::FuturesExt;
 
-use crate::{
-	message, model::GroupConsumer, Error, OriginConsumer, OriginProducer, OriginUpdate, Path, Track, TrackConsumer,
-};
+use crate::{message, model::GroupConsumer, Error, Origin, OriginConsumer, OriginUpdate, Path, Track, TrackConsumer};
 
 use super::{Stream, Writer};
 
@@ -15,8 +13,8 @@ pub(super) struct Publisher {
 
 impl Publisher {
 	pub fn new(session: web_transport::Session, origin: Option<OriginConsumer>) -> Self {
-		// Create a dummy origin that is immediately closed.
-		let origin = origin.unwrap_or_else(|| OriginProducer::default().consume_all());
+		// Default to a dummy origin that is immediately closed.
+		let origin = origin.unwrap_or_else(|| Origin::default().produce().consumer);
 		Self { session, origin }
 	}
 
@@ -77,7 +75,7 @@ impl Publisher {
 			.ok_or(Error::Unauthorized)?
 			.to_owned();
 
-		let mut announced = self.origin.consume_prefix(&prefix);
+		let mut announced = self.origin.with_prefix(&prefix);
 
 		let mut init = Vec::new();
 
@@ -158,7 +156,7 @@ impl Publisher {
 			.strip_prefix(self.origin.prefix())
 			.ok_or(Error::Unauthorized)?;
 
-		let broadcast = self.origin.consume(&path).ok_or(Error::NotFound)?;
+		let broadcast = self.origin.get(&path).ok_or(Error::NotFound)?;
 		let track = broadcast.subscribe(&track);
 
 		// TODO wait until track.info() to get the *real* priority

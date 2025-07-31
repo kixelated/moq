@@ -3,7 +3,7 @@ use tokio::sync::mpsc;
 use web_async::{Lock, LockWeak};
 
 use super::BroadcastConsumer;
-use crate::{Path, PathRef};
+use crate::{Path, PathRef, Produce};
 
 // If there are multiple broadcasts with the same path, we use the most recent one but keep the others around.
 struct BroadcastState {
@@ -157,8 +157,26 @@ impl ConsumerState {
 	}
 }
 
-/// Announces broadcasts to consumers over the network.
 #[derive(Clone, Default)]
+pub struct Origin {
+	/// All broadcasts are relative to this (optional) path.
+	pub root: Path,
+}
+
+impl Origin {
+	pub fn new(root: Path) -> Self {
+		Self { root }
+	}
+
+	pub fn produce(&self) -> Produce<OriginProducer, OriginConsumer> {
+		let producer = OriginProducer::new();
+		let consumer = producer.consume();
+		Produce { producer, consumer }
+	}
+}
+
+/// Announces broadcasts to consumers over the network.
+#[derive(Clone)]
 pub struct OriginProducer {
 	/// All broadcasts are relative to this path.
 	root: Path,
@@ -172,8 +190,12 @@ pub struct OriginProducer {
 }
 
 impl OriginProducer {
-	pub fn new() -> Self {
-		Self::default()
+	fn new() -> Self {
+		Self {
+			root: Path::default(),
+			prefix: Path::default(),
+			state: Default::default(),
+		}
 	}
 
 	/// Publish a broadcast, announcing it to all consumers.
@@ -205,7 +227,7 @@ impl OriginProducer {
 	}
 
 	/// Returns a new OriginProducer where all published broadcasts are relative to the prefix.
-	pub fn publish_prefix<'a>(&self, prefix: impl Into<PathRef<'a>>) -> Self {
+	pub fn with_prefix<'a>(&self, prefix: impl Into<PathRef<'a>>) -> Self {
 		Self {
 			prefix: self.prefix.join(prefix),
 			state: self.state.clone(),
@@ -213,18 +235,8 @@ impl OriginProducer {
 		}
 	}
 
-	/// Get a specific broadcast by path.
-	///
-	/// The most recent, non-closed broadcast will be returned if there are duplicates.
-	pub fn consume<'a>(&self, path: impl Into<PathRef<'a>>) -> Option<BroadcastConsumer> {
-		let path = path.into();
-
-		let full = self.root.join(path);
-		self.state.lock().active.get(&full).map(|b| b.active.clone())
-	}
-
 	/// Subscribe to all announced broadcasts.
-	pub fn consume_all(&self) -> OriginConsumer {
+	pub fn consume(&self) -> OriginConsumer {
 		self.consume_prefix("")
 	}
 
@@ -335,9 +347,8 @@ impl OriginConsumer {
 
 	/// Get a specific broadcast by path.
 	///
-	/// This is relative to the consumer's prefix.
 	/// Returns None if the path hasn't been announced yet.
-	pub fn consume<'a>(&self, path: impl Into<PathRef<'a>>) -> Option<BroadcastConsumer> {
+	pub fn get<'a>(&self, path: impl Into<PathRef<'a>>) -> Option<BroadcastConsumer> {
 		let full = self.root.join(&self.prefix).join(path.into());
 
 		let state = self.producer.upgrade()?;
@@ -345,11 +356,7 @@ impl OriginConsumer {
 		state.active.get(&full).map(|b| b.active.clone())
 	}
 
-	pub fn consume_all(&self) -> OriginConsumer {
-		self.consume_prefix("")
-	}
-
-	pub fn consume_prefix<'a>(&self, prefix: impl Into<PathRef<'a>>) -> OriginConsumer {
+	pub fn with_prefix<'a>(&self, prefix: impl Into<PathRef<'a>>) -> OriginConsumer {
 		// The prefix is relative to the existing prefix.
 		let prefix = self.prefix.join(prefix);
 
@@ -393,7 +400,7 @@ impl OriginConsumer {
 
 impl Clone for OriginConsumer {
 	fn clone(&self) -> Self {
-		self.consume_all()
+		self.with_prefix("")
 	}
 }
 
@@ -428,42 +435,44 @@ impl OriginConsumer {
 
 #[cfg(test)]
 mod tests {
-	use crate::BroadcastProducer;
+	use crate::Broadcast;
 
 	use super::*;
 
 	#[tokio::test]
 	async fn test_announce() {
-		let mut producer = OriginProducer::default();
-		let broadcast1 = BroadcastProducer::new();
-		let broadcast2 = BroadcastProducer::new();
+		let mut origin = Origin::default().produce();
+		let broadcast1 = Broadcast::produce();
+		let broadcast2 = Broadcast::produce();
+
+		let mut consumer1 = origin.consumer;
+		let mut consumer2 = origin.producer.consume();
 
 		// Make a new consumer that should get it.
-		let mut consumer1 = producer.consume_all();
 		consumer1.assert_next_wait();
 
 		// Publish the first broadcast.
-		producer.publish("test1", broadcast1.consume());
+		origin.producer.publish("test1", broadcast1.consumer);
 
-		consumer1.assert_next("test1", &broadcast1.consume());
+		consumer1.assert_next("test1", &broadcast1.producer.consume());
 		consumer1.assert_next_wait();
 
 		// Make a new consumer that should get the existing broadcast.
+		let mut consumer3 = origin.producer.consume();
 		// But we don't consume it yet.
-		let mut consumer2 = producer.consume_all();
 
 		// Publish the second broadcast.
-		producer.publish("test2", broadcast2.consume());
+		origin.producer.publish("test2", broadcast2.consumer);
 
-		consumer1.assert_next("test2", &broadcast2.consume());
+		consumer1.assert_next("test2", &broadcast2.producer.consume());
 		consumer1.assert_next_wait();
 
-		consumer2.assert_next("test1", &broadcast1.consume());
-		consumer2.assert_next("test2", &broadcast2.consume());
+		consumer2.assert_next("test1", &broadcast1.producer.consume());
+		consumer2.assert_next("test2", &broadcast2.producer.consume());
 		consumer2.assert_next_wait();
 
 		// Close the first broadcast.
-		drop(broadcast1);
+		drop(broadcast1.producer);
 
 		// Wait for the async task to run.
 		tokio::time::sleep(tokio::time::Duration::from_millis(1)).await;
@@ -475,12 +484,11 @@ mod tests {
 		consumer2.assert_next_wait();
 
 		// And a new consumer only gets the last broadcast.
-		let mut consumer3 = producer.consume_all();
-		consumer3.assert_next("test2", &broadcast2.consume());
+		consumer3.assert_next("test2", &broadcast2.producer.consume());
 		consumer3.assert_next_wait();
 
 		// Close the producer and make sure it cleans up
-		drop(producer);
+		drop(origin.producer);
 
 		// Wait for the async task to run.
 		tokio::time::sleep(tokio::time::Duration::from_millis(1)).await;
@@ -496,66 +504,66 @@ mod tests {
 
 	#[tokio::test]
 	async fn test_duplicate() {
-		let mut producer = OriginProducer::default();
-		let broadcast1 = BroadcastProducer::new();
-		let broadcast2 = BroadcastProducer::new();
+		let mut origin = Origin::default().produce();
+		let broadcast1 = Broadcast::produce();
+		let broadcast2 = Broadcast::produce();
 
-		producer.publish("test", broadcast1.consume());
-		producer.publish("test", broadcast2.consume());
-		assert!(producer.consume("test").is_some());
+		origin.producer.publish("test", broadcast1.consumer);
+		origin.producer.publish("test", broadcast2.consumer);
+		assert!(origin.consumer.get("test").is_some());
 
-		drop(broadcast1);
-
-		// Wait for the async task to run.
-		tokio::time::sleep(tokio::time::Duration::from_millis(1)).await;
-		assert!(producer.consume("test").is_some());
-
-		drop(broadcast2);
+		drop(broadcast1.producer);
 
 		// Wait for the async task to run.
 		tokio::time::sleep(tokio::time::Duration::from_millis(1)).await;
-		assert!(producer.consume("test").is_none());
+		assert!(origin.consumer.get("test").is_some());
+
+		drop(broadcast2.producer);
+
+		// Wait for the async task to run.
+		tokio::time::sleep(tokio::time::Duration::from_millis(1)).await;
+		assert!(origin.consumer.get("test").is_none());
 	}
 
 	#[tokio::test]
 	async fn test_duplicate_reverse() {
-		let mut producer = OriginProducer::default();
-		let broadcast1 = BroadcastProducer::new();
-		let broadcast2 = BroadcastProducer::new();
+		let mut origin = Origin::default().produce();
+		let broadcast1 = Broadcast::produce();
+		let broadcast2 = Broadcast::produce();
 
-		producer.publish("test", broadcast1.consume());
-		producer.publish("test", broadcast2.consume());
-		assert!(producer.consume("test").is_some());
+		origin.producer.publish("test", broadcast1.consumer);
+		origin.producer.publish("test", broadcast2.consumer);
+		assert!(origin.consumer.get("test").is_some());
 
 		// This is harder, dropping the new broadcast first.
-		drop(broadcast2);
+		drop(broadcast2.producer);
 
 		// Wait for the cleanup async task to run.
 		tokio::time::sleep(tokio::time::Duration::from_millis(1)).await;
-		assert!(producer.consume("test").is_some());
+		assert!(origin.consumer.get("test").is_some());
 
-		drop(broadcast1);
+		drop(broadcast1.producer);
 
 		// Wait for the cleanup async task to run.
 		tokio::time::sleep(tokio::time::Duration::from_millis(1)).await;
-		assert!(producer.consume("test").is_none());
+		assert!(origin.consumer.get("test").is_none());
 	}
 
 	#[tokio::test]
 	async fn test_double_publish() {
-		let mut producer = OriginProducer::default();
-		let broadcast = BroadcastProducer::new();
+		let mut origin = Origin::default().produce();
+		let broadcast = Broadcast::produce();
 
 		// Ensure it doesn't crash.
-		producer.publish("test", broadcast.consume());
-		producer.publish("test", broadcast.consume());
+		origin.producer.publish("test", broadcast.producer.consume());
+		origin.producer.publish("test", broadcast.producer.consume());
 
-		assert!(producer.consume("test").is_some());
+		assert!(origin.consumer.get("test").is_some());
 
-		drop(broadcast);
+		drop(broadcast.producer);
 
 		// Wait for the async task to run.
 		tokio::time::sleep(tokio::time::Duration::from_millis(1)).await;
-		assert!(producer.consume("test").is_none());
+		assert!(origin.consumer.get("test").is_none());
 	}
 }

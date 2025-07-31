@@ -14,7 +14,7 @@
 
 use tokio::sync::watch;
 
-use crate::{Error, Result};
+use crate::{Error, Produce, Result};
 
 use super::{Group, GroupConsumer, GroupProducer};
 
@@ -35,8 +35,10 @@ impl Track {
 		}
 	}
 
-	pub fn produce(self) -> TrackProducer {
-		TrackProducer::new(self)
+	pub fn produce(self) -> Produce<TrackProducer, TrackConsumer> {
+		let producer = TrackProducer::new(self);
+		let consumer = producer.consume();
+		Produce { producer, consumer }
 	}
 }
 
@@ -54,7 +56,7 @@ pub struct TrackProducer {
 }
 
 impl TrackProducer {
-	pub fn new(info: Track) -> Self {
+	fn new(info: Track) -> Self {
 		Self {
 			info,
 			state: Default::default(),
@@ -83,8 +85,8 @@ impl TrackProducer {
 	///
 	/// If the sequence number is not the latest, this method will return None.
 	pub fn create_group(&mut self, info: Group) -> Option<GroupProducer> {
-		let group = GroupProducer::new(info);
-		self.insert_group(group.consume()).then_some(group)
+		let group = Group::produce(info);
+		self.insert_group(group.consumer).then_some(group.producer)
 	}
 
 	/// Create a new group with the next sequence number.

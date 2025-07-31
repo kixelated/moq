@@ -6,6 +6,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::catalog::{Audio, Video};
 use crate::Result;
+use moq_lite::Produce;
 
 use super::Location;
 
@@ -81,14 +82,17 @@ impl Catalog {
 	}
 
 	/// Produce a catalog track that describes the available media tracks.
-	pub fn produce(self) -> CatalogProducer {
+	pub fn produce(self) -> Produce<CatalogProducer, CatalogConsumer> {
 		let track = moq_lite::Track {
 			name: Catalog::DEFAULT_NAME.to_string(),
 			priority: 100,
 		}
 		.produce();
 
-		CatalogProducer::new(track, self)
+		Produce {
+			producer: CatalogProducer::new(track.producer, self),
+			consumer: track.consumer.into(),
+		}
 	}
 }
 
@@ -105,7 +109,7 @@ pub struct CatalogProducer {
 
 impl CatalogProducer {
 	/// Create a new catalog producer with the given track and initial catalog.
-	pub fn new(track: moq_lite::TrackProducer, init: Catalog) -> Self {
+	fn new(track: moq_lite::TrackProducer, init: Catalog) -> Self {
 		Self {
 			current: Arc::new(Mutex::new(init)),
 			track,
@@ -176,18 +180,6 @@ impl CatalogProducer {
 impl From<moq_lite::TrackProducer> for CatalogProducer {
 	fn from(inner: moq_lite::TrackProducer) -> Self {
 		Self::new(inner, Catalog::default())
-	}
-}
-
-impl Default for CatalogProducer {
-	fn default() -> Self {
-		let track = moq_lite::Track {
-			name: Catalog::DEFAULT_NAME.to_string(),
-			priority: 100,
-		}
-		.produce();
-
-		CatalogProducer::new(track, Catalog::default())
 	}
 }
 

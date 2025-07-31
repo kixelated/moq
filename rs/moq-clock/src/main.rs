@@ -57,14 +57,14 @@ async fn main() -> anyhow::Result<()> {
 
 	match config.role {
 		Command::Publish => {
-			let mut broadcast = BroadcastProducer::new();
-			let track = broadcast.create(track);
+			let mut broadcast = moq_lite::Broadcast::produce();
+			let track = broadcast.producer.create_track(track);
 			let clock = clock::Publisher::new(track);
 
-			let mut publisher = moq_lite::OriginProducer::default();
-			publisher.publish(&config.broadcast, broadcast.consume());
+			let mut origin = moq_lite::Origin::default().produce();
+			origin.producer.publish(&config.broadcast, broadcast.consumer);
 
-			let session = moq_lite::Session::connect(session, publisher.consume_all(), None).await?;
+			let session = moq_lite::Session::connect(session, origin.consumer, None).await?;
 
 			tokio::select! {
 				res = session.closed() => Err(res.into()),
@@ -72,11 +72,11 @@ async fn main() -> anyhow::Result<()> {
 			}
 		}
 		Command::Subscribe => {
-			let origin = moq_lite::OriginProducer::default();
-			let session = moq_lite::Session::connect(session, None, origin.clone()).await?;
+			let origin = moq_lite::Origin::default().produce();
+			let session = moq_lite::Session::connect(session, None, Some(origin.producer)).await?;
 
 			// The broadcast name is empty because the URL contains the name
-			let broadcast = origin.consume(&config.broadcast).context("broadcast not found")?;
+			let broadcast = origin.consumer.get(&config.broadcast).context("broadcast not found")?;
 			let track = broadcast.subscribe(&track);
 			let clock = clock::Subscriber::new(track);
 

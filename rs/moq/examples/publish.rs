@@ -1,6 +1,5 @@
 use anyhow::Context;
 use clap::Parser;
-use moq_lite::{BroadcastProducer, OriginProducer, Session, Track};
 use serde_json::json;
 use std::time::Duration;
 use url::Url;
@@ -41,23 +40,23 @@ async fn main() -> anyhow::Result<()> {
 	let session = client.connect(url).await.context("Failed to connect")?;
 	tracing::info!("✅ Connected to relay");
 
-	// Create a broadcast producer
-	let mut broadcast_producer = BroadcastProducer::new();
+	// Create a broadcast producer/consumer pair
+	let mut broadcast = moq_lite::Broadcast::produce();
 
 	// Create an origin producer to publish to the broadcast
-	let mut origin_producer = OriginProducer::default();
-	origin_producer.publish(&args.name, broadcast_producer.consume());
+	let mut origin = moq_lite::Origin::default().produce();
+	origin.producer.publish(&args.name, broadcast.consumer);
 
 	// Establish the session (no subscriber)
-	let session = Session::connect(session, origin_producer.consume_all(), None)
+	let session = moq_lite::Session::connect(session, origin.consumer, None)
 		.await
 		.context("Failed to establish session")?;
 
 	tracing::info!("✅ Published broadcast: {}", args.name);
 
 	// Create a "clock" track within our broadcast
-	let track = Track::new("clock");
-	let mut track_producer = broadcast_producer.create(track);
+	let track = moq_lite::Track::new("clock");
+	let mut track_producer = broadcast.producer.create_track(track);
 
 	tracing::info!("✅ Publishing the current time");
 

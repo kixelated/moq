@@ -1,7 +1,7 @@
 use std::{collections::HashMap, path::PathBuf};
 
 use anyhow::Context;
-use moq_lite::{BroadcastConsumer, BroadcastProducer, OriginProducer, OriginUpdate};
+use moq_lite::{Broadcast, BroadcastConsumer, BroadcastProducer, Origin, OriginConsumer, OriginProducer, OriginUpdate};
 use tracing::Instrument;
 use url::Url;
 
@@ -40,16 +40,16 @@ pub struct Cluster {
 	client: moq_native::Client,
 
 	// Advertises ourselves as an origin to other nodes.
-	noop: BroadcastProducer,
+	noop: moq_lite::Produce<BroadcastProducer, BroadcastConsumer>,
 
 	// Broadcasts announced by local clients (users).
-	pub primary: OriginProducer,
+	pub primary: moq_lite::Produce<OriginProducer, OriginConsumer>,
 
 	// Broadcasts announced by remote servers (cluster).
-	pub secondary: OriginProducer,
+	pub secondary: moq_lite::Produce<OriginProducer, OriginConsumer>,
 
 	// Broadcasts announced by local clients and remote servers.
-	pub combined: OriginProducer,
+	pub combined: moq_lite::Produce<OriginProducer, OriginConsumer>,
 }
 
 impl Cluster {
@@ -57,17 +57,18 @@ impl Cluster {
 		Cluster {
 			config,
 			client,
-			primary: OriginProducer::default(),
-			noop: BroadcastProducer::new(),
-			secondary: OriginProducer::default(),
-			combined: OriginProducer::default(),
+			primary: Origin::default().produce(),
+			noop: Broadcast::produce(),
+			secondary: Origin::default().produce(),
+			combined: Origin::default().produce(),
 		}
 	}
 
 	pub fn get(&self, broadcast: &str) -> Option<BroadcastConsumer> {
 		self.primary
-			.consume(broadcast)
-			.or_else(|| self.secondary.consume(broadcast))
+			.consumer
+			.get(broadcast)
+			.or_else(|| self.secondary.consumer.get(broadcast))
 	}
 
 	pub async fn run(mut self) -> anyhow::Result<()> {
@@ -85,7 +86,7 @@ impl Cluster {
 		if let Some(myself) = self.config.advertise.as_ref() {
 			tracing::info!(%self.config.prefix, %myself, "announcing as leaf");
 			let name = self.config.prefix.join(myself);
-			self.primary.publish(&name, self.noop.consume());
+			self.primary.producer.publish(&name, self.noop.consumer.clone());
 		}
 
 		// If the token is provided, read it from the disk and use it in the query parameter.
@@ -95,7 +96,7 @@ impl Cluster {
 			None => "".to_string(),
 		};
 
-		let noop = self.noop.consume();
+		let noop = self.noop.consumer.clone();
 
 		tokio::select! {
 			res = self.clone().run_remote(&connect, token.clone(), noop) => res.context("failed to connect to root"),
@@ -106,8 +107,8 @@ impl Cluster {
 
 	// Shovel broadcasts from the primary and secondary origins into the combined origin.
 	async fn run_combined(mut self) -> anyhow::Result<()> {
-		let mut primary = self.primary.consume_all();
-		let mut secondary = self.secondary.consume_all();
+		let mut primary = self.primary.consumer.clone();
+		let mut secondary = self.secondary.consumer.clone();
 
 		loop {
 			let OriginUpdate {
@@ -121,14 +122,14 @@ impl Cluster {
 			};
 
 			if let Some(broadcast) = broadcast {
-				self.combined.publish(&name, broadcast);
+				self.combined.producer.publish(&name, broadcast);
 			}
 		}
 	}
 
 	async fn run_remotes(self, token: String) -> anyhow::Result<()> {
 		// Subscribe to available origins.
-		let mut origins = self.secondary.consume_prefix(&self.config.prefix);
+		let mut origins = self.secondary.consumer.with_prefix(&self.config.prefix);
 
 		// Cancel tasks when the origin is closed.
 		let mut active: HashMap<String, tokio::task::AbortHandle> = HashMap::new();
@@ -217,8 +218,8 @@ impl Cluster {
 			.await
 			.context("failed to connect to remote")?;
 
-		let publish = Some(self.primary.consume_all());
-		let subscribe = Some(self.secondary.clone());
+		let publish = Some(self.primary.consumer.clone());
+		let subscribe = Some(self.secondary.producer.clone());
 
 		let session = moq_lite::Session::connect(conn, publish, subscribe)
 			.await

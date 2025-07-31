@@ -1,8 +1,9 @@
 use super::{Error, Result};
 use crate::catalog::{Audio, AudioCodec, AudioConfig, Video, VideoCodec, VideoConfig, AAC, AV1, H264, H265, VP9};
-use crate::model::{BroadcastProducer, Frame, Timestamp, TrackProducer};
+use crate::model::{Frame, Timestamp, TrackProducer};
+use crate::{Catalog, CatalogProducer};
 use bytes::{Bytes, BytesMut};
-use moq_lite::Track;
+use moq_lite::{BroadcastProducer, Track};
 use mp4_atom::{Any, AsyncReadFrom, Atom, DecodeMaybe, Mdat, Moof, Moov, Tfdt, Trak, Trun};
 use std::{collections::HashMap, time::Duration};
 use tokio::io::{AsyncRead, AsyncReadExt};
@@ -31,6 +32,9 @@ pub struct Import {
 	// The broadcast being produced
 	broadcast: BroadcastProducer,
 
+	// The catalog being produced
+	catalog: CatalogProducer,
+
 	// A lookup to tracks in the broadcast
 	tracks: HashMap<u32, TrackProducer>,
 
@@ -50,10 +54,14 @@ impl Import {
 	///
 	/// The broadcast will be populated with tracks as they're discovered in the
 	/// fMP4 file and the catalog will be automatically generated.
-	pub fn new(broadcast: BroadcastProducer) -> Self {
+	pub fn new(mut broadcast: BroadcastProducer) -> Self {
+		let catalog = Catalog::default().produce();
+		broadcast.insert(catalog.consumer.track);
+
 		Self {
 			buffer: BytesMut::new(),
 			broadcast,
+			catalog: catalog.producer,
 			tracks: HashMap::default(),
 			last_keyframe: HashMap::default(),
 			moov: None,
@@ -108,12 +116,18 @@ impl Import {
 
 			let track = match handler.as_ref() {
 				b"vide" => {
-					let track = Self::init_video(trak)?;
-					self.broadcast.create_video(track)
+					let info = Self::init_video(trak)?;
+					let track = self.broadcast.create_track(info.track.clone()).into();
+					self.catalog.add_video(info);
+					self.catalog.publish();
+					track
 				}
 				b"soun" => {
-					let track = Self::init_audio(trak)?;
-					self.broadcast.create_audio(track)
+					let info = Self::init_audio(trak)?;
+					let track = self.broadcast.create_track(info.track.clone()).into();
+					self.catalog.add_audio(info);
+					self.catalog.publish();
+					track
 				}
 				b"sbtl" => return Err(Error::UnsupportedTrack("subtitle")),
 				_ => return Err(Error::UnsupportedTrack("unknown")),
