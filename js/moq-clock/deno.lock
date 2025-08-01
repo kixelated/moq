@@ -1,0 +1,19 @@
+{
+  "version": "5",
+  "specifiers": {
+    "jsr:@std/cli@*": "1.0.21"
+  },
+  "jsr": {
+    "@std/cli@1.0.21": {
+      "integrity": "cd25b050bdf6282e321854e3822bee624f07aca7636a3a76d95f77a3a919ca2a"
+    }
+  },
+  "workspace": {
+    "packageJson": {
+      "dependencies": [
+        "npm:@types/deno@^2.3.0",
+        "npm:typescript@^5.8.3"
+      ]
+    }
+  }
+}

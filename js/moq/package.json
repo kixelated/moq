@@ -10,7 +10,7 @@
 		"README.md"
 	],
 	"exports": {
-		".": "./src/index.js"
+		".": "./src/index.ts"
 	},
 	"scripts": {
 		"build": "tsc -b",
