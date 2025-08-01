@@ -4,6 +4,7 @@ import type * as Catalog from "../catalog";
 import { u8, u53 } from "../catalog/integers";
 import * as Container from "../container";
 import type { VAD } from "../worker";
+import CAPTIONS_WORKER_URL from "../worker/captions?worker&url";
 import VAD_WORKER_URL from "../worker/vad?worker&url";
 import type * as Worklet from "../worklet";
 import WORKLET_URL from "../worklet/capture?worker&url";
@@ -39,6 +40,7 @@ export interface AudioTrackSettings {
 	sampleSize: number;
 }
 
+// The initial values for our signals.
 export type AudioProps = {
 	enabled?: boolean;
 	media?: AudioTrack;
@@ -47,6 +49,7 @@ export type AudioProps = {
 	muted?: boolean;
 	volume?: number;
 	vad?: boolean;
+	captions?: boolean;
 };
 
 export class Audio {
@@ -55,7 +58,14 @@ export class Audio {
 
 	muted: Signal<boolean>;
 	volume: Signal<number>;
+
+	// Enable Voice Activity Detection (VAD) via an on-device model.
+	// This will publish a "captions" track and toggle the `speaking` signal between true/false.
 	vad: Signal<boolean>;
+
+	// Enable caption generation via an on-device model (whisper).
+	// This will publish a "captions" track and automatically enable VAD.
+	captions: Signal<boolean>;
 
 	// Set by VAD when it detects speech. undefined when VAD is disabled.
 	speaking = new Signal<boolean | undefined>(undefined);
@@ -72,8 +82,6 @@ export class Audio {
 	// Downcast to AudioNode so it matches Watch.
 	readonly root = this.#gain.readonly() as Computed<AudioNode | undefined>;
 
-	#vadWorker = new Signal<Worker | undefined>(undefined);
-
 	#group?: Moq.GroupProducer;
 	#groupTimestamp = 0;
 
@@ -88,11 +96,11 @@ export class Audio {
 		this.muted = new Signal(props?.muted ?? false);
 		this.volume = new Signal(props?.volume ?? 1);
 		this.vad = new Signal(props?.vad ?? false);
+		this.captions = new Signal(props?.captions ?? false);
 
 		this.#signals.effect(this.#runSource.bind(this));
 		this.#signals.effect(this.#runGain.bind(this));
 		this.#signals.effect(this.#runEncoder.bind(this));
-		this.#signals.effect(this.#runVadWorker.bind(this));
 		this.#signals.effect(this.#runVad.bind(this));
 	}
 
@@ -248,25 +256,23 @@ export class Audio {
 		};
 	}
 
-	#runVadWorker(effect: Effect): void {
-		if (!effect.get(this.vad)) return;
+	#runVad(effect: Effect): void {
+		if (!effect.get(this.vad) || !effect.get(this.captions)) return;
+
+		effect.cleanup(() => this.speaking.set(undefined));
+
+		const media = effect.get(this.media);
+		if (!media) return;
 
 		// Create and initialize VAD worker as soon as VAD is enabled
 		const vadWorker = new Worker(VAD_WORKER_URL, { type: "module" });
 		effect.cleanup(() => vadWorker.terminate());
 
-		// Store the worker for use in #runVad
-		effect.set(this.#vadWorker, vadWorker);
-	}
-
-	#runVad(effect: Effect): void {
-		effect.cleanup(() => this.speaking.set(undefined));
-
-		const worker = effect.get(this.#vadWorker);
-		if (!worker) return;
-
-		const media = effect.get(this.media);
-		if (!media) return;
+		let captionsWorker: Worker | undefined;
+		if (effect.get(this.captions)) {
+			captionsWorker = new Worker(CAPTIONS_WORKER_URL, { type: "module" });
+			effect.cleanup(() => captionsWorker?.terminate());
+		}
 
 		const context = new AudioContext({
 			sampleRate: 16000, // required by the model.
@@ -274,7 +280,7 @@ export class Audio {
 		effect.cleanup(() => context.close());
 
 		// Handle messages from the VAD worker
-		worker.onmessage = ({ data }: MessageEvent<VAD.Response>) => {
+		vadWorker.onmessage = ({ data }: MessageEvent<VAD.Response>) => {
 			if (data.type === "result") {
 				// Use heuristics to determine if we've toggled speaking or not
 				this.speaking.set(data.speaking);
@@ -305,14 +311,37 @@ export class Audio {
 			root.connect(worklet);
 			effect.cleanup(() => worklet.disconnect());
 
-			// Sent the worklet to the VAD worker, so the main thread doesn't have to be involved.
-			worker.postMessage(
-				{
-					type: "init",
-					worklet: worklet.port,
-				},
-				[worklet.port],
-			);
+			if (captionsWorker) {
+				const channel = new MessageChannel();
+
+				vadWorker.postMessage(
+					{
+						type: "init",
+						// Send the worklet to the VAD worker, so the main thread doesn't have to be involved.
+						worklet: worklet.port,
+						// Directly forward any "speaking" audio to the captions worker.
+						forward: channel.port1,
+					},
+					[worklet.port, channel.port1],
+				);
+
+				captionsWorker.postMessage(
+					{
+						type: "init",
+						// Receive the "speaking" audio directly from the VAD worker.
+						worklet: channel.port2,
+					},
+					[channel.port2],
+				);
+			} else {
+				vadWorker.postMessage(
+					{
+						type: "init",
+						worklet: worklet.port,
+					},
+					[worklet.port],
+				);
+			}
 		});
 	}
 
