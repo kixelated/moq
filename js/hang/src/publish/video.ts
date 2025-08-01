@@ -1,5 +1,5 @@
 import * as Moq from "@kixelated/moq";
-import { type Effect, Root, Signal } from "@kixelated/signals";
+import { type Effect, type Getter, Root, Signal } from "@kixelated/signals";
 import { Buffer } from "buffer";
 import type * as Catalog from "../catalog";
 import { u8, u53 } from "../catalog/integers";
@@ -50,12 +50,12 @@ export class Video {
 	readonly constraints: Signal<VideoConstraints | undefined>;
 
 	#catalog = new Signal<Catalog.Video | undefined>(undefined);
-	readonly catalog = this.#catalog.readonly();
+	readonly catalog: Getter<Catalog.Video | undefined> = this.#catalog;
 
 	#track = new Signal<Moq.TrackProducer | undefined>(undefined);
 
 	#active = new Signal(false);
-	readonly active = this.#active.readonly();
+	readonly active: Getter<boolean> = this.#active;
 
 	#encoderConfig = new Signal<VideoEncoderConfig | undefined>(undefined);
 	#decoderConfig = new Signal<VideoDecoderConfig | undefined>(undefined);

@@ -52,8 +52,6 @@ export class Preview {
 			group.writeFrame(buffer);
 		}
 
-		console.debug("published preview", preview);
-
 		group.close();
 	}
 

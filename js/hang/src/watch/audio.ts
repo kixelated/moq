@@ -1,5 +1,5 @@
 import type * as Moq from "@kixelated/moq";
-import { type Computed, type Effect, type Getter, Root, Signal } from "@kixelated/signals";
+import { type Effect, type Getter, Root, Signal } from "@kixelated/signals";
 import { Buffer } from "buffer";
 import type * as Catalog from "../catalog";
 import * as Container from "../container";
@@ -11,8 +11,14 @@ const MIN_GAIN = 0.001;
 const FADE_TIME = 0.2;
 
 export type AudioProps = {
+	// Enable to download the audio track.
 	enabled?: boolean;
+
+	// The latency hint to use for the AudioContext.
 	latency?: DOMHighResTimeStamp;
+
+	// Enable to download the captions track.
+	transcribe?: boolean;
 };
 
 // Downloads audio from a track and emits it to an AudioContext.
@@ -27,16 +33,23 @@ export class Audio {
 	// You can access the audio context via `root.context`.
 	#worklet = new Signal<AudioWorkletNode | undefined>(undefined);
 	// Downcast to AudioNode so it matches Publish.
-	readonly root = this.#worklet.readonly() as Computed<AudioNode | undefined>;
+	readonly root = this.#worklet as Getter<AudioNode | undefined>;
 
 	#sampleRate = new Signal<number | undefined>(undefined);
-	readonly sampleRate = this.#sampleRate.readonly();
+	readonly sampleRate: Getter<number | undefined> = this.#sampleRate;
+
+	// Enable to download the captions track.
+	transcribe: Signal<boolean>;
+
+	// The most recent caption downloaded.
+	#caption = new Signal<string | undefined>(undefined);
+	readonly caption: Getter<string | undefined> = this.#caption;
 
 	// Not a signal because it updates constantly.
-	buffered: DOMHighResTimeStamp = 0;
+	#buffered: DOMHighResTimeStamp = 0;
 
 	// Not a signal because I'm lazy.
-	latency: DOMHighResTimeStamp;
+	readonly latency: DOMHighResTimeStamp;
 
 	#signals = new Root();
 
@@ -49,6 +62,7 @@ export class Audio {
 		this.catalog = catalog;
 		this.enabled = new Signal(props?.enabled ?? false);
 		this.latency = props?.latency ?? 100; // TODO Reduce this once fMP4 stuttering is fixed.
+		this.transcribe = new Signal(props?.transcribe ?? false);
 
 		this.#signals.effect((effect) => {
 			this.selected.set(effect.get(this.catalog)?.audio?.[0]);
@@ -56,6 +70,7 @@ export class Audio {
 
 		this.#signals.effect(this.#runWorklet.bind(this));
 		this.#signals.effect(this.#runDecoder.bind(this));
+		this.#signals.effect(this.#runCaption.bind(this));
 	}
 
 	#runWorklet(effect: Effect): void {
@@ -84,7 +99,7 @@ export class Audio {
 			worklet.port.onmessage = (event: MessageEvent<Worklet.Status>) => {
 				const { type, available } = event.data;
 				if (type === "status") {
-					this.buffered = (1000 * available) / sampleRate;
+					this.#buffered = (1000 * available) / sampleRate;
 				}
 			};
 
@@ -142,6 +157,33 @@ export class Audio {
 		});
 	}
 
+	#runCaption(effect: Effect): void {
+		const enabled = effect.get(this.transcribe);
+		if (!enabled) return;
+
+		const broadcast = effect.get(this.broadcast);
+		if (!broadcast) return;
+
+		const selected = effect.get(this.selected);
+		if (!selected) return;
+
+		if (!selected.caption) return;
+
+		const sub = broadcast.subscribe(selected.caption.name, selected.caption.priority);
+		effect.cleanup(() => sub.close());
+
+		effect.spawn(async (cancel) => {
+			for (;;) {
+				const frame = await Promise.race([sub.nextFrame(), cancel]);
+				if (!frame) break;
+
+				const text = frame.data.length > 0 ? new TextDecoder().decode(frame.data) : undefined;
+				this.#caption.set(text);
+			}
+		});
+		effect.cleanup(() => this.#caption.set(undefined));
+	}
+
 	#emit(sample: AudioData) {
 		const worklet = this.#worklet.peek();
 		if (!worklet) {
@@ -175,6 +217,10 @@ export class Audio {
 
 	close() {
 		this.#signals.close();
+	}
+
+	get buffered() {
+		return this.#buffered;
 	}
 }
 

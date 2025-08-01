@@ -63,6 +63,7 @@ export class TrackProducer {
 
 	/**
 	 * Appends a frame to the track in its own group.
+	 *
 	 * @param frame - The frame to append
 	 */
 	appendFrame(frame: Uint8Array) {

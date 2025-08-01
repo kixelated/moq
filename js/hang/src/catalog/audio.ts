@@ -31,6 +31,9 @@ export const AudioSchema = z.object({
 
 	// The configuration of the audio track
 	config: AudioConfigSchema,
+
+	// An optional captions track
+	caption: TrackSchema.optional(),
 });
 
 export type Audio = z.infer<typeof AudioSchema>;

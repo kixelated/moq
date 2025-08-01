@@ -1,10 +1,10 @@
 import * as Moq from "@kixelated/moq";
-import { type Computed, type Effect, Root, Signal } from "@kixelated/signals";
+import { type Effect, type Getter, Root, Signal } from "@kixelated/signals";
 import type * as Catalog from "../catalog";
 import { u8, u53 } from "../catalog/integers";
 import * as Container from "../container";
-import type { VAD } from "../worker";
-import CAPTIONS_WORKER_URL from "../worker/captions?worker&url";
+import type { Transcribe, VAD } from "../worker";
+import TRANSCRIBE_WORKER_URL from "../worker/transcribe?worker&url";
 import VAD_WORKER_URL from "../worker/vad?worker&url";
 import type * as Worklet from "../worklet";
 import WORKLET_URL from "../worklet/capture?worker&url";
@@ -14,6 +14,9 @@ const GOP_DURATION = 0.5;
 
 const GAIN_MIN = 0.001;
 const FADE_TIME = 0.2;
+
+// TODO Make this configurable.
+const CAPTION_TTL = 1000 * 5;
 
 export type AudioConstraints = Omit<
 	MediaTrackConstraints,
@@ -49,7 +52,7 @@ export type AudioProps = {
 	muted?: boolean;
 	volume?: number;
 	vad?: boolean;
-	captions?: boolean;
+	transcribe?: boolean;
 };
 
 export class Audio {
@@ -62,31 +65,40 @@ export class Audio {
 	// Enable Voice Activity Detection (VAD) via an on-device model.
 	// This will publish a "captions" track and toggle the `speaking` signal between true/false.
 	vad: Signal<boolean>;
+	speaking = new Signal<boolean | undefined>(undefined);
 
 	// Enable caption generation via an on-device model (whisper).
-	// This will publish a "captions" track and automatically enable VAD.
-	captions: Signal<boolean>;
-
-	// Set by VAD when it detects speech. undefined when VAD is disabled.
-	speaking = new Signal<boolean | undefined>(undefined);
+	// This will publish a "captions" track and set the `caption` signal.
+	transcribe: Signal<boolean>;
+	caption = new Signal<string | undefined>(undefined);
+	#captionTrack = new Signal<Moq.TrackProducer | undefined>(undefined);
 
 	media: Signal<AudioTrack | undefined>;
 	constraints: Signal<AudioConstraints | undefined>;
 
 	#catalog = new Signal<Catalog.Audio | undefined>(undefined);
-	readonly catalog = this.#catalog.readonly();
+	readonly catalog: Getter<Catalog.Audio | undefined> = this.#catalog;
 
 	#worklet = new Signal<AudioWorkletNode | undefined>(undefined);
 
 	#gain = new Signal<GainNode | undefined>(undefined);
-	// Downcast to AudioNode so it matches Watch.
-	readonly root = this.#gain.readonly() as Computed<AudioNode | undefined>;
+	readonly root: Getter<AudioNode | undefined> = this.#gain;
 
 	#group?: Moq.GroupProducer;
 	#groupTimestamp = 0;
 
 	#id = 0;
 	#signals = new Root();
+
+	// Initialize the workers as soon as they are enabled, even before any media is selected.
+	// This is done because the first thing they do is load a massive model and we want to front-load that work.
+	#workers = new Signal<
+		| {
+				vad: Worker;
+				transcribe?: Worker;
+		  }
+		| undefined
+	>(undefined);
 
 	constructor(broadcast: Moq.BroadcastProducer, props?: AudioProps) {
 		this.broadcast = broadcast;
@@ -96,12 +108,14 @@ export class Audio {
 		this.muted = new Signal(props?.muted ?? false);
 		this.volume = new Signal(props?.volume ?? 1);
 		this.vad = new Signal(props?.vad ?? false);
-		this.captions = new Signal(props?.captions ?? false);
+		this.transcribe = new Signal(props?.transcribe ?? false);
 
 		this.#signals.effect(this.#runSource.bind(this));
 		this.#signals.effect(this.#runGain.bind(this));
 		this.#signals.effect(this.#runEncoder.bind(this));
+		this.#signals.effect(this.#loadWorkers.bind(this));
 		this.#signals.effect(this.#runVad.bind(this));
+		this.#signals.effect(this.#runCaption.bind(this));
 	}
 
 	#runSource(effect: Effect): void {
@@ -180,6 +194,9 @@ export class Audio {
 
 		const settings = media.getSettings() as AudioTrackSettings;
 
+		// TODO don't reininalize the encoder just because the captions track changed.
+		const captions = effect.get(this.#captionTrack);
+
 		const catalog = {
 			track: {
 				name: track.name,
@@ -194,6 +211,12 @@ export class Audio {
 				// TODO configurable
 				bitrate: u53(settings.channelCount * 32_000),
 			},
+			caption: captions
+				? {
+						name: captions.name,
+						priority: u8(captions.priority),
+					}
+				: undefined,
 		};
 
 		effect.set(this.#catalog, catalog);
@@ -256,31 +279,15 @@ export class Audio {
 		};
 	}
 
-	#runVad(effect: Effect): void {
-		if (!effect.get(this.vad) || !effect.get(this.captions)) return;
+	// Start loading the VAD worker and transcribe worker as soon as they are enabled, even before any media is selected.
+	#loadWorkers(effect: Effect): void {
+		if (!effect.get(this.vad) && !effect.get(this.transcribe)) return;
 
-		effect.cleanup(() => this.speaking.set(undefined));
-
-		const media = effect.get(this.media);
-		if (!media) return;
-
-		// Create and initialize VAD worker as soon as VAD is enabled
-		const vadWorker = new Worker(VAD_WORKER_URL, { type: "module" });
-		effect.cleanup(() => vadWorker.terminate());
-
-		let captionsWorker: Worker | undefined;
-		if (effect.get(this.captions)) {
-			captionsWorker = new Worker(CAPTIONS_WORKER_URL, { type: "module" });
-			effect.cleanup(() => captionsWorker?.terminate());
-		}
-
-		const context = new AudioContext({
-			sampleRate: 16000, // required by the model.
-		});
-		effect.cleanup(() => context.close());
+		const vad = new Worker(VAD_WORKER_URL, { type: "module" });
+		effect.cleanup(() => vad.terminate());
 
 		// Handle messages from the VAD worker
-		vadWorker.onmessage = ({ data }: MessageEvent<VAD.Response>) => {
+		vad.onmessage = ({ data }: MessageEvent<VAD.Response>) => {
 			if (data.type === "result") {
 				// Use heuristics to determine if we've toggled speaking or not
 				this.speaking.set(data.speaking);
@@ -289,59 +296,118 @@ export class Audio {
 				this.speaking.set(undefined);
 			}
 		};
+		effect.cleanup(() => this.speaking.set(undefined));
 
-		// Start the worklet asynchronously.
+		let transcribe: Worker | undefined;
+		if (effect.get(this.transcribe)) {
+			// I could start loading the Worker before the worklet but eh I'm lazy.
+			transcribe = new Worker(TRANSCRIBE_WORKER_URL, { type: "module" });
+			effect.cleanup(() => transcribe?.terminate());
+
+			let timeout: ReturnType<typeof setTimeout> | undefined;
+			effect.cleanup(() => clearTimeout(timeout));
+
+			transcribe.onmessage = ({ data }: MessageEvent<Transcribe.Response>) => {
+				if (data.type === "result") {
+					this.caption.set(data.text);
+
+					clearTimeout(timeout);
+					timeout = setTimeout(() => this.caption.set(undefined), CAPTION_TTL);
+				} else if (data.type === "error") {
+					console.error("Transcribe worker error:", data.message);
+				}
+			};
+			effect.cleanup(() => this.caption.set(undefined));
+		}
+
+		effect.set(this.#workers, { vad, transcribe });
+	}
+
+	#runVad(effect: Effect): void {
+		const workers = effect.get(this.#workers);
+		if (!workers) return;
+
+		const media = effect.get(this.media);
+		if (!media) return;
+
+		// Unset the caption and speaking signals when media is disconnected.
+		effect.cleanup(() => {
+			this.speaking.set(undefined);
+			this.caption.set(undefined);
+		});
+
+		const ctx = new AudioContext({
+			sampleRate: 16000, // required by the model.
+		});
+		effect.cleanup(() => ctx.close());
+
+		// Create the source node.
+		const root = new MediaStreamAudioSourceNode(ctx, {
+			mediaStream: new MediaStream([media]),
+		});
+		effect.cleanup(() => root.disconnect());
+
+		// The workload needs to be loaded asynchronously, unfortunately, but it should be instant.
 		effect.spawn(async () => {
-			// Async because we need to wait for the worklet to be registered.
-			await context.audioWorklet.addModule(WORKLET_URL);
+			await ctx.audioWorklet.addModule(WORKLET_URL);
 
-			const worklet = new AudioWorkletNode(context, "capture", {
+			// Create the worklet.
+			const worklet = new AudioWorkletNode(ctx, "capture", {
 				numberOfInputs: 1,
 				numberOfOutputs: 0,
 				channelCount: 1,
 				channelCountMode: "explicit",
 				channelInterpretation: "discrete",
 			});
-
-			const root = new MediaStreamAudioSourceNode(context, {
-				mediaStream: new MediaStream([media]),
-			});
-			effect.cleanup(() => root.disconnect());
-
-			root.connect(worklet);
 			effect.cleanup(() => worklet.disconnect());
 
-			if (captionsWorker) {
-				const channel = new MessageChannel();
+			root.connect(worklet);
 
-				vadWorker.postMessage(
-					{
-						type: "init",
-						// Send the worklet to the VAD worker, so the main thread doesn't have to be involved.
-						worklet: worklet.port,
-						// Directly forward any "speaking" audio to the captions worker.
-						forward: channel.port1,
-					},
-					[worklet.port, channel.port1],
-				);
-
-				captionsWorker.postMessage(
-					{
-						type: "init",
-						// Receive the "speaking" audio directly from the VAD worker.
-						worklet: channel.port2,
-					},
-					[channel.port2],
-				);
-			} else {
-				vadWorker.postMessage(
+			if (!workers.transcribe) {
+				workers.vad.postMessage(
 					{
 						type: "init",
 						worklet: worklet.port,
 					},
 					[worklet.port],
 				);
+			} else {
+				const pipe = new MessageChannel();
+				workers.vad.postMessage(
+					{
+						type: "init",
+						transcribe: pipe.port1,
+						worklet: worklet.port,
+					},
+					[worklet.port, pipe.port1],
+				);
+
+				workers.transcribe.postMessage(
+					{
+						type: "init",
+						vad: pipe.port2,
+					},
+					[pipe.port2],
+				);
 			}
+		});
+	}
+
+	#runCaption(effect: Effect): void {
+		if (!effect.get(this.transcribe)) return;
+
+		const track = new Moq.TrackProducer(`captions-${this.#id++}`, 1);
+		effect.cleanup(() => track.close());
+
+		this.broadcast.insertTrack(track.consume());
+		effect.cleanup(() => this.broadcast.removeTrack(track.name));
+
+		effect.set(this.#captionTrack, track);
+
+		// Create a nested effect to avoid recreating the track every time the caption changes.
+		effect.nested((effect) => {
+			const text = effect.get(this.caption) ?? "";
+			track.appendFrame(new TextEncoder().encode(text));
 		});
 	}
 

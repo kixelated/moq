@@ -11,7 +11,6 @@ const dev = import.meta.env?.MODE !== "production";
 export interface Getter<T> {
 	peek(): T;
 	subscribe(fn: Subscriber<T>): Dispose;
-	readonly(): Computed<T>;
 }
 
 export interface Setter<T> {
@@ -58,10 +57,6 @@ export class Signal<T> implements Getter<T>, Setter<T> {
 		this.set(this.#value);
 	}
 
-	readonly(): Computed<T> {
-		return new Computed(this);
-	}
-
 	// Receive a notification when the value changes.
 	subscribe(fn: Subscriber<T>): Dispose {
 		this.#subscribers.add(fn);
@@ -78,27 +73,6 @@ export class Signal<T> implements Getter<T>, Setter<T> {
 			throw e;
 		}
 		return dispose;
-	}
-}
-
-// Same as Signal but without the `set` method.
-export class Computed<T> implements Getter<T> {
-	#signal: Getter<T>;
-
-	constructor(signal: Getter<T>) {
-		this.#signal = signal;
-	}
-
-	peek(): T {
-		return this.#signal.peek();
-	}
-
-	subscribe(fn: (value: T) => void): Dispose {
-		return this.#signal.subscribe(fn);
-	}
-
-	readonly(): Computed<T> {
-		return this;
 	}
 }
 
@@ -360,6 +334,18 @@ export class Effect {
 			fn();
 		}, ms);
 		this.cleanup(() => timeout && clearTimeout(timeout));
+	}
+
+	nested(fn: (effect: Effect) => void) {
+		if (this.#dispose === undefined) {
+			if (Effect.dev) {
+				console.warn("Effect.nested called when closed, ignoring");
+			}
+			return;
+		}
+
+		const signals = new Effect(fn);
+		this.#dispose.push(() => signals.close());
 	}
 
 	// Register a cleanup function.

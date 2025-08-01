@@ -21,11 +21,11 @@ export interface Init {
 
 	// Receive audio directly from the worklet (in chunks of 128 samples).
 	// TODO strongly type this.
-	capture: MessagePort;
+	worklet: MessagePort;
 
-	// Forward any speaking audio (in chunks of 512 samples) to a captions worker.
+	// Forward any speaking audio (in chunks of 512 samples) to a transcribe worker.
 	// TODO strongly type this.
-	captions?: MessagePort;
+	transcribe?: MessagePort;
 }
 
 export type Response = Result | Error;
@@ -41,100 +41,44 @@ export interface Error {
 }
 
 const SAMPLE_RATE = 16000;
-const CHUNK_SIZE = 512; // This VAD model expects 512 samples at a time.
+const CHUNK_SIZE = 512; // This VAD model expects 512 samples at a time, or 31ms
 
-const model = await AutoModel.from_pretrained("onnx-community/silero-vad", {
-	// @ts-expect-error Not sure why this is needed.
-	config: { model_type: "custom" },
-	dtype: "fp32", // Full-precision
-});
+// Require this many silent chunks in a row before unsetting speaking.
+const SILENT_CHUNKS = 10; // At 16Khz, 300ms is 10 chunks of 512 samples.
 
-// Initial state for VAD
-let state = new Tensor("float32", new Float32Array(2 * 1 * 128), [2, 1, 128]);
-let speaking = false;
-let captions: MessagePort | undefined;
+// Create a queue to store audio chunks that arrive asynchronously.
+const queue = new TransformStream<Float32Array, Float32Array>(
+	undefined,
+	{
+		highWaterMark: CHUNK_SIZE,
+		size: (chunk) => chunk.length,
+	},
+	{
+		highWaterMark: CHUNK_SIZE,
+		size: (chunk) => chunk.length,
+	},
+);
 
-// We use two buffers, one to store the most recent chunk and one to store the previous chunk.
-// When a speaking event starts, we transmit the previous chunk and the current chunk.
-// This gives the captions worker a little bit of padding and context to start transcribing.
-// The same thing happens when a speaking event ends, we transmit the current non-speaking chunk.
-let current = new Float32Array(new ArrayBuffer(Float32Array.BYTES_PER_ELEMENT * CHUNK_SIZE), 0, 0);
-let previous = new Float32Array(new ArrayBuffer(Float32Array.BYTES_PER_ELEMENT * CHUNK_SIZE), 0, 0);
+const writer = queue.writable.getWriter();
 
-async function process(samples: Float32Array) {
-	// Copy over samples to the buffer.
-	current = new Float32Array(current.buffer, 0, current.length + samples.length);
-	current.set(samples, current.length - samples.length);
-
-	// NOTE: This assumes that the worklet posts 128 samples at a time.
-	// Since 512 is evenly divisible by 128, we don't have to worry about remaining samples.
-	if (current.byteLength < current.buffer.byteLength) {
-		return;
-	}
-
-	// Create a tensor for the model.
-	const sr = new Tensor("int64", [SAMPLE_RATE], []);
-	const input = new Tensor("float32", current, [1, current.length]);
-
-	const result = await model({ input, sr, state });
-	state = result.stateN;
-	const isSpeech = result.output.data[0];
-
-	const wasSpeaking = speaking;
-
-	if (wasSpeaking && isSpeech < 0.1) {
-		// No longer speaking.
-		speaking = false;
-
-		const response: Response = {
-			type: "result",
-			speaking: false,
-		};
-		self.postMessage(response);
-	} else if (!speaking && isSpeech >= 0.3) {
-		// Now speaking.
-		speaking = true;
-
-		const response: Response = {
-			type: "result",
-			speaking: true,
-		};
-		self.postMessage(response);
-	}
-
-	if (captions && (speaking || wasSpeaking)) {
-		if (!wasSpeaking) {
-			// Transmit the previous chunk.
-			captions.postMessage({
-				type: "speaking",
-				samples: previous, // NOTE: makes a copy
-				padding: "start",
-			});
-		}
-
-		// Forward the speaking audio to the captions worker.
-		captions.postMessage({
-			type: "speaking",
-			samples: current, // NOTE: makes a copy
-			padding: !speaking ? "end" : undefined,
-		});
-	}
-
-	// Swap the buffers, avoiding a reallocation.
-	const temp = previous.buffer;
-	previous = current;
-	current = new Float32Array(temp, 0, 0);
-}
+// Post any speaking audio to the transcribe worker.
+let transcribe: MessagePort | undefined;
 
 self.addEventListener("message", async (event: MessageEvent<Message>) => {
 	const message = event.data;
 
 	try {
-		captions = message.captions;
+		transcribe = message.transcribe;
 
-		// Only one message currently supported.
-		message.capture.onmessage = ({ data: { channels } }: { data: Worklet.AudioFrame }) => {
-			process(channels[0]);
+		message.worklet.onmessage = ({ data: { channels } }: { data: Worklet.AudioFrame }) => {
+			const samples = channels[0];
+
+			if ((writer.desiredSize ?? 0) < samples.length) {
+				// The queue is full, drop the samples.
+				return;
+			}
+
+			writer.write(samples);
 		};
 	} catch (error) {
 		const response: Response = {
@@ -144,3 +88,108 @@ self.addEventListener("message", async (event: MessageEvent<Message>) => {
 		self.postMessage(response);
 	}
 });
+
+const reader = queue.readable.getReader();
+try {
+	const model = await AutoModel.from_pretrained("onnx-community/silero-vad", {
+		// @ts-expect-error Not sure why this is needed.
+		config: { model_type: "custom" },
+		dtype: "fp32", // Full-precision
+	});
+
+	// Initial state for VAD
+	const sr = new Tensor("int64", [SAMPLE_RATE], []);
+	let state = new Tensor("float32", new Float32Array(2 * 1 * 128), [2, 1, 128]);
+
+	// We use multiple buffers to add gaps between speaking events and to avoid reallocating memory.
+	let current = new Float32Array(new ArrayBuffer(Float32Array.BYTES_PER_ELEMENT * CHUNK_SIZE), 0, 0);
+	let previous = new Float32Array(new ArrayBuffer(Float32Array.BYTES_PER_ELEMENT * CHUNK_SIZE), 0, 0);
+
+	// Whether we (think) we are currently speaking.
+	let speaking = false;
+
+	// Count the number of silent chunks, eventually unsetting speaking once it reaches
+	let silentCount = 0;
+
+	for (;;) {
+		const { value: samples } = await reader.read();
+		if (!samples) {
+			break;
+		}
+
+		// Copy over samples to the buffer.
+		current = new Float32Array(current.buffer, 0, current.length + samples.length);
+		current.set(samples, current.length - samples.length);
+
+		// NOTE: This assumes that the worklet posts 128 samples at a time.
+		// Since 512 is evenly divisible by 128, we don't have to worry about remaining samples.
+		if (current.byteLength < current.buffer.byteLength) {
+			continue;
+		}
+
+		// Create a tensor for the model.
+		const input = new Tensor("float32", current, [1, current.length]);
+
+		// Wait for the model to be loaded.
+		const vad = model;
+
+		const result = await vad({ input, sr, state });
+		state = result.stateN;
+		const isSpeech = result.output.data[0];
+
+		const wasSpeaking = speaking;
+		if (isSpeech < 0.1 || (!wasSpeaking && isSpeech < 0.3)) {
+			silentCount++;
+		} else {
+			silentCount = 0;
+		}
+
+		if (wasSpeaking && silentCount >= SILENT_CHUNKS) {
+			// No longer speaking.
+			speaking = false;
+
+			const response: Response = {
+				type: "result",
+				speaking: false,
+			};
+			self.postMessage(response);
+		} else if (!speaking && isSpeech >= 0.3) {
+			// Now speaking.
+			speaking = true;
+			silentCount = 0;
+
+			const response: Response = {
+				type: "result",
+				speaking: true,
+			};
+			self.postMessage(response);
+		}
+
+		if (transcribe && (speaking || wasSpeaking)) {
+			if (!wasSpeaking) {
+				// Transmit the previous chunk.
+				transcribe.postMessage({
+					type: "speaking",
+					samples: previous, // NOTE: makes a copy
+					padding: "start",
+				});
+			}
+
+			// Forward the speaking audio to the transcribe worker.
+			transcribe.postMessage({
+				type: "speaking",
+				samples: current, // NOTE: makes a copy
+				padding: !speaking ? "end" : undefined,
+			});
+		}
+		// Swap the buffers, avoiding a reallocation.
+		const temp = previous.buffer;
+		previous = current;
+		current = new Float32Array(temp, 0, 0);
+	}
+} catch (error) {
+	self.postMessage({ error });
+	throw error;
+} finally {
+	reader.cancel();
+}
