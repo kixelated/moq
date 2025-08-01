@@ -65,11 +65,7 @@ export class Chat {
 
 			const ttl = this.ttl.peek();
 			if (ttl !== undefined) {
-				const expires = window.setTimeout(() => {
-					this.message.set(undefined);
-				}, ttl);
-
-				effect.cleanup(() => clearTimeout(expires));
+				effect.timer(() => this.message.set(undefined), ttl);
 			}
 		});
 	}

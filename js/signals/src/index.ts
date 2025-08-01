@@ -345,6 +345,23 @@ export class Effect {
 		this.#async.push(promise);
 	}
 
+	// Run the function after the given delay in milliseconds UNLESS the effect is cleaned up first.
+	timer(fn: () => void, ms: DOMHighResTimeStamp) {
+		if (this.#dispose === undefined) {
+			if (Effect.dev) {
+				console.warn("Effect.timer called when closed, ignoring");
+			}
+			return;
+		}
+
+		let timeout: ReturnType<typeof setTimeout> | undefined;
+		timeout = setTimeout(() => {
+			timeout = undefined;
+			fn();
+		}, ms);
+		this.cleanup(() => timeout && clearTimeout(timeout));
+	}
+
 	// Register a cleanup function.
 	cleanup(fn: Dispose): void {
 		if (this.#dispose === undefined) {

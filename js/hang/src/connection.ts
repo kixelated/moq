@@ -88,9 +88,7 @@ export class Connection {
 				if (this.reload) {
 					const tick = this.#tick.peek() + 1;
 
-					setTimeout(() => {
-						this.#tick.set((prev) => Math.max(prev, tick));
-					}, this.#delay);
+					effect.timer(() => this.#tick.set((prev) => Math.max(prev, tick)), this.#delay);
 
 					// Exponential backoff.
 					this.#delay = Math.min(this.#delay * 2, this.maxDelay);
