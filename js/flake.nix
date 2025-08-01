@@ -22,6 +22,7 @@
           pkgs.nodejs_24
           pkgs.pnpm_10
           pkgs.just
+          pkgs.deno
         ];
       in
       {

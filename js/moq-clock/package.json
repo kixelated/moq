@@ -9,17 +9,11 @@
 		"./src",
 		"README.md"
 	],
-	"exports": {
-		".": "./src/main.ts"
-	},
 	"bin": {
 		"moq-clock": "./src/main.ts"
 	},
 	"scripts": {
-		"build": "tsc -b",
-		"check": "tsc --noEmit",
-		"publish": "deno run --allow-net --allow-env --unstable-net --unstable-sloppy-imports ./src/main.ts publish",
-		"subscribe": "deno run --allow-net --allow-env --unstable-net --unstable-sloppy-imports ./src/main.ts subscribe"
+		"check": "deno check"
 	},
 	"dependencies": {
 		"@kixelated/moq": "workspace:*"

@@ -56,6 +56,7 @@ If you don't like Nix, or just want things install globally, then you can instal
 - [pnpm](https://pnpm.io/)
 - [FFmpeg](https://ffmpeg.org/download.html)
 - [GStreamer](https://gstreamer.freedesktop.org/documentation/installing/index.html) (optional)
+- [Deno](https://deno.com/runtime) (optional)
 - ...probably some other stuff
 
 **Run it:**
