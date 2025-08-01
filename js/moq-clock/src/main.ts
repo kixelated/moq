@@ -1,6 +1,7 @@
 #!/usr/bin/env -S deno run --allow-net --allow-env --unstable-net --unstable-sloppy-imports
 
-import { parseArgs } from "https://deno.land/std@0.208.0/cli/parse_args.ts";
+import { parseArgs } from "jsr:@std/cli/parse-args";
+
 import { BroadcastProducer, connect, Path } from "@kixelated/moq";
 
 interface Config {
@@ -85,18 +86,15 @@ async function publish(config: Config) {
 	// NOTE: No data flows over the network until there's an active subscription
 	// You can think of trackProducer as a cache, storing data until needed.
 
-	let sequence = new Date().getMinutes(); // Start with current minute
-
 	for (;;) {
 		const now = new Date();
 
 		// Create a new group for each minute (matching Rust implementation)
-		const group = trackProducer.appendGroup(sequence);
-		sequence++;
+		const group = trackProducer.appendGroup();
 
 		// Send the base timestamp (everything but seconds) - matching Rust format
-		const base = now.toISOString().slice(0, 16).replace("T", " ") + ":";
-		group.appendFrame(new TextEncoder().encode(base));
+		const base = `${now.toISOString().slice(0, 16).replace("T", " ")}:`;
+		group.writeFrame(new TextEncoder().encode(base));
 
 		// Send individual seconds for this minute
 		const currentMinute = now.getMinutes();
@@ -105,7 +103,7 @@ async function publish(config: Config) {
 			const secondsNow = new Date();
 			const seconds = secondsNow.getSeconds().toString().padStart(2, "0");
 
-			group.appendFrame(new TextEncoder().encode(seconds));
+			group.writeFrame(new TextEncoder().encode(seconds));
 
 			// Wait until next second
 			const nextSecond = new Date(secondsNow);
@@ -122,7 +120,7 @@ async function publish(config: Config) {
 			}
 		}
 
-		group.finish();
+		group.close();
 	}
 }
 
@@ -164,39 +162,43 @@ async function subscribe(config: Config) {
 		// Get the base timestamp (first frame in group)
 		const baseFrame = await group.nextFrame();
 		if (!baseFrame) {
+			console.warn("❌ No base frame found");
 			continue;
 		}
 
-		const base = new TextDecoder().decode(baseFrame.data);
+		const base = new TextDecoder().decode(baseFrame);
 
 		// Read individual second frames
 		for (;;) {
-			const secondFrame = await group.nextFrame();
-			if (!secondFrame) {
+			const deltaFrame = await group.nextFrame();
+			if (!deltaFrame) {
 				break; // End of group
 			}
 
-			const seconds = new TextDecoder().decode(secondFrame.data);
-			console.log("🕐", base + seconds);
+			const seconds = new TextDecoder().decode(deltaFrame);
+			const secondsNum = parseInt(seconds);
+
+			// Clock emoji positions
+			const clockEmojis = ["🕛", "🕐", "🕑", "🕒", "🕓", "🕔", "🕕", "🕖", "🕗", "🕘", "🕙", "🕚"];
+
+			// Map 60 seconds to 12 clock positions (5 seconds per position)
+			const clockIndex = Math.floor((secondsNum / 60) * clockEmojis.length) % clockEmojis.length;
+			const clockEmoji = clockEmojis[clockIndex];
+
+			console.log(clockEmoji, base + seconds);
 		}
 	}
 }
 
-async function main() {
-	try {
-		const config = parseConfig();
+try {
+	const config = parseConfig();
 
-		if (config.role === "publish") {
-			await publish(config);
-		} else {
-			await subscribe(config);
-		}
-	} catch (error) {
-		console.error("❌ Error:", error.message);
-		Deno.exit(1);
+	if (config.role === "publish") {
+		await publish(config);
+	} else {
+		await subscribe(config);
 	}
-}
-
-if (import.meta.main) {
-	await main();
+} catch (error) {
+	console.error("❌ Error:", error);
+	Deno.exit(1);
 }

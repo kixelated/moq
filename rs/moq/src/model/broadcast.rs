@@ -93,7 +93,6 @@ impl BroadcastProducer {
 		state.published.remove(name).is_some() || state.requested.remove(name).is_some()
 	}
 
-	// Try to create a new consumer.
 	pub fn consume(&self) -> BroadcastConsumer {
 		BroadcastConsumer {
 			state: self.state.clone(),
@@ -204,21 +203,32 @@ impl BroadcastConsumer {
 
 		// Otherwise we have never seen this track before and need to create a new producer.
 		let track = track.clone().produce();
-		state
-			.requested
-			.insert(track.producer.info.name.clone(), track.producer.clone());
-
-		// Remove the track from the lookup when it's unused.
-		web_async::spawn(Self::cleanup(track.producer.clone(), self.state.clone()));
+		let producer = track.producer;
+		let consumer = track.consumer;
 
 		// Insert the producer into the lookup so we will deduplicate requests.
 		// This is not a subscriber so it doesn't count towards "used" subscribers.
-		match self.requested.try_send(track.producer) {
+		match self.requested.try_send(producer.clone()) {
 			Ok(()) => {}
-			Err(error) => error.into_inner().abort(Error::Cancel),
+			Err(_) => {
+				// If the BroadcastProducer is closed, immediately close the track.
+				// This is a bit more ergonomic than returning None.
+				producer.abort(Error::Cancel);
+				return consumer;
+			}
 		}
 
-		track.consumer
+		// Insert the producer into the lookup so we will deduplicate requests.
+		state.requested.insert(producer.info.name.clone(), producer.clone());
+
+		// Remove the track from the lookup when it's unused.
+		let state = self.state.clone();
+		web_async::spawn(async move {
+			producer.unused().await;
+			state.lock().requested.remove(&producer.info.name);
+		});
+
+		consumer
 	}
 
 	pub fn closed(&self) -> impl Future<Output = ()> {
@@ -234,22 +244,6 @@ impl BroadcastConsumer {
 	/// Duplicate names are allowed in the case of resumption.
 	pub fn is_clone(&self, other: &Self) -> bool {
 		self.closed.same_channel(&other.closed)
-	}
-
-	// Remove the track from the lookup when it's unused.
-	async fn cleanup(track: TrackProducer, state: Lock<State>) {
-		// Wait until the track is unused and remove it from the lookup.
-		track.unused().await;
-
-		// Remove the track from the lookup.
-		let mut state = state.lock();
-		match state.requested.remove(&track.info.name) {
-			// Make sure we are removing the correct track.
-			Some(other) if other.is_clone(&track) => true,
-			// Put it back if it's not the same track.
-			Some(other) => state.requested.insert(track.info.name.clone(), other.clone()).is_some(),
-			None => false,
-		};
 	}
 }
 
