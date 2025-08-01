@@ -32,6 +32,9 @@
 		"strictPropertyInitialization": true,
 		"useUnknownInCatchVariables": true,
 
+		// Allow importing .ts files
+		"allowImportingTsExtensions": true,
+
 		// Disable enums and weird Typescript features.
 		"erasableSyntaxOnly": true,
 
