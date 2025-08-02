@@ -14,7 +14,7 @@
 
 use tokio::sync::watch;
 
-use crate::{Error, Result};
+use crate::{Error, Produce, Result};
 
 use super::{Group, GroupConsumer, GroupProducer};
 
@@ -35,8 +35,10 @@ impl Track {
 		}
 	}
 
-	pub fn produce(self) -> TrackProducer {
-		TrackProducer::new(self)
+	pub fn produce(self) -> Produce<TrackProducer, TrackConsumer> {
+		let producer = TrackProducer::new(self);
+		let consumer = producer.consume();
+		Produce { producer, consumer }
 	}
 }
 
@@ -54,7 +56,7 @@ pub struct TrackProducer {
 }
 
 impl TrackProducer {
-	pub fn new(info: Track) -> Self {
+	fn new(info: Track) -> Self {
 		Self {
 			info,
 			state: Default::default(),
@@ -62,7 +64,7 @@ impl TrackProducer {
 	}
 
 	/// Insert a group into the track, returning true if this is the latest group.
-	pub fn insert_group(&mut self, group: GroupConsumer) -> bool {
+	pub fn insert(&mut self, group: GroupConsumer) -> bool {
 		self.state.send_if_modified(|state| {
 			assert!(state.closed.is_none());
 
@@ -82,13 +84,13 @@ impl TrackProducer {
 	/// Create a new group with the given sequence number.
 	///
 	/// If the sequence number is not the latest, this method will return None.
-	pub fn create_group(&mut self, info: Group) -> Option<GroupProducer> {
-		let group = GroupProducer::new(info);
-		self.insert_group(group.consume()).then_some(group)
+	pub fn create(&mut self, info: Group) -> Option<GroupProducer> {
+		let group = Group::produce(info);
+		self.insert(group.consumer).then_some(group.producer)
 	}
 
 	/// Create a new group with the next sequence number.
-	pub fn append_group(&mut self) -> GroupProducer {
+	pub fn append(&mut self) -> GroupProducer {
 		// TODO remove this extra lock
 		let sequence = self
 			.state
@@ -98,7 +100,7 @@ impl TrackProducer {
 			.map_or(0, |group| group.info.sequence + 1);
 
 		let group = Group { sequence };
-		self.create_group(group).unwrap()
+		self.create(group).unwrap()
 	}
 
 	pub fn finish(self) {
@@ -150,7 +152,7 @@ impl TrackConsumer {
 	/// Return the next group in order.
 	///
 	/// NOTE: This can have gaps if the reader is too slow or there were network slowdowns.
-	pub async fn next_group(&mut self) -> Result<Option<GroupConsumer>> {
+	pub async fn next(&mut self) -> Result<Option<GroupConsumer>> {
 		// Wait until there's a new latest group or the track is closed.
 		let state = match self
 			.state
@@ -195,7 +197,7 @@ use futures::FutureExt;
 #[cfg(test)]
 impl TrackConsumer {
 	pub fn assert_group(&mut self) -> GroupConsumer {
-		self.next_group()
+		self.next()
 			.now_or_never()
 			.expect("group would have blocked")
 			.expect("would have errored")
@@ -204,7 +206,7 @@ impl TrackConsumer {
 
 	pub fn assert_no_group(&mut self) {
 		assert!(
-			self.next_group().now_or_never().is_none(),
+			self.next().now_or_never().is_none(),
 			"next group would not have blocked"
 		);
 	}

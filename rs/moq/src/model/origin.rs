@@ -3,7 +3,7 @@ use tokio::sync::mpsc;
 use web_async::{Lock, LockWeak};
 
 use super::BroadcastConsumer;
-use crate::{Path, PathRef};
+use crate::{Path, PathRef, Produce};
 
 // If there are multiple broadcasts with the same path, we use the most recent one but keep the others around.
 struct BroadcastState {
@@ -114,14 +114,14 @@ fn retain_mut_unordered<T, F: Fn(&mut T) -> bool>(vec: &mut Vec<T>, f: F) {
 
 /// A broadcast path and its associated consumer, or None if closed.
 /// The returned path is relative to the consumer's prefix.
-pub struct OriginUpdate {
+pub struct OriginAnnounce {
 	pub suffix: Path,
 	pub active: Option<BroadcastConsumer>,
 }
 
 struct ConsumerState {
 	prefix: Path,
-	updates: mpsc::UnboundedSender<OriginUpdate>,
+	updates: mpsc::UnboundedSender<OriginAnnounce>,
 }
 
 impl ConsumerState {
@@ -131,7 +131,7 @@ impl ConsumerState {
 
 		if let Some(suffix) = path_ref.to_owned().strip_prefix(&self.prefix) {
 			// Send the absolute path, not the relative suffix
-			let update = OriginUpdate {
+			let update = OriginAnnounce {
 				suffix: suffix.into(),
 				active: Some(consumer.clone()),
 			};
@@ -146,7 +146,7 @@ impl ConsumerState {
 
 		if let Some(suffix) = path_ref.to_owned().strip_prefix(&self.prefix) {
 			// Send the absolute path, not the relative suffix
-			let update = OriginUpdate {
+			let update = OriginAnnounce {
 				suffix: suffix.into(),
 				active: None,
 			};
@@ -157,8 +157,18 @@ impl ConsumerState {
 	}
 }
 
+pub struct Origin {}
+
+impl Origin {
+	pub fn produce() -> Produce<OriginProducer, OriginConsumer> {
+		let producer = OriginProducer::new();
+		let consumer = producer.consume();
+		Produce { producer, consumer }
+	}
+}
+
 /// Announces broadcasts to consumers over the network.
-#[derive(Clone, Default)]
+#[derive(Clone)]
 pub struct OriginProducer {
 	/// All broadcasts are relative to this path.
 	root: Path,
@@ -172,8 +182,12 @@ pub struct OriginProducer {
 }
 
 impl OriginProducer {
-	pub fn new() -> Self {
-		Self::default()
+	fn new() -> Self {
+		Self {
+			root: Path::default(),
+			prefix: Path::default(),
+			state: Default::default(),
+		}
 	}
 
 	/// Publish a broadcast, announcing it to all consumers.
@@ -205,7 +219,7 @@ impl OriginProducer {
 	}
 
 	/// Returns a new OriginProducer where all published broadcasts are relative to the prefix.
-	pub fn publish_prefix<'a>(&self, prefix: impl Into<PathRef<'a>>) -> Self {
+	pub fn with_prefix<'a>(&self, prefix: impl Into<PathRef<'a>>) -> Self {
 		Self {
 			prefix: self.prefix.join(prefix),
 			state: self.state.clone(),
@@ -213,18 +227,8 @@ impl OriginProducer {
 		}
 	}
 
-	/// Get a specific broadcast by path.
-	///
-	/// The most recent, non-closed broadcast will be returned if there are duplicates.
-	pub fn consume<'a>(&self, path: impl Into<PathRef<'a>>) -> Option<BroadcastConsumer> {
-		let path = path.into();
-
-		let full = self.root.join(path);
-		self.state.lock().active.get(&full).map(|b| b.active.clone())
-	}
-
 	/// Subscribe to all announced broadcasts.
-	pub fn consume_all(&self) -> OriginConsumer {
+	pub fn consume(&self) -> OriginConsumer {
 		self.consume_prefix("")
 	}
 
@@ -286,7 +290,7 @@ impl OriginProducer {
 	}
 
 	// Returns the closed notify of any consumer.
-	fn unused_inner(&self) -> Option<mpsc::UnboundedSender<OriginUpdate>> {
+	fn unused_inner(&self) -> Option<mpsc::UnboundedSender<OriginAnnounce>> {
 		let mut state = self.state.lock();
 
 		while let Some(consumer) = state.consumers.last() {
@@ -313,7 +317,7 @@ impl OriginProducer {
 pub struct OriginConsumer {
 	// We need a weak reference to the producer so that we can clone it.
 	producer: LockWeak<ProducerState>,
-	updates: mpsc::UnboundedReceiver<OriginUpdate>,
+	updates: mpsc::UnboundedReceiver<OriginAnnounce>,
 
 	/// All broadcasts are relative to this root path.
 	root: Path,
@@ -329,15 +333,14 @@ impl OriginConsumer {
 	/// The same path won't be announced/unannounced twice, instead it will toggle.
 	///
 	/// Note: The returned path is absolute and will always match this consumer's prefix.
-	pub async fn next(&mut self) -> Option<OriginUpdate> {
+	pub async fn announced(&mut self) -> Option<OriginAnnounce> {
 		self.updates.recv().await
 	}
 
 	/// Get a specific broadcast by path.
 	///
-	/// This is relative to the consumer's prefix.
 	/// Returns None if the path hasn't been announced yet.
-	pub fn consume<'a>(&self, path: impl Into<PathRef<'a>>) -> Option<BroadcastConsumer> {
+	pub fn get<'a>(&self, path: impl Into<PathRef<'a>>) -> Option<BroadcastConsumer> {
 		let full = self.root.join(&self.prefix).join(path.into());
 
 		let state = self.producer.upgrade()?;
@@ -345,11 +348,7 @@ impl OriginConsumer {
 		state.active.get(&full).map(|b| b.active.clone())
 	}
 
-	pub fn consume_all(&self) -> OriginConsumer {
-		self.consume_prefix("")
-	}
-
-	pub fn consume_prefix<'a>(&self, prefix: impl Into<PathRef<'a>>) -> OriginConsumer {
+	pub fn with_prefix<'a>(&self, prefix: impl Into<PathRef<'a>>) -> OriginConsumer {
 		// The prefix is relative to the existing prefix.
 		let prefix = self.prefix.join(prefix);
 
@@ -393,7 +392,7 @@ impl OriginConsumer {
 
 impl Clone for OriginConsumer {
 	fn clone(&self) -> Self {
-		self.consume_all()
+		self.with_prefix("")
 	}
 }
 
@@ -403,24 +402,24 @@ use futures::FutureExt;
 #[cfg(test)]
 impl OriginConsumer {
 	pub fn assert_next(&mut self, path: &str, broadcast: &BroadcastConsumer) {
-		let next = self.next().now_or_never().expect("next blocked").expect("no next");
+		let next = self.announced().now_or_never().expect("next blocked").expect("no next");
 		assert_eq!(next.suffix.as_str(), path, "wrong path");
 		assert!(next.active.unwrap().is_clone(broadcast), "should be the same broadcast");
 	}
 
 	pub fn assert_next_none(&mut self, path: &str) {
-		let next = self.next().now_or_never().expect("next blocked").expect("no next");
+		let next = self.announced().now_or_never().expect("next blocked").expect("no next");
 		assert_eq!(next.suffix.as_str(), path, "wrong path");
 		assert!(next.active.is_none(), "should be unannounced");
 	}
 
 	pub fn assert_next_wait(&mut self) {
-		assert!(self.next().now_or_never().is_none(), "next should block");
+		assert!(self.announced().now_or_never().is_none(), "next should block");
 	}
 
 	pub fn assert_next_closed(&mut self) {
 		assert!(
-			self.next().now_or_never().expect("next blocked").is_none(),
+			self.announced().now_or_never().expect("next blocked").is_none(),
 			"next should be closed"
 		);
 	}
@@ -428,42 +427,42 @@ impl OriginConsumer {
 
 #[cfg(test)]
 mod tests {
-	use crate::BroadcastProducer;
+	use crate::Broadcast;
 
 	use super::*;
 
 	#[tokio::test]
 	async fn test_announce() {
-		let mut producer = OriginProducer::default();
-		let broadcast1 = BroadcastProducer::new();
-		let broadcast2 = BroadcastProducer::new();
+		let mut origin = Origin::produce();
+		let broadcast1 = Broadcast::produce();
+		let broadcast2 = Broadcast::produce();
 
+		let mut consumer1 = origin.consumer;
 		// Make a new consumer that should get it.
-		let mut consumer1 = producer.consume_all();
 		consumer1.assert_next_wait();
 
 		// Publish the first broadcast.
-		producer.publish("test1", broadcast1.consume());
+		origin.producer.publish("test1", broadcast1.consumer);
 
-		consumer1.assert_next("test1", &broadcast1.consume());
+		consumer1.assert_next("test1", &broadcast1.producer.consume());
 		consumer1.assert_next_wait();
 
 		// Make a new consumer that should get the existing broadcast.
 		// But we don't consume it yet.
-		let mut consumer2 = producer.consume_all();
+		let mut consumer2 = origin.producer.consume();
 
 		// Publish the second broadcast.
-		producer.publish("test2", broadcast2.consume());
+		origin.producer.publish("test2", broadcast2.consumer);
 
-		consumer1.assert_next("test2", &broadcast2.consume());
+		consumer1.assert_next("test2", &broadcast2.producer.consume());
 		consumer1.assert_next_wait();
 
-		consumer2.assert_next("test1", &broadcast1.consume());
-		consumer2.assert_next("test2", &broadcast2.consume());
+		consumer2.assert_next("test1", &broadcast1.producer.consume());
+		consumer2.assert_next("test2", &broadcast2.producer.consume());
 		consumer2.assert_next_wait();
 
 		// Close the first broadcast.
-		drop(broadcast1);
+		drop(broadcast1.producer);
 
 		// Wait for the async task to run.
 		tokio::time::sleep(tokio::time::Duration::from_millis(1)).await;
@@ -475,12 +474,12 @@ mod tests {
 		consumer2.assert_next_wait();
 
 		// And a new consumer only gets the last broadcast.
-		let mut consumer3 = producer.consume_all();
-		consumer3.assert_next("test2", &broadcast2.consume());
+		let mut consumer3 = origin.producer.consume();
+		consumer3.assert_next("test2", &broadcast2.producer.consume());
 		consumer3.assert_next_wait();
 
 		// Close the producer and make sure it cleans up
-		drop(producer);
+		drop(origin.producer);
 
 		// Wait for the async task to run.
 		tokio::time::sleep(tokio::time::Duration::from_millis(1)).await;
@@ -496,66 +495,66 @@ mod tests {
 
 	#[tokio::test]
 	async fn test_duplicate() {
-		let mut producer = OriginProducer::default();
-		let broadcast1 = BroadcastProducer::new();
-		let broadcast2 = BroadcastProducer::new();
+		let mut origin = Origin::produce();
+		let broadcast1 = Broadcast::produce();
+		let broadcast2 = Broadcast::produce();
 
-		producer.publish("test", broadcast1.consume());
-		producer.publish("test", broadcast2.consume());
-		assert!(producer.consume("test").is_some());
+		origin.producer.publish("test", broadcast1.consumer);
+		origin.producer.publish("test", broadcast2.consumer);
+		assert!(origin.consumer.get("test").is_some());
 
-		drop(broadcast1);
-
-		// Wait for the async task to run.
-		tokio::time::sleep(tokio::time::Duration::from_millis(1)).await;
-		assert!(producer.consume("test").is_some());
-
-		drop(broadcast2);
+		drop(broadcast1.producer);
 
 		// Wait for the async task to run.
 		tokio::time::sleep(tokio::time::Duration::from_millis(1)).await;
-		assert!(producer.consume("test").is_none());
+		assert!(origin.consumer.get("test").is_some());
+
+		drop(broadcast2.producer);
+
+		// Wait for the async task to run.
+		tokio::time::sleep(tokio::time::Duration::from_millis(1)).await;
+		assert!(origin.consumer.get("test").is_none());
 	}
 
 	#[tokio::test]
 	async fn test_duplicate_reverse() {
-		let mut producer = OriginProducer::default();
-		let broadcast1 = BroadcastProducer::new();
-		let broadcast2 = BroadcastProducer::new();
+		let mut origin = Origin::produce();
+		let broadcast1 = Broadcast::produce();
+		let broadcast2 = Broadcast::produce();
 
-		producer.publish("test", broadcast1.consume());
-		producer.publish("test", broadcast2.consume());
-		assert!(producer.consume("test").is_some());
+		origin.producer.publish("test", broadcast1.consumer);
+		origin.producer.publish("test", broadcast2.consumer);
+		assert!(origin.consumer.get("test").is_some());
 
 		// This is harder, dropping the new broadcast first.
-		drop(broadcast2);
+		drop(broadcast2.producer);
 
 		// Wait for the cleanup async task to run.
 		tokio::time::sleep(tokio::time::Duration::from_millis(1)).await;
-		assert!(producer.consume("test").is_some());
+		assert!(origin.consumer.get("test").is_some());
 
-		drop(broadcast1);
+		drop(broadcast1.producer);
 
 		// Wait for the cleanup async task to run.
 		tokio::time::sleep(tokio::time::Duration::from_millis(1)).await;
-		assert!(producer.consume("test").is_none());
+		assert!(origin.consumer.get("test").is_none());
 	}
 
 	#[tokio::test]
 	async fn test_double_publish() {
-		let mut producer = OriginProducer::default();
-		let broadcast = BroadcastProducer::new();
+		let mut origin = Origin::produce();
+		let broadcast = Broadcast::produce();
 
 		// Ensure it doesn't crash.
-		producer.publish("test", broadcast.consume());
-		producer.publish("test", broadcast.consume());
+		origin.producer.publish("test", broadcast.producer.consume());
+		origin.producer.publish("test", broadcast.producer.consume());
 
-		assert!(producer.consume("test").is_some());
+		assert!(origin.consumer.get("test").is_some());
 
-		drop(broadcast);
+		drop(broadcast.producer);
 
 		// Wait for the async task to run.
 		tokio::time::sleep(tokio::time::Duration::from_millis(1)).await;
-		assert!(producer.consume("test").is_none());
+		assert!(origin.consumer.get("test").is_none());
 	}
 }

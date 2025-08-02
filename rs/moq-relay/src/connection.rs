@@ -35,7 +35,7 @@ impl Connection {
 			};
 
 			// Scope the origin to our root.
-			let origin = origin.with_root(&token.root);
+			let origin = origin.producer.with_root(&token.root);
 			subscribe = Some(origin.consume_prefix(prefix));
 		}
 
@@ -49,8 +49,8 @@ impl Connection {
 				false => &self.cluster.primary,
 			};
 
-			let origin = origin.with_root(&token.root);
-			publish = Some(origin.publish_prefix(prefix))
+			let origin = origin.producer.with_root(&token.root);
+			publish = Some(origin.with_prefix(prefix))
 		}
 
 		tracing::info!(root = %token.root, subscribe = %subscribe.as_ref().map(|s| s.prefix().as_str()).unwrap_or("(none)"), publish = %publish.as_ref().map(|p| p.prefix().as_str()).unwrap_or("(none)"), "session accepted");

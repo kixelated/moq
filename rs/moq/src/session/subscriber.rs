@@ -4,8 +4,8 @@ use std::{
 };
 
 use crate::{
-	message, model::BroadcastProducer, Error, Frame, FrameProducer, Group, GroupProducer, OriginProducer, Path,
-	TrackProducer,
+	message, model::BroadcastProducer, Broadcast, Error, Frame, FrameProducer, Group, GroupProducer, OriginProducer,
+	Path, TrackProducer,
 };
 
 use tokio::sync::oneshot;
@@ -94,18 +94,17 @@ impl Subscriber {
 			// Log the full path for easier debugging.
 			tracing::debug!(broadcast = %origin.root().join(&prefix).join(&path), "announced");
 
-			let producer = BroadcastProducer::new();
+			let broadcast = Broadcast::produce();
 
 			// Make sure the peer doesn't double announce.
 			match producers.entry(path.clone()) {
 				Entry::Occupied(_) => return Err(Error::Duplicate),
-				Entry::Vacant(entry) => entry.insert(producer.clone()),
+				Entry::Vacant(entry) => entry.insert(broadcast.producer.clone()),
 			};
 
-			let consumer = producer.consume();
-			origin.publish(&path, consumer);
+			origin.publish(&path, broadcast.consumer);
 
-			spawn(self.clone().run_broadcast(path, producer));
+			spawn(self.clone().run_broadcast(path, broadcast.producer));
 		}
 
 		let _ = init.send(());
@@ -115,19 +114,18 @@ impl Subscriber {
 				message::Announce::Active { suffix: path } => {
 					tracing::debug!(broadcast = %origin.root().join(&prefix).join(&path), "announced");
 
-					let producer = BroadcastProducer::new();
+					let broadcast = Broadcast::produce();
 
 					// Make sure the peer doesn't double announce.
 					match producers.entry(path.clone()) {
 						Entry::Occupied(_) => return Err(Error::Duplicate),
-						Entry::Vacant(entry) => entry.insert(producer.clone()),
+						Entry::Vacant(entry) => entry.insert(broadcast.producer.clone()),
 					};
 
 					// Run the broadcast in the background until all consumers are dropped.
-					let consumer = producer.consume();
-					origin.publish(&path, consumer);
+					origin.publish(&path, broadcast.consumer);
 
-					spawn(self.clone().run_broadcast(path, producer));
+					spawn(self.clone().run_broadcast(path, broadcast.producer));
 				}
 				message::Announce::Ended { suffix: path } => {
 					tracing::debug!(broadcast = %origin.root().join(&prefix).join(&path), "unannounced");
@@ -241,7 +239,7 @@ impl Subscriber {
 			let group = Group {
 				sequence: group.sequence,
 			};
-			track.create_group(group).ok_or(Error::Old)?
+			track.create(group).ok_or(Error::Old)?
 		};
 
 		let res = tokio::select! {
@@ -269,7 +267,7 @@ impl Subscriber {
 
 	async fn run_group(&mut self, stream: &mut Reader, mut group: GroupProducer) -> Result<(), Error> {
 		while let Some(size) = stream.decode_maybe::<u64>().await? {
-			let frame = group.create_frame(Frame { size });
+			let frame = group.create(Frame { size });
 
 			let res = tokio::select! {
 				_ = frame.unused() => Err(Error::Cancel),
