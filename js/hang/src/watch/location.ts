@@ -1,5 +1,5 @@
 import type * as Moq from "@kixelated/moq";
-import { type Effect, type Getter, Root, Signal } from "@kixelated/signals";
+import { Effect, type Getter, Signal } from "@kixelated/signals";
 import type * as Catalog from "../catalog";
 import * as Container from "../container";
 
@@ -19,7 +19,7 @@ export class Location {
 
 	#updates = new Signal<Catalog.Track | undefined>(undefined);
 
-	#signals = new Root();
+	#signals = new Effect();
 
 	constructor(
 		broadcast: Signal<Moq.BroadcastConsumer | undefined>,
@@ -113,7 +113,7 @@ export class LocationPeer {
 	broadcast: Signal<Moq.BroadcastConsumer | undefined>;
 
 	#track = new Signal<Catalog.Track | undefined>(undefined);
-	#signals = new Root();
+	#signals = new Effect();
 
 	constructor(
 		broadcast: Signal<Moq.BroadcastConsumer | undefined>,

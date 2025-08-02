@@ -1,5 +1,5 @@
 import * as Moq from "@kixelated/moq";
-import { type Effect, Root, Signal } from "@kixelated/signals";
+import { Effect, Signal } from "@kixelated/signals";
 
 export type ConnectionProps = {
 	// The URL of the relay server.
@@ -29,7 +29,7 @@ export class Connection {
 	readonly delay: number;
 	readonly maxDelay: number;
 
-	signals = new Root();
+	signals = new Effect();
 	#delay: number;
 
 	// Increased by 1 each time to trigger a reload.

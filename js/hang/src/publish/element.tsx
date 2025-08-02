@@ -1,5 +1,5 @@
 import * as Moq from "@kixelated/moq";
-import { Root, Signal } from "@kixelated/signals";
+import { Effect, Signal } from "@kixelated/signals";
 import solid from "@kixelated/signals/solid";
 import { Show } from "solid-js";
 import { render } from "solid-js/web";
@@ -17,7 +17,7 @@ export default class HangPublish extends HTMLElement {
 	connection: Connection;
 	broadcast: Broadcast;
 
-	#signals = new Root();
+	#signals = new Effect();
 
 	constructor() {
 		super();

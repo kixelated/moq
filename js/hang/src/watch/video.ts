@@ -1,5 +1,5 @@
 import type * as Moq from "@kixelated/moq";
-import { type Effect, Root, Signal } from "@kixelated/signals";
+import { Effect, Signal } from "@kixelated/signals";
 import { Buffer } from "buffer";
 import type * as Catalog from "../catalog";
 import * as Container from "../container";
@@ -23,7 +23,7 @@ export class VideoRenderer {
 	#animate?: number;
 
 	#ctx = new Signal<CanvasRenderingContext2D | undefined>(undefined);
-	#signals = new Root();
+	#signals = new Effect();
 
 	constructor(source: Video, props?: VideoRendererProps) {
 		this.source = source;
@@ -165,7 +165,7 @@ export class Video {
 	// This is used to calculate the jitter/lag.
 	#ref?: DOMHighResTimeStamp;
 
-	#signals = new Root();
+	#signals = new Effect();
 
 	constructor(
 		broadcast: Signal<Moq.BroadcastConsumer | undefined>,

@@ -1,5 +1,5 @@
 import * as Moq from "@kixelated/moq";
-import { Root, Signal } from "@kixelated/signals";
+import { Effect, Signal } from "@kixelated/signals";
 import type * as Catalog from "../catalog";
 import { u8 } from "../catalog/integers";
 import * as Container from "../container";
@@ -30,7 +30,7 @@ export class Location {
 
 	#peers = new Signal<Record<string, Catalog.Track> | undefined>(undefined);
 
-	#signals = new Root();
+	#signals = new Effect();
 
 	constructor(broadcast: Moq.BroadcastProducer, props?: LocationProps) {
 		this.broadcast = broadcast;
@@ -85,7 +85,7 @@ export class LocationPeer {
 	//location: Signal<Catalog.Position | undefined>
 	producer = new Signal<Container.PositionProducer | undefined>(undefined);
 
-	#signals = new Root();
+	#signals = new Effect();
 
 	constructor(
 		broadcast: Moq.BroadcastProducer,

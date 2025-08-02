@@ -1,5 +1,5 @@
 import * as Moq from "@kixelated/moq";
-import { type Effect, type Getter, Root, Signal } from "@kixelated/signals";
+import { Effect, type Getter, Signal } from "@kixelated/signals";
 import { Buffer } from "buffer";
 import type * as Catalog from "../catalog";
 import { u8, u53 } from "../catalog/integers";
@@ -63,7 +63,7 @@ export class Video {
 	#group?: Moq.GroupProducer;
 	#groupTimestamp = 0;
 
-	#signals = new Root();
+	#signals = new Effect();
 	#id = 0;
 
 	// Store the latest VideoFrame and when it was captured.

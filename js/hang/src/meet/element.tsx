@@ -1,5 +1,5 @@
 import { Path } from "@kixelated/moq";
-import { Root } from "@kixelated/signals";
+import { Effect } from "@kixelated/signals";
 import { type Publish, Watch } from "..";
 import { Connection } from "../connection";
 import HangPublish from "../publish/element";
@@ -28,7 +28,7 @@ export default class HangMeet extends HTMLElement {
 		{ canvas: HTMLCanvasElement; renderer: Watch.VideoRenderer; emitter: Watch.AudioEmitter }
 	>();
 
-	#signals = new Root();
+	#signals = new Effect();
 
 	constructor() {
 		super();

@@ -1,5 +1,5 @@
 import * as Moq from "@kixelated/moq";
-import { type Effect, type Getter, Root, Signal } from "@kixelated/signals";
+import { Effect, type Getter, Signal } from "@kixelated/signals";
 import type * as Catalog from "../catalog";
 import { u8, u53 } from "../catalog/integers";
 import * as Container from "../container";
@@ -88,7 +88,7 @@ export class Audio {
 	#groupTimestamp = 0;
 
 	#id = 0;
-	#signals = new Root();
+	#signals = new Effect();
 
 	// Initialize the workers as soon as they are enabled, even before any media is selected.
 	// This is done because the first thing they do is load a massive model and we want to front-load that work.
@@ -405,8 +405,8 @@ export class Audio {
 		effect.set(this.#captionTrack, track);
 
 		// Create a nested effect to avoid recreating the track every time the caption changes.
-		effect.nested((effect) => {
-			const text = effect.get(this.caption) ?? "";
+		effect.effect((nested) => {
+			const text = nested.get(this.caption) ?? "";
 			track.appendFrame(new TextEncoder().encode(text));
 		});
 	}

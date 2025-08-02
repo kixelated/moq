@@ -1,5 +1,5 @@
 import type * as Moq from "@kixelated/moq";
-import { type Effect, type Getter, Root, Signal } from "@kixelated/signals";
+import { Effect, type Getter, Signal } from "@kixelated/signals";
 import { Buffer } from "buffer";
 import type * as Catalog from "../catalog";
 import * as Container from "../container";
@@ -51,7 +51,7 @@ export class Audio {
 	// Not a signal because I'm lazy.
 	readonly latency: DOMHighResTimeStamp;
 
-	#signals = new Root();
+	#signals = new Effect();
 
 	constructor(
 		broadcast: Getter<Moq.BroadcastConsumer | undefined>,
@@ -240,7 +240,7 @@ export class AudioEmitter {
 	// That way we can be "muted" but also download audio for visualizations.
 	paused: Signal<boolean>;
 
-	#signals = new Root();
+	#signals = new Effect();
 
 	// The volume to use when unmuted.
 	#unmuteVolume = 0.5;

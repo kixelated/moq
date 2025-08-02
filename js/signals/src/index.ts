@@ -76,10 +76,11 @@ export class Signal<T> implements Getter<T>, Setter<T> {
 	}
 }
 
+/*
 export class Root {
 	// Sanity check to make sure roots are being disposed on dev.
 	static #finalizer = new FinalizationRegistry<string>((debugInfo) => {
-		console.warn(`Signals was garbage collected without being closed:\n${debugInfo}`);
+		console.warn(`Root was garbage collected without being closed:\n${debugInfo}`);
 	});
 
 	#nested?: Effect[] = [];
@@ -166,6 +167,7 @@ export class Root {
 		}
 	}
 }
+*/
 
 type SetterType<S> = S extends Setter<infer T> ? T : never;
 
@@ -180,7 +182,7 @@ export class Effect {
 		console.warn(`Signals was garbage collected without being closed:\n${debugInfo}`);
 	});
 
-	#fn: (effect: Effect) => void;
+	#fn?: (effect: Effect) => void;
 	#dispose?: Dispose[] = [];
 	#unwatch: Dispose[] = [];
 	#async: Promise<void>[] = [];
@@ -191,7 +193,8 @@ export class Effect {
 	#stop!: () => void;
 	#stopped: Promise<void>;
 
-	constructor(fn: (effect: Effect) => void) {
+	// If a function is provided, it will be run with the effect as an argument.
+	constructor(fn?: (effect: Effect) => void) {
 		if (Effect.dev) {
 			const debug = new Error("created here:").stack ?? "No stack";
 			Effect.#finalizer.register(this, debug, this);
@@ -207,7 +210,9 @@ export class Effect {
 			this.#stop = resolve;
 		});
 
-		this.#schedule();
+		if (fn) {
+			this.#schedule();
+		}
 	}
 
 	#schedule(): void {
@@ -215,7 +220,11 @@ export class Effect {
 		this.#scheduled = true;
 
 		// We always queue a microtask to make it more difficult to get stuck in an infinite loop.
-		queueMicrotask(() => this.#run());
+		queueMicrotask(() =>
+			this.#run().catch((error) => {
+				console.error("effect error", error, this.#stack);
+			}),
+		);
 	}
 
 	async #run(): Promise<void> {
@@ -244,6 +253,9 @@ export class Effect {
 			if (this.#stack) console.error("stack", this.#stack);
 		}
 
+		// We were closed while waiting for async effects to complete.
+		if (this.#dispose === undefined) return;
+
 		// Unsubscribe from all signals.
 		for (const unwatch of this.#unwatch) unwatch();
 		this.#unwatch.length = 0;
@@ -256,11 +268,8 @@ export class Effect {
 		// Otherwise, cleanup functions could get us stuck in an infinite loop.
 		this.#scheduled = false;
 
-		try {
+		if (this.#fn) {
 			this.#fn(this);
-		} catch (error) {
-			console.error("effect error", error);
-			if (this.#stack) console.error("stack", this.#stack);
 		}
 	}
 
@@ -336,7 +345,8 @@ export class Effect {
 		this.cleanup(() => timeout && clearTimeout(timeout));
 	}
 
-	nested(fn: (effect: Effect) => void) {
+	// Create a nested effect that can be rerun independently.
+	effect(fn: (effect: Effect) => void) {
 		if (this.#dispose === undefined) {
 			if (Effect.dev) {
 				console.warn("Effect.nested called when closed, ignoring");
@@ -344,8 +354,25 @@ export class Effect {
 			return;
 		}
 
-		const signals = new Effect(fn);
-		this.#dispose.push(() => signals.close());
+		const effect = new Effect(fn);
+		this.#dispose.push(() => effect.close());
+	}
+
+	// A helper to call a function when a signal changes.
+	subscribe<T>(signal: Getter<T>, fn: (value: T) => void) {
+		if (this.#dispose === undefined) {
+			if (dev) {
+				console.warn("Effect.subscribe called when closed, running once");
+			}
+			fn(signal.peek());
+			return;
+		}
+
+		this.effect((effect) => {
+			const value = effect.get(signal);
+			console.log("subscribe", value);
+			fn(value);
+		});
 	}
 
 	// Register a cleanup function.
@@ -364,9 +391,6 @@ export class Effect {
 
 	close(): void {
 		if (this.#dispose === undefined) {
-			if (Effect.dev) {
-				console.warn("Effect.close called when closed, ignoring");
-			}
 			return;
 		}
 
