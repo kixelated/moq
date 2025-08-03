@@ -32,7 +32,7 @@
 		"tsconfig.json"
 	],
 	"scripts": {
-		"build": "vite build && tsc -b && tsx ../scripts/package.ts",
+		"build": "tsc -b && tsx ../scripts/package.ts",
 		"check": "tsc --noEmit",
 		"release": "tsx ../scripts/release.ts"
 	},
@@ -50,8 +50,6 @@
 		"@types/audioworklet": "^0.0.77",
 		"@typescript/lib-dom": "npm:@types/web@^0.0.241",
 		"fast-glob": "^3.3.3",
-		"typescript": "^5.8.3",
-		"vite": "^6.3.5",
-		"vite-plugin-solid": "^2.11.6"
+		"typescript": "^5.8.3"
 	}
 }

@@ -189,9 +189,11 @@ async function run() {
 	}
 }
 
-run().catch((error) => {
-	self.postMessage({ error });
-	throw error;
-}).finally(() => {
-	reader.cancel();
-});
+run()
+	.catch((error) => {
+		self.postMessage({ error });
+		throw error;
+	})
+	.finally(() => {
+		reader.cancel();
+	});

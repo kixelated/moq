@@ -68,7 +68,6 @@ self.addEventListener("message", async (event: MessageEvent<Message>) => {
 	}
 });
 
-
 async function run() {
 	// Start loading the model
 	const model = await pipeline(
@@ -124,9 +123,11 @@ async function run() {
 	}
 }
 
-run().catch((error) => {
-	self.postMessage({ error });
-	throw error;
-}).finally(() => {
-	reader.cancel();
-});
+run()
+	.catch((error) => {
+		self.postMessage({ error });
+		throw error;
+	})
+	.finally(() => {
+		reader.cancel();
+	});

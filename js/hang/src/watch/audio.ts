@@ -5,8 +5,6 @@ import type * as Catalog from "../catalog";
 import * as Container from "../container";
 import type * as Worklet from "../worklet";
 
-import WORKLET_URL from "../worklet/render?worker&url";
-
 const MIN_GAIN = 0.001;
 const FADE_TIME = 0.2;
 
@@ -89,7 +87,7 @@ export class Audio {
 
 		effect.spawn(async () => {
 			// Register the AudioWorklet processor
-			await context.audioWorklet.addModule(WORKLET_URL);
+			await context.audioWorklet.addModule(new URL("../worklet/render.ts", import.meta.url));
 
 			// Create the worklet node
 			const worklet = new AudioWorkletNode(context, "render");
