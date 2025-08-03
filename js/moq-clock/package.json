@@ -21,12 +21,5 @@
 	"devDependencies": {
 		"@types/deno": "^2.3.0",
 		"typescript": "^5.8.3"
-	},
-	"devEngines": {
-		"runtime": {
-			"name": "deno",
-			"version": "^2.4.3",
-			"onFail": "download"
-		}
 	}
 }
