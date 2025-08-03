@@ -60,6 +60,7 @@ const queue = new TransformStream<Float32Array, Float32Array>(
 );
 
 const writer = queue.writable.getWriter();
+const reader = queue.readable.getReader();
 
 // Post any speaking audio to the transcribe worker.
 let transcribe: MessagePort | undefined;
@@ -89,8 +90,7 @@ self.addEventListener("message", async (event: MessageEvent<Message>) => {
 	}
 });
 
-const reader = queue.readable.getReader();
-try {
+async function run() {
 	const model = await AutoModel.from_pretrained("onnx-community/silero-vad", {
 		// @ts-expect-error Not sure why this is needed.
 		config: { model_type: "custom" },
@@ -187,9 +187,11 @@ try {
 		previous = current;
 		current = new Float32Array(temp, 0, 0);
 	}
-} catch (error) {
+}
+
+run().catch((error) => {
 	self.postMessage({ error });
 	throw error;
-} finally {
+}).finally(() => {
 	reader.cancel();
-}
+});

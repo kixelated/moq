@@ -38,7 +38,4 @@ export default defineConfig({
 			preserveEntrySignatures: "strict",
 		},
 	},
-	worker: {
-		format: "es",
-	},
 });
