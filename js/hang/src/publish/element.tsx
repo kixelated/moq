@@ -1,23 +1,24 @@
 import * as Moq from "@kixelated/moq";
-import { Root, Signal } from "@kixelated/signals";
+import { Effect, Signal } from "@kixelated/signals";
 import solid from "@kixelated/signals/solid";
 import { Show } from "solid-js";
 import { render } from "solid-js/web";
 import { Connection } from "../connection";
 import { Broadcast, type Device } from "./broadcast";
 
-const OBSERVED = ["url", "name", "device", "audio", "video", "controls"] as const;
+const OBSERVED = ["url", "name", "device", "audio", "video", "controls", "transcribe", "captions"] as const;
 type Observed = (typeof OBSERVED)[number];
 
 export default class HangPublish extends HTMLElement {
 	static observedAttributes = OBSERVED;
 
 	#controls = new Signal(false);
+	#captions = new Signal(false);
 
 	connection: Connection;
 	broadcast: Broadcast;
 
-	#signals = new Root();
+	#signals = new Effect();
 
 	constructor() {
 		super();
@@ -47,9 +48,14 @@ export default class HangPublish extends HTMLElement {
 		// Render the controls element.
 		render(
 			() => (
-				<Show when={solid(this.#controls)}>
-					<Controls broadcast={this.broadcast} />
-				</Show>
+				<>
+					<Show when={solid(this.#controls)}>
+						<Controls broadcast={this.broadcast} />
+					</Show>
+					<Show when={solid(this.#captions)}>
+						<Captions broadcast={this.broadcast} />
+					</Show>
+				</>
 			),
 			this,
 		);
@@ -72,6 +78,10 @@ export default class HangPublish extends HTMLElement {
 			this.video = newValue !== null;
 		} else if (name === "controls") {
 			this.controls = newValue !== null;
+		} else if (name === "transcribe") {
+			this.transcribe = newValue !== null;
+		} else if (name === "captions") {
+			this.captions = newValue !== null;
 		} else {
 			const exhaustive: never = name;
 			throw new Error(`Invalid attribute: ${exhaustive}`);
@@ -124,6 +134,31 @@ export default class HangPublish extends HTMLElement {
 
 	set controls(controls: boolean) {
 		this.#controls.set(controls);
+	}
+
+	get transcribe(): boolean {
+		return this.broadcast.audio.transcribe.peek();
+	}
+
+	set transcribe(transcribe: boolean) {
+		this.broadcast.audio.transcribe.set(transcribe);
+
+		if (!transcribe && this.#captions.peek()) {
+			// Disable captions if transcribe is disabled.
+			this.#captions.set(false);
+		}
+	}
+
+	get captions(): boolean {
+		return this.#captions.peek();
+	}
+
+	set captions(captions: boolean) {
+		this.#captions.set(captions);
+		if (captions) {
+			// Enable transcribe if captions are enabled.
+			this.broadcast.audio.transcribe.set(true);
+		}
 	}
 }
 
@@ -219,6 +254,28 @@ function Select(props: { broadcast: Broadcast }): JSX.Element {
 			>
 				🚫
 			</button>
+		</div>
+	);
+}
+
+function Captions(props: { broadcast: Broadcast }): JSX.Element {
+	const caption = solid(props.broadcast.audio.caption);
+	const speaking = solid(props.broadcast.audio.speaking);
+
+	return (
+		<div
+			style={{
+				display: "flex",
+				"justify-content": "space-around",
+				gap: "16px",
+				margin: "8px 0",
+				"min-height": "1lh",
+				"align-content": "center",
+			}}
+		>
+			<div style={{ width: "1.5em" }} />
+			<div style={{ "text-align": "center" }}>{caption() ?? ""}</div>
+			<div style={{ width: "1.5em" }}>{speaking() ? "🗣️" : " "}</div>
 		</div>
 	);
 }

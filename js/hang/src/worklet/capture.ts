@@ -5,7 +5,9 @@ class Capture extends AudioWorkletProcessor {
 
 	process(input: Float32Array[][]) {
 		if (input.length > 1) throw new Error("only one input is supported.");
+
 		const channels = input[0];
+		if (channels.length === 0) return true; // TODO: No input hooked up?
 
 		const msg: AudioFrame = {
 			timestamp: this.#sampleCount,

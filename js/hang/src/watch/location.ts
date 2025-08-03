@@ -1,5 +1,5 @@
 import type * as Moq from "@kixelated/moq";
-import { type Computed, type Effect, Root, Signal } from "@kixelated/signals";
+import { Effect, type Getter, Signal } from "@kixelated/signals";
 import type * as Catalog from "../catalog";
 import * as Container from "../container";
 
@@ -15,11 +15,11 @@ export class Location {
 	peering = new Signal<boolean | undefined>(undefined);
 
 	#current = new Signal<Catalog.Position | undefined>(undefined);
-	readonly current = this.#current.readonly();
+	readonly current: Getter<Catalog.Position | undefined> = this.#current;
 
 	#updates = new Signal<Catalog.Track | undefined>(undefined);
 
-	#signals = new Root();
+	#signals = new Effect();
 
 	constructor(
 		broadcast: Signal<Moq.BroadcastConsumer | undefined>,
@@ -78,7 +78,7 @@ export class Location {
 
 	// Request the location from a specific peer.
 	peer(handle?: string): LocationPeer {
-		return new LocationPeer(this.broadcast, this.catalog.readonly(), handle);
+		return new LocationPeer(this.broadcast, this.catalog, handle);
 	}
 
 	close() {
@@ -113,11 +113,11 @@ export class LocationPeer {
 	broadcast: Signal<Moq.BroadcastConsumer | undefined>;
 
 	#track = new Signal<Catalog.Track | undefined>(undefined);
-	#signals = new Root();
+	#signals = new Effect();
 
 	constructor(
 		broadcast: Signal<Moq.BroadcastConsumer | undefined>,
-		catalog: Computed<Catalog.Location | undefined>,
+		catalog: Getter<Catalog.Location | undefined>,
 		handle?: string,
 	) {
 		this.handle = new Signal(handle);

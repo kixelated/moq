@@ -1,5 +1,5 @@
 import type * as Moq from "@kixelated/moq";
-import { Root, Signal } from "@kixelated/signals";
+import { Effect, Signal } from "@kixelated/signals";
 import * as Preview from "./info";
 
 export type MemberProps = {
@@ -11,7 +11,7 @@ export class Member {
 	enabled: Signal<boolean>;
 	info: Signal<Preview.Info | undefined>;
 
-	signals = new Root();
+	signals = new Effect();
 
 	constructor(broadcast: Moq.BroadcastConsumer, props?: MemberProps) {
 		this.broadcast = broadcast;

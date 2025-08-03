@@ -1,5 +1,5 @@
 import * as Moq from "@kixelated/moq";
-import { Root, Signal } from "@kixelated/signals";
+import { Effect, Signal } from "@kixelated/signals";
 import solid from "@kixelated/signals/solid";
 import { type JSX, Match, Show, Switch } from "solid-js";
 import { render } from "solid-js/web";
@@ -8,7 +8,7 @@ import { AudioEmitter } from "./audio";
 import { Broadcast } from "./broadcast";
 import { VideoRenderer } from "./video";
 
-const OBSERVED = ["url", "name", "paused", "volume", "muted", "controls"] as const;
+const OBSERVED = ["url", "name", "paused", "volume", "muted", "controls", "captions"] as const;
 type Observed = (typeof OBSERVED)[number];
 
 // An optional web component that wraps a <canvas>
@@ -24,7 +24,7 @@ export default class HangWatch extends HTMLElement {
 	video: VideoRenderer;
 	audio: AudioEmitter;
 
-	#signals = new Root();
+	#signals = new Effect();
 
 	constructor() {
 		super();
@@ -41,9 +41,14 @@ export default class HangWatch extends HTMLElement {
 		// Render the controls element.
 		render(
 			() => (
-				<Show when={controls()}>
-					<Controls broadcast={this.broadcast} video={this.video} audio={this.audio} root={this} />
-				</Show>
+				<>
+					<Show when={controls()}>
+						<Controls broadcast={this.broadcast} video={this.video} audio={this.audio} root={this} />
+					</Show>
+					<Show when={solid(this.broadcast.audio.transcribe)}>
+						<Captions broadcast={this.broadcast} />
+					</Show>
+				</>
 			),
 			this,
 		);
@@ -125,6 +130,8 @@ export default class HangWatch extends HTMLElement {
 			this.muted = newValue !== null;
 		} else if (name === "controls") {
 			this.controls = newValue !== null;
+		} else if (name === "captions") {
+			this.captions = newValue !== null;
 		} else {
 			const exhaustive: never = name;
 			throw new Error(`Invalid attribute: ${exhaustive}`);
@@ -178,6 +185,14 @@ export default class HangWatch extends HTMLElement {
 
 	set controls(controls: boolean) {
 		this.#controls.set(controls);
+	}
+
+	get captions(): boolean {
+		return this.broadcast.audio.transcribe.peek();
+	}
+
+	set captions(captions: boolean) {
+		this.broadcast.audio.transcribe.set(captions);
 	}
 
 	// TODO Do this on disconnectedCallback?
@@ -306,4 +321,9 @@ function Fullscreen(props: { root: HTMLElement }): JSX.Element {
 			⛶
 		</button>
 	);
+}
+
+function Captions(props: { broadcast: Broadcast }): JSX.Element {
+	const caption = solid(props.broadcast.audio.caption);
+	return <div style={{ "text-align": "center" }}>{caption()}</div>;
 }

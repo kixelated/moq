@@ -1,5 +1,5 @@
 import * as Moq from "@kixelated/moq";
-import { type Effect, Root, Signal } from "@kixelated/signals";
+import { Effect, type Getter, Signal } from "@kixelated/signals";
 import * as Catalog from "../catalog";
 import type { Connection } from "../connection";
 import { Audio, type AudioProps, type AudioTrack } from "./audio";
@@ -44,10 +44,10 @@ export class Broadcast {
 
 	#broadcast = new Moq.BroadcastProducer();
 	#catalog = new Moq.TrackProducer("catalog.json", 0);
-	signals = new Root();
+	signals = new Effect();
 
 	#published = new Signal(false);
-	readonly published = this.#published.readonly();
+	readonly published: Getter<boolean> = this.#published;
 
 	constructor(connection: Connection, props?: BroadcastProps) {
 		this.connection = connection;

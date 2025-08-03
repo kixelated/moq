@@ -1,5 +1,5 @@
 import type * as Moq from "@kixelated/moq";
-import { Root, Signal } from "@kixelated/signals";
+import { Effect, Signal } from "@kixelated/signals";
 import { Container } from "..";
 import type * as Catalog from "../catalog";
 import * as Preview from "../preview";
@@ -15,7 +15,7 @@ export class PreviewWatch {
 	track = new Signal<Container.FrameConsumer | undefined>(undefined);
 	preview = new Signal<Preview.Info | undefined>(undefined);
 
-	#signals = new Root();
+	#signals = new Effect();
 
 	constructor(
 		broadcast: Signal<Moq.BroadcastConsumer | undefined>,

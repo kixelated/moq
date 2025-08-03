@@ -1,5 +1,5 @@
 import * as Moq from "@kixelated/moq";
-import { Root, Signal } from "@kixelated/signals";
+import { Effect, Signal } from "@kixelated/signals";
 import type { Info } from "../preview";
 
 export type PreviewProps = {
@@ -14,7 +14,7 @@ export class Preview {
 
 	#track = new Moq.TrackProducer("preview.json", 0);
 
-	#signals = new Root();
+	#signals = new Effect();
 
 	constructor(broadcast: Moq.BroadcastProducer, props?: PreviewProps) {
 		this.broadcast = broadcast;
@@ -51,8 +51,6 @@ export class Preview {
 			const buffer = encoder.encode(json);
 			group.writeFrame(buffer);
 		}
-
-		console.debug("published preview", preview);
 
 		group.close();
 	}

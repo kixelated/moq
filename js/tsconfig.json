@@ -32,8 +32,9 @@
 		"strictPropertyInitialization": true,
 		"useUnknownInCatchVariables": true,
 
-		// Allow importing .ts files
+		// Allow importing .ts files for deno to work.
 		"allowImportingTsExtensions": true,
+		"noEmit": true, // required for allowImportingTsExtensions
 
 		// Disable enums and weird Typescript features.
 		"erasableSyntaxOnly": true,

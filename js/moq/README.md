@@ -23,18 +23,6 @@ pnpm add @kixelated/moq
 yarn add @kixelated/moq
 ```
 
-### Server-side
-[Deno](https://deno.land/) can be used to run these examples without a browser.
-
-- `./examples/publish.ts https://relay.quic.video/anon my-broadcast` - Publishes a simple chat message
-- `./examples/subscribe.ts https://relay.quic.video/anon my-broadcast` - Subscribes and receives the chat message
-
-You should replace the relay server with your own.
-If you're using `just dev` or `just relay`, the URL to use is `http://localhost:4443/anon`.
-
-Or you should replace `my-broadcast` with something more unique lest another user is running this example.
-
-
 ### Basic Connection
 
 ```typescript

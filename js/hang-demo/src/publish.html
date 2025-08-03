@@ -22,7 +22,7 @@
 		Feel free to hard-code it if you have public access configured, like `url="https://relay.quic.video/anon"`
 		NOTE: `http` performs an insecure certificate check. You must use `https` in production.
 	-->
-	<hang-publish url="%VITE_RELAY_URL%" name="me" audio video controls>
+	<hang-publish url="%VITE_RELAY_URL%" name="me" audio video controls captions>
 		<!-- It's optional to provide a video element to preview the outgoing media. -->
 		<video style="max-width: 100%; height: auto; border-radius: 4px; margin: 0 auto;" muted autoplay></video>
 	</hang-publish>
@@ -43,7 +43,20 @@
 	</p>
 	<p>
 		Reusing the same broadcast name means viewers will automatically reconnect to the new session.
-		Try reloading the page and broadcasting again; viewers will automatically reconnect!
+		Try reloading the page and broadcasting again; viewers will automatically reconnect.
+	</p>
+	<hr/>
+	<p>
+		If you pay close enough attention, you'll notice that captions are being automatically generated.
+		This uses a VAD model to detect when you're speaking which is when the 🗣 emoji appears.
+		At the end of a sentence, we run another model to generate the caption which is available over the network.
+		The `captions` attribute controls whether captions are displayed.
+	</p>
+	<p>
+		The AI models are executed using <a href="https://huggingface.co/docs/transformers.js/en/index">Transformers.js</a>.
+		This uses WebGPU when available, otherwise it falls back to WebAssembly.
+		They run in a WebWorker to avoid blocking the main thread so unless battery is an issue, keep the automatic transcription enabled!
+		But if you want to disable it, the `transcribe` attribute controls whether transcription is enabled.
 	</p>
 	<hr />
 	<p>

@@ -1,6 +1,6 @@
 import type * as Moq from "@kixelated/moq";
 import type { Path } from "@kixelated/moq";
-import { type Effect, Root, Signal } from "@kixelated/signals";
+import { Effect, Signal } from "@kixelated/signals";
 import type { Connection } from "../connection";
 import { Member } from "./member";
 
@@ -17,7 +17,7 @@ export class Room {
 	#members = new Map<Path.Valid, Member>();
 
 	#onMember?: (name: Path.Valid, member: Member | undefined) => void;
-	#signals = new Root();
+	#signals = new Effect();
 
 	constructor(connection: Connection, props?: RoomProps) {
 		this.connection = connection;

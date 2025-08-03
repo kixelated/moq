@@ -1,6 +1,6 @@
 import { type Connection, Moq, type Publish, Watch } from "@kixelated/hang";
 import type { Path } from "@kixelated/moq";
-import { type Effect, Root, Signal } from "@kixelated/signals";
+import { Effect, Signal } from "@kixelated/signals";
 
 export type Broadcast = Watch.Broadcast | Publish.Broadcast;
 
@@ -32,7 +32,7 @@ export class Room {
 	#onRemote?: (name: Path.Valid, broadcast: Watch.Broadcast | undefined) => void;
 	#onLocal?: (name: Path.Valid, broadcast: Publish.Broadcast | undefined) => void;
 
-	#signals = new Root();
+	#signals = new Effect();
 
 	constructor(connection: Connection, props?: RoomProps) {
 		this.connection = connection;

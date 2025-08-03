@@ -1,5 +1,5 @@
 import type * as Moq from "@kixelated/moq";
-import { type Effect, Root, Signal } from "@kixelated/signals";
+import { Effect, type Getter, Signal } from "@kixelated/signals";
 import * as Catalog from "../catalog";
 import type { Connection } from "../connection";
 import { Audio, type AudioProps } from "./audio";
@@ -45,14 +45,14 @@ export class Broadcast {
 	#broadcast = new Signal<Moq.BroadcastConsumer | undefined>(undefined);
 
 	#catalog = new Signal<Catalog.Root | undefined>(undefined);
-	readonly catalog = this.#catalog.readonly();
+	readonly catalog: Getter<Catalog.Root | undefined> = this.#catalog;
 
 	// This signal is true when the broadcast has been announced, unless reloading is disabled.
 	#active = new Signal(false);
-	readonly active = this.#active.readonly();
+	readonly active: Getter<boolean> = this.#active;
 
 	#reload: boolean;
-	signals = new Root();
+	signals = new Effect();
 
 	constructor(connection: Connection, props?: BroadcastProps) {
 		this.connection = connection;
