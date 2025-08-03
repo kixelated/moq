@@ -44,7 +44,7 @@ const SAMPLE_RATE = 16000;
 const CHUNK_SIZE = 512; // This VAD model expects 512 samples at a time, or 31ms
 
 // Require this many silent chunks in a row before unsetting speaking.
-const SILENT_CHUNKS = 8;
+const SILENT_CHUNKS = 4;
 
 // Create a queue to store audio chunks that arrive asynchronously.
 const queue = new TransformStream<Float32Array, Float32Array>(

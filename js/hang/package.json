@@ -32,7 +32,7 @@
 		"tsconfig.json"
 	],
 	"scripts": {
-		"build": "vite build && tsc -b",
+		"build": "vite build && tsc -b && tsx ../scripts/package.ts",
 		"check": "tsc --noEmit",
 		"release": "tsx ../scripts/release.ts"
 	},
