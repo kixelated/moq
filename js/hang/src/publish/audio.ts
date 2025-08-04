@@ -143,7 +143,7 @@ export class Audio {
 
 		// Async because we need to wait for the worklet to be registered.
 		effect.spawn(async () => {
-			await context.audioWorklet.addModule(new URL("../worklet/capture.ts", import.meta.url));
+			await context.audioWorklet.addModule(new URL("../worklet/capture", import.meta.url));
 			const worklet = new AudioWorkletNode(context, "capture", {
 				numberOfInputs: 1,
 				numberOfOutputs: 0,
@@ -281,7 +281,7 @@ export class Audio {
 	#loadWorkers(effect: Effect): void {
 		if (!effect.get(this.vad) && !effect.get(this.transcribe)) return;
 
-		const vad = new Worker(new URL("../worker/vad.ts", import.meta.url), { type: "module" });
+		const vad = new Worker(new URL("../worker/vad", import.meta.url), { type: "module" });
 		effect.cleanup(() => vad.terminate());
 
 		// Handle messages from the VAD worker
@@ -299,7 +299,7 @@ export class Audio {
 		let transcribe: Worker | undefined;
 		if (effect.get(this.transcribe)) {
 			// I could start loading the Worker before the worklet but eh I'm lazy.
-			transcribe = new Worker(new URL("../worker/transcribe.ts", import.meta.url), { type: "module" });
+			transcribe = new Worker(new URL("../worker/transcribe", import.meta.url), { type: "module" });
 			effect.cleanup(() => transcribe?.terminate());
 
 			let timeout: ReturnType<typeof setTimeout> | undefined;
@@ -347,7 +347,7 @@ export class Audio {
 
 		// The workload needs to be loaded asynchronously, unfortunately, but it should be instant.
 		effect.spawn(async () => {
-			await ctx.audioWorklet.addModule(new URL("../worklet/capture.ts", import.meta.url));
+			await ctx.audioWorklet.addModule(new URL("../worklet/capture", import.meta.url));
 
 			// Create the worklet.
 			const worklet = new AudioWorkletNode(ctx, "capture", {

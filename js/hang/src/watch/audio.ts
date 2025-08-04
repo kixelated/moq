@@ -87,7 +87,7 @@ export class Audio {
 
 		effect.spawn(async () => {
 			// Register the AudioWorklet processor
-			await context.audioWorklet.addModule(new URL("../worklet/render.ts", import.meta.url));
+			await context.audioWorklet.addModule(new URL("../worklet/render", import.meta.url));
 
 			// Create the worklet node
 			const worklet = new AudioWorkletNode(context, "render");
