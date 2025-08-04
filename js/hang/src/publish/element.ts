@@ -274,21 +274,21 @@ export default class HangPublish extends HTMLElement {
 			const video = effect.get(this.broadcast.video.catalog);
 
 			if (!url) {
-				container.innerHTML = "🔴&nbsp;No URL";
+				container.textContent = "🔴\u00A0No URL";
 			} else if (status === "disconnected") {
-				container.innerHTML = "🔴&nbsp;Disconnected";
+				container.textContent = "🔴\u00A0Disconnected";
 			} else if (status === "connecting") {
-				container.innerHTML = "🟡&nbsp;Connecting...";
+				container.textContent = "🟡\u00A0Connecting...";
 			} else if (!audio && !video) {
-				container.innerHTML = "🔴&nbsp;Select Device";
+				container.textContent = "🔴\u00A0Select Device";
 			} else if (!audio && video) {
-				container.innerHTML = "🟡&nbsp;Video Only";
+				container.textContent = "🟡\u00A0Video Only";
 			} else if (audio && !video) {
-				container.innerHTML = "🟡&nbsp;Audio Only";
+				container.textContent = "🟡\u00A0Audio Only";
 			} else if (audio && video) {
-				container.innerHTML = "🟢&nbsp;Live";
+				container.textContent = "🟢\u00A0Live";
 			} else if (status === "connected") {
-				container.innerHTML = "🟢&nbsp;Connected";
+				container.textContent = "🟢\u00A0Connected";
 			}
 		});
 

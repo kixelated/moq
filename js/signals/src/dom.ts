@@ -10,8 +10,6 @@ export type CreateOptions<T extends HTMLElement> = {
 	className?: string;
 	classList?: string[];
 	id?: string;
-	textContent?: string;
-	innerHTML?: string;
 	dataset?: Record<string, string>;
 	attributes?: Record<string, string>;
 	events?: EventListeners;
@@ -84,9 +82,9 @@ export function render(parent: HTMLElement, effect: Effect, render: Render) {
 		parent.appendChild(element);
 		effect.cleanup(() => element.remove());
 	} else if (Array.isArray(element)) {
-		const fragment = document.createDocumentFragment();
-		element.forEach((child) => fragment.appendChild(child));
-		parent.appendChild(fragment);
-		effect.cleanup(() => parent.removeChild(fragment));
+		element.forEach((child) => parent.appendChild(child));
+		effect.cleanup(() => {
+			element.forEach((child) => child.remove());
+		});
 	}
 }

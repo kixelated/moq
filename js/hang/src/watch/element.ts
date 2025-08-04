@@ -319,19 +319,19 @@ export default class HangWatch extends HTMLElement {
 			const broadcast = effect.get(this.broadcast.status);
 
 			if (!url) {
-				container.innerHTML = "🔴&nbsp;No URL";
+				container.textContent = "🔴\u00A0No URL";
 			} else if (connection === "disconnected") {
-				container.innerHTML = "🔴&nbsp;Disconnected";
+				container.textContent = "🔴\u00A0Disconnected";
 			} else if (connection === "connecting") {
-				container.innerHTML = "🟡&nbsp;Connecting...";
+				container.textContent = "🟡\u00A0Connecting...";
 			} else if (broadcast === "offline") {
-				container.innerHTML = "🔴&nbsp;Offline";
+				container.textContent = "🔴\u00A0Offline";
 			} else if (broadcast === "loading") {
-				container.innerHTML = "🟡&nbsp;Loading...";
+				container.textContent = "🟡\u00A0Loading...";
 			} else if (broadcast === "live") {
-				container.innerHTML = "🟢&nbsp;Live";
+				container.textContent = "🟢\u00A0Live";
 			} else if (connection === "connected") {
-				container.innerHTML = "🟢&nbsp;Connected";
+				container.textContent = "🟢\u00A0Connected";
 			}
 		});
 

@@ -187,11 +187,11 @@ export default class HangSupport extends HTMLElement {
 		});
 
 		if (summary === "full") {
-			statusDiv.innerHTML = "🟢 Full Browser Support";
+			statusDiv.textContent = "🟢 Full Browser Support";
 		} else if (summary === "partial") {
-			statusDiv.innerHTML = "🟡 Partial Browser Support";
+			statusDiv.textContent = "🟡 Partial Browser Support";
 		} else if (summary === "none") {
-			statusDiv.innerHTML = "🔴 No Browser Support";
+			statusDiv.textContent = "🔴 No Browser Support";
 		}
 
 		const detailsButton = DOM.create("button", {
@@ -266,13 +266,11 @@ export default class HangSupport extends HTMLElement {
 					gridColumnStart: "2",
 					textAlign: "center",
 				},
-			});
-			col2Div.innerHTML = col2;
+			}, col2);
 
 			const col3Div = DOM.create("div", {
 				style: { gridColumnStart: "3" },
-			});
-			col3Div.innerHTML = col3;
+			}, col3);
 
 			container.appendChild(labelDiv);
 			container.appendChild(col2Div);
@@ -313,9 +311,9 @@ export default class HangSupport extends HTMLElement {
 						fontSize: "0.875rem",
 						fontStyle: "italic",
 					},
-				});
-				noteDiv.innerHTML =
-					'* Hardware acceleration is <a href="https://github.com/w3c/webcodecs/issues/896">undetectable</a> on Firefox.';
+				}, "Hardware acceleration is ", DOM.create("a", {
+					href: "https://github.com/w3c/webcodecs/issues/896",
+				}, "undetectable"), " on Firefox.");
 				container.appendChild(noteDiv);
 			}
 		}
