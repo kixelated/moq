@@ -261,16 +261,24 @@ export default class HangSupport extends HTMLElement {
 				label,
 			);
 
-			const col2Div = DOM.create("div", {
-				style: {
-					gridColumnStart: "2",
-					textAlign: "center",
+			const col2Div = DOM.create(
+				"div",
+				{
+					style: {
+						gridColumnStart: "2",
+						textAlign: "center",
+					},
 				},
-			}, col2);
+				col2,
+			);
 
-			const col3Div = DOM.create("div", {
-				style: { gridColumnStart: "3" },
-			}, col3);
+			const col3Div = DOM.create(
+				"div",
+				{
+					style: { gridColumnStart: "3" },
+				},
+				col3,
+			);
 
 			container.appendChild(labelDiv);
 			container.appendChild(col2Div);
@@ -303,17 +311,27 @@ export default class HangSupport extends HTMLElement {
 				addRow("", "VP8", hardware(support.video.decoding?.vp8));
 			}
 			if (isFirefox) {
-				const noteDiv = DOM.create("div", {
-					style: {
-						gridColumnStart: "1",
-						gridColumnEnd: "4",
-						textAlign: "center",
-						fontSize: "0.875rem",
-						fontStyle: "italic",
+				const noteDiv = DOM.create(
+					"div",
+					{
+						style: {
+							gridColumnStart: "1",
+							gridColumnEnd: "4",
+							textAlign: "center",
+							fontSize: "0.875rem",
+							fontStyle: "italic",
+						},
 					},
-				}, "Hardware acceleration is ", DOM.create("a", {
-					href: "https://github.com/w3c/webcodecs/issues/896",
-				}, "undetectable"), " on Firefox.");
+					"Hardware acceleration is ",
+					DOM.create(
+						"a",
+						{
+							href: "https://github.com/w3c/webcodecs/issues/896",
+						},
+						"undetectable",
+					),
+					" on Firefox.",
+				);
 				container.appendChild(noteDiv);
 			}
 		}
