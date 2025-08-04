@@ -52,7 +52,7 @@ impl Session {
 					session.close(1, "");
 				}
 				Err(err) => {
-					tracing::warn!(?err, "session error");
+					tracing::warn!(%err, "session error");
 					session.close(err.to_code(), &err.to_string());
 				}
 				_ => {

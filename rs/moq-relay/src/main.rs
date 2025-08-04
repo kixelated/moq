@@ -51,7 +51,7 @@ async fn main() -> anyhow::Result<()> {
 		tokio::spawn(async move {
 			let err = conn.run().await;
 			if let Err(err) = err {
-				tracing::warn!(?err, "connection closed");
+				tracing::warn!(%err, "connection closed");
 			}
 		});
 	}

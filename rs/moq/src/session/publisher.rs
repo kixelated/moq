@@ -63,7 +63,7 @@ impl Publisher {
 		let res = self.run_announce(stream, &interest.prefix).await;
 		match res {
 			Err(Error::Cancel) => tracing::debug!(prefix = %full, "announcing cancelled"),
-			Err(err) => tracing::debug!(?err, prefix = %full, "announcing error"),
+			Err(err) => tracing::debug!(%err, prefix = %full, "announcing error"),
 			_ => tracing::trace!(prefix = %full, "announcing complete"),
 		}
 
@@ -139,7 +139,7 @@ impl Publisher {
 			Err(Error::Cancel) | Err(Error::WebTransport(_)) => {
 				tracing::debug!(id = %subscribe.id, %broadcast, %track, "subscribed cancelled")
 			}
-			Err(err) => tracing::warn!(?err, id = %subscribe.id, %broadcast, %track, "subscribed error"),
+			Err(err) => tracing::warn!(%err, id = %subscribe.id, %broadcast, %track, "subscribed error"),
 			_ => tracing::debug!(id = %subscribe.id, %broadcast, %track, "subscribed complete"),
 		}
 

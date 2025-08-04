@@ -100,12 +100,12 @@ async fn serve_fetch(Path(path): Path<String>, cluster: Cluster) -> axum::respon
 	let track = path.pop().unwrap().to_string();
 	let broadcast = path.join("/");
 
+	tracing::info!(%broadcast, %track, "subscribing to track");
+
 	let track = moq_lite::Track {
 		name: track,
 		priority: 0,
 	};
-
-	tracing::info!(?broadcast, ?track, "subscribing to track");
 
 	let broadcast = cluster.get(&broadcast).ok_or(StatusCode::NOT_FOUND)?;
 	let mut track = broadcast.subscribe(&track);

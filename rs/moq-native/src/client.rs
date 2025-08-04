@@ -74,7 +74,7 @@ impl Client {
 
 			// Log any errors that occurred while loading the native root certificates.
 			for err in native.errors {
-				tracing::warn!(?err, "failed to load root cert");
+				tracing::warn!(%err, "failed to load root cert");
 			}
 
 			// Add the platform's native root certificates.

@@ -189,7 +189,7 @@ impl OriginProducer {
 		if !self.state.lock().publish(full.clone(), broadcast.clone()) {
 			// The exact same BroadcastConsumer was published with the same path twice.
 			// This is not a huge deal, but we break early to avoid redundant cleanup work.
-			tracing::warn!(?path, "duplicate publish");
+			tracing::warn!(%path, "duplicate publish");
 			return;
 		}
 

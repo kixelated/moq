@@ -53,7 +53,7 @@ async fn accept(mut server: moq_native::Server, name: String, consumer: Broadcas
 		// Handle the connection in a new task.
 		tokio::spawn(async move {
 			if let Err(err) = run_session(id, session, name, consumer).await {
-				tracing::warn!(?err, "failed to accept session");
+				tracing::warn!(%err, "failed to accept session");
 			}
 		});
 	}
@@ -79,7 +79,7 @@ async fn run_session(
 		.await
 		.context("failed to accept session")?;
 
-	tracing::info!(?id, "accepted session");
+	tracing::info!(id, "accepted session");
 
 	Err(session.closed().await.into())
 }
@@ -116,7 +116,7 @@ async fn web(bind: SocketAddr, fingerprints: Vec<String>, public: Option<PathBuf
 	// If a public directory is provided, serve it.
 	// We use this for local development to serve the index.html file and friends.
 	if let Some(public) = public.as_ref() {
-		tracing::info!(?public, "serving directory");
+		tracing::info!(public = %public.display(), "serving directory");
 
 		let public = ServeDir::new(public).not_found_service(handle_404.into_service());
 		app = app.fallback_service(public);

@@ -165,7 +165,7 @@ impl Cluster {
 				async move {
 					match this.run_remote(node2.as_str(), token, origin).await {
 						Ok(()) => tracing::info!(%node2, "origin closed"),
-						Err(err) => tracing::warn!(?err, %node2, "origin error"),
+						Err(err) => tracing::warn!(%err, %node2, "origin error"),
 					}
 				}
 				.in_current_span(),
@@ -191,7 +191,7 @@ impl Cluster {
 
 			if let Err(err) = res {
 				backoff *= 2;
-				tracing::error!(?err, "remote error");
+				tracing::error!(%err, "remote error");
 			}
 
 			let timeout = tokio::time::Duration::from_secs(backoff);
