@@ -19,7 +19,7 @@ export type CreateOptions<T extends HTMLElement> = {
 
 export function create<K extends keyof HTMLElementTagNameMap>(
 	tagName: K,
-	options?: CreateOptions<HTMLElementTagNameMap[K]>,
+	options?: CreateOptions<HTMLElementTagNameMap[K] & HTMLElement>,
 	...children: (HTMLElement | string)[]
 ): HTMLElementTagNameMap[K] {
 	const element = document.createElement(tagName);
