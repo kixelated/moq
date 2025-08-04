@@ -370,7 +370,6 @@ export class Effect {
 
 		this.effect((effect) => {
 			const value = effect.get(signal);
-			console.log("subscribe", value);
 			fn(value);
 		});
 	}
