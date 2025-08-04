@@ -1,7 +1,7 @@
 {
 	"name": "@kixelated/signals",
 	"type": "module",
-	"version": "0.5.2",
+	"version": "0.5.3",
 	"description": "Reactive and safe signals",
 	"license": "(MIT OR Apache-2.0)",
 	"repository": "github:kixelated/moq",
