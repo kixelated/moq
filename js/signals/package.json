@@ -8,7 +8,8 @@
 	"exports": {
 		".": "./src/index.ts",
 		"./solid": "./src/solid.ts",
-		"./react": "./src/react.ts"
+		"./react": "./src/react.ts",
+		"./dom": "./src/dom.ts"
 	},
 	"files": [
 		"./src"

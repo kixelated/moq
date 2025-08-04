@@ -1,8 +1,6 @@
 import * as Moq from "@kixelated/moq";
 import { Effect, Signal } from "@kixelated/signals";
-import solid from "@kixelated/signals/solid";
-import { type JSX, Match, Show, Switch } from "solid-js";
-import { render } from "solid-js/web";
+import * as DOM from "@kixelated/signals/dom";
 import { Connection } from "../connection";
 import { AudioEmitter } from "./audio";
 import { Broadcast } from "./broadcast";
@@ -35,23 +33,6 @@ export default class HangWatch extends HTMLElement {
 		this.broadcast = new Broadcast(this.connection, { enabled: true });
 		this.video = new VideoRenderer(this.broadcast.video, { canvas });
 		this.audio = new AudioEmitter(this.broadcast.audio);
-
-		const controls = solid(this.#controls);
-
-		// Render the controls element.
-		render(
-			() => (
-				<>
-					<Show when={controls()}>
-						<Controls broadcast={this.broadcast} video={this.video} audio={this.audio} root={this} />
-					</Show>
-					<Show when={solid(this.broadcast.audio.transcribe)}>
-						<Captions broadcast={this.broadcast} />
-					</Show>
-				</>
-			),
-			this,
-		);
 
 		// Optionally update attributes to match the library state.
 		// This is kind of dangerous because it can create loops.
@@ -110,6 +91,9 @@ export default class HangWatch extends HTMLElement {
 			const paused = effect.get(this.video.paused) || effect.get(this.audio.muted);
 			this.audio.paused.set(paused);
 		});
+
+		this.#renderControls();
+		this.#renderCaptions();
 	}
 
 	attributeChangedCallback(name: Observed, oldValue: string | null, newValue: string | null) {
@@ -203,6 +187,179 @@ export default class HangWatch extends HTMLElement {
 		this.audio.close();
 		this.#signals.close();
 	}
+
+	#renderControls() {
+		const controls = DOM.create("div", {
+			style: {
+				display: "flex",
+				justifyContent: "space-around",
+				gap: "8px",
+				alignContent: "center",
+			},
+		});
+
+		this.appendChild(controls);
+		this.#signals.cleanup(() => this.removeChild(controls));
+
+		this.#signals.effect((effect) => {
+			const show = effect.get(this.#controls);
+			if (!show) return;
+
+			this.#renderPause(controls, effect);
+			this.#renderVolume(controls, effect);
+			this.#renderStatus(controls, effect);
+			this.#renderFullscreen(controls, effect);
+		});
+	}
+
+	#renderCaptions() {
+		const captions = DOM.create("div", {
+			style: {
+				textAlign: "center",
+			},
+		});
+
+		this.appendChild(captions);
+		this.#signals.cleanup(() => this.removeChild(captions));
+
+		this.#signals.effect((effect) => {
+			const show = effect.get(this.broadcast.audio.transcribe);
+			if (!show) return;
+
+			const caption = effect.get(this.broadcast.audio.caption);
+			captions.textContent = caption ?? "";
+
+			effect.cleanup(() => {
+				captions.textContent = "";
+			});
+		});
+	}
+
+	#renderPause(parent: HTMLDivElement, effect: Effect) {
+		const button = DOM.create("button", {
+			type: "button",
+			title: "Pause",
+		});
+
+		button.addEventListener("click", (e) => {
+			e.preventDefault();
+			this.video.paused.set((prev) => !prev);
+		});
+
+		effect.effect((effect) => {
+			const paused = effect.get(this.video.paused);
+			button.textContent = paused ? "▶️" : "⏸️";
+		});
+
+		parent.appendChild(button);
+		effect.cleanup(() => parent.removeChild(button));
+	}
+
+	#renderVolume(parent: HTMLDivElement, effect: Effect) {
+		const container = DOM.create("div", {
+			style: {
+				display: "flex",
+				alignItems: "center",
+				gap: "0.25rem",
+			},
+		});
+
+		const muteButton = DOM.create("button", {
+			type: "button",
+			title: "Mute",
+		});
+
+		muteButton.addEventListener("click", () => {
+			this.audio.muted.set((p) => !p);
+		});
+
+		const volumeSlider = DOM.create("input", {
+			type: "range",
+			min: "0",
+			max: "100",
+		});
+
+		volumeSlider.addEventListener("input", (e) => {
+			const target = e.currentTarget as HTMLInputElement;
+			const volume = parseFloat(target.value) / 100;
+			this.audio.volume.set(volume);
+		});
+
+		const volumeLabel = DOM.create("span", {
+			style: {
+				display: "inline-block",
+				width: "2em",
+				textAlign: "right",
+			},
+		});
+
+		effect.effect((effect) => {
+			const volume = effect.get(this.audio.volume);
+			const rounded = Math.round(volume * 100);
+
+			muteButton.textContent = volume === 0 ? "🔇" : "🔊";
+			volumeSlider.value = (volume * 100).toString();
+			volumeLabel.textContent = `${rounded}%`;
+		});
+
+		container.appendChild(muteButton);
+		container.appendChild(volumeSlider);
+		container.appendChild(volumeLabel);
+
+		parent.appendChild(container);
+		effect.cleanup(() => parent.removeChild(container));
+	}
+
+	#renderStatus(parent: HTMLDivElement, effect: Effect) {
+		const container = DOM.create("div");
+
+		effect.effect((effect) => {
+			const url = effect.get(this.broadcast.connection.url);
+			const connection = effect.get(this.broadcast.connection.status);
+			const broadcast = effect.get(this.broadcast.status);
+
+			if (!url) {
+				container.innerHTML = "🔴&nbsp;No URL";
+			} else if (connection === "disconnected") {
+				container.innerHTML = "🔴&nbsp;Disconnected";
+			} else if (connection === "connecting") {
+				container.innerHTML = "🟡&nbsp;Connecting...";
+			} else if (broadcast === "offline") {
+				container.innerHTML = "🔴&nbsp;Offline";
+			} else if (broadcast === "loading") {
+				container.innerHTML = "🟡&nbsp;Loading...";
+			} else if (broadcast === "live") {
+				container.innerHTML = "🟢&nbsp;Live";
+			} else if (connection === "connected") {
+				container.innerHTML = "🟢&nbsp;Connected";
+			}
+		});
+
+		parent.appendChild(container);
+		effect.cleanup(() => parent.removeChild(container));
+	}
+
+	#renderFullscreen(parent: HTMLDivElement, effect: Effect) {
+		const button = DOM.create(
+			"button",
+			{
+				type: "button",
+				title: "Fullscreen",
+			},
+			"⛶",
+		);
+
+		button.addEventListener("click", () => {
+			if (document.fullscreenElement) {
+				document.exitFullscreen();
+			} else {
+				this.requestFullscreen();
+			}
+		});
+
+		parent.appendChild(button);
+		effect.cleanup(() => parent.removeChild(button));
+	}
 }
 
 customElements.define("hang-watch", HangWatch);
@@ -211,119 +368,4 @@ declare global {
 	interface HTMLElementTagNameMap {
 		"hang-watch": HangWatch;
 	}
-}
-
-// A simple set of controls mostly for the demo.
-function Controls(props: {
-	broadcast: Broadcast;
-	video: VideoRenderer;
-	audio: AudioEmitter;
-	root: HTMLElement;
-}): JSX.Element {
-	const root = props.root;
-
-	return (
-		<div
-			style={{
-				display: "flex",
-				"justify-content": "space-around",
-				margin: "8px 0",
-				gap: "8px",
-				"align-content": "center",
-			}}
-		>
-			<Pause video={props.video} />
-			<Volume audio={props.audio} />
-			<Status broadcast={props.broadcast} />
-			<Fullscreen root={root} />
-		</div>
-	);
-}
-
-function Pause(props: { video: VideoRenderer }): JSX.Element {
-	const paused = solid(props.video.paused);
-	const togglePause = (e: MouseEvent) => {
-		e.preventDefault();
-		props.video.paused.set((prev) => !prev);
-	};
-
-	return (
-		<button title="Pause" type="button" onClick={togglePause}>
-			<Show when={paused()} fallback={<>⏸️</>}>
-				▶️
-			</Show>
-		</button>
-	);
-}
-
-function Volume(props: { audio: AudioEmitter }): JSX.Element {
-	const volume = solid(props.audio.volume);
-
-	const changeVolume = (str: string) => {
-		const v = Number.parseFloat(str) / 100;
-		props.audio.volume.set(v);
-	};
-
-	const toggleMute = () => {
-		props.audio.muted.set((p) => !p);
-	};
-	const rounded = () => Math.round(volume() * 100);
-
-	return (
-		<div style={{ display: "flex", "align-items": "center", gap: "0.25rem" }}>
-			<button title="Mute" type="button" onClick={toggleMute}>
-				<Show when={volume() === 0} fallback={<>🔊</>}>
-					🔇
-				</Show>
-			</button>
-			<input
-				type="range"
-				min="0"
-				max="100"
-				value={volume() * 100}
-				onInput={(e) => changeVolume(e.currentTarget.value)}
-			/>
-			<span style={{ display: "inline-block", width: "2em", "text-align": "right" }}>{rounded()}%</span>
-		</div>
-	);
-}
-
-function Status(props: { broadcast: Broadcast }): JSX.Element {
-	const url = solid(props.broadcast.connection.url);
-	const connection = solid(props.broadcast.connection.status);
-	const broadcast = solid(props.broadcast.status);
-
-	return (
-		<div>
-			<Switch>
-				<Match when={!url()}>🔴&nbsp;No URL</Match>
-				<Match when={connection() === "disconnected"}>🔴&nbsp;Disconnected</Match>
-				<Match when={connection() === "connecting"}>🟡&nbsp;Connecting...</Match>
-				<Match when={broadcast() === "offline"}>🔴&nbsp;Offline</Match>
-				<Match when={broadcast() === "loading"}>🟡&nbsp;Loading...</Match>
-				<Match when={broadcast() === "live"}>🟢&nbsp;Live</Match>
-				<Match when={connection() === "connected"}>🟢&nbsp;Connected</Match>
-			</Switch>
-		</div>
-	);
-}
-
-function Fullscreen(props: { root: HTMLElement }): JSX.Element {
-	const toggleFullscreen = () => {
-		if (document.fullscreenElement) {
-			document.exitFullscreen();
-		} else {
-			props.root.requestFullscreen();
-		}
-	};
-	return (
-		<button title="Fullscreen" type="button" onClick={toggleFullscreen}>
-			⛶
-		</button>
-	);
-}
-
-function Captions(props: { broadcast: Broadcast }): JSX.Element {
-	const caption = solid(props.broadcast.audio.caption);
-	return <div style={{ "text-align": "center" }}>{caption()}</div>;
 }

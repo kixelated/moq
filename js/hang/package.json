@@ -8,22 +8,22 @@
 	"exports": {
 		".": "./src/index.ts",
 		"./publish": "./src/publish/index.ts",
-		"./publish/element": "./src/publish/element.tsx",
+		"./publish/element": "./src/publish/element.ts",
 		"./watch": "./src/watch/index.ts",
-		"./watch/element": "./src/watch/element.tsx",
+		"./watch/element": "./src/watch/element.ts",
 		"./meet": "./src/meet/index.ts",
-		"./meet/element": "./src/meet/element.tsx",
+		"./meet/element": "./src/meet/element.ts",
 		"./catalog": "./src/catalog/index.ts",
 		"./container": "./src/container/index.ts",
 		"./support": "./src/support/index.ts",
-		"./support/element": "./src/support/element.tsx",
+		"./support/element": "./src/support/element.ts",
 		"./connection": "./src/connection.ts"
 	},
 	"sideEffects": [
 		"./src/publish/element.ts",
 		"./src/watch/element.ts",
 		"./src/support/element.ts",
-		"./src/meet/element.tsx"
+		"./src/meet/element.ts"
 	],
 	"files": [
 		"./src",
@@ -42,9 +42,6 @@
 		"buffer": "^6.0.3",
 		"zod": "^4.0.0",
 		"@huggingface/transformers": "^3.7.0"
-	},
-	"peerDependencies": {
-		"solid-js": "^1.9.7"
 	},
 	"devDependencies": {
 		"@types/audioworklet": "^0.0.77",

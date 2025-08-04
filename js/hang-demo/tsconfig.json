@@ -3,8 +3,6 @@
 	"include": ["src"],
 	"exclude": ["node_modules", "dist"],
 	"compilerOptions": {
-		"outDir": "dist",
-		"jsx": "preserve",
-		"jsxImportSource": "solid-js"
+		"outDir": "dist"
 	}
 }
