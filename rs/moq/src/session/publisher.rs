@@ -83,15 +83,21 @@ impl Publisher {
 
 		// Send ANNOUNCE_INIT as the first message with all currently active paths
 		// We use `now_or_never` so `announced` keeps track of what has been sent for us.
-		while let Some(Some(OriginUpdate { suffix, active })) = announced.next().now_or_never() {
-			let full = self.origin.root().join(&prefix).join(&suffix);
-			if active.is_some() {
-				tracing::debug!(broadcast = %full, "announce");
-				init.push(suffix);
-			} else {
-				// A potential race.
-				tracing::debug!(broadcast = %full, "unannounce");
-				init.retain(|path| path != &suffix);
+		loop {
+            match tokio::time::timeout(tokio::time::Duration::from_millis(10), announced.next()).await {
+				Ok(Some(OriginUpdate { suffix, active })) => {
+					let full = self.origin.root().join(&prefix).join(&suffix);
+					if active.is_some() {
+						tracing::debug!(broadcast = %full, "announce");
+						init.push(suffix);
+					} else {
+						// A potential race.
+						tracing::debug!(broadcast = %full, "unannounce");
+						init.retain(|path| path != &suffix);
+					}
+				}
+				Ok(None) => break,
+				Err(_) => break,
 			}
 		}
 

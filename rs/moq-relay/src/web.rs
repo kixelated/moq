@@ -81,9 +81,15 @@ async fn serve_announced(Path(prefix): Path<String>, cluster: Cluster) -> impl I
 	let mut origin = cluster.combined.consume_prefix(&prefix);
 	let mut broadcasts = Vec::new();
 
-	while let Some(Some(OriginUpdate { suffix, active })) = origin.next().now_or_never() {
-		if active.is_some() {
-			broadcasts.push(suffix);
+	loop {
+		match tokio::time::timeout(tokio::time::Duration::from_millis(10), origin.next()).await {
+			Ok(Some(OriginUpdate { suffix, active })) => {
+				if active.is_some() {
+					broadcasts.push(suffix);
+                }
+			}
+			Ok(None) => break,
+			Err(_) => break,
 		}
 	}
 
