@@ -130,21 +130,21 @@ struct ConsumerState {
 
 impl ConsumerState {
 	// Avoid grabbing the lock for the initial broadcasts.
-	pub fn new(prefix: Path, notify: mpsc::Sender<()>, all: &HashMap<Path, BroadcastConsumer>) -> Self {
+	pub fn new(prefix: Path, notify: mpsc::Sender<()>, all: &HashMap<Path, BroadcastState>) -> Self {
 		let mut updates = VecDeque::new();
 
 		for (path, consumer) in all {
 			if let Some(suffix) = path.strip_prefix(&prefix) {
 				updates.push_back(OriginUpdate {
 					suffix: suffix.into(),
-					active: Some(consumer.clone()),
+					active: Some(consumer.active.clone()),
 				});
 			}
 		}
 
 		Self {
 			prefix,
-			updates,
+			updates: Lock::new(updates),
 			notify,
 		}
 	}
@@ -175,9 +175,7 @@ impl ConsumerState {
 				suffix: suffix.into(),
 				active: None,
 			};
-			println!("pushed remove: {:?}", update.suffix);
-			self.updates.push_back(update);
-			println!("notified remove: {} {:p}", self.updates.len(), &self.updates);
+			self.updates.lock().push_back(update);
 			self.notify.try_send(()).ok();
 		}
 
@@ -267,7 +265,7 @@ impl OriginProducer {
 		let mut state = self.state.lock();
 
 		let (tx, rx) = mpsc::channel(1);
-		let mut consumer = ConsumerState::new(full, tx, &state.active);
+		let consumer = ConsumerState::new(full, tx, &state.active);
 		let updates = consumer.updates.clone();
 
 		state.consumers.push(consumer);
@@ -363,7 +361,7 @@ impl OriginConsumer {
 				}
 			}
 
-			let _ = self.notify.recv().await;
+			self.notify.recv().await?;
 		}
 	}
 
@@ -392,12 +390,16 @@ impl OriginConsumer {
 
 		let (tx, rx) = mpsc::channel(1);
 
-		let mut consumer = ConsumerState::new(full, tx, &state.active);
-		let updates = consumer.updates.clone();
-
-		if let Some(state) = self.producer.upgrade() {
+		let updates = if let Some(state) = self.producer.upgrade() {
+			let mut state = state.lock();
+			let consumer = ConsumerState::new(full, tx, &state.active);
+			let updates = consumer.updates.clone();
 			state.consumers.push(consumer);
-		}
+			updates
+		} else {
+			// The producer is closed, so make a dummy consumer that will return None.
+			Lock::new(VecDeque::new())
+		};
 
 		OriginConsumer {
 			root: self.root.clone(),
@@ -593,11 +595,11 @@ mod tests {
 		let broadcast = BroadcastProducer::new();
 
 		for i in 0..256 {
-			producer.publish(format!("test{}", i), broadcast.consume());
+			producer.publish(format!("test{i}"), broadcast.consume());
 		}
 
 		for i in 0..256 {
-			consumer.assert_next(&format!("test{}", i), &broadcast.consume());
+			consumer.assert_next(&format!("test{i}"), &broadcast.consume());
 		}
 	}
 }
