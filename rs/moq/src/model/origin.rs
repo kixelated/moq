@@ -1,4 +1,4 @@
-use std::collections::{hash_map, HashMap};
+use std::collections::{hash_map, HashMap, VecDeque};
 use tokio::sync::mpsc;
 use web_async::{Lock, LockWeak};
 
@@ -121,10 +121,34 @@ pub struct OriginUpdate {
 
 struct ConsumerState {
 	prefix: Path,
-	updates: mpsc::UnboundedSender<OriginUpdate>,
+
+	// Make our own unbounded channel to avoid a tokio "feature":
+	// https://github.com/tokio-rs/tokio/issues/7108
+	updates: Lock<VecDeque<OriginUpdate>>,
+	notify: mpsc::Sender<()>, // wake up on push
 }
 
 impl ConsumerState {
+	// Avoid grabbing the lock for the initial broadcasts.
+	pub fn new(prefix: Path, notify: mpsc::Sender<()>, all: &HashMap<Path, BroadcastConsumer>) -> Self {
+		let mut updates = VecDeque::new();
+
+		for (path, consumer) in all {
+			if let Some(suffix) = path.strip_prefix(&prefix) {
+				updates.push_back(OriginUpdate {
+					suffix: suffix.into(),
+					active: Some(consumer.clone()),
+				});
+			}
+		}
+
+		Self {
+			prefix,
+			updates,
+			notify,
+		}
+	}
+
 	// Returns true if the consumer is still alive.
 	pub fn insert<'a>(&mut self, path: impl Into<PathRef<'a>>, consumer: &BroadcastConsumer) -> bool {
 		let path_ref = path.into();
@@ -135,10 +159,11 @@ impl ConsumerState {
 				suffix: suffix.into(),
 				active: Some(consumer.clone()),
 			};
-			return self.updates.send(update).is_ok();
+			self.updates.lock().push_back(update);
+			self.notify.try_send(()).ok();
 		}
 
-		!self.updates.is_closed()
+		!self.notify.is_closed()
 	}
 
 	pub fn remove<'a>(&mut self, path: impl Into<PathRef<'a>>) -> bool {
@@ -150,10 +175,13 @@ impl ConsumerState {
 				suffix: suffix.into(),
 				active: None,
 			};
-			return self.updates.send(update).is_ok();
+			println!("pushed remove: {:?}", update.suffix);
+			self.updates.push_back(update);
+			println!("notified remove: {} {:p}", self.updates.len(), &self.updates);
+			self.notify.try_send(()).ok();
 		}
 
-		!self.updates.is_closed()
+		!self.notify.is_closed()
 	}
 }
 
@@ -238,21 +266,17 @@ impl OriginProducer {
 
 		let mut state = self.state.lock();
 
-		let (tx, rx) = mpsc::unbounded_channel();
-		let mut consumer = ConsumerState {
-			prefix: full,
-			updates: tx,
-		};
+		let (tx, rx) = mpsc::channel(1);
+		let mut consumer = ConsumerState::new(full, tx, &state.active);
+		let updates = consumer.updates.clone();
 
-		for (path, broadcast) in &state.active {
-			consumer.insert(path, &broadcast.active);
-		}
 		state.consumers.push(consumer);
 
 		OriginConsumer {
 			root: self.root.clone(),
 			prefix,
-			updates: rx,
+			updates,
+			notify: rx,
 			producer: self.state.clone().downgrade(),
 		}
 	}
@@ -286,12 +310,12 @@ impl OriginProducer {
 	}
 
 	// Returns the closed notify of any consumer.
-	fn unused_inner(&self) -> Option<mpsc::UnboundedSender<OriginUpdate>> {
+	fn unused_inner(&self) -> Option<mpsc::Sender<()>> {
 		let mut state = self.state.lock();
 
 		while let Some(consumer) = state.consumers.last() {
-			if !consumer.updates.is_closed() {
-				return Some(consumer.updates.clone());
+			if !consumer.notify.is_closed() {
+				return Some(consumer.notify.clone());
 			}
 
 			state.consumers.pop();
@@ -313,7 +337,8 @@ impl OriginProducer {
 pub struct OriginConsumer {
 	// We need a weak reference to the producer so that we can clone it.
 	producer: LockWeak<ProducerState>,
-	updates: mpsc::UnboundedReceiver<OriginUpdate>,
+	updates: Lock<VecDeque<OriginUpdate>>,
+	notify: mpsc::Receiver<()>,
 
 	/// All broadcasts are relative to this root path.
 	root: Path,
@@ -330,7 +355,16 @@ impl OriginConsumer {
 	///
 	/// Note: The returned path is absolute and will always match this consumer's prefix.
 	pub async fn next(&mut self) -> Option<OriginUpdate> {
-		self.updates.recv().await
+		loop {
+			{
+				let mut updates = self.updates.lock();
+				if let Some(update) = updates.pop_front() {
+					return Some(update);
+				}
+			}
+
+			let _ = self.notify.recv().await;
+		}
 	}
 
 	/// Get a specific broadcast by path.
@@ -356,28 +390,20 @@ impl OriginConsumer {
 		// Combine the consumer's prefix with the existing consumer's prefix.
 		let full = self.root.join(&prefix);
 
-		let (tx, rx) = mpsc::unbounded_channel();
+		let (tx, rx) = mpsc::channel(1);
 
-		// NOTE: consumer is immediately dropped, signalling FIN, if the producer can't be upgraded.
-		let mut consumer = ConsumerState {
-			prefix: full,
-			updates: tx,
-		};
+		let mut consumer = ConsumerState::new(full, tx, &state.active);
+		let updates = consumer.updates.clone();
 
 		if let Some(state) = self.producer.upgrade() {
-			let mut state = state.lock();
-
-			for (path, broadcast) in &state.active {
-				consumer.insert(path, &broadcast.active);
-			}
-
 			state.consumers.push(consumer);
 		}
 
 		OriginConsumer {
 			root: self.root.clone(),
 			prefix,
-			updates: rx,
+			updates,
+			notify: rx,
 			producer: self.producer.clone(),
 		}
 	}
@@ -557,5 +583,21 @@ mod tests {
 		// Wait for the async task to run.
 		tokio::time::sleep(tokio::time::Duration::from_millis(1)).await;
 		assert!(producer.consume("test").is_none());
+	}
+
+	#[tokio::test]
+	// There was a tokio bug where only the first 127 broadcasts would be received instantly.
+	async fn test_128() {
+		let mut producer = OriginProducer::default();
+		let mut consumer = producer.consume_all();
+		let broadcast = BroadcastProducer::new();
+
+		for i in 0..256 {
+			producer.publish(format!("test{}", i), broadcast.consume());
+		}
+
+		for i in 0..256 {
+			consumer.assert_next(&format!("test{}", i), &broadcast.consume());
+		}
 	}
 }
