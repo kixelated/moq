@@ -4,8 +4,9 @@ import * as Catalog from "../catalog";
 import type { Connection } from "../connection";
 import { Audio, type AudioProps } from "./audio";
 import { Chat, type ChatProps } from "./chat";
+import { Heartbeat, type HeartbeatProps } from "./heartbeat";
 import { Location, type LocationProps } from "./location";
-import { type PreviewProps, PreviewWatch } from "./preview";
+import { Preview, type PreviewProps } from "./preview";
 import { Video, type VideoProps } from "./video";
 
 export interface BroadcastProps {
@@ -24,6 +25,7 @@ export interface BroadcastProps {
 	location?: LocationProps;
 	chat?: ChatProps;
 	preview?: PreviewProps;
+	heartbeat?: HeartbeatProps;
 }
 
 // A broadcast that (optionally) reloads automatically when live/offline.
@@ -36,11 +38,13 @@ export class Broadcast {
 	status = new Signal<"offline" | "loading" | "live">("offline");
 	user = new Signal<Catalog.User | undefined>(undefined);
 
+	// Components
 	audio: Audio;
 	video: Video;
 	location: Location;
 	chat: Chat;
-	preview: PreviewWatch;
+	preview: Preview;
+	heartbeat: Heartbeat;
 
 	#broadcast = new Signal<Moq.BroadcastConsumer | undefined>(undefined);
 
@@ -62,7 +66,8 @@ export class Broadcast {
 		this.video = new Video(this.#broadcast, this.#catalog, props?.video);
 		this.location = new Location(this.#broadcast, this.#catalog, props?.location);
 		this.chat = new Chat(this.#broadcast, this.#catalog, props?.chat);
-		this.preview = new PreviewWatch(this.#broadcast, this.#catalog, props?.preview);
+		this.preview = new Preview(this.#broadcast, this.#catalog, props?.preview);
+		this.heartbeat = new Heartbeat(this.#broadcast, this.#catalog, props?.heartbeat);
 		this.#reload = props?.reload ?? true;
 
 		this.signals.effect((effect) => {
@@ -167,5 +172,6 @@ export class Broadcast {
 		this.location.close();
 		this.chat.close();
 		this.preview.close();
+		this.heartbeat.close();
 	}
 }

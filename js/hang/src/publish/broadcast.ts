@@ -4,6 +4,7 @@ import * as Catalog from "../catalog";
 import type { Connection } from "../connection";
 import { Audio, type AudioProps, type AudioTrack } from "./audio";
 import { Chat, type ChatProps } from "./chat";
+import { Heartbeat, type HeartbeatProps } from "./heartbeat";
 import { Location, type LocationProps } from "./location";
 import { Preview, type PreviewProps } from "./preview";
 import { Video, type VideoProps, type VideoTrack } from "./video";
@@ -20,6 +21,7 @@ export type BroadcastProps = {
 	device?: Device;
 	chat?: ChatProps;
 	preview?: PreviewProps;
+	heartbeat?: HeartbeatProps;
 
 	// You can disable reloading if you want to save a round trip when you know the broadcast is already live.
 	reload?: boolean;
@@ -35,6 +37,7 @@ export class Broadcast {
 	location: Location;
 	user: Signal<Catalog.User | undefined>;
 	chat: Chat;
+	heartbeat: Heartbeat;
 
 	// TODO should be a separate broadcast for separate authentication.
 	preview: Preview;
@@ -53,13 +56,14 @@ export class Broadcast {
 		this.connection = connection;
 		this.enabled = new Signal(props?.enabled ?? false);
 		this.name = new Signal(props?.name);
+		this.user = new Signal(props?.user);
 
 		this.audio = new Audio(this.#broadcast, props?.audio);
 		this.video = new Video(this.#broadcast, props?.video);
 		this.location = new Location(this.#broadcast, props?.location);
 		this.chat = new Chat(this.#broadcast, props?.chat);
 		this.preview = new Preview(this.#broadcast, props?.preview);
-		this.user = new Signal(props?.user);
+		this.heartbeat = new Heartbeat(this.#broadcast, props?.heartbeat);
 
 		this.device = new Signal(props?.device);
 
@@ -179,6 +183,7 @@ export class Broadcast {
 			location: effect.get(this.location.catalog),
 			user: effect.get(this.user),
 			chat: effect.get(this.chat.catalog),
+			heartbeat: effect.get(this.heartbeat.catalog),
 		};
 
 		const encoded = Catalog.encode(catalog);
@@ -197,5 +202,6 @@ export class Broadcast {
 		this.video.close();
 		this.location.close();
 		this.chat.close();
+		this.heartbeat.close();
 	}
 }

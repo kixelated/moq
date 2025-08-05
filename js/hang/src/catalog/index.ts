@@ -1,6 +1,7 @@
 export * from "./audio";
 export * from "./capabilities";
 export * from "./chat";
+export * from "./heartbeat";
 export * from "./integers";
 export * from "./location";
 export * from "./root";

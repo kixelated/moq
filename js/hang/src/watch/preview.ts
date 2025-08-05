@@ -2,18 +2,18 @@ import type * as Moq from "@kixelated/moq";
 import { Effect, Signal } from "@kixelated/signals";
 import { Container } from "..";
 import type * as Catalog from "../catalog";
-import * as Preview from "../preview";
+import { type Info, InfoSchema } from "../preview";
 
 export interface PreviewProps {
 	enabled?: boolean;
 }
 
-export class PreviewWatch {
+export class Preview {
 	broadcast: Signal<Moq.BroadcastConsumer | undefined>;
 	enabled: Signal<boolean>;
 
 	track = new Signal<Container.FrameConsumer | undefined>(undefined);
-	preview = new Signal<Preview.Info | undefined>(undefined);
+	preview = new Signal<Info | undefined>(undefined);
 
 	#signals = new Effect();
 
@@ -55,7 +55,7 @@ export class PreviewWatch {
 					const decoder = new TextDecoder();
 					const json = decoder.decode(frame.data);
 					const parsed = JSON.parse(json);
-					this.preview.set(Preview.PreviewSchema.parse(parsed));
+					this.preview.set(InfoSchema.parse(parsed));
 				} catch (error) {
 					console.warn("Failed to parse preview JSON:", error);
 				}

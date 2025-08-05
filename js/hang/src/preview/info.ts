@@ -9,6 +9,4 @@ export const InfoSchema = z.object({
 	speaking: z.boolean().optional(),
 });
 
-export const PreviewSchema = InfoSchema;
-
 export type Info = z.infer<typeof InfoSchema>;
