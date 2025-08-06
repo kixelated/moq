@@ -12,7 +12,7 @@ export class Location {
 
 	broadcast: Signal<Moq.BroadcastConsumer | undefined>;
 	catalog = new Signal<Catalog.Location | undefined>(undefined);
-	peering = new Signal<boolean | undefined>(undefined);
+	handle = new Signal<string | undefined>(undefined);
 
 	#current = new Signal<Catalog.Position | undefined>(undefined);
 	readonly current: Getter<Catalog.Position | undefined> = this.#current;
@@ -36,7 +36,7 @@ export class Location {
 		});
 
 		this.#signals.effect((effect) => {
-			this.peering.set(effect.get(this.catalog)?.peering);
+			this.handle.set(effect.get(this.catalog)?.handle);
 		});
 
 		// TODO This seems kinda wrong and racy
