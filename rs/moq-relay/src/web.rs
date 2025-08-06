@@ -13,7 +13,6 @@ use axum::{
 	Router,
 };
 use bytes::Bytes;
-use futures::FutureExt;
 use hyper_serve::accept::DefaultAcceptor;
 use moq_lite::OriginUpdate;
 use std::future::Future;
@@ -81,7 +80,7 @@ async fn serve_announced(Path(prefix): Path<String>, cluster: Cluster) -> impl I
 	let mut origin = cluster.combined.consume_prefix(&prefix);
 	let mut broadcasts = Vec::new();
 
-	while let Some(Some(OriginUpdate { suffix, active })) = origin.next().now_or_never() {
+	while let Some(OriginUpdate { suffix, active }) = origin.try_next() {
 		if active.is_some() {
 			broadcasts.push(suffix);
 		}

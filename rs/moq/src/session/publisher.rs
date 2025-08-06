@@ -1,4 +1,3 @@
-use futures::FutureExt;
 use web_async::FuturesExt;
 
 use crate::{
@@ -82,8 +81,8 @@ impl Publisher {
 		let mut init = Vec::new();
 
 		// Send ANNOUNCE_INIT as the first message with all currently active paths
-		// We use `now_or_never` so `announced` keeps track of what has been sent for us.
-		while let Some(Some(OriginUpdate { suffix, active })) = announced.next().now_or_never() {
+		// We use `try_next` to synchronously get the initial updates.
+		while let Some(OriginUpdate { suffix, active }) = announced.try_next() {
 			let full = self.origin.root().join(&prefix).join(&suffix);
 			if active.is_some() {
 				tracing::debug!(broadcast = %full, "announce");

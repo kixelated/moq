@@ -346,19 +346,26 @@ pub struct OriginConsumer {
 }
 
 impl OriginConsumer {
+	/// Returns the next (un)announced broadcast and the absolute path without blocking.
+	///
+	/// Returns None if there's no updates currently available.
+	/// NOTE: You'll have to use `is_closed()` to check if the consumer is closed.
+	pub fn try_next(&mut self) -> Option<OriginUpdate> {
+		let mut updates = self.updates.lock();
+		updates.pop_front()
+	}
+
 	/// Returns the next (un)announced broadcast and the absolute path.
 	///
-	/// The broadcast will only be None if it was previously Some.
+	/// The broadcast will only be unannounced if it was previously announced.
 	/// The same path won't be announced/unannounced twice, instead it will toggle.
+	/// Returns None if the consumer is closed.
 	///
 	/// Note: The returned path is absolute and will always match this consumer's prefix.
 	pub async fn next(&mut self) -> Option<OriginUpdate> {
 		loop {
-			{
-				let mut updates = self.updates.lock();
-				if let Some(update) = updates.pop_front() {
-					return Some(update);
-				}
+			if let Some(update) = self.try_next() {
+				return Some(update);
 			}
 
 			self.notify.recv().await?;
@@ -416,6 +423,10 @@ impl OriginConsumer {
 
 	pub fn prefix(&self) -> &Path {
 		&self.prefix
+	}
+
+	pub fn is_closed(&self) -> bool {
+		self.updates.lock().is_empty() && self.notify.is_closed()
 	}
 }
 
