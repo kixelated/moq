@@ -378,55 +378,55 @@ export class Effect {
 	eventListener<K extends keyof HTMLElementEventMap>(
 		target: HTMLElement,
 		type: K,
-		listener: (this: HTMLElement, ev: HTMLElementEventMap[K]) => any,
+		listener: (this: HTMLElement, ev: HTMLElementEventMap[K]) => void,
 		options?: boolean | AddEventListenerOptions,
 	): void;
 	eventListener<K extends keyof SVGElementEventMap>(
 		target: SVGElement,
 		type: K,
-		listener: (this: SVGElement, ev: SVGElementEventMap[K]) => any,
+		listener: (this: SVGElement, ev: SVGElementEventMap[K]) => void,
 		options?: boolean | AddEventListenerOptions,
 	): void;
 	eventListener<K extends keyof DocumentEventMap>(
 		target: Document,
 		type: K,
-		listener: (this: Document, ev: DocumentEventMap[K]) => any,
+		listener: (this: Document, ev: DocumentEventMap[K]) => void,
 		options?: boolean | AddEventListenerOptions,
 	): void;
 	eventListener<K extends keyof WindowEventMap>(
 		target: Window,
 		type: K,
-		listener: (this: Window, ev: WindowEventMap[K]) => any,
+		listener: (this: Window, ev: WindowEventMap[K]) => void,
 		options?: boolean | AddEventListenerOptions,
 	): void;
 	eventListener<K extends keyof WebSocketEventMap>(
 		target: WebSocket,
 		type: K,
-		listener: (this: WebSocket, ev: WebSocketEventMap[K]) => any,
+		listener: (this: WebSocket, ev: WebSocketEventMap[K]) => void,
 		options?: boolean | AddEventListenerOptions,
 	): void;
 	eventListener<K extends keyof XMLHttpRequestEventMap>(
 		target: XMLHttpRequest,
 		type: K,
-		listener: (this: XMLHttpRequest, ev: XMLHttpRequestEventMap[K]) => any,
+		listener: (this: XMLHttpRequest, ev: XMLHttpRequestEventMap[K]) => void,
 		options?: boolean | AddEventListenerOptions,
 	): void;
 	eventListener<K extends keyof MediaQueryListEventMap>(
 		target: MediaQueryList,
 		type: K,
-		listener: (this: MediaQueryList, ev: MediaQueryListEventMap[K]) => any,
+		listener: (this: MediaQueryList, ev: MediaQueryListEventMap[K]) => void,
 		options?: boolean | AddEventListenerOptions,
 	): void;
 	eventListener<K extends keyof AnimationEventMap>(
 		target: Animation,
 		type: K,
-		listener: (this: Animation, ev: AnimationEventMap[K]) => any,
+		listener: (this: Animation, ev: AnimationEventMap[K]) => void,
 		options?: boolean | AddEventListenerOptions,
 	): void;
 	eventListener<K extends keyof EventSourceEventMap>(
 		target: EventSource,
 		type: K,
-		listener: (this: EventSource, ev: EventSourceEventMap[K]) => any,
+		listener: (this: EventSource, ev: EventSourceEventMap[K]) => void,
 		options?: boolean | AddEventListenerOptions,
 	): void;
 	eventListener(
