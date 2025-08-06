@@ -29,12 +29,12 @@ export const LocationSchema = z.object({
 	// TODO: These updates currently use JSON for simplicity, but we should use a binary format.
 	updates: TrackSchema.optional(),
 
-	// If true, then this broadcaster allows other peers to request position updates.
+	// If set, then this broadcaster allows other peers to request position updates via this handle.
 	// We will have to discover and subscribe to their position updates.
-	peering: z.boolean().optional(),
+	handle: z.string().optional(),
 
 	// If provided, this broadcaster is signaling the location of other peers.
-	// The key is the name of the broadcast, and the value is the track that contains the position updates.
+	// The key is the handle of the broadcast, and the value is the track that contains the position updates.
 	peers: z.record(z.string(), TrackSchema).optional(),
 });
 
