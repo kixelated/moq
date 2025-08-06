@@ -16,7 +16,6 @@ anyhow = { version = "1", features = ["backtrace"] }
 axum = { version = "0.8", features = ["tokio"] }
 bytes = "1"
 clap = { version = "4", features = ["derive"] }
-futures = "0.3"
 http-body = "1"
 hyper-serve = { version = "0.6", features = [
 	"tls-rustls",

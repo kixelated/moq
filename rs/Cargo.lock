@@ -1592,7 +1592,6 @@ dependencies = [
  "axum",
  "bytes",
  "clap",
- "futures",
  "http-body",
  "hyper-serve",
  "moq-lite",
