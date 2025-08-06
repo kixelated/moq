@@ -375,72 +375,7 @@ export class Effect {
 	}
 
 	// Add an event listener that automatically removes on cleanup.
-	eventListener<K extends keyof HTMLElementEventMap>(
-		target: HTMLElement,
-		type: K,
-		listener: (this: HTMLElement, ev: HTMLElementEventMap[K]) => any,
-		options?: boolean | AddEventListenerOptions,
-	): void;
-	eventListener<K extends keyof SVGElementEventMap>(
-		target: SVGElement,
-		type: K,
-		listener: (this: SVGElement, ev: SVGElementEventMap[K]) => any,
-		options?: boolean | AddEventListenerOptions,
-	): void;
-	eventListener<K extends keyof DocumentEventMap>(
-		target: Document,
-		type: K,
-		listener: (this: Document, ev: DocumentEventMap[K]) => any,
-		options?: boolean | AddEventListenerOptions,
-	): void;
-	eventListener<K extends keyof WindowEventMap>(
-		target: Window,
-		type: K,
-		listener: (this: Window, ev: WindowEventMap[K]) => any,
-		options?: boolean | AddEventListenerOptions,
-	): void;
-	eventListener<K extends keyof WebSocketEventMap>(
-		target: WebSocket,
-		type: K,
-		listener: (this: WebSocket, ev: WebSocketEventMap[K]) => any,
-		options?: boolean | AddEventListenerOptions,
-	): void;
-	eventListener<K extends keyof XMLHttpRequestEventMap>(
-		target: XMLHttpRequest,
-		type: K,
-		listener: (this: XMLHttpRequest, ev: XMLHttpRequestEventMap[K]) => any,
-		options?: boolean | AddEventListenerOptions,
-	): void;
-	eventListener<K extends keyof MediaQueryListEventMap>(
-		target: MediaQueryList,
-		type: K,
-		listener: (this: MediaQueryList, ev: MediaQueryListEventMap[K]) => any,
-		options?: boolean | AddEventListenerOptions,
-	): void;
-	eventListener<K extends keyof AnimationEventMap>(
-		target: Animation,
-		type: K,
-		listener: (this: Animation, ev: AnimationEventMap[K]) => any,
-		options?: boolean | AddEventListenerOptions,
-	): void;
-	eventListener<K extends keyof EventSourceEventMap>(
-		target: EventSource,
-		type: K,
-		listener: (this: EventSource, ev: EventSourceEventMap[K]) => any,
-		options?: boolean | AddEventListenerOptions,
-	): void;
-	eventListener(
-		target: EventTarget,
-		type: string,
-		listener: EventListenerOrEventListenerObject,
-		options?: boolean | AddEventListenerOptions,
-	): void;
-	eventListener(
-		target: EventTarget,
-		type: string,
-		listener: EventListenerOrEventListenerObject,
-		options?: boolean | AddEventListenerOptions,
-	): void {
+	eventListener<T extends EventTarget>(target: T, ...args: Parameters<T["addEventListener"]>): void {
 		if (this.#dispose === undefined) {
 			if (Effect.dev) {
 				console.warn("Effect.eventListener called when closed, ignoring");
@@ -448,6 +383,7 @@ export class Effect {
 			return;
 		}
 
+		const [type, listener, options] = args;
 		target.addEventListener(type, listener, options);
 		this.cleanup(() => target.removeEventListener(type, listener, options));
 	}
