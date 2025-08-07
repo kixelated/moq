@@ -15,6 +15,9 @@ const FADE_TIME = 0.2;
 // TODO Make this configurable.
 const CAPTION_TTL = 1000 * 5;
 
+// Unfortunately, we need to use a Vite-exclusive import for now.
+import CaptureWorklet from "../worklet/capture?worker&url";
+
 export type AudioConstraints = Omit<
 	MediaTrackConstraints,
 	"aspectRatio" | "backgroundBlur" | "displaySurface" | "facingMode" | "frameRate" | "height" | "width"
@@ -143,7 +146,7 @@ export class Audio {
 
 		// Async because we need to wait for the worklet to be registered.
 		effect.spawn(async () => {
-			await context.audioWorklet.addModule(new URL("../worklet/capture", import.meta.url));
+			await context.audioWorklet.addModule(CaptureWorklet);
 			const worklet = new AudioWorkletNode(context, "capture", {
 				numberOfInputs: 1,
 				numberOfOutputs: 0,
@@ -347,7 +350,7 @@ export class Audio {
 
 		// The workload needs to be loaded asynchronously, unfortunately, but it should be instant.
 		effect.spawn(async () => {
-			await ctx.audioWorklet.addModule(new URL("../worklet/capture", import.meta.url));
+			await ctx.audioWorklet.addModule(CaptureWorklet);
 
 			// Create the worklet.
 			const worklet = new AudioWorkletNode(ctx, "capture", {

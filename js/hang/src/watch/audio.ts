@@ -5,6 +5,9 @@ import type * as Catalog from "../catalog";
 import * as Container from "../container";
 import type * as Worklet from "../worklet";
 
+// Unfortunately, we need to use a Vite-exclusive import for now.
+import RenderWorklet from "../worklet/render?worker&url";
+
 const MIN_GAIN = 0.001;
 const FADE_TIME = 0.2;
 
@@ -87,7 +90,7 @@ export class Audio {
 
 		effect.spawn(async () => {
 			// Register the AudioWorklet processor
-			await context.audioWorklet.addModule(new URL("../worklet/render", import.meta.url));
+			await context.audioWorklet.addModule(RenderWorklet);
 
 			// Create the worklet node
 			const worklet = new AudioWorkletNode(context, "render");
