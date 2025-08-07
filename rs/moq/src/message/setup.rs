@@ -33,7 +33,7 @@ pub struct ServerSetup {
 	/// The list of supported versions in preferred order.
 	pub version: Version,
 
-	/// Supported extenisions.
+	/// Supported extensions.
 	pub extensions: Extensions,
 }
 

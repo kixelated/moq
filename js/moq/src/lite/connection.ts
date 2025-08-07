@@ -7,7 +7,7 @@ import { AnnounceInterest } from "./announce";
 import { Group } from "./group";
 import { Publisher } from "./publisher";
 import { SessionInfo } from "./session";
-import { SteamId } from "./stream";
+import { StreamId } from "./stream";
 import { Subscribe } from "./subscribe";
 import { Subscriber } from "./subscriber";
 
@@ -142,13 +142,13 @@ export class Connection implements ConnectionInterface {
 	async #runBidi(stream: Stream) {
 		const typ = await stream.reader.u8();
 
-		if (typ === SteamId.Session) {
+		if (typ === StreamId.Session) {
 			throw new Error("duplicate session stream");
-		} else if (typ === SteamId.Announce) {
+		} else if (typ === StreamId.Announce) {
 			const msg = await AnnounceInterest.decode(stream.reader);
 			await this.#publisher.runAnnounce(msg, stream);
 			return;
-		} else if (typ === SteamId.Subscribe) {
+		} else if (typ === StreamId.Subscribe) {
 			const msg = await Subscribe.decode(stream.reader);
 			await this.#publisher.runSubscribe(msg, stream);
 			return;

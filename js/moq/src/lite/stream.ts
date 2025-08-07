@@ -6,7 +6,7 @@ import type { Subscribe } from "./subscribe";
 export type StreamBi = SessionClient | AnnounceInterest | Subscribe;
 export type StreamUni = Group;
 
-export const SteamId = {
+export const StreamId = {
 	Session: 0,
 	Announce: 1,
 	Subscribe: 2,

@@ -73,12 +73,12 @@ export async function connect(url: URL): Promise<Connection> {
 	const stream = await Stream.open(quic);
 
 	// We're encoding 0x40 so it's backwards compatible with moq-transport
-	await stream.writer.u53(Lite.SteamId.ClientCompat);
+	await stream.writer.u53(Lite.StreamId.ClientCompat);
 	await msg.encode(stream.writer);
 
 	// And we expect 0x41 as the response.
 	const serverCompat = await stream.reader.u53();
-	if (serverCompat !== Lite.SteamId.ServerCompat) {
+	if (serverCompat !== Lite.StreamId.ServerCompat) {
 		throw new Error(`unsupported server message type: ${serverCompat.toString()}`);
 	}
 
