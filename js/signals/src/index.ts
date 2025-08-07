@@ -238,13 +238,17 @@ export class Effect {
 		// Wait for all async effects to complete.
 		try {
 			let warn: ReturnType<typeof setTimeout> | undefined;
-			if (Effect.dev) {
-				// There's a 1s timeout here to print warnings if cleanup functions don't exit.
+			const timeout = new Promise<void>((resolve) => {
 				warn = setTimeout(() => {
-					console.warn("spawn is still running after 1s", this.#stack);
+					if (Effect.dev) {
+						console.warn("spawn is still running after 1s; continuing anyway", this.#stack);
+					}
+
+					resolve();
 				}, 1000);
-			}
-			await Promise.all(this.#async);
+			});
+
+			await Promise.race([Promise.all(this.#async), timeout]);
 			if (warn) clearTimeout(warn);
 
 			this.#async.length = 0;
