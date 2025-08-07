@@ -51,5 +51,6 @@ export class Member {
 
 	close() {
 		this.signals.close();
+		this.broadcast.close();
 	}
 }
