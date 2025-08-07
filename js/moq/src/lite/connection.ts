@@ -6,7 +6,8 @@ import { type Reader, Readers, Stream } from "../stream";
 import { AnnounceInterest } from "./announce";
 import { Group } from "./group";
 import { Publisher } from "./publisher";
-import { CURRENT_VERSION, SessionClient, SessionInfo, SessionServer } from "./session";
+import { SessionInfo } from "./session";
+import { SteamId } from "./stream";
 import { Subscribe } from "./subscribe";
 import { Subscriber } from "./subscriber";
 
@@ -141,13 +142,13 @@ export class Connection implements ConnectionInterface {
 	async #runBidi(stream: Stream) {
 		const typ = await stream.reader.u8();
 
-		if (typ === SessionClient.StreamID) {
+		if (typ === SteamId.Session) {
 			throw new Error("duplicate session stream");
-		} else if (typ === AnnounceInterest.StreamID) {
+		} else if (typ === SteamId.Announce) {
 			const msg = await AnnounceInterest.decode(stream.reader);
 			await this.#publisher.runAnnounce(msg, stream);
 			return;
-		} else if (typ === Subscribe.StreamID) {
+		} else if (typ === SteamId.Subscribe) {
 			const msg = await Subscribe.decode(stream.reader);
 			await this.#publisher.runSubscribe(msg, stream);
 			return;
@@ -177,7 +178,7 @@ export class Connection implements ConnectionInterface {
 
 	async #runUni(stream: Reader) {
 		const typ = await stream.u8();
-		if (typ === Group.StreamID) {
+		if (typ === 0) {
 			const msg = await Group.decode(stream);
 			await this.#subscriber.runGroup(msg, stream);
 		} else {
@@ -192,71 +193,4 @@ export class Connection implements ConnectionInterface {
 	async closed(): Promise<void> {
 		await this.#quic.closed;
 	}
-}
-
-/**
- * Establishes a connection to a MOQ server.
- *
- * @param url - The URL of the server to connect to
- * @returns A promise that resolves to a Connection instance
- */
-export async function connect(url: URL): Promise<Connection> {
-	const options: WebTransportOptions = {
-		allowPooling: false,
-		congestionControl: "low-latency",
-		requireUnreliable: true,
-	};
-
-	const hexToBytes = (hex: string) => {
-		hex = hex.startsWith("0x") ? hex.slice(2) : hex;
-		if (hex.length % 2) {
-			throw new Error("invalid hex string length");
-		}
-
-		const matches = hex.match(/.{2}/g);
-		if (!matches) {
-			throw new Error("invalid hex string format");
-		}
-
-		return new Uint8Array(matches.map((byte) => parseInt(byte, 16)));
-	};
-
-	let adjustedUrl = url;
-
-	if (url.protocol === "http:") {
-		const fingerprintUrl = new URL(url);
-		fingerprintUrl.pathname = "/certificate.sha256";
-		fingerprintUrl.search = "";
-		console.warn(fingerprintUrl.toString(), "performing an insecure fingerprint fetch; use https:// in production");
-
-		// Fetch the fingerprint from the server.
-		const fingerprint = await fetch(fingerprintUrl);
-		const fingerprintText = await fingerprint.text();
-
-		options.serverCertificateHashes = [
-			{
-				algorithm: "sha-256",
-				value: hexToBytes(fingerprintText),
-			},
-		];
-
-		adjustedUrl = new URL(url);
-		adjustedUrl.protocol = "https:";
-	}
-
-	const quic = new WebTransport(adjustedUrl, options);
-	await quic.ready;
-
-	const msg = new SessionClient([CURRENT_VERSION]);
-
-	const stream = await Stream.open(quic);
-	await stream.writer.u8(SessionClient.StreamID);
-	await msg.encode(stream.writer);
-
-	const server = await SessionServer.decode(stream.reader);
-	if (server.version !== CURRENT_VERSION) {
-		throw new Error(`unsupported server version: ${server.version.toString()}`);
-	}
-
-	return new Connection(adjustedUrl, quic, stream);
 }

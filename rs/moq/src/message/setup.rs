@@ -20,7 +20,7 @@ impl Message for ClientSetup {
 		Ok(Self { versions, extensions })
 	}
 
-	/// Encode a server setup message.
+	/// Encode a client setup message.
 	fn encode<W: bytes::BufMut>(&self, w: &mut W) {
 		self.versions.encode(w);
 		self.extensions.encode(w);

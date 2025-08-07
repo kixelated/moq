@@ -7,6 +7,7 @@ import type { TrackProducer } from "../track";
 import { error } from "../util/error";
 import { Announce, AnnounceInit, AnnounceInterest } from "./announce";
 import type { Group } from "./group";
+import { SteamId } from "./stream";
 import { Subscribe, SubscribeOk } from "./subscribe";
 
 /**
@@ -48,7 +49,7 @@ export class Subscriber {
 			try {
 				// Open a stream and send the announce interest.
 				const stream = await Stream.open(this.#quic);
-				await stream.writer.u8(AnnounceInterest.StreamID);
+				await stream.writer.u8(SteamId.Announce);
 				await msg.encode(stream.writer);
 
 				// First, receive ANNOUNCE_INIT
@@ -122,7 +123,7 @@ export class Subscriber {
 		const msg = new Subscribe(id, broadcast, track.name, track.priority);
 
 		const stream = await Stream.open(this.#quic);
-		await stream.writer.u8(Subscribe.StreamID);
+		await stream.writer.u8(SteamId.Subscribe);
 		await msg.encode(stream.writer);
 
 		try {

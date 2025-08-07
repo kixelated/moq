@@ -17,9 +17,6 @@ pub enum DecodeError {
 	#[error("invalid message: {0:?}")]
 	InvalidMessage(u64),
 
-	#[error("invalid role: {0:?}")]
-	InvalidRole(u64),
-
 	#[error("invalid subscribe location")]
 	InvalidSubscribeLocation,
 

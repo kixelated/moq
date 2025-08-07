@@ -39,7 +39,9 @@ impl Publisher {
 		let kind = stream.reader.decode().await?;
 
 		let res = match kind {
-			message::ControlType::Session => Err(Error::UnexpectedStream(kind)),
+			message::ControlType::Session | message::ControlType::ClientCompat | message::ControlType::ServerCompat => {
+				Err(Error::UnexpectedStream(kind))
+			}
 			message::ControlType::Announce => self.recv_announce(&mut stream).await,
 			message::ControlType::Subscribe => self.recv_subscribe(&mut stream).await,
 		};

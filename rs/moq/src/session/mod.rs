@@ -112,16 +112,16 @@ impl Session {
 		let mut stream = Stream::accept(&mut session).await?;
 		let kind = stream.reader.decode().await?;
 
-		if kind != message::ControlType::Session {
-			return Err(Error::UnexpectedStream(kind));
-		}
-
-		Self::accept_setup(&mut stream).await?;
+		Self::accept_setup(kind, &mut stream).await?;
 		let session = Self::new(session, stream, publish.into(), subscribe.into()).await?;
 		Ok(session)
 	}
 
-	async fn accept_setup(control: &mut Stream) -> Result<(), Error> {
+	async fn accept_setup(kind: message::ControlType, control: &mut Stream) -> Result<(), Error> {
+		if kind != message::ControlType::Session && kind != message::ControlType::ClientCompat {
+			return Err(Error::UnexpectedStream(kind));
+		}
+
 		let client: message::ClientSetup = control.reader.decode().await?;
 
 		if !client.versions.contains(&message::Version::CURRENT) {
@@ -132,6 +132,12 @@ impl Session {
 			version: message::Version::CURRENT,
 			extensions: Default::default(),
 		};
+
+		// Backwards compatibility with moq-transport-10
+		if kind == message::ControlType::ClientCompat {
+			// Write a 0x41 just to be backwards compatible.
+			control.writer.encode(&message::ControlType::ServerCompat).await?;
+		}
 
 		control.writer.encode(&server).await?;
 

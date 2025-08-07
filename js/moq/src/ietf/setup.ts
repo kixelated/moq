@@ -1,6 +1,6 @@
 import type { Reader, Writer } from "../stream";
 
-export const Version = 0xff000007;
+export const CURRENT_VERSION = 0xff000007;
 const MAX_VERSIONS = 128;
 
 export class Role {
@@ -93,7 +93,7 @@ export class Client {
 
 	async encodeMessage(w: Writer): Promise<void> {
 		await w.u8(0x01); // 1 support version
-		await w.u53(Version);
+		await w.u53(CURRENT_VERSION);
 
 		// Number of parameters
 		await w.u53(this.parameters.length);
@@ -119,7 +119,7 @@ export class Client {
 			supportedVersions.push(version);
 		}
 
-		if (!supportedVersions.some((v) => v === Version)) {
+		if (!supportedVersions.some((v) => v === CURRENT_VERSION)) {
 			throw new Error(`unsupported versions: ${supportedVersions.join(", ")}`);
 		}
 
@@ -151,7 +151,7 @@ export class Server {
 
 	async encodeMessage(w: Writer): Promise<void> {
 		// Selected version
-		await w.u53(Version);
+		await w.u53(CURRENT_VERSION);
 
 		// Number of parameters
 		await w.u53(this.parameters.length);
@@ -166,7 +166,7 @@ export class Server {
 	static async decodeMessage(r: Reader): Promise<Server> {
 		// Selected version
 		const selectedVersion = await r.u53();
-		if (selectedVersion !== Version) {
+		if (selectedVersion !== CURRENT_VERSION) {
 			throw new Error(`unsupported server version: ${selectedVersion.toString(16)}`);
 		}
 

@@ -35,7 +35,6 @@ export class Announce {
 }
 
 export class AnnounceInterest {
-	static StreamID = 0x1;
 	prefix: Path.Valid;
 
 	constructor(prefix: Path.Valid) {
