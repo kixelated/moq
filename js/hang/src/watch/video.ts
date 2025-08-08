@@ -85,7 +85,7 @@ export class VideoRenderer {
 		}
 	}
 
-	#render(now: DOMHighResTimeStamp) {
+	#render() {
 		// Schedule the next render.
 		this.#animate = undefined;
 		this.#schedule();
@@ -99,7 +99,7 @@ export class VideoRenderer {
 		ctx.fillStyle = "#000";
 		ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
 
-		const { frame, lag } = this.source.frame(now) ?? {};
+		const frame = this.source.frame.peek();
 		if (frame) {
 			ctx.canvas.width = frame.displayWidth;
 			ctx.canvas.height = frame.displayHeight;
@@ -108,6 +108,7 @@ export class VideoRenderer {
 
 		// Draw a loading icon when the lag 2+ seconds
 		// TODO expose this as a signal
+		/*
 		const spinner = Math.min(Math.max(((lag ?? 0) - 2000) / (4000 - 2000), 0), 1);
 		if (spinner > 0) {
 			const spinnerSize = 64;
@@ -127,6 +128,7 @@ export class VideoRenderer {
 
 			ctx.restore();
 		}
+		*/
 
 		ctx.restore();
 	}
@@ -158,12 +160,8 @@ export class Video {
 	// TODO To support higher latencies, keep around the encoded data and decode on demand.
 	// ex. Firefox only allows 2 outstanding VideoFrames at a time.
 	// We hold a second frame buffered as a crude way to introduce latency to sync with audio.
-	#current?: VideoFrame;
+	frame = new Signal<VideoFrame | undefined>(undefined);
 	#next?: VideoFrame;
-
-	// The largest timestamp - now that we've ever seen.
-	// This is used to calculate the jitter/lag.
-	#ref?: DOMHighResTimeStamp;
 
 	#signals = new Effect();
 
@@ -202,8 +200,8 @@ export class Video {
 
 		const decoder = new VideoDecoder({
 			output: (frame) => {
-				if (!this.#current) {
-					this.#current = frame;
+				if (!this.frame.peek()) {
+					this.frame.set(frame);
 					return;
 				}
 
@@ -212,8 +210,11 @@ export class Video {
 					return;
 				}
 
-				this.#current?.close();
-				this.#current = this.#next;
+				this.frame.set((prev) => {
+					prev?.close();
+					return this.#next;
+				});
+
 				this.#next = frame;
 			},
 			// TODO bubble up error
@@ -254,37 +255,12 @@ export class Video {
 		});
 	}
 
-	// Returns the closest frame to the given timestamp and the lag.
-	frame(now: DOMHighResTimeStamp): { frame: VideoFrame; lag: DOMHighResTimeStamp } | undefined {
-		for (;;) {
-			if (!this.#current) return;
-
-			const ref = this.#current.timestamp / 1000 - now;
-			if (!this.#ref || ref > this.#ref) {
-				this.#ref = ref;
-			}
-
-			const lag = this.#ref - ref;
-
-			// Determine if we should skip to the next frame or not.
-			// If the lag is greater than the frame duration, then sure let's do it.
-			// This should result in marginally smoother playback, especially if there's a B-frame.
-			if (!this.#next || lag <= (this.#next.timestamp - this.#current.timestamp) / 1000) {
-				return {
-					frame: this.#current,
-					lag,
-				};
-			}
-
-			this.#current?.close();
-			this.#current = this.#next;
-			this.#next = undefined;
-		}
-	}
-
 	close() {
-		this.#current?.close();
-		this.#current = undefined;
+		this.frame.set((prev) => {
+			prev?.close();
+			return undefined;
+		});
+
 		this.#next?.close();
 		this.#next = undefined;
 		this.#signals.close();

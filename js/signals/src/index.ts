@@ -349,6 +349,20 @@ export class Effect {
 		this.cleanup(() => timeout && clearTimeout(timeout));
 	}
 
+	interval(fn: () => void, ms: DOMHighResTimeStamp) {
+		if (this.#dispose === undefined) {
+			if (Effect.dev) {
+				console.warn("Effect.interval called when closed, ignoring");
+			}
+			return;
+		}
+
+		const interval = setInterval(() => {
+			fn();
+		}, ms);
+		this.cleanup(() => clearInterval(interval));
+	}
+
 	// Create a nested effect that can be rerun independently.
 	effect(fn: (effect: Effect) => void) {
 		if (this.#dispose === undefined) {
