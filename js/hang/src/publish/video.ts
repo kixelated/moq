@@ -161,12 +161,10 @@ export class Video {
 					this.#groupTimestamp = frame.timestamp;
 				}
 
-				this.frame.set(
-					(prev) => {
-						prev?.close();
-						return frame;
-					}
-				);
+				this.frame.set((prev) => {
+					prev?.close();
+					return frame;
+				});
 
 				encoder.encode(frame, { keyFrame });
 
