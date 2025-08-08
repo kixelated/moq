@@ -4,6 +4,7 @@ import { z } from "zod";
 import { AudioSchema } from "./audio";
 import { CapabilitiesSchema } from "./capabilities";
 import { ChatSchema } from "./chat";
+import { DetectionSchema } from "./detection";
 import { LocationSchema } from "./location";
 import { UserSchema } from "./user";
 import { VideoSchema } from "./video";
@@ -14,6 +15,7 @@ export const RootSchema = z.object({
 	location: LocationSchema.optional(),
 	user: UserSchema.optional(),
 	chat: ChatSchema.optional(),
+	detection: DetectionSchema.optional(),
 	capabilities: CapabilitiesSchema.optional(),
 });
 

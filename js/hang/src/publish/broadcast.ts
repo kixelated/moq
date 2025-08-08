@@ -179,6 +179,7 @@ export class Broadcast {
 			location: effect.get(this.location.catalog),
 			user: effect.get(this.user),
 			chat: effect.get(this.chat.catalog),
+			detection: effect.get(this.video.detection.catalog),
 		};
 
 		const encoded = Catalog.encode(catalog);

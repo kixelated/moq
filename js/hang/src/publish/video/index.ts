@@ -1,10 +1,14 @@
 import * as Moq from "@kixelated/moq";
 import { Effect, type Getter, Signal } from "@kixelated/signals";
 import { Buffer } from "buffer";
-import type * as Catalog from "../catalog";
-import { u8, u53 } from "../catalog/integers";
-import * as Container from "../container";
-import { isFirefox } from "../hacks";
+import type * as Catalog from "../../catalog";
+import { u8, u53 } from "../../catalog/integers";
+import * as Container from "../../container";
+import { isFirefox } from "../../hacks";
+import { Detection, type DetectionProps } from "./detection";
+import { VideoTrackProcessor } from "./polyfill";
+
+export * from "./detection";
 
 // Create a group every 2 seconds
 const GOP_DURATION_US = 2 * 1000 * 1000;
@@ -39,10 +43,12 @@ export type VideoProps = {
 	enabled?: boolean;
 	media?: VideoTrack;
 	constraints?: VideoConstraints;
+	detection?: DetectionProps;
 };
 
 export class Video {
 	broadcast: Moq.BroadcastProducer;
+	detection: Detection;
 
 	enabled: Signal<boolean>;
 
@@ -71,6 +77,8 @@ export class Video {
 
 	constructor(broadcast: Moq.BroadcastProducer, props?: VideoProps) {
 		this.broadcast = broadcast;
+		this.detection = new Detection(this, props?.detection);
+
 		this.media = new Signal(props?.media);
 		this.enabled = new Signal(props?.enabled ?? false);
 		this.constraints = new Signal(props?.constraints);
@@ -389,67 +397,6 @@ export class Video {
 		});
 
 		this.#signals.close();
+		this.detection.close();
 	}
-}
-
-// Firefox doesn't support MediaStreamTrackProcessor so we need to use a polyfill.
-// Based on: https://jan-ivar.github.io/polyfills/mediastreamtrackprocessor.js
-// Thanks Jan-Ivar
-function VideoTrackProcessor(track: VideoTrack): ReadableStream<VideoFrame> {
-	// @ts-expect-error No typescript types yet.
-	if (self.MediaStreamTrackProcessor) {
-		// @ts-expect-error No typescript types yet.
-		return new self.MediaStreamTrackProcessor({ track }).readable;
-	}
-
-	console.warn("Using MediaStreamTrackProcessor polyfill; performance might suffer.");
-
-	const settings = track.getSettings();
-	if (!settings) {
-		throw new Error("track has no settings");
-	}
-
-	let video: HTMLVideoElement;
-	let canvas: HTMLCanvasElement;
-	let ctx: CanvasRenderingContext2D;
-	let last: DOMHighResTimeStamp;
-
-	const frameRate = settings.frameRate ?? 30;
-
-	return new ReadableStream<VideoFrame>({
-		async start() {
-			video = document.createElement("video") as HTMLVideoElement;
-			video.srcObject = new MediaStream([track]);
-			await Promise.all([
-				video.play(),
-				new Promise((r) => {
-					video.onloadedmetadata = r;
-				}),
-			]);
-			// TODO use offscreen canvas
-			canvas = document.createElement("canvas");
-			canvas.width = video.videoWidth;
-			canvas.height = video.videoHeight;
-
-			const c = canvas.getContext("2d", { desynchronized: true });
-			if (!c) {
-				throw new Error("failed to create canvas context");
-			}
-			ctx = c;
-			last = performance.now();
-		},
-		async pull(controller) {
-			while (true) {
-				const now = performance.now();
-				if (now - last < 1000 / frameRate) {
-					await new Promise((r) => requestAnimationFrame(r));
-					continue;
-				}
-
-				last = now;
-				ctx.drawImage(video, 0, 0);
-				controller.enqueue(new VideoFrame(canvas, { timestamp: last * 1000 }));
-			}
-		},
-	});
 }

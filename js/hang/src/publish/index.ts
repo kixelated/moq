@@ -1,5 +1,6 @@
 export * from "./audio";
 export * from "./broadcast";
+export * from "./chat";
 export * from "./location";
 export * from "./preview";
 export * from "./video";

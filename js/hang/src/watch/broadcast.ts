@@ -7,6 +7,7 @@ import { Chat, type ChatProps } from "./chat";
 import { Location, type LocationProps } from "./location";
 import { type PreviewProps, PreviewWatch } from "./preview";
 import { Video, type VideoProps } from "./video";
+import { Detection, type DetectionProps } from "./video/detection";
 
 export interface BroadcastProps {
 	// Whether to start downloading the broadcast.
@@ -23,6 +24,7 @@ export interface BroadcastProps {
 	audio?: AudioProps;
 	location?: LocationProps;
 	chat?: ChatProps;
+	detection?: DetectionProps;
 	preview?: PreviewProps;
 }
 
@@ -40,6 +42,7 @@ export class Broadcast {
 	video: Video;
 	location: Location;
 	chat: Chat;
+	detection: Detection;
 	preview: PreviewWatch;
 
 	#broadcast = new Signal<Moq.BroadcastConsumer | undefined>(undefined);
@@ -62,6 +65,7 @@ export class Broadcast {
 		this.video = new Video(this.#broadcast, this.#catalog, props?.video);
 		this.location = new Location(this.#broadcast, this.#catalog, props?.location);
 		this.chat = new Chat(this.#broadcast, this.#catalog, props?.chat);
+		this.detection = new Detection(this.#broadcast, this.#catalog, props?.detection);
 		this.preview = new PreviewWatch(this.#broadcast, this.#catalog, props?.preview);
 		this.#reload = props?.reload ?? true;
 
@@ -166,6 +170,7 @@ export class Broadcast {
 		this.video.close();
 		this.location.close();
 		this.chat.close();
+		this.detection.close();
 		this.preview.close();
 	}
 }

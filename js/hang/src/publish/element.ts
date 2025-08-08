@@ -123,11 +123,11 @@ export default class HangPublish extends HTMLElement {
 	}
 
 	get transcribe(): boolean {
-		return this.broadcast.audio.transcribe.peek();
+		return this.broadcast.audio.captions.enabled.peek();
 	}
 
 	set transcribe(transcribe: boolean) {
-		this.broadcast.audio.transcribe.set(transcribe);
+		this.broadcast.audio.captions.enabled.set(transcribe);
 
 		if (!transcribe && this.#captions.peek()) {
 			// Disable captions if transcribe is disabled.
@@ -143,7 +143,7 @@ export default class HangPublish extends HTMLElement {
 		this.#captions.set(captions);
 		if (captions) {
 			// Enable transcribe if captions are enabled.
-			this.broadcast.audio.transcribe.set(true);
+			this.broadcast.audio.captions.enabled.set(true);
 		}
 	}
 
@@ -201,10 +201,10 @@ export default class HangPublish extends HTMLElement {
 			});
 
 			effect.effect((effect) => {
-				const caption = effect.get(this.broadcast.audio.caption);
-				const speaking = effect.get(this.broadcast.audio.speaking);
+				const text = effect.get(this.broadcast.audio.captions.text);
+				const speaking = effect.get(this.broadcast.audio.captions.speaking);
 
-				captionText.textContent = caption ?? "";
+				captionText.textContent = text ?? "";
 				speakingIcon.textContent = speaking ? "🗣️" : " ";
 			});
 

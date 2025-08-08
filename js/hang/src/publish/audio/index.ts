@@ -1,10 +1,12 @@
 import * as Moq from "@kixelated/moq";
 import { Effect, type Getter, Signal } from "@kixelated/signals";
-import type * as Catalog from "../catalog";
-import { u8, u53 } from "../catalog/integers";
-import * as Container from "../container";
-import type { Transcribe, VAD } from "../worker";
-import type * as Worklet from "../worklet";
+import type * as Catalog from "../../catalog";
+import { u8, u53 } from "../../catalog/integers";
+import * as Container from "../../container";
+import { Captions, type CaptionsProps } from "./captions";
+import type * as Capture from "./capture";
+
+export * from "./captions";
 
 // Create a group every half a second
 const GOP_DURATION = 0.5;
@@ -12,11 +14,8 @@ const GOP_DURATION = 0.5;
 const GAIN_MIN = 0.001;
 const FADE_TIME = 0.2;
 
-// TODO Make this configurable.
-const CAPTION_TTL = 1000 * 5;
-
 // Unfortunately, we need to use a Vite-exclusive import for now.
-import CaptureWorklet from "../worklet/capture?worker&url";
+import CaptureWorklet from "./capture-worklet?worker&url";
 
 export type AudioConstraints = Omit<
 	MediaTrackConstraints,
@@ -51,8 +50,7 @@ export type AudioProps = {
 
 	muted?: boolean;
 	volume?: number;
-	vad?: boolean;
-	transcribe?: boolean;
+	captions?: CaptionsProps;
 };
 
 export class Audio {
@@ -61,17 +59,7 @@ export class Audio {
 
 	muted: Signal<boolean>;
 	volume: Signal<number>;
-
-	// Enable Voice Activity Detection (VAD) via an on-device model.
-	// This will publish a "captions" track and toggle the `speaking` signal between true/false.
-	vad: Signal<boolean>;
-	speaking = new Signal<boolean | undefined>(undefined);
-
-	// Enable caption generation via an on-device model (whisper).
-	// This will publish a "captions" track and set the `caption` signal.
-	transcribe: Signal<boolean>;
-	caption = new Signal<string | undefined>(undefined);
-	#captionTrack = new Signal<Moq.TrackProducer | undefined>(undefined);
+	captions: Captions;
 
 	media: Signal<AudioTrack | undefined>;
 	constraints: Signal<AudioConstraints | undefined>;
@@ -90,32 +78,18 @@ export class Audio {
 	#id = 0;
 	#signals = new Effect();
 
-	// Initialize the workers as soon as they are enabled, even before any media is selected.
-	// This is done because the first thing they do is load a massive model and we want to front-load that work.
-	#workers = new Signal<
-		| {
-				vad: Worker;
-				transcribe?: Worker;
-		  }
-		| undefined
-	>(undefined);
-
 	constructor(broadcast: Moq.BroadcastProducer, props?: AudioProps) {
 		this.broadcast = broadcast;
 		this.media = new Signal(props?.media);
 		this.enabled = new Signal(props?.enabled ?? false);
+		this.captions = new Captions(this, props?.captions);
 		this.constraints = new Signal(props?.constraints);
 		this.muted = new Signal(props?.muted ?? false);
 		this.volume = new Signal(props?.volume ?? 1);
-		this.vad = new Signal(props?.vad ?? false);
-		this.transcribe = new Signal(props?.transcribe ?? false);
 
 		this.#signals.effect(this.#runSource.bind(this));
 		this.#signals.effect(this.#runGain.bind(this));
 		this.#signals.effect(this.#runEncoder.bind(this));
-		this.#signals.effect(this.#loadWorkers.bind(this));
-		this.#signals.effect(this.#runVad.bind(this));
-		this.#signals.effect(this.#runCaption.bind(this));
 	}
 
 	#runSource(effect: Effect): void {
@@ -196,9 +170,9 @@ export class Audio {
 		const settings = media.getSettings() as AudioTrackSettings;
 
 		// TODO don't reininalize the encoder just because the captions track changed.
-		const captions = effect.get(this.#captionTrack);
+		const captions = effect.get(this.captions.catalog);
 
-		const catalog = {
+		const catalog: Catalog.Audio = {
 			track: {
 				name: track.name,
 				priority: u8(track.priority),
@@ -212,12 +186,7 @@ export class Audio {
 				// TODO configurable
 				bitrate: u53(settings.channelCount * 32_000),
 			},
-			caption: captions
-				? {
-						name: captions.name,
-						priority: u8(captions.priority),
-					}
-				: undefined,
+			captions,
 		};
 
 		effect.set(this.#catalog, catalog);
@@ -255,7 +224,7 @@ export class Audio {
 			bitrate: config.bitrate,
 		});
 
-		worklet.port.onmessage = ({ data }: { data: Worklet.AudioFrame }) => {
+		worklet.port.onmessage = ({ data }: { data: Capture.AudioFrame }) => {
 			const channels = data.channels.slice(0, settings.channelCount);
 			const joinedLength = channels.reduce((a, b) => a + b.length, 0);
 			const joined = new Float32Array(joinedLength);
@@ -280,139 +249,8 @@ export class Audio {
 		};
 	}
 
-	// Start loading the VAD worker and transcribe worker as soon as they are enabled, even before any media is selected.
-	#loadWorkers(effect: Effect): void {
-		if (!effect.get(this.vad) && !effect.get(this.transcribe)) return;
-
-		const vad = new Worker(new URL("../worker/vad", import.meta.url), { type: "module" });
-		effect.cleanup(() => vad.terminate());
-
-		// Handle messages from the VAD worker
-		vad.onmessage = ({ data }: MessageEvent<VAD.Response>) => {
-			if (data.type === "result") {
-				// Use heuristics to determine if we've toggled speaking or not
-				this.speaking.set(data.speaking);
-			} else if (data.type === "error") {
-				console.error("VAD worker error:", data.message);
-				this.speaking.set(undefined);
-			}
-		};
-		effect.cleanup(() => this.speaking.set(undefined));
-
-		let transcribe: Worker | undefined;
-		if (effect.get(this.transcribe)) {
-			// I could start loading the Worker before the worklet but eh I'm lazy.
-			transcribe = new Worker(new URL("../worker/transcribe", import.meta.url), { type: "module" });
-			effect.cleanup(() => transcribe?.terminate());
-
-			let timeout: ReturnType<typeof setTimeout> | undefined;
-			effect.cleanup(() => clearTimeout(timeout));
-
-			transcribe.onmessage = ({ data }: MessageEvent<Transcribe.Response>) => {
-				if (data.type === "result") {
-					this.caption.set(data.text);
-
-					clearTimeout(timeout);
-					timeout = setTimeout(() => this.caption.set(undefined), CAPTION_TTL);
-				} else if (data.type === "error") {
-					console.error("Transcribe worker error:", data.message);
-				}
-			};
-			effect.cleanup(() => this.caption.set(undefined));
-		}
-
-		effect.set(this.#workers, { vad, transcribe });
-	}
-
-	#runVad(effect: Effect): void {
-		const workers = effect.get(this.#workers);
-		if (!workers) return;
-
-		const media = effect.get(this.media);
-		if (!media) return;
-
-		// Unset the caption and speaking signals when media is disconnected.
-		effect.cleanup(() => {
-			this.speaking.set(undefined);
-			this.caption.set(undefined);
-		});
-
-		const ctx = new AudioContext({
-			sampleRate: 16000, // required by the model.
-		});
-		effect.cleanup(() => ctx.close());
-
-		// Create the source node.
-		const root = new MediaStreamAudioSourceNode(ctx, {
-			mediaStream: new MediaStream([media]),
-		});
-		effect.cleanup(() => root.disconnect());
-
-		// The workload needs to be loaded asynchronously, unfortunately, but it should be instant.
-		effect.spawn(async () => {
-			await ctx.audioWorklet.addModule(CaptureWorklet);
-
-			// Create the worklet.
-			const worklet = new AudioWorkletNode(ctx, "capture", {
-				numberOfInputs: 1,
-				numberOfOutputs: 0,
-				channelCount: 1,
-				channelCountMode: "explicit",
-				channelInterpretation: "discrete",
-			});
-			effect.cleanup(() => worklet.disconnect());
-
-			root.connect(worklet);
-
-			if (!workers.transcribe) {
-				workers.vad.postMessage(
-					{
-						type: "init",
-						worklet: worklet.port,
-					},
-					[worklet.port],
-				);
-			} else {
-				const pipe = new MessageChannel();
-				workers.vad.postMessage(
-					{
-						type: "init",
-						transcribe: pipe.port1,
-						worklet: worklet.port,
-					},
-					[worklet.port, pipe.port1],
-				);
-
-				workers.transcribe.postMessage(
-					{
-						type: "init",
-						vad: pipe.port2,
-					},
-					[pipe.port2],
-				);
-			}
-		});
-	}
-
-	#runCaption(effect: Effect): void {
-		if (!effect.get(this.transcribe)) return;
-
-		const track = new Moq.TrackProducer(`captions-${this.#id++}`, 1);
-		effect.cleanup(() => track.close());
-
-		this.broadcast.insertTrack(track.consume());
-		effect.cleanup(() => this.broadcast.removeTrack(track.name));
-
-		effect.set(this.#captionTrack, track);
-
-		// Create a nested effect to avoid recreating the track every time the caption changes.
-		effect.effect((nested) => {
-			const text = nested.get(this.caption) ?? "";
-			track.appendFrame(new TextEncoder().encode(text));
-		});
-	}
-
 	close() {
 		this.#signals.close();
+		this.captions.close();
 	}
 }

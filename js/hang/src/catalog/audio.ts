@@ -1,5 +1,5 @@
 import { z } from "zod";
-
+import { CaptionsSchema } from "./captions";
 import { u53Schema } from "./integers";
 import { TrackSchema } from "./track";
 
@@ -33,7 +33,7 @@ export const AudioSchema = z.object({
 	config: AudioConfigSchema,
 
 	// An optional captions track
-	caption: TrackSchema.optional(),
+	captions: CaptionsSchema.optional(),
 });
 
 export type Audio = z.infer<typeof AudioSchema>;

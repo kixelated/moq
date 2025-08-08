@@ -41,6 +41,7 @@
 		"@kixelated/signals": "workspace:^",
 		"buffer": "^6.0.3",
 		"zod": "^4.0.0",
+		"comlink": "^4.4.2",
 		"@huggingface/transformers": "^3.7.0"
 	},
 	"devDependencies": {

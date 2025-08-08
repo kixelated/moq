@@ -1,4 +1,4 @@
-import type { Data, Init, Message, Status } from ".";
+import type { Data, Init, Message, Status } from "./render";
 
 class Render extends AudioWorkletProcessor {
 	#buffer: Float32Array[] = [];
