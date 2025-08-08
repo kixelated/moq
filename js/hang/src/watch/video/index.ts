@@ -3,13 +3,14 @@ import { Effect, Signal } from "@kixelated/signals";
 import { Buffer } from "buffer";
 import type * as Catalog from "../../catalog";
 import * as Container from "../../container";
-import { Detection } from "./detection";
+import { Detection, type DetectionProps } from "./detection";
 
 export * from "./detection";
 export * from "./renderer";
 
 export type VideoProps = {
 	enabled?: boolean;
+	detection?: DetectionProps;
 };
 
 // Responsible for switching between video tracks and buffering frames.
@@ -39,7 +40,7 @@ export class Video {
 		this.broadcast = broadcast;
 		this.catalog = catalog;
 		this.enabled = new Signal(props?.enabled ?? false);
-		this.detection = new Detection(this.broadcast, this.catalog);
+		this.detection = new Detection(this.broadcast, this.catalog, props?.detection);
 
 		// TODO use isConfigSupported
 		this.#signals.effect((effect) => {

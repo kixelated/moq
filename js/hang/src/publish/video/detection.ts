@@ -16,7 +16,7 @@ export type DetectionProps = {
 export class Detection {
 	video: Video;
 	enabled: Signal<boolean>;
-	objects = new Signal<Catalog.DetectionObjects>([]);
+	objects = new Signal<Catalog.DetectionObjects | undefined>(undefined);
 
 	#interval: number;
 	#threshold: number;
@@ -63,7 +63,10 @@ export class Detection {
 			if (!frame) return;
 
 			const cloned = frame.clone();
-			await api.detect(Comlink.transfer(cloned, [cloned]), this.#threshold);
+			const result = await api.detect(Comlink.transfer(cloned, [cloned]), this.#threshold);
+
+			this.objects.set(result);
+			this.#track.appendFrame(new TextEncoder().encode(JSON.stringify(result)));
 		};
 
 		effect.spawn(async (cancel) => {
@@ -73,9 +76,12 @@ export class Detection {
 			process();
 			effect.interval(process, this.#interval);
 		});
+
+		effect.cleanup(() => this.objects.set(undefined));
 	}
 
 	close() {
 		this.signals.close();
+		this.#track.close();
 	}
 }

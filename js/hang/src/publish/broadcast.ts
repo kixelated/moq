@@ -100,7 +100,9 @@ export class Broadcast {
 
 		const constraints = effect.get(this.audio.constraints) ?? {};
 
-		const mediaPromise = navigator.mediaDevices.getUserMedia({ audio: constraints });
+		const mediaPromise = navigator.mediaDevices.getUserMedia({
+			audio: constraints,
+		});
 
 		effect.spawn(async (_cancel) => {
 			const media = await mediaPromise;
@@ -116,7 +118,9 @@ export class Broadcast {
 
 		if (!effect.get(this.video.enabled)) return;
 
-		const mediaPromise = navigator.mediaDevices.getUserMedia({ video: effect.get(this.video.constraints) ?? true });
+		const mediaPromise = navigator.mediaDevices.getUserMedia({
+			video: effect.get(this.video.constraints) ?? true,
+		});
 
 		effect.spawn(async (_cancel) => {
 			const media = await mediaPromise;

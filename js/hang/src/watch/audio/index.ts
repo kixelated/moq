@@ -7,6 +7,7 @@ import type * as Render from "./render";
 
 export * from "./emitter";
 
+import { Captions, type CaptionsProps } from "./captions";
 // Unfortunately, we need to use a Vite-exclusive import for now.
 import RenderWorklet from "./render-worklet?worker&url";
 
@@ -18,7 +19,7 @@ export type AudioProps = {
 	latency?: DOMHighResTimeStamp;
 
 	// Enable to download the captions track.
-	transcribe?: boolean;
+	captions?: CaptionsProps;
 };
 
 // Downloads audio from a track and emits it to an AudioContext.
@@ -38,12 +39,7 @@ export class Audio {
 	#sampleRate = new Signal<number | undefined>(undefined);
 	readonly sampleRate: Getter<number | undefined> = this.#sampleRate;
 
-	// Enable to download the captions track.
-	transcribe: Signal<boolean>;
-
-	// The most recent caption downloaded.
-	#caption = new Signal<string | undefined>(undefined);
-	readonly caption: Getter<string | undefined> = this.#caption;
+	captions: Captions;
 
 	// Not a signal because it updates constantly.
 	#buffered: DOMHighResTimeStamp = 0;
@@ -62,7 +58,7 @@ export class Audio {
 		this.catalog = catalog;
 		this.enabled = new Signal(props?.enabled ?? false);
 		this.latency = props?.latency ?? 100; // TODO Reduce this once fMP4 stuttering is fixed.
-		this.transcribe = new Signal(props?.transcribe ?? false);
+		this.captions = new Captions(broadcast, this.selected, props?.captions);
 
 		this.#signals.effect((effect) => {
 			this.selected.set(effect.get(this.catalog)?.audio?.[0]);
@@ -70,7 +66,6 @@ export class Audio {
 
 		this.#signals.effect(this.#runWorklet.bind(this));
 		this.#signals.effect(this.#runDecoder.bind(this));
-		this.#signals.effect(this.#runCaption.bind(this));
 	}
 
 	#runWorklet(effect: Effect): void {
@@ -84,7 +79,10 @@ export class Audio {
 		// NOTE: We still create an AudioContext even when muted.
 		// This way we can process the audio for visualizations.
 
-		const context = new AudioContext({ latencyHint: "interactive", sampleRate });
+		const context = new AudioContext({
+			latencyHint: "interactive",
+			sampleRate,
+		});
 		effect.cleanup(() => context.close());
 
 		effect.spawn(async () => {
@@ -103,7 +101,12 @@ export class Audio {
 				}
 			};
 
-			worklet.port.postMessage({ type: "init", sampleRate, channelCount, latency: this.latency });
+			worklet.port.postMessage({
+				type: "init",
+				sampleRate,
+				channelCount,
+				latency: this.latency,
+			});
 
 			effect.set(this.#worklet, worklet);
 		});
@@ -157,33 +160,6 @@ export class Audio {
 		});
 	}
 
-	#runCaption(effect: Effect): void {
-		const enabled = effect.get(this.transcribe);
-		if (!enabled) return;
-
-		const broadcast = effect.get(this.broadcast);
-		if (!broadcast) return;
-
-		const selected = effect.get(this.selected);
-		if (!selected) return;
-
-		if (!selected.captions) return;
-
-		const sub = broadcast.subscribe(selected.captions.track.name, selected.captions.track.priority);
-		effect.cleanup(() => sub.close());
-
-		effect.spawn(async (cancel) => {
-			for (;;) {
-				const frame = await Promise.race([sub.nextFrame(), cancel]);
-				if (!frame) break;
-
-				const text = frame.data.length > 0 ? new TextDecoder().decode(frame.data) : undefined;
-				this.#caption.set(text);
-			}
-		});
-		effect.cleanup(() => this.#caption.set(undefined));
-	}
-
 	#emit(sample: AudioData) {
 		const worklet = this.#worklet.peek();
 		if (!worklet) {
@@ -217,6 +193,7 @@ export class Audio {
 
 	close() {
 		this.#signals.close();
+		this.captions.close();
 	}
 
 	get buffered() {

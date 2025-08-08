@@ -172,11 +172,11 @@ export default class HangWatch extends HTMLElement {
 	}
 
 	get captions(): boolean {
-		return this.broadcast.audio.transcribe.peek();
+		return this.broadcast.audio.captions.enabled.peek();
 	}
 
 	set captions(captions: boolean) {
-		this.broadcast.audio.transcribe.set(captions);
+		this.broadcast.audio.captions.enabled.set(captions);
 	}
 
 	// TODO Do this on disconnectedCallback?
@@ -223,10 +223,10 @@ export default class HangWatch extends HTMLElement {
 		this.#signals.cleanup(() => this.removeChild(captions));
 
 		this.#signals.effect((effect) => {
-			const show = effect.get(this.broadcast.audio.transcribe);
+			const show = effect.get(this.broadcast.audio.captions.enabled);
 			if (!show) return;
 
-			const caption = effect.get(this.broadcast.audio.caption);
+			const caption = effect.get(this.broadcast.audio.captions.text);
 			captions.textContent = caption ?? "";
 
 			effect.cleanup(() => {

@@ -12,7 +12,7 @@ export class Detection {
 	broadcast: Signal<Moq.BroadcastConsumer | undefined>;
 
 	enabled: Signal<boolean>;
-	objects: Signal<Catalog.DetectionObjects | undefined>;
+	objects = new Signal<Catalog.DetectionObjects | undefined>(undefined);
 
 	#catalog = new Signal<Catalog.Detection | undefined>(undefined);
 
@@ -24,7 +24,6 @@ export class Detection {
 		props?: DetectionProps,
 	) {
 		this.broadcast = broadcast;
-		this.objects = new Signal<Catalog.DetectionObjects | undefined>(undefined);
 		this.enabled = new Signal(props?.enabled ?? false);
 
 		// Grab the detection section from the catalog (if it's changed).
@@ -51,13 +50,9 @@ export class Detection {
 					const decoder = new TextDecoder();
 					const text = decoder.decode(frame.data);
 
-					try {
-						const objects = Catalog.DetectionObjectsSchema.parse(JSON.parse(text));
-						// Use a function to avoid the dequal check.
-						this.objects.set(() => objects);
-					} catch (e) {
-						console.warn("Failed to parse detection data:", e);
-					}
+					const objects = Catalog.DetectionObjectsSchema.parse(JSON.parse(text));
+					// Use a function to avoid the dequal check.
+					this.objects.set(() => objects);
 				}
 			});
 
