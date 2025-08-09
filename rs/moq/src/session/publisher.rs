@@ -1,4 +1,3 @@
-use futures::FutureExt;
 use web_async::FuturesExt;
 
 use crate::{message, model::GroupConsumer, Error, Origin, OriginAnnounce, OriginConsumer, Path, Track, TrackConsumer};
@@ -38,7 +37,9 @@ impl Publisher {
 		let kind = stream.reader.decode().await?;
 
 		let res = match kind {
-			message::ControlType::Session => Err(Error::UnexpectedStream(kind)),
+			message::ControlType::Session | message::ControlType::ClientCompat | message::ControlType::ServerCompat => {
+				Err(Error::UnexpectedStream(kind))
+			}
 			message::ControlType::Announce => self.recv_announce(&mut stream).await,
 			message::ControlType::Subscribe => self.recv_subscribe(&mut stream).await,
 		};
@@ -61,7 +62,7 @@ impl Publisher {
 		let res = self.run_announce(stream, &interest.prefix).await;
 		match res {
 			Err(Error::Cancel) => tracing::debug!(prefix = %full, "announcing cancelled"),
-			Err(err) => tracing::debug!(?err, prefix = %full, "announcing error"),
+			Err(err) => tracing::debug!(%err, prefix = %full, "announcing error"),
 			_ => tracing::trace!(prefix = %full, "announcing complete"),
 		}
 
@@ -80,8 +81,8 @@ impl Publisher {
 		let mut init = Vec::new();
 
 		// Send ANNOUNCE_INIT as the first message with all currently active paths
-		// We use `now_or_never` so `announced` keeps track of what has been sent for us.
-		while let Some(Some(OriginAnnounce { suffix, active })) = announced.announced().now_or_never() {
+		// We use `try_next()` to synchronously get the initial updates.
+		while let Some(OriginAnnounce { suffix, active }) = announced.try_next() {
 			let full = self.origin.root().join(&prefix).join(&suffix);
 			if active.is_some() {
 				tracing::debug!(broadcast = %full, "announce");
@@ -137,7 +138,7 @@ impl Publisher {
 			Err(Error::Cancel) | Err(Error::WebTransport(_)) => {
 				tracing::debug!(id = %subscribe.id, %broadcast, %track, "subscribed cancelled")
 			}
-			Err(err) => tracing::warn!(?err, id = %subscribe.id, %broadcast, %track, "subscribed error"),
+			Err(err) => tracing::warn!(%err, id = %subscribe.id, %broadcast, %track, "subscribed error"),
 			_ => tracing::debug!(id = %subscribe.id, %broadcast, %track, "subscribed complete"),
 		}
 

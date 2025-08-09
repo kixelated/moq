@@ -2,7 +2,7 @@ import type { AnnouncedConsumer } from "../announced";
 import type { BroadcastConsumer } from "../broadcast";
 import type { Connection as ConnectionInterface } from "../connection";
 import * as Path from "../path";
-import { type Reader, Readers, Stream } from "../stream";
+import { type Reader, Readers, type Stream } from "../stream";
 import { unreachable } from "../util";
 import { Announce, AnnounceCancel, AnnounceError, AnnounceOk, Unannounce } from "./announce";
 import * as Control from "./control";
@@ -261,73 +261,4 @@ export class Connection implements ConnectionInterface {
 	async closed(): Promise<void> {
 		await this.#quic.closed;
 	}
-}
-
-/**
- * Establishes a connection to a MOQ server using moq-transport protocol.
- *
- * @param url - The URL of the server to connect to
- * @returns A promise that resolves to a Connection instance
- */
-export async function connect(url: URL): Promise<Connection> {
-	const options: WebTransportOptions = {
-		allowPooling: false,
-		congestionControl: "low-latency",
-		requireUnreliable: true,
-	};
-
-	const hexToBytes = (hex: string) => {
-		hex = hex.startsWith("0x") ? hex.slice(2) : hex;
-		if (hex.length % 2) {
-			throw new Error("invalid hex string length");
-		}
-
-		const matches = hex.match(/.{2}/g);
-		if (!matches) {
-			throw new Error("invalid hex string format");
-		}
-
-		return new Uint8Array(matches.map((byte) => parseInt(byte, 16)));
-	};
-
-	let adjustedUrl = url;
-
-	if (url.protocol === "http:") {
-		const fingerprintUrl = new URL(url);
-		fingerprintUrl.pathname = "/certificate.sha256";
-		console.warn(fingerprintUrl.toString(), "performing an insecure fingerprint fetch; use https:// in production");
-
-		// Fetch the fingerprint from the server.
-		const fingerprint = await fetch(fingerprintUrl);
-		const fingerprintText = await fingerprint.text();
-
-		options.serverCertificateHashes = [
-			{
-				algorithm: "sha-256",
-				value: hexToBytes(fingerprintText),
-			},
-		];
-
-		adjustedUrl = new URL(url);
-		adjustedUrl.protocol = "https:";
-	}
-
-	const quic = new WebTransport(adjustedUrl, options);
-	await quic.ready;
-
-	// The first stream opened is the control stream (bidirectional)
-	const controlStream = await Stream.open(quic);
-
-	const clientSetup = new Setup.Client(new Setup.Role("both"));
-
-	// Send CLIENT_SETUP on control stream
-	await Control.write(controlStream.writer, clientSetup);
-
-	// Read SERVER_SETUP response on control stream
-	const serverSetup = await Control.read(controlStream.reader);
-	if (!(serverSetup instanceof Setup.Server)) {
-		throw new Error(`expected SERVER_SETUP, got: ${serverSetup}`);
-	}
-
-	return new Connection(adjustedUrl, quic, controlStream);
 }

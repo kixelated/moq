@@ -44,7 +44,7 @@ const SAMPLE_RATE = 16000;
 const CHUNK_SIZE = 512; // This VAD model expects 512 samples at a time, or 31ms
 
 // Require this many silent chunks in a row before unsetting speaking.
-const SILENT_CHUNKS = 8;
+const SILENT_CHUNKS = 4;
 
 // Create a queue to store audio chunks that arrive asynchronously.
 const queue = new TransformStream<Float32Array, Float32Array>(
@@ -60,6 +60,7 @@ const queue = new TransformStream<Float32Array, Float32Array>(
 );
 
 const writer = queue.writable.getWriter();
+const reader = queue.readable.getReader();
 
 // Post any speaking audio to the transcribe worker.
 let transcribe: MessagePort | undefined;
@@ -89,8 +90,7 @@ self.addEventListener("message", async (event: MessageEvent<Message>) => {
 	}
 });
 
-const reader = queue.readable.getReader();
-try {
+async function run() {
 	const model = await AutoModel.from_pretrained("onnx-community/silero-vad", {
 		// @ts-expect-error Not sure why this is needed.
 		config: { model_type: "custom" },
@@ -187,9 +187,13 @@ try {
 		previous = current;
 		current = new Float32Array(temp, 0, 0);
 	}
-} catch (error) {
-	self.postMessage({ error });
-	throw error;
-} finally {
-	reader.cancel();
 }
+
+run()
+	.catch((error) => {
+		self.postMessage({ error });
+		throw error;
+	})
+	.finally(() => {
+		reader.cancel();
+	});

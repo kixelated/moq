@@ -238,13 +238,17 @@ export class Effect {
 		// Wait for all async effects to complete.
 		try {
 			let warn: ReturnType<typeof setTimeout> | undefined;
-			if (Effect.dev) {
-				// There's a 1s timeout here to print warnings if cleanup functions don't exit.
+			const timeout = new Promise<void>((resolve) => {
 				warn = setTimeout(() => {
-					console.warn("spawn is still running after 1s", this.#stack);
+					if (Effect.dev) {
+						console.warn("spawn is still running after 1s; continuing anyway", this.#stack);
+					}
+
+					resolve();
 				}, 1000);
-			}
-			await Promise.all(this.#async);
+			});
+
+			await Promise.race([Promise.all(this.#async), timeout]);
 			if (warn) clearTimeout(warn);
 
 			this.#async.length = 0;
@@ -345,6 +349,20 @@ export class Effect {
 		this.cleanup(() => timeout && clearTimeout(timeout));
 	}
 
+	interval(fn: () => void, ms: DOMHighResTimeStamp) {
+		if (this.#dispose === undefined) {
+			if (Effect.dev) {
+				console.warn("Effect.interval called when closed, ignoring");
+			}
+			return;
+		}
+
+		const interval = setInterval(() => {
+			fn();
+		}, ms);
+		this.cleanup(() => clearInterval(interval));
+	}
+
 	// Create a nested effect that can be rerun independently.
 	effect(fn: (effect: Effect) => void) {
 		if (this.#dispose === undefined) {
@@ -370,9 +388,86 @@ export class Effect {
 
 		this.effect((effect) => {
 			const value = effect.get(signal);
-			console.log("subscribe", value);
 			fn(value);
 		});
+	}
+
+	// Add an event listener that automatically removes on cleanup.
+	eventListener<K extends keyof HTMLElementEventMap>(
+		target: HTMLElement,
+		type: K,
+		listener: (this: HTMLElement, ev: HTMLElementEventMap[K]) => void,
+		options?: boolean | AddEventListenerOptions,
+	): void;
+	eventListener<K extends keyof SVGElementEventMap>(
+		target: SVGElement,
+		type: K,
+		listener: (this: SVGElement, ev: SVGElementEventMap[K]) => void,
+		options?: boolean | AddEventListenerOptions,
+	): void;
+	eventListener<K extends keyof DocumentEventMap>(
+		target: Document,
+		type: K,
+		listener: (this: Document, ev: DocumentEventMap[K]) => void,
+		options?: boolean | AddEventListenerOptions,
+	): void;
+	eventListener<K extends keyof WindowEventMap>(
+		target: Window,
+		type: K,
+		listener: (this: Window, ev: WindowEventMap[K]) => void,
+		options?: boolean | AddEventListenerOptions,
+	): void;
+	eventListener<K extends keyof WebSocketEventMap>(
+		target: WebSocket,
+		type: K,
+		listener: (this: WebSocket, ev: WebSocketEventMap[K]) => void,
+		options?: boolean | AddEventListenerOptions,
+	): void;
+	eventListener<K extends keyof XMLHttpRequestEventMap>(
+		target: XMLHttpRequest,
+		type: K,
+		listener: (this: XMLHttpRequest, ev: XMLHttpRequestEventMap[K]) => void,
+		options?: boolean | AddEventListenerOptions,
+	): void;
+	eventListener<K extends keyof MediaQueryListEventMap>(
+		target: MediaQueryList,
+		type: K,
+		listener: (this: MediaQueryList, ev: MediaQueryListEventMap[K]) => void,
+		options?: boolean | AddEventListenerOptions,
+	): void;
+	eventListener<K extends keyof AnimationEventMap>(
+		target: Animation,
+		type: K,
+		listener: (this: Animation, ev: AnimationEventMap[K]) => void,
+		options?: boolean | AddEventListenerOptions,
+	): void;
+	eventListener<K extends keyof EventSourceEventMap>(
+		target: EventSource,
+		type: K,
+		listener: (this: EventSource, ev: EventSourceEventMap[K]) => void,
+		options?: boolean | AddEventListenerOptions,
+	): void;
+	eventListener(
+		target: EventTarget,
+		type: string,
+		listener: EventListenerOrEventListenerObject,
+		options?: boolean | AddEventListenerOptions,
+	): void;
+	eventListener(
+		target: EventTarget,
+		type: string,
+		listener: EventListenerOrEventListenerObject,
+		options?: boolean | AddEventListenerOptions,
+	): void {
+		if (this.#dispose === undefined) {
+			if (Effect.dev) {
+				console.warn("Effect.eventListener called when closed, ignoring");
+			}
+			return;
+		}
+
+		target.addEventListener(type, listener, options);
+		this.cleanup(() => target.removeEventListener(type, listener, options));
 	}
 
 	// Register a cleanup function.

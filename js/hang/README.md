@@ -19,7 +19,7 @@ It uses new web APIs like WebCodecs, WebTransport, and Web Components.
 - 🎥 **Real-time latency** via WebTransport and WebCodecs.
 - 🎵 **Low-level API** for advanced use cases, such as processing individual frames.
 - 🧩 **Web Components** for easy integration.
-- 🔄 **Reactive** Easy to use with SolidJS and React.
+- 🔄 **Reactive** Easy to use with React and SolidJS adapters.
 
 ## Installation
 
@@ -224,7 +224,7 @@ We're currently only testing the most recent versions of Chrome and sometimes Fi
 
 ## Framework Integration
 
-The Reactive API contains helpers to convert into SolidJS and React signals:
+The Reactive API contains helpers to convert into React and SolidJS signals:
 
 ```ts
 import react from "@kixelated/signals/react";

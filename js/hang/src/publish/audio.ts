@@ -4,10 +4,7 @@ import type * as Catalog from "../catalog";
 import { u8, u53 } from "../catalog/integers";
 import * as Container from "../container";
 import type { Transcribe, VAD } from "../worker";
-import TRANSCRIBE_WORKER_URL from "../worker/transcribe?worker&url";
-import VAD_WORKER_URL from "../worker/vad?worker&url";
 import type * as Worklet from "../worklet";
-import WORKLET_URL from "../worklet/capture?worker&url";
 
 // Create a group every half a second
 const GOP_DURATION = 0.5;
@@ -17,6 +14,9 @@ const FADE_TIME = 0.2;
 
 // TODO Make this configurable.
 const CAPTION_TTL = 1000 * 5;
+
+// Unfortunately, we need to use a Vite-exclusive import for now.
+import CaptureWorklet from "../worklet/capture?worker&url";
 
 export type AudioConstraints = Omit<
 	MediaTrackConstraints,
@@ -145,7 +145,8 @@ export class Audio {
 		effect.cleanup(() => gain.disconnect());
 
 		// Async because we need to wait for the worklet to be registered.
-		context.audioWorklet.addModule(WORKLET_URL).then(() => {
+		effect.spawn(async () => {
+			await context.audioWorklet.addModule(CaptureWorklet);
 			const worklet = new AudioWorkletNode(context, "capture", {
 				numberOfInputs: 1,
 				numberOfOutputs: 0,
@@ -283,7 +284,7 @@ export class Audio {
 	#loadWorkers(effect: Effect): void {
 		if (!effect.get(this.vad) && !effect.get(this.transcribe)) return;
 
-		const vad = new Worker(VAD_WORKER_URL, { type: "module" });
+		const vad = new Worker(new URL("../worker/vad", import.meta.url), { type: "module" });
 		effect.cleanup(() => vad.terminate());
 
 		// Handle messages from the VAD worker
@@ -301,7 +302,7 @@ export class Audio {
 		let transcribe: Worker | undefined;
 		if (effect.get(this.transcribe)) {
 			// I could start loading the Worker before the worklet but eh I'm lazy.
-			transcribe = new Worker(TRANSCRIBE_WORKER_URL, { type: "module" });
+			transcribe = new Worker(new URL("../worker/transcribe", import.meta.url), { type: "module" });
 			effect.cleanup(() => transcribe?.terminate());
 
 			let timeout: ReturnType<typeof setTimeout> | undefined;
@@ -349,7 +350,7 @@ export class Audio {
 
 		// The workload needs to be loaded asynchronously, unfortunately, but it should be instant.
 		effect.spawn(async () => {
-			await ctx.audioWorklet.addModule(WORKLET_URL);
+			await ctx.audioWorklet.addModule(CaptureWorklet);
 
 			// Create the worklet.
 			const worklet = new AudioWorkletNode(ctx, "capture", {

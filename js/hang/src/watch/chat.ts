@@ -48,7 +48,10 @@ export class Chat {
 					if (!frame) break;
 
 					const decoder = new TextDecoder();
-					this.message.set(decoder.decode(frame.data));
+					const text = decoder.decode(frame.data);
+
+					// Use a function to avoid the dequal check.
+					this.message.set(() => text);
 				}
 			});
 

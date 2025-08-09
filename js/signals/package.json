@@ -1,14 +1,15 @@
 {
 	"name": "@kixelated/signals",
 	"type": "module",
-	"version": "0.5.1",
+	"version": "0.5.3",
 	"description": "Reactive and safe signals",
 	"license": "(MIT OR Apache-2.0)",
 	"repository": "github:kixelated/moq",
 	"exports": {
 		".": "./src/index.ts",
 		"./solid": "./src/solid.ts",
-		"./react": "./src/react.ts"
+		"./react": "./src/react.ts",
+		"./dom": "./src/dom.ts"
 	},
 	"files": [
 		"./src"

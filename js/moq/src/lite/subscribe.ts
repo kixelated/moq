@@ -37,8 +37,6 @@ export class Subscribe {
 	track: string;
 	priority: number;
 
-	static StreamID = 0x2;
-
 	constructor(id: bigint, broadcast: Path.Valid, track: string, priority: number) {
 		this.id = id;
 		this.broadcast = broadcast;

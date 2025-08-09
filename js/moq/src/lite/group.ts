@@ -4,8 +4,6 @@ export class Group {
 	subscribe: bigint;
 	sequence: number;
 
-	static StreamID = 0x0;
-
 	constructor(subscribe: bigint, sequence: number) {
 		this.subscribe = subscribe;
 		this.sequence = sequence;

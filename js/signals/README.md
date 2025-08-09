@@ -4,7 +4,7 @@ Reactive and safe signals.
 TODO More docs.
 
 ## Why?
-SolidJS signals are nice, but there's too much magic.
+Solid signals are nice, but there's too much magic.
 It's very easy to shoot yourself in the foot by calling Accessors from outside of an effect.
 The current execution context is difficult to track and there's many unintuitive edge cases.
 

@@ -13,7 +13,6 @@ use axum::{
 	Router,
 };
 use bytes::Bytes;
-use futures::FutureExt;
 use hyper_serve::accept::DefaultAcceptor;
 use moq_lite::OriginAnnounce;
 use std::future::Future;
@@ -81,7 +80,7 @@ async fn serve_announced(Path(prefix): Path<String>, cluster: Cluster) -> impl I
 	let mut origin = cluster.combined.consumer.with_prefix(&prefix);
 	let mut broadcasts = Vec::new();
 
-	while let Some(Some(OriginAnnounce { suffix, active })) = origin.announced().now_or_never() {
+	while let Some(OriginAnnounce { suffix, active }) = origin.try_next() {
 		if active.is_some() {
 			broadcasts.push(suffix);
 		}
@@ -100,12 +99,12 @@ async fn serve_fetch(Path(path): Path<String>, cluster: Cluster) -> axum::respon
 	let track = path.pop().unwrap().to_string();
 	let broadcast = path.join("/");
 
+	tracing::info!(%broadcast, %track, "subscribing to track");
+
 	let track = moq_lite::Track {
 		name: track,
 		priority: 0,
 	};
-
-	tracing::info!(?broadcast, ?track, "subscribing to track");
 
 	let broadcast = cluster.get(&broadcast).ok_or(StatusCode::NOT_FOUND)?;
 	let mut track = broadcast.subscribe(&track);

@@ -66,8 +66,8 @@ export class Video {
 	#signals = new Effect();
 	#id = 0;
 
-	// Store the latest VideoFrame and when it was captured.
-	#latest: { frame: VideoFrame; when: DOMHighResTimeStamp } | undefined;
+	// Store the latest VideoFrame
+	frame = new Signal<VideoFrame | undefined>(undefined);
 
 	constructor(broadcast: Moq.BroadcastProducer, props?: VideoProps) {
 		this.broadcast = broadcast;
@@ -161,8 +161,10 @@ export class Video {
 					this.#groupTimestamp = frame.timestamp;
 				}
 
-				this.#latest?.frame.close();
-				this.#latest = { frame, when: performance.now() };
+				this.frame.set((prev) => {
+					prev?.close();
+					return frame;
+				});
 
 				encoder.encode(frame, { keyFrame });
 
@@ -380,15 +382,12 @@ export class Video {
 		effect.set(this.#catalog, catalog);
 	}
 
-	frame(now: DOMHighResTimeStamp): { frame: VideoFrame; lag: DOMHighResTimeStamp } | undefined {
-		if (!this.#latest) return;
-
-		const lag = now - this.#latest.when;
-		return { frame: this.#latest.frame, lag };
-	}
-
 	close() {
-		this.#latest?.frame.close();
+		this.frame.set((prev) => {
+			prev?.close();
+			return undefined;
+		});
+
 		this.#signals.close();
 	}
 }

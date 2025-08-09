@@ -203,7 +203,7 @@ impl OriginProducer {
 		if !self.state.lock().publish(full.clone(), broadcast.clone()) {
 			// The exact same BroadcastConsumer was published with the same path twice.
 			// This is not a huge deal, but we break early to avoid redundant cleanup work.
-			tracing::warn!(?path, "duplicate publish");
+			tracing::warn!(%path, "duplicate publish");
 			return;
 		}
 
@@ -329,12 +329,21 @@ pub struct OriginConsumer {
 impl OriginConsumer {
 	/// Returns the next (un)announced broadcast and the absolute path.
 	///
-	/// The broadcast will only be None if it was previously Some.
+	/// The broadcast will only be announced if it was previously unannounced.
 	/// The same path won't be announced/unannounced twice, instead it will toggle.
+	/// Returns None if the consumer is closed.
 	///
 	/// Note: The returned path is absolute and will always match this consumer's prefix.
 	pub async fn announced(&mut self) -> Option<OriginAnnounce> {
 		self.updates.recv().await
+	}
+
+	/// Returns the next (un)announced broadcast and the absolute path without blocking.
+	///
+	/// Returns None if there is no update available; NOT because the consumer is closed.
+	/// You have to use `is_closed` to check if the consumer is closed.
+	pub fn try_next(&mut self) -> Option<OriginAnnounce> {
+		self.updates.try_recv().ok()
 	}
 
 	/// Get a specific broadcast by path.
@@ -388,6 +397,10 @@ impl OriginConsumer {
 	pub fn prefix(&self) -> &Path {
 		&self.prefix
 	}
+
+	pub fn is_closed(&self) -> bool {
+		self.updates.is_closed()
+	}
 }
 
 impl Clone for OriginConsumer {
@@ -403,6 +416,12 @@ use futures::FutureExt;
 impl OriginConsumer {
 	pub fn assert_next(&mut self, path: &str, broadcast: &BroadcastConsumer) {
 		let next = self.announced().now_or_never().expect("next blocked").expect("no next");
+		assert_eq!(next.suffix.as_str(), path, "wrong path");
+		assert!(next.active.unwrap().is_clone(broadcast), "should be the same broadcast");
+	}
+
+	pub fn assert_try_next(&mut self, path: &str, broadcast: &BroadcastConsumer) {
+		let next = self.try_next().expect("no next");
 		assert_eq!(next.suffix.as_str(), path, "wrong path");
 		assert!(next.active.unwrap().is_clone(broadcast), "should be the same broadcast");
 	}
@@ -556,5 +575,37 @@ mod tests {
 		// Wait for the async task to run.
 		tokio::time::sleep(tokio::time::Duration::from_millis(1)).await;
 		assert!(origin.consumer.get("test").is_none());
+	}
+	// There was a tokio bug where only the first 127 broadcasts would be received instantly.
+	#[tokio::test]
+	#[should_panic]
+	async fn test_128() {
+		let mut origin = Origin::produce();
+		let broadcast = Broadcast::produce();
+
+		for i in 0..256 {
+			origin.producer.publish(format!("test{i}"), broadcast.consumer.clone());
+		}
+
+		for i in 0..256 {
+			origin.consumer.assert_next(&format!("test{i}"), &broadcast.consumer);
+		}
+	}
+
+	#[tokio::test]
+	async fn test_128_fix() {
+		let mut origin = Origin::produce();
+		let broadcast = Broadcast::produce();
+
+		for i in 0..256 {
+			origin.producer.publish(format!("test{i}"), broadcast.consumer.clone());
+		}
+
+		for i in 0..256 {
+			// try_next does not have the same issue because it's synchronous.
+			origin
+				.consumer
+				.assert_try_next(&format!("test{i}"), &broadcast.consumer);
+		}
 	}
 }

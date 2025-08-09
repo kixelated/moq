@@ -1,5 +1,6 @@
 import { Path } from "@kixelated/moq";
 import { Effect } from "@kixelated/signals";
+import * as DOM from "@kixelated/signals/dom";
 import { type Publish, Watch } from "..";
 import { Connection } from "../connection";
 import HangPublish from "../publish/element";
@@ -36,11 +37,14 @@ export default class HangMeet extends HTMLElement {
 		this.connection = new Connection();
 		this.room = new Room(this.connection);
 
-		this.#container = document.createElement("div");
-		this.#container.style.display = "grid";
-		this.#container.style.gridTemplateColumns = "repeat(auto-fit, minmax(200px, 1fr))";
-		this.#container.style.gap = "10px";
-		this.#container.style.alignItems = "center";
+		this.#container = DOM.create("div", {
+			style: {
+				display: "grid",
+				gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))",
+				gap: "10px",
+				alignItems: "center",
+			},
+		});
 		this.appendChild(this.#container);
 
 		// A callback that is fired when one of our local broadcasts is added/removed.
@@ -94,13 +98,16 @@ export default class HangMeet extends HTMLElement {
 			return;
 		}
 
-		const video = document.createElement("video");
-		video.style.width = "100%";
-		video.style.height = "100%";
-		video.style.objectFit = "contain";
-		video.muted = true;
-		video.playsInline = true;
-		video.autoplay = true;
+		const video = DOM.create("video", {
+			style: {
+				width: "100%",
+				height: "100%",
+				objectFit: "contain",
+			},
+			muted: true,
+			playsInline: true,
+			autoplay: true,
+		});
 
 		const cleanup = broadcast.video.media.subscribe((media) => {
 			video.srcObject = media ? new MediaStream([media]) : null;
@@ -128,10 +135,13 @@ export default class HangMeet extends HTMLElement {
 		broadcast.enabled.set(true);
 
 		// Create a canvas to render the video to.
-		const canvas = document.createElement("canvas");
-		canvas.style.width = "100%";
-		canvas.style.height = "100%";
-		canvas.style.objectFit = "contain";
+		const canvas = DOM.create("canvas", {
+			style: {
+				width: "100%",
+				height: "100%",
+				objectFit: "contain",
+			},
+		});
 
 		const renderer = new Watch.VideoRenderer(broadcast.video, { canvas });
 		const emitter = new Watch.AudioEmitter(broadcast.audio);

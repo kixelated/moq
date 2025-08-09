@@ -5,6 +5,10 @@ pub enum ControlType {
 	Session,
 	Announce,
 	Subscribe,
+
+	// Backwards compatibility with moq-transport-10
+	ClientCompat,
+	ServerCompat,
 }
 
 impl Decode for ControlType {
@@ -14,7 +18,9 @@ impl Decode for ControlType {
 			0 => Ok(Self::Session),
 			1 => Ok(Self::Announce),
 			2 => Ok(Self::Subscribe),
-			_ => Err(DecodeError::InvalidValue),
+			0x40 => Ok(Self::ClientCompat),
+			0x41 => Ok(Self::ServerCompat),
+			_ => Err(DecodeError::InvalidMessage(t)),
 		}
 	}
 }
@@ -25,6 +31,8 @@ impl Encode for ControlType {
 			Self::Session => 0,
 			Self::Announce => 1,
 			Self::Subscribe => 2,
+			Self::ClientCompat => 0x40,
+			Self::ServerCompat => 0x41,
 		};
 		v.encode(w)
 	}
@@ -40,7 +48,7 @@ impl Decode for DataType {
 		let t = u64::decode(r)?;
 		match t {
 			0 => Ok(Self::Group),
-			_ => Err(DecodeError::InvalidValue),
+			_ => Err(DecodeError::InvalidMessage(t)),
 		}
 	}
 }

@@ -39,6 +39,7 @@ const queue = new TransformStream<Float32Array, Float32Array>(
 );
 
 const writer = queue.writable.getWriter();
+const reader = queue.readable.getReader();
 
 self.addEventListener("message", async (event: MessageEvent<Message>) => {
 	const message = event.data;
@@ -67,9 +68,7 @@ self.addEventListener("message", async (event: MessageEvent<Message>) => {
 	}
 });
 
-const reader = queue.readable.getReader();
-
-try {
+async function run() {
 	// Start loading the model
 	const model = await pipeline(
 		"automatic-speech-recognition",
@@ -122,9 +121,13 @@ try {
 		buffer = new Float32Array(buffer.buffer, 0, samples.length); // reset the buffer, saving the left over samples.
 		buffer.set(samples, 0);
 	}
-} catch (error) {
-	self.postMessage({ error });
-	throw error;
-} finally {
-	reader.cancel();
 }
+
+run()
+	.catch((error) => {
+		self.postMessage({ error });
+		throw error;
+	})
+	.finally(() => {
+		reader.cancel();
+	});

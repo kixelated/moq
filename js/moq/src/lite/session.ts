@@ -70,8 +70,6 @@ export class SessionClient {
 	versions: number[];
 	extensions: Extensions;
 
-	static StreamID = 0x0;
-
 	constructor(versions: number[], extensions = new Extensions()) {
 		this.versions = versions;
 		this.extensions = extensions;

@@ -20,7 +20,7 @@ impl Message for ClientSetup {
 		Ok(Self { versions, extensions })
 	}
 
-	/// Encode a server setup message.
+	/// Encode a client setup message.
 	fn encode<W: bytes::BufMut>(&self, w: &mut W) {
 		self.versions.encode(w);
 		self.extensions.encode(w);
@@ -33,7 +33,7 @@ pub struct ServerSetup {
 	/// The list of supported versions in preferred order.
 	pub version: Version,
 
-	/// Supported extenisions.
+	/// Supported extensions.
 	pub extensions: Extensions,
 }
 

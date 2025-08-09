@@ -196,7 +196,7 @@ impl Subscriber {
 				track.abort(Error::Cancel);
 			}
 			Err(err) => {
-				tracing::warn!(?err, broadcast = %full, track = %track.info.name, id, "subscribe error");
+				tracing::warn!(%err, broadcast = %full, track = %track.info.name, id, "subscribe error");
 				track.abort(err);
 			}
 			_ => {
@@ -253,7 +253,7 @@ impl Subscriber {
 				group.abort(Error::Cancel);
 			}
 			Err(err) => {
-				tracing::debug!(?err, group = %group.info.sequence, "group error");
+				tracing::debug!(%err, group = %group.info.sequence, "group error");
 				group.abort(err);
 			}
 			_ => {

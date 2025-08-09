@@ -5,6 +5,10 @@
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
     flake-utils.url = "github:numtide/flake-utils";
     crane.url = "github:ipetkov/crane";
+    rust-overlay = {
+      url = "github:oxalica/rust-overlay";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
   };
 
   outputs =
@@ -13,6 +17,7 @@
       nixpkgs,
       flake-utils,
       crane,
+      rust-overlay,
     }:
     {
       nixosModules = {
@@ -26,9 +31,17 @@
       let
         pkgs = import nixpkgs {
           inherit system;
+          overlays = [ (import rust-overlay) ];
         };
 
-        craneLib = crane.mkLib pkgs;
+        rust-toolchain = pkgs.rust-bin.stable.latest.default.override {
+          extensions = [
+            "rust-src"
+            "rust-analyzer"
+          ];
+        };
+
+        craneLib = (crane.mkLib pkgs).overrideToolchain rust-toolchain;
 
         gst-deps = with pkgs.gst_all_1; [
           gstreamer
@@ -43,11 +56,7 @@
         shell-deps =
           with pkgs;
           [
-            rustc
-            cargo
-            clippy
-            rustfmt
-            rust-analyzer
+            rust-toolchain
             just
             pkg-config
             glib
