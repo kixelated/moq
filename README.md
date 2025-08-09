@@ -9,15 +9,17 @@
 
 # Media over QUIC
 
-[Media over QUIC](https://quic.video) (MoQ) is a next-generation live media delivery protocol that provides **real-time latency** at **massive scale**.
-Built on modern web technologies like [WebTransport](https://developer.mozilla.org/en-US/docs/Web/API/WebTransport_API) and [WebCodecs](https://developer.mozilla.org/en-US/docs/Web/API/WebCodecs_API), MoQ delivers WebRTC-like latency with CDN-like distribution.
+[Media over QUIC](https://quic.video) (MoQ) is a next-generation live media protocol that provides **real-time latency** at **massive scale**.
+Built using modern web technologies, MoQ delivers WebRTC-like latency without the constraints of WebRTC.
+The core networking is delegated to a QUIC library but the rest is in application-space, giving you full control over your media pipeline.
 
 **Key Features:**
-- 🚀 **Real-time latency** via QUIC stream priotization and partial reliability.
-- 📈 **Massive scale** via edge caching, fanout, and multi-region clustering.
-- 🌐 **Browser support** via WebTransport and WebCodecs.
-- 🔧 **Generic transport** for any live data, not just media
-- 🎯 **Simple API** with both Rust and TypeScript implementations
+- 🚀 **Real-time latency** using QUIC for priotization and partial reliability.
+- 📈 **Massive scale** designed for fan-out and supports cross-region clustering.
+- 🌐 **Modern browser support** using [WebTransport](https://developer.mozilla.org/en-US/docs/Web/API/WebTransport_API), [WebCodecs](https://developer.mozilla.org/en-US/docs/Web/API/WebCodecs_API), and [WebAudio](https://developer.mozilla.org/en-US/docs/Web/API/Web_Audio_API).
+- 🤖 **AI-powered** using [transformer.js](https://huggingface.co/docs/transformers.js/en/index) for on-device [caption generation](https://huggingface.co/openai/whisper-base), [voice activity detection](https://github.com/snakers4/silero-vad), [object classification](https://github.com/WongKinYiu/yolov9), and more to come.
+- 🎯 **Multi-language** with both Rust (native) and TypeScript (web) libraries.
+- 🔧 **Generic transport** for any live data, not just media. Includes text chat as both an example and a core feature.
 
 > **Note:** This project is a [fork](https://quic.video/blog/transfork) of the [IETF MoQ specification](https://datatracker.ietf.org/group/moq/documents/). The focus is narrower, focusing on simplicity and deployability.
 
@@ -47,7 +49,7 @@ Note that this uses an insecure HTTP fetch for local development only; in produc
 
 
 ### Full Setup
-If you don't like Nix, or just want things install globally, then you can install dependencies manually.
+If you don't like Nix, then you can install dependencies manually:
 
 **Requirements:**
 - [Just](https://github.com/casey/just)
