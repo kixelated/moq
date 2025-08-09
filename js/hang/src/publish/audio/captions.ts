@@ -6,11 +6,9 @@ import type { Audio } from ".";
 import type { Request, Result } from "./captions-worker";
 import CaptionsWorklet from "./captions-worklet?worker&url";
 
-// TODO Make this configurable.
-const CAPTION_TTL = 1000 * 5;
-
 export type CaptionsProps = {
 	enabled?: boolean;
+	ttl?: number;
 };
 
 export class Captions {
@@ -26,10 +24,12 @@ export class Captions {
 
 	signals = new Effect();
 
+	#ttl: DOMHighResTimeStamp;
 	#track = new Moq.TrackProducer("captions.text", 1);
 
 	constructor(audio: Audio, props?: CaptionsProps) {
 		this.audio = audio;
+		this.#ttl = props?.ttl ?? 5000;
 		this.enabled = new Signal(props?.enabled ?? false);
 
 		this.signals.effect(this.#run.bind(this));
@@ -57,8 +57,8 @@ export class Captions {
 			const text = nested.get(this.text) ?? "";
 			this.#track.appendFrame(new TextEncoder().encode(text));
 
-			// Clear the caption after a timeout.
-			nested.timer(() => this.text.set(undefined), CAPTION_TTL);
+			// Clear the caption after a timeout. (TODO based on the size)
+			nested.timer(() => this.text.set(undefined), this.#ttl);
 		});
 
 		const worker = new Worker(new URL("./captions-worker", import.meta.url), { type: "module" });

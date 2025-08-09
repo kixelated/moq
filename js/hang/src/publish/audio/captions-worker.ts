@@ -62,15 +62,19 @@ class Vad {
 	}
 
 	write(samples: Float32Array) {
-		if (this.#queued.byteLength + samples.length > this.#queued.buffer.byteLength) {
+		if (this.#queued.byteLength >= this.#queued.buffer.byteLength) {
 			if (!this.flush()) {
-				console.warn("buffer is full, dropping samples");
+				// Drop the sample if VAD is still processing.
 				return;
 			}
 		}
 
 		this.#queued = new Float32Array(this.#queued.buffer, 0, this.#queued.length + samples.length);
 		this.#queued.set(samples, this.#queued.length - samples.length);
+
+		if (this.#queued.byteLength === this.#queued.buffer.byteLength) {
+			this.flush(); // don't care if it fails
+		}
 	}
 
 	flush(): boolean {
@@ -94,7 +98,8 @@ class Vad {
 	async #flush(buffer: Float32Array) {
 		const model = await this.#model;
 
-		const result = await model({ input: buffer, sr: this.#sr, state: this.#state });
+		const input = new Tensor("float32", buffer, [1, buffer.length]);
+		const result = await model({ input, sr: this.#sr, state: this.#state });
 		this.#state = result.stateN;
 
 		const wasSpeaking = this.#speaking;
@@ -195,8 +200,8 @@ class Whisper {
 			throw new Error("Expected a single result, got an array");
 		}
 
-		let text = result.text.trim();
-		if (text === "[BLANK_AUDIO]") text = "";
+		const text = result.text.trim();
+		if (text === "[BLANK_AUDIO]" || text === "") return;
 
 		postResult({
 			type: "text",
