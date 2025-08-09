@@ -59,7 +59,7 @@ impl GroupConsumer {
 	}
 
 	async fn read_unbuffered(&mut self) -> Result<Option<Frame>> {
-		let mut payload = match self.group.read().await? {
+		let mut payload = match self.group.read_frame().await? {
 			Some(payload) => payload,
 			None => return Ok(None),
 		};

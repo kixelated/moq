@@ -58,11 +58,11 @@ async fn main() -> anyhow::Result<()> {
 	match config.role {
 		Command::Publish => {
 			let mut broadcast = moq_lite::Broadcast::produce();
-			let track = broadcast.producer.create(track);
+			let track = broadcast.producer.create_track(track);
 			let clock = clock::Publisher::new(track);
 
 			let mut origin = moq_lite::Origin::produce();
-			origin.producer.publish(&config.broadcast, broadcast.consumer);
+			origin.producer.publish_broadcast(&config.broadcast, broadcast.consumer);
 
 			let session = moq_lite::Session::connect(session, origin.consumer, None).await?;
 
@@ -76,8 +76,11 @@ async fn main() -> anyhow::Result<()> {
 			let session = moq_lite::Session::connect(session, None, Some(origin.producer)).await?;
 
 			// The broadcast name is empty because the URL contains the name
-			let broadcast = origin.consumer.get(&config.broadcast).context("broadcast not found")?;
-			let track = broadcast.subscribe(&track);
+			let broadcast = origin
+				.consumer
+				.get_broadcast(&config.broadcast)
+				.context("broadcast not found")?;
+			let track = broadcast.subscribe_track(&track);
 			let clock = clock::Subscriber::new(track);
 
 			tokio::select! {

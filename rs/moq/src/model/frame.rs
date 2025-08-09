@@ -74,7 +74,7 @@ impl FrameProducer {
 		}
 	}
 
-	pub fn write<B: Into<Bytes>>(&mut self, chunk: B) {
+	pub fn write_chunk<B: Into<Bytes>>(&mut self, chunk: B) {
 		let chunk = chunk.into();
 		self.written += chunk.len();
 		assert!(self.written <= self.info.size as usize);
@@ -85,7 +85,7 @@ impl FrameProducer {
 		});
 	}
 
-	pub fn finish(self) {
+	pub fn close(self) {
 		assert!(self.written == self.info.size as usize);
 		self.state.send_modify(|state| state.closed = Some(Ok(())));
 	}
@@ -134,7 +134,7 @@ pub struct FrameConsumer {
 
 impl FrameConsumer {
 	// Return the next chunk.
-	pub async fn read(&mut self) -> Result<Option<Bytes>> {
+	pub async fn read_chunk(&mut self) -> Result<Option<Bytes>> {
 		loop {
 			{
 				let state = self.state.borrow_and_update();

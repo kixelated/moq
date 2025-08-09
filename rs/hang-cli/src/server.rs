@@ -75,7 +75,7 @@ async fn run_session(
 
 	// Create an origin producer to publish to the broadcast.
 	let mut origin = moq_lite::Origin::produce();
-	origin.producer.publish(&name, consumer);
+	origin.producer.publish_broadcast(&name, consumer);
 
 	let session = moq_lite::Session::accept(session, origin.consumer, None)
 		.await

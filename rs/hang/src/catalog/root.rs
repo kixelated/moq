@@ -161,12 +161,12 @@ impl CatalogProducer {
 	/// catalog track. All changes made since the last publish will be included.
 	pub fn publish(&mut self) {
 		let current = self.current.lock().unwrap();
-		let mut group = self.track.append();
+		let mut group = self.track.append_group();
 
 		// TODO decide if this should return an error, or be impossible to fail
 		let frame = current.to_string().expect("invalid catalog");
-		group.write(frame);
-		group.finish();
+		group.write_frame(frame);
+		group.close();
 	}
 
 	/// Create a consumer for this catalog, receiving updates as they're [published](Self::publish).
@@ -175,8 +175,8 @@ impl CatalogProducer {
 	}
 
 	/// Finish publishing to this catalog and close the track.
-	pub fn finish(self) {
-		self.track.finish();
+	pub fn close(self) {
+		self.track.close();
 	}
 }
 
@@ -210,7 +210,7 @@ impl CatalogConsumer {
 	pub async fn next(&mut self) -> Result<Option<Catalog>> {
 		loop {
 			tokio::select! {
-				res = self.track.next() => {
+				res = self.track.next_group() => {
 					match res? {
 						Some(group) => {
 							// Use the new group.
@@ -220,7 +220,7 @@ impl CatalogConsumer {
 						None => return Ok(None),
 					}
 				},
-				Some(frame) = async { self.group.as_mut()?.read().await.transpose() } => {
+				Some(frame) = async { self.group.as_mut()?.read_frame().await.transpose() } => {
 					self.group.take(); // We don't support deltas yet
 					let catalog = Catalog::from_slice(&frame?)?;
 					return Ok(Some(catalog));

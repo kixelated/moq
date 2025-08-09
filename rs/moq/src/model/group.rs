@@ -65,7 +65,7 @@ struct GroupState {
 	// The frames that has been written thus far
 	frames: Vec<FrameConsumer>,
 
-	// Whether the group is finished
+	// Whether the group is closed
 	closed: Option<Result<()>>,
 }
 
@@ -91,25 +91,25 @@ impl GroupProducer {
 	///
 	/// If you want to write multiple chunks, use [Self::create] or [Self::append].
 	/// But an upfront size is required.
-	pub fn write<B: Into<Bytes>>(&mut self, frame: B) {
+	pub fn write_frame<B: Into<Bytes>>(&mut self, frame: B) {
 		let data = frame.into();
 		let frame = Frame {
 			size: data.len() as u64,
 		};
-		let mut frame = self.create(frame);
-		frame.write(data);
-		frame.finish();
+		let mut frame = self.create_frame(frame);
+		frame.write_chunk(data);
+		frame.close();
 	}
 
 	/// Create a frame with an upfront size
-	pub fn create(&mut self, info: Frame) -> FrameProducer {
+	pub fn create_frame(&mut self, info: Frame) -> FrameProducer {
 		let frame = Frame::produce(info);
-		self.append(frame.consumer);
+		self.append_frame(frame.consumer);
 		frame.producer
 	}
 
 	/// Append a frame to the group.
-	pub fn append(&mut self, consumer: FrameConsumer) {
+	pub fn append_frame(&mut self, consumer: FrameConsumer) {
 		self.state.send_modify(|state| {
 			assert!(state.closed.is_none());
 			state.frames.push(consumer)
@@ -117,7 +117,7 @@ impl GroupProducer {
 	}
 
 	// Clean termination of the group.
-	pub fn finish(self) {
+	pub fn close(self) {
 		self.state.send_modify(|state| state.closed = Some(Ok(())));
 	}
 
@@ -168,11 +168,11 @@ pub struct GroupConsumer {
 
 impl GroupConsumer {
 	/// Read the next frame.
-	pub async fn read(&mut self) -> Result<Option<Bytes>> {
+	pub async fn read_frame(&mut self) -> Result<Option<Bytes>> {
 		// In order to be cancel safe, we need to save the active frame.
 		// That way if this method gets cancelled, we can resume where we left off.
 		if self.active.is_none() {
-			self.active = self.next().await?;
+			self.active = self.next_frame().await?;
 		};
 
 		// Read the frame in one go, which is cancel safe.
@@ -187,7 +187,7 @@ impl GroupConsumer {
 	}
 
 	/// Return a reader for the next frame.
-	pub async fn next(&mut self) -> Result<Option<FrameConsumer>> {
+	pub async fn next_frame(&mut self) -> Result<Option<FrameConsumer>> {
 		// Just in case someone called read_frame, cancelled it, then called next_frame.
 		if let Some(frame) = self.active.take() {
 			return Ok(Some(frame));

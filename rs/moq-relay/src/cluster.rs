@@ -69,8 +69,8 @@ impl Cluster {
 	pub fn get(&self, broadcast: &str) -> Option<BroadcastConsumer> {
 		self.primary
 			.consumer
-			.get(broadcast)
-			.or_else(|| self.secondary.consumer.get(broadcast))
+			.get_broadcast(broadcast)
+			.or_else(|| self.secondary.consumer.get_broadcast(broadcast))
 	}
 
 	pub async fn run(mut self) -> anyhow::Result<()> {
@@ -88,7 +88,9 @@ impl Cluster {
 		if let Some(myself) = self.config.advertise.as_ref() {
 			tracing::info!(%self.config.prefix, %myself, "announcing as leaf");
 			let name = self.config.prefix.join(myself);
-			self.primary.producer.publish(&name, self.noop.consumer.clone());
+			self.primary
+				.producer
+				.publish_broadcast(&name, self.noop.consumer.clone());
 		}
 
 		// If the token is provided, read it from the disk and use it in the query parameter.
@@ -124,7 +126,7 @@ impl Cluster {
 			};
 
 			if let Some(broadcast) = broadcast {
-				self.combined.producer.publish(&name, broadcast);
+				self.combined.producer.publish_broadcast(&name, broadcast);
 			}
 		}
 	}

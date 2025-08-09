@@ -102,7 +102,7 @@ impl Subscriber {
 				Entry::Vacant(entry) => entry.insert(broadcast.producer.clone()),
 			};
 
-			origin.publish(&path, broadcast.consumer);
+			origin.publish_broadcast(&path, broadcast.consumer);
 
 			spawn(self.clone().run_broadcast(path, broadcast.producer));
 		}
@@ -123,7 +123,7 @@ impl Subscriber {
 					};
 
 					// Run the broadcast in the background until all consumers are dropped.
-					origin.publish(&path, broadcast.consumer);
+					origin.publish_broadcast(&path, broadcast.consumer);
 
 					spawn(self.clone().run_broadcast(path, broadcast.producer));
 				}
@@ -132,13 +132,13 @@ impl Subscriber {
 
 					// Close the producer.
 					let mut producer = producers.remove(&path).ok_or(Error::NotFound)?;
-					producer.finish();
+					producer.close();
 				}
 			}
 		}
 
 		// Close the stream when there's nothing more to announce.
-		stream.writer.finish().await
+		stream.writer.close().await
 	}
 
 	async fn run_broadcast(self, path: Path, mut broadcast: BroadcastProducer) {
@@ -148,7 +148,7 @@ impl Subscriber {
 			// This way we'll clean up the task when the broadcast is no longer needed.
 			let track = tokio::select! {
 				_ = broadcast.unused() => break,
-				producer = broadcast.request() => match producer {
+				producer = broadcast.requested_track() => match producer {
 					Some(producer) => producer,
 					None => break,
 				},
@@ -201,7 +201,7 @@ impl Subscriber {
 			}
 			_ => {
 				tracing::debug!(broadcast = %full, track = %track.info.name, id, "subscribe complete");
-				track.finish();
+				track.close();
 			}
 		}
 	}
@@ -214,7 +214,7 @@ impl Subscriber {
 			return Err(err);
 		}
 
-		stream.writer.finish().await
+		stream.writer.close().await
 	}
 
 	async fn run_track_stream(&mut self, stream: &mut Stream, msg: message::Subscribe) -> Result<(), Error> {
@@ -224,7 +224,7 @@ impl Subscriber {
 		let _info: message::SubscribeOk = stream.reader.decode().await?;
 
 		// Wait until the stream is closed
-		stream.reader.finished().await?;
+		stream.reader.closed().await?;
 
 		Ok(())
 	}
@@ -239,7 +239,7 @@ impl Subscriber {
 			let group = Group {
 				sequence: group.sequence,
 			};
-			track.create(group).ok_or(Error::Old)?
+			track.create_group(group).ok_or(Error::Old)?
 		};
 
 		let res = tokio::select! {
@@ -258,7 +258,7 @@ impl Subscriber {
 			}
 			_ => {
 				tracing::trace!(group = %group.info.sequence, "group complete");
-				group.finish();
+				group.close();
 			}
 		}
 
@@ -267,7 +267,7 @@ impl Subscriber {
 
 	async fn run_group(&mut self, stream: &mut Reader, mut group: GroupProducer) -> Result<(), Error> {
 		while let Some(size) = stream.decode_maybe::<u64>().await? {
-			let frame = group.create(Frame { size });
+			let frame = group.create_frame(Frame { size });
 
 			let res = tokio::select! {
 				_ = frame.unused() => Err(Error::Cancel),
@@ -280,7 +280,7 @@ impl Subscriber {
 			}
 		}
 
-		group.finish();
+		group.close();
 
 		Ok(())
 	}
@@ -291,10 +291,10 @@ impl Subscriber {
 		while remain > 0 {
 			let chunk = stream.read(remain as usize).await?.ok_or(Error::WrongSize)?;
 			remain = remain.checked_sub(chunk.len() as u64).ok_or(Error::WrongSize)?;
-			frame.write(chunk);
+			frame.write_chunk(chunk);
 		}
 
-		frame.finish();
+		frame.close();
 
 		Ok(())
 	}

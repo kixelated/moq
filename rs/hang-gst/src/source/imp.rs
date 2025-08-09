@@ -182,17 +182,17 @@ impl HangSrc {
 
 		let broadcast = origin
 			.consumer
-			.get(&name)
+			.get_broadcast(&name)
 			.ok_or_else(|| anyhow::anyhow!("Broadcast '{}' not found", name))?;
 
-		let catalog = broadcast.subscribe(&hang::Catalog::default_track());
+		let catalog = broadcast.subscribe_track(&hang::Catalog::default_track());
 		let mut catalog = hang::catalog::CatalogConsumer::new(catalog);
 
 		// TODO handle catalog updates
 		let catalog = catalog.next().await?.context("no catalog found")?.clone();
 
 		for video in catalog.video {
-			let mut track: hang::TrackConsumer = broadcast.subscribe(&video.track).into();
+			let mut track: hang::TrackConsumer = broadcast.subscribe_track(&video.track).into();
 
 			let caps = match video.config.codec {
 				hang::catalog::VideoCodec::H264(_) => {
@@ -271,7 +271,7 @@ impl HangSrc {
 		}
 
 		for audio in catalog.audio {
-			let mut track: hang::TrackConsumer = broadcast.subscribe(&audio.track).into();
+			let mut track: hang::TrackConsumer = broadcast.subscribe_track(&audio.track).into();
 
 			let caps = match &audio.config.codec {
 				hang::catalog::AudioCodec::AAC(_aac) => {

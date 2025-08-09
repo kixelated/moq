@@ -80,7 +80,7 @@ async fn serve_announced(Path(prefix): Path<String>, cluster: Cluster) -> impl I
 	let mut origin = cluster.combined.consumer.with_prefix(&prefix);
 	let mut broadcasts = Vec::new();
 
-	while let Some(OriginAnnounce { suffix, active }) = origin.try_next() {
+	while let Some(OriginAnnounce { suffix, active }) = origin.try_announced() {
 		if active.is_some() {
 			broadcasts.push(suffix);
 		}
@@ -107,9 +107,9 @@ async fn serve_fetch(Path(path): Path<String>, cluster: Cluster) -> axum::respon
 	};
 
 	let broadcast = cluster.get(&broadcast).ok_or(StatusCode::NOT_FOUND)?;
-	let mut track = broadcast.subscribe(&track);
+	let mut track = broadcast.subscribe_track(&track);
 
-	let group = match track.next().await {
+	let group = match track.next_group().await {
 		Ok(Some(group)) => group,
 		Ok(None) => return Err(StatusCode::NOT_FOUND.into()),
 		Err(_) => return Err(StatusCode::INTERNAL_SERVER_ERROR.into()),
@@ -136,7 +136,7 @@ impl ServeGroup {
 				return Ok(Some(data));
 			}
 
-			self.frame = self.group.next().await?;
+			self.frame = self.group.next_frame().await?;
 			if self.frame.is_none() {
 				return Ok(None);
 			}

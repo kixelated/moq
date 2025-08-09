@@ -56,7 +56,7 @@ impl Import {
 	/// fMP4 file and the catalog will be automatically generated.
 	pub fn new(mut broadcast: BroadcastProducer) -> Self {
 		let catalog = Catalog::default().produce();
-		broadcast.insert(catalog.consumer.track);
+		broadcast.insert_track(catalog.consumer.track);
 
 		Self {
 			buffer: BytesMut::new(),
@@ -118,14 +118,14 @@ impl Import {
 				b"vide" => {
 					let info = Self::init_video(trak)?;
 					let track = info.track.clone().produce();
-					self.broadcast.insert(track.consumer);
+					self.broadcast.insert_track(track.consumer);
 					self.catalog.add_video(info);
 					track.producer
 				}
 				b"soun" => {
 					let info = Self::init_audio(trak)?;
 					let track = info.track.clone().produce();
-					self.broadcast.insert(track.consumer);
+					self.broadcast.insert_track(track.consumer);
 					self.catalog.add_audio(info);
 					track.producer
 				}

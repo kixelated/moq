@@ -82,7 +82,7 @@ impl Publisher {
 
 		// Send ANNOUNCE_INIT as the first message with all currently active paths
 		// We use `try_next()` to synchronously get the initial updates.
-		while let Some(OriginAnnounce { suffix, active }) = announced.try_next() {
+		while let Some(OriginAnnounce { suffix, active }) = announced.try_announced() {
 			let full = self.origin.root().join(&prefix).join(&suffix);
 			if active.is_some() {
 				tracing::debug!(broadcast = %full, "announce");
@@ -101,7 +101,7 @@ impl Publisher {
 		loop {
 			tokio::select! {
 				biased;
-				res = stream.reader.finished() => return res,
+				res = stream.reader.closed() => return res,
 				announced = announced.announced() => {
 					match announced {
 						Some(OriginAnnounce { suffix, active }) => {
@@ -116,7 +116,7 @@ impl Publisher {
 								stream.writer.encode(&msg).await?;
 							}
 						},
-						None => return stream.writer.finish().await,
+						None => return stream.writer.close().await,
 					}
 				}
 			}
@@ -157,8 +157,8 @@ impl Publisher {
 			.strip_prefix(self.origin.prefix())
 			.ok_or(Error::Unauthorized)?;
 
-		let broadcast = self.origin.get(&path).ok_or(Error::NotFound)?;
-		let track = broadcast.subscribe(&track);
+		let broadcast = self.origin.get_broadcast(&path).ok_or(Error::NotFound)?;
+		let track = broadcast.subscribe_track(&track);
 
 		// TODO wait until track.info() to get the *real* priority
 
@@ -170,10 +170,10 @@ impl Publisher {
 
 		tokio::select! {
 			res = self.run_track(track, subscribe) => res?,
-			res = stream.reader.finished() => res?,
+			res = stream.reader.closed() => res?,
 		}
 
-		stream.writer.finish().await
+		stream.writer.close().await
 	}
 
 	async fn run_track(&mut self, mut track: TrackConsumer, subscribe: &mut message::Subscribe) -> Result<(), Error> {
@@ -193,7 +193,7 @@ impl Publisher {
 		loop {
 			let group = tokio::select! {
 				biased;
-				Some(group) = track.next().transpose() => group,
+				Some(group) = track.next_group().transpose() => group,
 				Some(_) = async { Some(old_group.as_mut()?.await) } => {
 					old_group = None;
 					old_sequence = None;
@@ -265,7 +265,7 @@ impl Publisher {
 			let frame = tokio::select! {
 				biased;
 				_ = stream.closed() => return Err(Error::Cancel),
-				frame = group.next() => frame,
+				frame = group.next_frame() => frame,
 			};
 
 			let mut frame = match frame? {
@@ -279,7 +279,7 @@ impl Publisher {
 				let chunk = tokio::select! {
 					biased;
 					_ = stream.closed() => return Err(Error::Cancel),
-					chunk = frame.read() => chunk,
+					chunk = frame.read_chunk() => chunk,
 				};
 
 				match chunk? {
@@ -289,7 +289,7 @@ impl Publisher {
 			}
 		}
 
-		stream.finish().await?;
+		stream.close().await?;
 
 		Ok(())
 	}

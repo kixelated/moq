@@ -44,7 +44,7 @@ impl Reader {
 
 	// Decode optional messages at the end of a stream
 	pub async fn decode_maybe<T: Decode>(&mut self) -> Result<Option<T>, Error> {
-		match self.finished().await {
+		match self.closed().await {
 			Ok(()) => Ok(None),
 			Err(Error::Decode(DecodeError::ExpectedEnd)) => Ok(Some(self.decode().await?)),
 			Err(e) => Err(e),
@@ -63,7 +63,7 @@ impl Reader {
 	}
 
 	/// Wait until the stream is closed, erroring if there are any additional bytes.
-	pub async fn finished(&mut self) -> Result<(), Error> {
+	pub async fn closed(&mut self) -> Result<(), Error> {
 		if self.buffer.is_empty() && self.stream.read_buf(&mut self.buffer).await?.is_none() {
 			return Ok(());
 		}

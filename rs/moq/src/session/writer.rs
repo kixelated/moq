@@ -44,7 +44,7 @@ impl Writer {
 	}
 
 	/// A clean termination of the stream, waiting for the peer to close.
-	pub async fn finish(&mut self) -> Result<(), Error> {
+	pub async fn close(&mut self) -> Result<(), Error> {
 		self.stream.finish()?;
 		self.stream.closed().await?; // TODO Return any error code?
 		Ok(())

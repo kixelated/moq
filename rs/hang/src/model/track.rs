@@ -45,20 +45,20 @@ impl TrackProducer {
 
 		if frame.keyframe {
 			if let Some(group) = self.group.take() {
-				group.finish();
+				group.close();
 			}
 		}
 
 		let mut group = match self.group.take() {
 			Some(group) => group,
-			None => self.inner.append(),
+			None => self.inner.append_group(),
 		};
 
 		let size = header.len() + frame.payload.len();
-		let mut chunked = group.create(size.into());
-		chunked.write(header.freeze());
-		chunked.write(frame.payload);
-		chunked.finish();
+		let mut chunked = group.create_frame(size.into());
+		chunked.write_chunk(header.freeze());
+		chunked.write_chunk(frame.payload);
+		chunked.close();
 
 		self.group.replace(group);
 	}
@@ -152,7 +152,7 @@ impl TrackConsumer {
 						}
 					};
 				},
-				Some(res) = async { self.inner.next().await.transpose() } => {
+				Some(res) = async { self.inner.next_group().await.transpose() } => {
 					let group = GroupConsumer::new(res?);
 					drop(buffering);
 

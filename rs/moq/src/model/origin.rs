@@ -196,7 +196,7 @@ impl OriginProducer {
 	/// If there is already a broadcast with the same path, then it will be replaced and reannounced.
 	/// If the old broadcast is closed before the new one, then nothing will happen.
 	/// If the new broadcast is closed before the old one, then the old broadcast will be reannounced.
-	pub fn publish<'a>(&mut self, path: impl Into<PathRef<'a>>, broadcast: BroadcastConsumer) {
+	pub fn publish_broadcast<'a>(&mut self, path: impl Into<PathRef<'a>>, broadcast: BroadcastConsumer) {
 		let path = path.into();
 		let full = self.root.join(&self.prefix).join(&path);
 
@@ -342,14 +342,14 @@ impl OriginConsumer {
 	///
 	/// Returns None if there is no update available; NOT because the consumer is closed.
 	/// You have to use `is_closed` to check if the consumer is closed.
-	pub fn try_next(&mut self) -> Option<OriginAnnounce> {
+	pub fn try_announced(&mut self) -> Option<OriginAnnounce> {
 		self.updates.try_recv().ok()
 	}
 
 	/// Get a specific broadcast by path.
 	///
 	/// Returns None if the path hasn't been announced yet.
-	pub fn get<'a>(&self, path: impl Into<PathRef<'a>>) -> Option<BroadcastConsumer> {
+	pub fn get_broadcast<'a>(&self, path: impl Into<PathRef<'a>>) -> Option<BroadcastConsumer> {
 		let full = self.root.join(&self.prefix).join(path.into());
 
 		let state = self.producer.upgrade()?;
@@ -421,7 +421,7 @@ impl OriginConsumer {
 	}
 
 	pub fn assert_try_next(&mut self, path: &str, broadcast: &BroadcastConsumer) {
-		let next = self.try_next().expect("no next");
+		let next = self.try_announced().expect("no next");
 		assert_eq!(next.suffix.as_str(), path, "wrong path");
 		assert!(next.active.unwrap().is_clone(broadcast), "should be the same broadcast");
 	}
@@ -461,7 +461,7 @@ mod tests {
 		consumer1.assert_next_wait();
 
 		// Publish the first broadcast.
-		origin.producer.publish("test1", broadcast1.consumer);
+		origin.producer.publish_broadcast("test1", broadcast1.consumer);
 
 		consumer1.assert_next("test1", &broadcast1.producer.consume());
 		consumer1.assert_next_wait();
@@ -471,7 +471,7 @@ mod tests {
 		let mut consumer2 = origin.producer.consume();
 
 		// Publish the second broadcast.
-		origin.producer.publish("test2", broadcast2.consumer);
+		origin.producer.publish_broadcast("test2", broadcast2.consumer);
 
 		consumer1.assert_next("test2", &broadcast2.producer.consume());
 		consumer1.assert_next_wait();
@@ -518,21 +518,21 @@ mod tests {
 		let broadcast1 = Broadcast::produce();
 		let broadcast2 = Broadcast::produce();
 
-		origin.producer.publish("test", broadcast1.consumer);
-		origin.producer.publish("test", broadcast2.consumer);
-		assert!(origin.consumer.get("test").is_some());
+		origin.producer.publish_broadcast("test", broadcast1.consumer);
+		origin.producer.publish_broadcast("test", broadcast2.consumer);
+		assert!(origin.consumer.get_broadcast("test").is_some());
 
 		drop(broadcast1.producer);
 
 		// Wait for the async task to run.
 		tokio::time::sleep(tokio::time::Duration::from_millis(1)).await;
-		assert!(origin.consumer.get("test").is_some());
+		assert!(origin.consumer.get_broadcast("test").is_some());
 
 		drop(broadcast2.producer);
 
 		// Wait for the async task to run.
 		tokio::time::sleep(tokio::time::Duration::from_millis(1)).await;
-		assert!(origin.consumer.get("test").is_none());
+		assert!(origin.consumer.get_broadcast("test").is_none());
 	}
 
 	#[tokio::test]
@@ -541,22 +541,22 @@ mod tests {
 		let broadcast1 = Broadcast::produce();
 		let broadcast2 = Broadcast::produce();
 
-		origin.producer.publish("test", broadcast1.consumer);
-		origin.producer.publish("test", broadcast2.consumer);
-		assert!(origin.consumer.get("test").is_some());
+		origin.producer.publish_broadcast("test", broadcast1.consumer);
+		origin.producer.publish_broadcast("test", broadcast2.consumer);
+		assert!(origin.consumer.get_broadcast("test").is_some());
 
 		// This is harder, dropping the new broadcast first.
 		drop(broadcast2.producer);
 
 		// Wait for the cleanup async task to run.
 		tokio::time::sleep(tokio::time::Duration::from_millis(1)).await;
-		assert!(origin.consumer.get("test").is_some());
+		assert!(origin.consumer.get_broadcast("test").is_some());
 
 		drop(broadcast1.producer);
 
 		// Wait for the cleanup async task to run.
 		tokio::time::sleep(tokio::time::Duration::from_millis(1)).await;
-		assert!(origin.consumer.get("test").is_none());
+		assert!(origin.consumer.get_broadcast("test").is_none());
 	}
 
 	#[tokio::test]
@@ -565,16 +565,16 @@ mod tests {
 		let broadcast = Broadcast::produce();
 
 		// Ensure it doesn't crash.
-		origin.producer.publish("test", broadcast.producer.consume());
-		origin.producer.publish("test", broadcast.producer.consume());
+		origin.producer.publish_broadcast("test", broadcast.producer.consume());
+		origin.producer.publish_broadcast("test", broadcast.producer.consume());
 
-		assert!(origin.consumer.get("test").is_some());
+		assert!(origin.consumer.get_broadcast("test").is_some());
 
 		drop(broadcast.producer);
 
 		// Wait for the async task to run.
 		tokio::time::sleep(tokio::time::Duration::from_millis(1)).await;
-		assert!(origin.consumer.get("test").is_none());
+		assert!(origin.consumer.get_broadcast("test").is_none());
 	}
 	// There was a tokio bug where only the first 127 broadcasts would be received instantly.
 	#[tokio::test]
@@ -584,7 +584,9 @@ mod tests {
 		let broadcast = Broadcast::produce();
 
 		for i in 0..256 {
-			origin.producer.publish(format!("test{i}"), broadcast.consumer.clone());
+			origin
+				.producer
+				.publish_broadcast(format!("test{i}"), broadcast.consumer.clone());
 		}
 
 		for i in 0..256 {
@@ -598,7 +600,9 @@ mod tests {
 		let broadcast = Broadcast::produce();
 
 		for i in 0..256 {
-			origin.producer.publish(format!("test{i}"), broadcast.consumer.clone());
+			origin
+				.producer
+				.publish_broadcast(format!("test{i}"), broadcast.consumer.clone());
 		}
 
 		for i in 0..256 {

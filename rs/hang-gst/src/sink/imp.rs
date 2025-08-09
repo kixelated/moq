@@ -174,7 +174,7 @@ impl HangSink {
 			let broadcast = moq_lite::Broadcast::produce();
 
 			let name = settings.broadcast.as_ref().expect("broadcast is required");
-			origin.producer.publish(name, broadcast.consumer);
+			origin.producer.publish_broadcast(name, broadcast.consumer);
 
 			let _session = moq_lite::Session::connect(session, origin.consumer, None)
 				.await

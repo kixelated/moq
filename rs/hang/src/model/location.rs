@@ -38,12 +38,12 @@ impl LocationConsumer {
 	}
 
 	pub async fn next(&mut self) -> Result<Option<Position>> {
-		let mut group = match self.track.next().await? {
+		let mut group = match self.track.next_group().await? {
 			Some(group) => group,
 			None => return Ok(None),
 		};
 
-		let mut frame = match group.read().await? {
+		let mut frame = match group.read_frame().await? {
 			Some(frame) => frame,
 			None => return Err(Error::EmptyGroup),
 		};
@@ -79,7 +79,7 @@ impl LocationProducer {
 	}
 
 	pub fn update(&mut self, position: Position) {
-		let mut group = self.track.append();
+		let mut group = self.track.append_group();
 
 		// Encode the floats to the buffer.
 		let mut buffer = BytesMut::with_capacity(12);
@@ -87,8 +87,8 @@ impl LocationProducer {
 		buffer.put_f32(position.y);
 		buffer.put_f32(position.zoom);
 
-		group.write(buffer);
-		group.finish();
+		group.write_frame(buffer);
+		group.close();
 
 		*self.latest.lock().unwrap() = Some(position);
 	}
@@ -102,7 +102,7 @@ impl LocationProducer {
 		Ok(())
 	}
 
-	pub fn finish(self) {
-		self.track.finish();
+	pub fn close(self) {
+		self.track.close();
 	}
 }
