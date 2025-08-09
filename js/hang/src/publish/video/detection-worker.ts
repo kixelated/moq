@@ -74,10 +74,10 @@ export class DetectionWorker {
 			});
 		}
 
-		if (this.#buffer.byteLength > 0) {
-			// Some other async operation allocated a new buffer.
-			console.warn("Additional buffer allocated.");
-		} else {
+		// Sort by score descending.
+		detections.sort((a, b) => b.score - a.score);
+
+		if (this.#buffer.byteLength === 0) {
 			// Return the buffer to the pool.
 			this.#buffer = buffer.buffer;
 		}

@@ -58,6 +58,16 @@ export class Detection {
 
 		const api = Comlink.wrap<DetectionWorker>(worker);
 
+		let timeout: ReturnType<typeof setTimeout>;
+		effect.cleanup(() => clearTimeout(timeout));
+
+		effect.spawn(async (cancel) => {
+			const ready = await Promise.race([api.ready(), cancel]);
+			if (!ready) return;
+
+			process();
+		});
+
 		const process = async () => {
 			const frame = this.video.frame.peek();
 			if (!frame) return;
@@ -67,15 +77,11 @@ export class Detection {
 
 			this.objects.set(result);
 			this.#track.appendFrame(new TextEncoder().encode(JSON.stringify(result)));
+
+			// Schedule the next detection only after this one is complete.
+			// Otherwise, we're in trouble if it takes >= interval to complete.
+			timeout = setTimeout(process, this.#interval);
 		};
-
-		effect.spawn(async (cancel) => {
-			const ready = await Promise.race([api.ready(), cancel]);
-			if (!ready) return;
-
-			process();
-			effect.interval(process, this.#interval);
-		});
 
 		effect.cleanup(() => this.objects.set(undefined));
 	}
