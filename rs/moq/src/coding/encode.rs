@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::{borrow::Cow, sync::Arc};
 
 pub trait Encode: Sized {
 	// Encode the value to the given writer.
@@ -67,5 +67,12 @@ impl Encode for bytes::Bytes {
 impl<T: Encode> Encode for Arc<T> {
 	fn encode<W: bytes::BufMut>(&self, w: &mut W) {
 		(**self).encode(w);
+	}
+}
+
+impl Encode for Cow<'_, str> {
+	fn encode<W: bytes::BufMut>(&self, w: &mut W) {
+		self.len().encode(w);
+		w.put(self.as_bytes());
 	}
 }

@@ -225,9 +225,9 @@ mod tests {
 	fn create_test_claims() -> Claims {
 		Claims {
 			root: Path::new("test-path"),
-			publish: Some(Path::new("test-pub")),
+			publish: vec![Path::new("test-pub")],
 			cluster: false,
-			subscribe: Some(Path::new("test-sub")),
+			subscribe: vec![Path::new("test-sub")],
 			expires: Some(SystemTime::now() + Duration::from_secs(3600)),
 			issued: Some(SystemTime::now()),
 		}
@@ -288,8 +288,8 @@ mod tests {
 		let key = create_test_key();
 		let invalid_claims = Claims {
 			root: Path::new("test-path"),
-			publish: None,
-			subscribe: None,
+			publish: vec![],
+			subscribe: vec![],
 			cluster: false,
 			expires: None,
 			issued: None,
@@ -363,8 +363,8 @@ mod tests {
 		let key = create_test_key();
 		let claims = Claims {
 			root: Path::new("test-path"),
-			publish: Some(Path::new("test-pub")),
-			subscribe: None,
+			publish: vec![Path::new("test-pub")],
+			subscribe: vec![],
 			cluster: false,
 			expires: None,
 			issued: None,
@@ -382,8 +382,8 @@ mod tests {
 		let key = create_test_key();
 		let original_claims = Claims {
 			root: Path::new("test-path"),
-			publish: Some(Path::new("test-pub")),
-			subscribe: Some(Path::new("test-sub")),
+			publish: vec![Path::new("test-pub")],
+			subscribe: vec![Path::new("test-sub")],
 			cluster: true,
 			expires: Some(SystemTime::now() + Duration::from_secs(3600)),
 			issued: Some(SystemTime::now()),

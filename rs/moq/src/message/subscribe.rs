@@ -1,3 +1,5 @@
+use std::borrow::Cow;
+
 use crate::{
 	coding::{Decode, DecodeError, Encode, Message},
 	Path,
@@ -7,18 +9,18 @@ use crate::{
 ///
 /// Objects will use the provided ID instead of the full track name, to save bytes.
 #[derive(Clone, Debug)]
-pub struct Subscribe {
+pub struct Subscribe<'a> {
 	pub id: u64,
-	pub broadcast: Path,
-	pub track: String,
+	pub broadcast: Path<'a>,
+	pub track: Cow<'a, str>,
 	pub priority: u8,
 }
 
-impl Message for Subscribe {
+impl<'a> Message for Subscribe<'a> {
 	fn decode<R: bytes::Buf>(r: &mut R) -> Result<Self, DecodeError> {
 		let id = u64::decode(r)?;
 		let broadcast = Path::decode(r)?;
-		let track = String::decode(r)?;
+		let track = Cow::<str>::decode(r)?;
 		let priority = u8::decode(r)?;
 
 		Ok(Self {

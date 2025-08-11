@@ -1,4 +1,4 @@
-use std::string::FromUtf8Error;
+use std::{borrow::Cow, string::FromUtf8Error};
 use thiserror::Error;
 
 pub trait Decode: Sized {
@@ -106,5 +106,13 @@ impl Decode for bytes::Bytes {
 		}
 		let bytes = r.copy_to_bytes(len);
 		Ok(bytes)
+	}
+}
+
+// TODO Support borrowed strings.
+impl<'a> Decode for Cow<'a, str> {
+	fn decode<R: bytes::Buf>(r: &mut R) -> Result<Self, DecodeError> {
+		let s = String::decode(r)?;
+		Ok(Cow::Owned(s))
 	}
 }

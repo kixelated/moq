@@ -78,7 +78,7 @@ async fn main() -> anyhow::Result<()> {
 			// The broadcast name is empty because the URL contains the name
 			let broadcast = origin
 				.consumer
-				.get_broadcast(&config.broadcast)
+				.consume_broadcast(&config.broadcast)
 				.context("broadcast not found")?;
 			let track = broadcast.subscribe_track(&track);
 			let clock = clock::Subscriber::new(track);

@@ -1,4 +1,4 @@
-use moq_lite::Path;
+use moq_lite::PathOwned;
 use serde::{Deserialize, Serialize};
 use serde_with::{serde_as, TimestampSeconds};
 
@@ -13,13 +13,13 @@ fn is_false(value: &bool) -> bool {
 pub struct Claims {
 	/// The root for the publish/subscribe options below.
 	/// It's mostly for compression and is optional, defaulting to the empty string.
-	#[serde(default, rename = "root", skip_serializing_if = "Path::is_empty")]
-	pub root: Path,
+	#[serde(default, rename = "root", skip_serializing_if = "str::is_empty")]
+	pub root: PathOwned,
 
 	/// If specified, the user can publish any matching broadcasts.
 	/// If not specified, the user will not publish any broadcasts.
-	#[serde(rename = "pub")]
-	pub publish: Option<Path>,
+	#[serde(rename = "pub", skip_serializing_if = "Vec::is_empty")]
+	pub publish: Vec<PathOwned>,
 
 	/// If true, then this client is considered a cluster node.
 	/// Both the client and server will only announce broadcasts from non-cluster clients.
@@ -29,8 +29,8 @@ pub struct Claims {
 
 	/// If specified, the user can subscribe to any matching broadcasts.
 	/// If not specified, the user will not receive announcements and cannot subscribe to any broadcasts.
-	#[serde(rename = "sub")]
-	pub subscribe: Option<Path>,
+	#[serde(rename = "sub", skip_serializing_if = "Vec::is_empty")]
+	pub subscribe: Vec<PathOwned>,
 
 	/// The expiration time of the token as a unix timestamp.
 	#[serde(rename = "exp")]
@@ -45,7 +45,7 @@ pub struct Claims {
 
 impl Claims {
 	pub fn validate(&self) -> anyhow::Result<()> {
-		if self.publish.is_none() && self.subscribe.is_none() {
+		if self.publish.is_empty() && self.subscribe.is_empty() {
 			anyhow::bail!("no publish or subscribe allowed; token is useless");
 		}
 
@@ -56,14 +56,16 @@ impl Claims {
 #[cfg(test)]
 mod tests {
 	use super::*;
+
+	use moq_lite::Path;
 	use std::time::{Duration, SystemTime};
 
 	fn create_test_claims() -> Claims {
 		Claims {
 			root: Path::new("test-path"),
-			publish: Some(Path::new("test-pub")),
+			publish: vec![Path::new("test-pub")],
 			cluster: false,
-			subscribe: Some(Path::new("test-sub")),
+			subscribe: vec![Path::new("test-sub")],
 			expires: Some(SystemTime::now() + Duration::from_secs(3600)),
 			issued: Some(SystemTime::now()),
 		}
@@ -79,8 +81,8 @@ mod tests {
 	fn test_claims_validation_no_publish_or_subscribe() {
 		let claims = Claims {
 			root: Path::new("test-path"),
-			publish: None,
-			subscribe: None,
+			publish: vec![],
+			subscribe: vec![],
 			cluster: false,
 			expires: None,
 			issued: None,
@@ -98,8 +100,8 @@ mod tests {
 	fn test_claims_validation_only_publish() {
 		let claims = Claims {
 			root: Path::new("test-path"),
-			publish: Some(Path::new("test-pub")),
-			subscribe: None,
+			publish: vec![Path::new("test-pub")],
+			subscribe: vec![],
 			cluster: false,
 			expires: None,
 			issued: None,
@@ -112,8 +114,8 @@ mod tests {
 	fn test_claims_validation_only_subscribe() {
 		let claims = Claims {
 			root: Path::new("test-path"),
-			publish: None,
-			subscribe: Some(Path::new("test-sub")),
+			publish: vec![],
+			subscribe: vec![Path::new("test-sub")],
 			cluster: false,
 			expires: None,
 			issued: None,
@@ -126,8 +128,8 @@ mod tests {
 	fn test_claims_validation_path_not_prefix_relative_publish() {
 		let claims = Claims {
 			root: Path::new("test-path"),             // no trailing slash
-			publish: Some(Path::new("relative-pub")), // relative path without leading slash
-			subscribe: None,
+			publish: vec![Path::new("relative-pub")], // relative path without leading slash
+			subscribe: vec![],
 			cluster: false,
 			expires: None,
 			issued: None,
@@ -141,8 +143,8 @@ mod tests {
 	fn test_claims_validation_path_not_prefix_relative_subscribe() {
 		let claims = Claims {
 			root: Path::new("test-path"), // no trailing slash
-			publish: None,
-			subscribe: Some(Path::new("relative-sub")), // relative path without leading slash
+			publish: vec![],
+			subscribe: vec![Path::new("relative-sub")], // relative path without leading slash
 			cluster: false,
 			expires: None,
 			issued: None,
@@ -156,8 +158,8 @@ mod tests {
 	fn test_claims_validation_path_not_prefix_absolute_publish() {
 		let claims = Claims {
 			root: Path::new("test-path"),              // no trailing slash
-			publish: Some(Path::new("/absolute-pub")), // absolute path with leading slash
-			subscribe: None,
+			publish: vec![Path::new("/absolute-pub")], // absolute path with leading slash
+			subscribe: vec![],
 			cluster: false,
 			expires: None,
 			issued: None,
@@ -170,8 +172,8 @@ mod tests {
 	fn test_claims_validation_path_not_prefix_absolute_subscribe() {
 		let claims = Claims {
 			root: Path::new("test-path"), // no trailing slash
-			publish: None,
-			subscribe: Some(Path::new("/absolute-sub")), // absolute path with leading slash
+			publish: vec![],
+			subscribe: vec![Path::new("/absolute-sub")], // absolute path with leading slash
 			cluster: false,
 			expires: None,
 			issued: None,
@@ -184,8 +186,8 @@ mod tests {
 	fn test_claims_validation_path_not_prefix_empty_publish() {
 		let claims = Claims {
 			root: Path::new("test-path"), // no trailing slash
-			publish: Some(Path::new("")), // empty string
-			subscribe: None,
+			publish: vec![Path::new("")], // empty string
+			subscribe: vec![],
 			cluster: false,
 			expires: None,
 			issued: None,
@@ -198,8 +200,8 @@ mod tests {
 	fn test_claims_validation_path_not_prefix_empty_subscribe() {
 		let claims = Claims {
 			root: Path::new("test-path"), // no trailing slash
-			publish: None,
-			subscribe: Some(Path::new("")), // empty string
+			publish: vec![],
+			subscribe: vec![Path::new("")], // empty string
 			cluster: false,
 			expires: None,
 			issued: None,
@@ -212,8 +214,8 @@ mod tests {
 	fn test_claims_validation_path_is_prefix() {
 		let claims = Claims {
 			root: Path::new("test-path"),               // with trailing slash
-			publish: Some(Path::new("relative-pub")),   // relative path is ok when path is prefix
-			subscribe: Some(Path::new("relative-sub")), // relative path is ok when path is prefix
+			publish: vec![Path::new("relative-pub")],   // relative path is ok when path is prefix
+			subscribe: vec![Path::new("relative-sub")], // relative path is ok when path is prefix
 			cluster: false,
 			expires: None,
 			issued: None,
@@ -226,8 +228,8 @@ mod tests {
 	fn test_claims_validation_empty_path() {
 		let claims = Claims {
 			root: Path::new(""), // empty path
-			publish: Some(Path::new("test-pub")),
-			subscribe: None,
+			publish: vec![Path::new("test-pub")],
+			subscribe: vec![],
 			cluster: false,
 			expires: None,
 			issued: None,
@@ -252,8 +254,8 @@ mod tests {
 	fn test_claims_default() {
 		let claims = Claims::default();
 		assert_eq!(claims.root, Path::new(""));
-		assert_eq!(claims.publish, None);
-		assert_eq!(claims.subscribe, None);
+		assert_eq!(claims.publish, vec![]);
+		assert_eq!(claims.subscribe, vec![]);
 		assert!(!claims.cluster);
 		assert_eq!(claims.expires, None);
 		assert_eq!(claims.issued, None);

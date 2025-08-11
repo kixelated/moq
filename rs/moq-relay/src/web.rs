@@ -14,7 +14,6 @@ use axum::{
 };
 use bytes::Bytes;
 use hyper_serve::accept::DefaultAcceptor;
-use moq_lite::OriginAnnounce;
 use std::future::Future;
 use tower_http::cors::{Any, CorsLayer};
 
@@ -76,17 +75,21 @@ impl Web {
 }
 
 /// Serve the announced broadcasts for a given prefix.
-async fn serve_announced(Path(prefix): Path<String>, cluster: Cluster) -> impl IntoResponse {
-	let mut origin = cluster.combined.consumer.with_prefix(&prefix);
+async fn serve_announced(Path(prefix): Path<String>, cluster: Cluster) -> axum::response::Result<String> {
+	let mut origin = match cluster.combined.consumer.consume_only(&[prefix.into()]) {
+		Some(origin) => origin,
+		None => return Err(StatusCode::UNAUTHORIZED.into()),
+	};
+
 	let mut broadcasts = Vec::new();
 
-	while let Some(OriginAnnounce { suffix, active }) = origin.try_announced() {
+	while let Some((suffix, active)) = origin.try_announced() {
 		if active.is_some() {
 			broadcasts.push(suffix);
 		}
 	}
 
-	broadcasts.iter().map(|p| p.to_string()).collect::<Vec<_>>().join("\n")
+	Ok(broadcasts.iter().map(|p| p.to_string()).collect::<Vec<_>>().join("\n"))
 }
 
 /// Serve the latest group for a given track

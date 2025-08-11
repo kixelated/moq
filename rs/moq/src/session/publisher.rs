@@ -1,6 +1,6 @@
 use web_async::FuturesExt;
 
-use crate::{message, model::GroupConsumer, Error, Origin, OriginAnnounce, OriginConsumer, Path, Track, TrackConsumer};
+use crate::{message, model::GroupConsumer, AsPath, Error, Origin, OriginConsumer, Path, Track, TrackConsumer};
 
 use super::{Stream, Writer};
 
@@ -53,43 +53,46 @@ impl Publisher {
 
 	pub async fn recv_announce(mut self, stream: &mut Stream) -> Result<(), Error> {
 		let interest = stream.reader.decode::<message::AnnouncePlease>().await?;
+		let prefix = &interest.prefix;
 
-		// Just for logging the fully qualified prefix.
-		let full = self.origin.root().join(&interest.prefix);
+		// For logging, show the full path that we're announcing.
+		tracing::trace!(prefix = %self.log_path(prefix), "announcing start");
 
-		tracing::trace!(prefix = %full, "announcing start");
-
-		let res = self.run_announce(stream, &interest.prefix).await;
+		let res = self.run_announce(stream, prefix).await;
 		match res {
-			Err(Error::Cancel) => tracing::debug!(prefix = %full, "announcing cancelled"),
-			Err(err) => tracing::debug!(%err, prefix = %full, "announcing error"),
-			_ => tracing::trace!(prefix = %full, "announcing complete"),
+			Err(Error::Cancel) => {
+				tracing::debug!(prefix = %self.log_path(prefix), "announcing cancelled")
+			}
+			Err(err) => {
+				tracing::debug!(%err, prefix = %self.log_path(prefix), "announcing error")
+			}
+			_ => tracing::trace!(prefix = %self.log_path(prefix), "announcing complete"),
 		}
 
 		Ok(())
 	}
 
-	async fn run_announce(&mut self, stream: &mut Stream, prefix: &Path) -> Result<(), Error> {
-		// Complain when the user is trying to access more than they're allowed.
-		let prefix = prefix
-			.strip_prefix(self.origin.prefix())
-			.ok_or(Error::Unauthorized)?
-			.to_owned();
+	async fn run_announce(&mut self, stream: &mut Stream, prefix: impl AsPath) -> Result<(), Error> {
+		let prefix = prefix.as_path();
 
-		let mut announced = self.origin.with_prefix(&prefix);
+		let mut announced = self
+			.origin
+			.consume_only(&[prefix.borrow()])
+			.ok_or(Error::Unauthorized)?;
 
 		let mut init = Vec::new();
 
 		// Send ANNOUNCE_INIT as the first message with all currently active paths
 		// We use `try_next()` to synchronously get the initial updates.
-		while let Some(OriginAnnounce { suffix, active }) = announced.try_announced() {
-			let full = self.origin.root().join(&prefix).join(&suffix);
+		while let Some((path, active)) = announced.try_announced() {
+			let suffix = path.strip_prefix(&prefix).expect("origin returned invalid path");
+
 			if active.is_some() {
-				tracing::debug!(broadcast = %full, "announce");
-				init.push(suffix);
+				tracing::debug!(broadcast = %self.log_path(&path), "announce");
+				init.push(suffix.to_owned());
 			} else {
 				// A potential race.
-				tracing::debug!(broadcast = %full, "unannounce");
+				tracing::debug!(broadcast = %self.log_path(&path), "unannounce");
 				init.retain(|path| path != &suffix);
 			}
 		}
@@ -104,14 +107,15 @@ impl Publisher {
 				res = stream.reader.closed() => return res,
 				announced = announced.announced() => {
 					match announced {
-						Some(OriginAnnounce { suffix, active }) => {
-							let full = self.origin.root().join(&prefix).join(&suffix);
+						Some((path, active)) => {
+							let suffix = path.strip_prefix(&prefix).expect("origin returned invalid path");
+
 							if active.is_some() {
-								tracing::debug!(broadcast = %full, "announce");
+								tracing::debug!(broadcast = %self.log_path(&path), "announce");
 								let msg = message::Announce::Active { suffix };
 								stream.writer.encode(&msg).await?;
 							} else {
-								tracing::debug!(broadcast = %full, "unannounce");
+								tracing::debug!(broadcast = %self.log_path(&path), "unannounce");
 								let msg = message::Announce::Ended { suffix };
 								stream.writer.encode(&msg).await?;
 							}
@@ -124,40 +128,41 @@ impl Publisher {
 	}
 
 	pub async fn recv_subscribe(mut self, stream: &mut Stream) -> Result<(), Error> {
-		let mut subscribe = stream.reader.decode::<message::Subscribe>().await?;
+		let subscribe = stream.reader.decode::<message::Subscribe>().await?;
 
-		// Get the full path just for logging.
-		let broadcast = self.origin.root().join(self.origin.prefix()).join(&subscribe.broadcast);
-
-		tracing::debug!(id = %subscribe.id, %broadcast, track = %subscribe.track, "subscribed started");
-
-		let res = self.run_subscribe(stream, &mut subscribe).await;
+		let id = subscribe.id;
 		let track = &subscribe.track;
+		let broadcast = &subscribe.broadcast;
+
+		tracing::debug!(%id, broadcast = %self.log_path(broadcast), %track, "subscribed started");
+
+		let res = self.run_subscribe(stream, &subscribe).await;
 
 		match res {
-			Err(Error::Cancel) | Err(Error::WebTransport(_)) => {
-				tracing::debug!(id = %subscribe.id, %broadcast, %track, "subscribed cancelled")
+			Err(Error::Cancel) => {
+				tracing::debug!(%id, broadcast = %self.log_path(broadcast), %track, "subscribed cancelled")
 			}
-			Err(err) => tracing::warn!(%err, id = %subscribe.id, %broadcast, %track, "subscribed error"),
-			_ => tracing::debug!(id = %subscribe.id, %broadcast, %track, "subscribed complete"),
+			// TODO better classify WebTransport errors.
+			Err(Error::WebTransport(_)) => {
+				tracing::debug!(%id, broadcast = %self.log_path(broadcast), %track, "subscribed cancelled")
+			}
+			Err(err) => tracing::warn!(%err, %id, broadcast = %self.log_path(broadcast), %track, "subscribed error"),
+			_ => tracing::debug!(%id, broadcast = %self.log_path(broadcast), %track, "subscribed complete"),
 		}
 
 		Ok(())
 	}
 
-	async fn run_subscribe(&mut self, stream: &mut Stream, subscribe: &mut message::Subscribe) -> Result<(), Error> {
+	async fn run_subscribe(&mut self, stream: &mut Stream, subscribe: &message::Subscribe<'_>) -> Result<(), Error> {
 		let track = Track {
-			name: subscribe.track.clone(),
+			name: subscribe.track.to_string(),
 			priority: subscribe.priority,
 		};
 
-		// Make sure the path matches what we're allowed to fetch
-		let path = subscribe
-			.broadcast
-			.strip_prefix(self.origin.prefix())
-			.ok_or(Error::Unauthorized)?;
-
-		let broadcast = self.origin.get_broadcast(&path).ok_or(Error::NotFound)?;
+		let broadcast = self
+			.origin
+			.consume_broadcast(&subscribe.broadcast)
+			.ok_or(Error::NotFound)?;
 		let track = broadcast.subscribe_track(&track);
 
 		// TODO wait until track.info() to get the *real* priority
@@ -176,7 +181,7 @@ impl Publisher {
 		stream.writer.close().await
 	}
 
-	async fn run_track(&mut self, mut track: TrackConsumer, subscribe: &mut message::Subscribe) -> Result<(), Error> {
+	async fn run_track(&mut self, mut track: TrackConsumer, subscribe: &message::Subscribe<'_>) -> Result<(), Error> {
 		// TODO use a BTreeMap serve the latest N groups by sequence.
 		// Until then, we'll implement N=2 manually.
 		// Also, this is more complicated because we can't use tokio because of WASM.
@@ -302,6 +307,12 @@ impl Publisher {
 	fn stream_priority(track_priority: u8, group_sequence: u64) -> i32 {
 		let sequence = 0xFFFFFF - (group_sequence as u32 & 0xFFFFFF);
 		((track_priority as i32) << 24) | sequence as i32
+	}
+
+	// A helper function to log the full path of a broadcast.
+	// This is a function so we don't allocate when logging is disabled.
+	fn log_path(&self, path: impl AsPath) -> Path {
+		self.origin.prefix().join(path)
 	}
 }
 

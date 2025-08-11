@@ -182,7 +182,7 @@ impl HangSrc {
 
 		let broadcast = origin
 			.consumer
-			.get_broadcast(&name)
+			.consume_broadcast(&name)
 			.ok_or_else(|| anyhow::anyhow!("Broadcast '{}' not found", name))?;
 
 		let catalog = broadcast.subscribe_track(&hang::Catalog::default_track());

@@ -5,7 +5,7 @@ use std::{
 
 use crate::{
 	message, model::BroadcastProducer, Broadcast, Error, Frame, FrameProducer, Group, GroupProducer, OriginProducer,
-	Path, TrackProducer,
+	Path, PathOwned, TrackProducer,
 };
 
 use tokio::sync::oneshot;
@@ -18,7 +18,7 @@ pub(super) struct Subscriber {
 	session: web_transport::Session,
 
 	origin: Option<OriginProducer>,
-	broadcasts: Lock<HashMap<Path, BroadcastProducer>>,
+	broadcasts: Lock<HashMap<PathOwned, BroadcastProducer>>,
 	subscribes: Lock<HashMap<u64, TrackProducer>>,
 	next_id: Arc<atomic::AtomicU64>,
 }
@@ -68,43 +68,27 @@ impl Subscriber {
 	}
 
 	async fn run_announce(mut self, init: oneshot::Sender<()>) -> Result<(), Error> {
-		let mut origin = match &self.origin {
-			// Only ask for announcements matching the prefix.
-			Some(origin) => origin.clone(),
-			None => {
-				// Don't do anything if there's no origin configured.
-				let _ = init.send(());
-				return Ok(());
-			}
-		};
+		if self.origin.is_none() {
+			// Don't do anything if there's no origin configured.
+			let _ = init.send(());
+			return Ok(());
+		}
 
 		let mut stream = Stream::open(&mut self.session, message::ControlType::Announce).await?;
 
-		let prefix = origin.prefix().to_owned();
-		let full = origin.root().join(&prefix);
-		tracing::trace!(prefix = %full, "announced start");
+		let prefix = self.origin.as_ref().unwrap().prefix().clone();
+		tracing::trace!(%prefix, "announced start");
 
-		let msg = message::AnnouncePlease { prefix: prefix.clone() };
+		// Ask for everything.
+		// TODO This needs to actually ask for the root?
+		let msg = message::AnnouncePlease { prefix };
 		stream.writer.encode(&msg).await?;
 
 		let mut producers = HashMap::new();
 
 		let msg: message::AnnounceInit = stream.reader.decode().await?;
 		for path in msg.suffixes {
-			// Log the full path for easier debugging.
-			tracing::debug!(broadcast = %origin.root().join(&prefix).join(&path), "announced");
-
-			let broadcast = Broadcast::produce();
-
-			// Make sure the peer doesn't double announce.
-			match producers.entry(path.clone()) {
-				Entry::Occupied(_) => return Err(Error::Duplicate),
-				Entry::Vacant(entry) => entry.insert(broadcast.producer.clone()),
-			};
-
-			origin.publish_broadcast(&path, broadcast.consumer);
-
-			spawn(self.clone().run_broadcast(path, broadcast.producer));
+			self.start_announce(path, &mut producers)?;
 		}
 
 		let _ = init.send(());
@@ -112,23 +96,10 @@ impl Subscriber {
 		while let Some(announce) = stream.reader.decode_maybe::<message::Announce>().await? {
 			match announce {
 				message::Announce::Active { suffix: path } => {
-					tracing::debug!(broadcast = %origin.root().join(&prefix).join(&path), "announced");
-
-					let broadcast = Broadcast::produce();
-
-					// Make sure the peer doesn't double announce.
-					match producers.entry(path.clone()) {
-						Entry::Occupied(_) => return Err(Error::Duplicate),
-						Entry::Vacant(entry) => entry.insert(broadcast.producer.clone()),
-					};
-
-					// Run the broadcast in the background until all consumers are dropped.
-					origin.publish_broadcast(&path, broadcast.consumer);
-
-					spawn(self.clone().run_broadcast(path, broadcast.producer));
+					self.start_announce(path, &mut producers)?;
 				}
 				message::Announce::Ended { suffix: path } => {
-					tracing::debug!(broadcast = %origin.root().join(&prefix).join(&path), "unannounced");
+					tracing::debug!(broadcast = %self.log_path(&path), "unannounced");
 
 					// Close the producer.
 					let mut producer = producers.remove(&path).ok_or(Error::NotFound)?;
@@ -141,7 +112,33 @@ impl Subscriber {
 		stream.writer.close().await
 	}
 
-	async fn run_broadcast(self, path: Path, mut broadcast: BroadcastProducer) {
+	fn start_announce(
+		&mut self,
+		path: PathOwned,
+		producers: &mut HashMap<PathOwned, BroadcastProducer>,
+	) -> Result<(), Error> {
+		tracing::debug!(broadcast = %self.log_path(&path), "announced");
+
+		let broadcast = Broadcast::produce();
+
+		// Make sure the peer doesn't double announce.
+		match producers.entry(path.clone()) {
+			Entry::Occupied(_) => return Err(Error::Duplicate),
+			Entry::Vacant(entry) => entry.insert(broadcast.producer.clone()),
+		};
+
+		// Run the broadcast in the background until all consumers are dropped.
+		self.origin
+			.as_mut()
+			.unwrap()
+			.publish_broadcast(path.clone(), broadcast.consumer);
+
+		spawn(self.clone().run_broadcast(path, broadcast.producer));
+
+		Ok(())
+	}
+
+	async fn run_broadcast(self, path: PathOwned, mut broadcast: BroadcastProducer) {
 		// Actually start serving subscriptions.
 		loop {
 			// Keep serving requests until there are no more consumers.
@@ -169,21 +166,19 @@ impl Subscriber {
 		self.broadcasts.lock().remove(&path);
 	}
 
-	async fn run_subscribe(&mut self, id: u64, broadcast: Path, track: TrackProducer) {
-		let origin = self.origin.as_ref().unwrap();
-		let broadcast = origin.prefix().join(&broadcast);
-		let full = origin.root().join(&broadcast);
+	async fn run_subscribe(&mut self, id: u64, broadcast: Path<'_>, track: TrackProducer) {
+		let prefix = self.origin.as_ref().unwrap().prefix().to_owned();
 
 		self.subscribes.lock().insert(id, track.clone());
 
 		let msg = message::Subscribe {
 			id,
-			broadcast,
-			track: track.info.name.clone(),
+			broadcast: prefix.join(&broadcast),
+			track: (&track.info.name).into(),
 			priority: track.info.priority,
 		};
 
-		tracing::debug!(broadcast = %full, track = %track.info.name, id, "subscribe started");
+		tracing::debug!(broadcast = %self.log_path(&broadcast), track = %track.info.name, id, "subscribe started");
 
 		let res = tokio::select! {
 			_ = track.unused() => Err(Error::Cancel),
@@ -192,21 +187,21 @@ impl Subscriber {
 
 		match res {
 			Err(Error::Cancel) | Err(Error::WebTransport(_)) => {
-				tracing::debug!(broadcast = %full, track = %track.info.name, id, "subscribe cancelled");
+				tracing::debug!(broadcast = %self.log_path(&broadcast), track = %track.info.name, id, "subscribe cancelled");
 				track.abort(Error::Cancel);
 			}
 			Err(err) => {
-				tracing::warn!(%err, broadcast = %full, track = %track.info.name, id, "subscribe error");
+				tracing::warn!(%err, broadcast = %self.log_path(&broadcast), track = %track.info.name, id, "subscribe error");
 				track.abort(err);
 			}
 			_ => {
-				tracing::debug!(broadcast = %full, track = %track.info.name, id, "subscribe complete");
+				tracing::debug!(broadcast = %self.log_path(&broadcast), track = %track.info.name, id, "subscribe complete");
 				track.close();
 			}
 		}
 	}
 
-	async fn run_track(&mut self, msg: message::Subscribe) -> Result<(), Error> {
+	async fn run_track(&mut self, msg: message::Subscribe<'_>) -> Result<(), Error> {
 		let mut stream = Stream::open(&mut self.session, message::ControlType::Subscribe).await?;
 
 		if let Err(err) = self.run_track_stream(&mut stream, msg).await {
@@ -217,7 +212,7 @@ impl Subscriber {
 		stream.writer.close().await
 	}
 
-	async fn run_track_stream(&mut self, stream: &mut Stream, msg: message::Subscribe) -> Result<(), Error> {
+	async fn run_track_stream(&mut self, stream: &mut Stream, msg: message::Subscribe<'_>) -> Result<(), Error> {
 		stream.writer.encode(&msg).await?;
 
 		// TODO use the response correctly populate the track info
@@ -297,5 +292,9 @@ impl Subscriber {
 		frame.close();
 
 		Ok(())
+	}
+
+	fn log_path(&self, path: &Path<'_>) -> Path {
+		self.origin.as_ref().unwrap().prefix().join(path)
 	}
 }

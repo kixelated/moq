@@ -1,9 +1,7 @@
 use std::{collections::HashMap, path::PathBuf};
 
 use anyhow::Context;
-use moq_lite::{
-	Broadcast, BroadcastConsumer, BroadcastProducer, Origin, OriginAnnounce, OriginConsumer, OriginProducer,
-};
+use moq_lite::{Broadcast, BroadcastConsumer, BroadcastProducer, Origin, OriginConsumer, OriginProducer};
 use tracing::Instrument;
 use url::Url;
 
@@ -33,7 +31,7 @@ pub struct ClusterConfig {
 		default_value = "internal/origins",
 		env = "MOQ_CLUSTER_PREFIX"
 	)]
-	pub prefix: moq_lite::Path,
+	pub prefix: moq_lite::PathOwned,
 }
 
 #[derive(Clone)]
@@ -69,8 +67,8 @@ impl Cluster {
 	pub fn get(&self, broadcast: &str) -> Option<BroadcastConsumer> {
 		self.primary
 			.consumer
-			.get_broadcast(broadcast)
-			.or_else(|| self.secondary.consumer.get_broadcast(broadcast))
+			.consume_broadcast(broadcast)
+			.or_else(|| self.secondary.consumer.consume_broadcast(broadcast))
 	}
 
 	pub async fn run(mut self) -> anyhow::Result<()> {
@@ -115,10 +113,7 @@ impl Cluster {
 		let mut secondary = self.secondary.consumer.clone();
 
 		loop {
-			let OriginAnnounce {
-				suffix: name,
-				active: broadcast,
-			} = tokio::select! {
+			let (name, broadcast) = tokio::select! {
 				biased;
 				Some(primary) = primary.announced() => primary,
 				Some(secondary) = secondary.announced() => secondary,
@@ -133,7 +128,11 @@ impl Cluster {
 
 	async fn run_remotes(self, token: String) -> anyhow::Result<()> {
 		// Subscribe to available origins.
-		let mut origins = self.secondary.consumer.with_prefix(&self.config.prefix);
+		let mut origins = self
+			.secondary
+			.consumer
+			.consume_only(&[self.config.prefix.borrow()])
+			.context("no authorized origins")?;
 
 		// Cancel tasks when the origin is closed.
 		let mut active: HashMap<String, tokio::task::AbortHandle> = HashMap::new();
@@ -141,11 +140,7 @@ impl Cluster {
 		// Discover other origins.
 		// NOTE: The root node will connect to all other nodes as a client, ignoring the existing (server) connection.
 		// This ensures that nodes are advertising a valid hostname before any tracks get announced.
-		while let Some(OriginAnnounce {
-			suffix: node,
-			active: origin,
-		}) = origins.announced().await
-		{
+		while let Some((node, origin)) = origins.try_announced() {
 			if Some(node.as_str()) == self.config.advertise.as_deref() {
 				// Skip ourselves.
 				continue;
