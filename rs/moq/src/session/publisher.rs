@@ -108,7 +108,7 @@ impl Publisher {
 				announced = announced.announced() => {
 					match announced {
 						Some((path, active)) => {
-							let suffix = path.strip_prefix(&prefix).expect("origin returned invalid path");
+							let suffix = path.strip_prefix(&prefix).expect("origin returned invalid path").to_owned();
 
 							if active.is_some() {
 								tracing::debug!(broadcast = %self.log_path(&path), "announce");

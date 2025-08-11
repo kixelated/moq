@@ -1,7 +1,7 @@
 use std::{collections::HashMap, path::PathBuf};
 
 use anyhow::Context;
-use moq_lite::{Broadcast, BroadcastConsumer, BroadcastProducer, Origin, OriginConsumer, OriginProducer};
+use moq_lite::{AsPath, Broadcast, BroadcastConsumer, BroadcastProducer, Origin, OriginConsumer, OriginProducer};
 use tracing::Instrument;
 use url::Url;
 
@@ -31,7 +31,7 @@ pub struct ClusterConfig {
 		default_value = "internal/origins",
 		env = "MOQ_CLUSTER_PREFIX"
 	)]
-	pub prefix: moq_lite::PathOwned,
+	pub prefix: String,
 }
 
 #[derive(Clone)]
@@ -82,10 +82,12 @@ impl Cluster {
 			}
 		};
 
+		let prefix = self.config.prefix.as_path();
+
 		// Announce ourselves as an origin to the root node.
 		if let Some(myself) = self.config.advertise.as_ref() {
 			tracing::info!(%self.config.prefix, %myself, "announcing as leaf");
-			let name = self.config.prefix.join(myself);
+			let name = prefix.join(myself);
 			self.primary
 				.producer
 				.publish_broadcast(&name, self.noop.consumer.clone());
@@ -131,7 +133,7 @@ impl Cluster {
 		let mut origins = self
 			.secondary
 			.consumer
-			.consume_only(&[self.config.prefix.borrow()])
+			.consume_only(&[self.config.prefix.as_path()])
 			.context("no authorized origins")?;
 
 		// Cancel tasks when the origin is closed.

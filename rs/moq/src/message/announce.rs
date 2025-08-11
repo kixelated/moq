@@ -7,12 +7,18 @@ use crate::{coding::*, Path};
 #[derive(Clone, Debug, PartialEq, Eq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum Announce<'a> {
-	Active { suffix: Path<'a> },
-	Ended { suffix: Path<'a> },
+	Active {
+		#[cfg_attr(feature = "serde", serde(borrow))]
+		suffix: Path<'a>,
+	},
+	Ended {
+		#[cfg_attr(feature = "serde", serde(borrow))]
+		suffix: Path<'a>,
+	},
 }
 
 impl<'a> Announce<'a> {
-	pub fn suffix(&self) -> &Path {
+	pub fn suffix(&self) -> &Path<'a> {
 		match self {
 			Announce::Active { suffix } => suffix,
 			Announce::Ended { suffix } => suffix,
@@ -94,6 +100,7 @@ impl Encode for AnnounceStatus {
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct AnnounceInit<'a> {
 	/// List of currently active broadcasts, encoded as suffixes to be combined with the prefix.
+	#[cfg_attr(feature = "serde", serde(borrow))]
 	pub suffixes: Vec<Path<'a>>,
 }
 

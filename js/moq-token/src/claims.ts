@@ -3,9 +3,9 @@ import { z } from "zod";
 export const ClaimsSchema = z
 	.object({
 		root: z.string(),
-		pub: z.string().optional(),
+		pub: z.union([z.string(), z.array(z.string())]).optional(),
 		cluster: z.boolean().optional(),
-		sub: z.string().optional(),
+		sub: z.union([z.string(), z.array(z.string())]).optional(),
 		exp: z.number().optional(),
 		iat: z.number().optional(),
 	})

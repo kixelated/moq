@@ -1,6 +1,5 @@
 use std::borrow::Cow;
 use std::fmt::{self, Display};
-use std::ops::Deref;
 
 use crate::coding::{Decode, DecodeError, Encode};
 
@@ -23,7 +22,7 @@ impl<'a> AsPath for &'a str {
 impl<'a> AsPath for &'a Path<'a> {
 	fn as_path(&self) -> Path<'a> {
 		// We don't normalize again nor do we make a copy.
-		Path(Cow::Borrowed(self))
+		Path(Cow::Borrowed(self.as_str()))
 	}
 }
 
@@ -56,14 +55,14 @@ impl<'a> AsPath for &'a String {
 ///
 /// # Examples
 /// ```
-/// use moq_lite::{Path, PathRef};
+/// use moq_lite::{Path};
 ///
 /// // Creation automatically trims slashes
 /// let path1 = Path::new("/foo/bar/");
 /// let path2 = Path::new("foo/bar");
 /// assert_eq!(path1, path2);
 ///
-/// // Methods accept both &str and &Path via PathRef
+/// // Methods accept both &str and Path
 /// let base = Path::new("api/v1");
 /// assert!(base.has_prefix("api"));
 /// assert!(base.has_prefix(&Path::new("api/v1")));
@@ -72,6 +71,7 @@ impl<'a> AsPath for &'a String {
 /// assert_eq!(joined.as_str(), "api/v1/users");
 /// ```
 #[derive(Debug, PartialEq, Eq, Hash, Clone)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize))]
 pub struct Path<'a>(Cow<'a, str>);
 
 impl<'a> Path<'a> {
@@ -79,8 +79,7 @@ impl<'a> Path<'a> {
 	///
 	/// Leading and trailing slashes are automatically trimmed.
 	/// Multiple consecutive internal slashes are collapsed to single slashes.
-	pub fn new(s: impl Into<Cow<'a, str>>) -> Self {
-		let s = s.into();
+	pub fn new(s: &'a str) -> Self {
 		let trimmed = s.trim_start_matches('/').trim_end_matches('/');
 
 		// Check if we need to normalize (has multiple consecutive slashes)
@@ -94,7 +93,7 @@ impl<'a> Path<'a> {
 			Self(Cow::Owned(normalized))
 		} else {
 			// No normalization needed - use borrowed string
-			Self(s)
+			Self(Cow::Borrowed(trimmed))
 		}
 	}
 
@@ -139,14 +138,28 @@ impl<'a> Path<'a> {
 		self.0.chars().nth(prefix.len()) == Some('/')
 	}
 
-	pub fn strip_prefix<'b>(&'a self, prefix: impl AsPath) -> Option<Path<'a>> {
+	pub fn strip_prefix(&'a self, prefix: impl AsPath) -> Option<Path<'a>> {
 		let prefix = prefix.as_path();
 
-		if self.has_prefix(&prefix) {
-			Some(Path(Cow::Borrowed(&self.0[prefix.as_str().len()..])))
-		} else {
-			None
+		if prefix.is_empty() {
+			return Some(self.borrow());
 		}
+
+		if !self.0.starts_with(prefix.as_str()) {
+			return None;
+		}
+
+		// Check if the prefix is the exact match
+		if self.0.len() == prefix.len() {
+			return Some(Path(Cow::Borrowed("")));
+		}
+
+		// Otherwise, ensure the character after the prefix is a delimiter
+		if self.0.chars().nth(prefix.len()) != Some('/') {
+			return None;
+		}
+
+		Some(Path(Cow::Borrowed(&self.0[prefix.len() + 1..])))
 	}
 
 	/// Strip the directory component of the path, if any, and return the rest of the path.
@@ -168,7 +181,19 @@ impl<'a> Path<'a> {
 		&self.0
 	}
 
+	pub fn is_empty(&self) -> bool {
+		self.0.is_empty()
+	}
+
+	pub fn len(&self) -> usize {
+		self.0.len()
+	}
+
 	pub fn to_owned(&self) -> PathOwned {
+		Path(Cow::Owned(self.0.to_string()))
+	}
+
+	pub fn into_owned(self) -> PathOwned {
 		Path(Cow::Owned(self.0.to_string()))
 	}
 
@@ -189,13 +214,13 @@ impl<'a> Path<'a> {
 	/// let joined = base.join(&Path::new("bar"));
 	/// assert_eq!(joined.as_str(), "foo/bar");
 	/// ```
-	pub fn join<'b>(&self, other: impl AsPath) -> Path {
+	pub fn join<'b>(&self, other: impl AsPath) -> PathOwned {
 		let other = other.as_path();
 
 		if self.0.is_empty() {
 			Path(Cow::Owned(other.0.to_string()))
 		} else if other.is_empty() {
-			self.clone()
+			self.to_owned()
 		} else {
 			// Since paths are trimmed, we always need to add a slash
 			Path(Cow::Owned(format!("{}/{}", self.0, other.as_str())))
@@ -213,13 +238,6 @@ impl<'a> From<&'a String> for Path<'a> {
 	fn from(s: &'a String) -> Self {
 		// TODO avoid making a copy here
 		Self::new(s)
-	}
-}
-
-impl<'a> Deref for Path<'a> {
-	type Target = str;
-	fn deref(&self) -> &Self::Target {
-		&self.0
 	}
 }
 
@@ -277,24 +295,15 @@ impl<'a> Encode for Path<'a> {
 	}
 }
 
+// A custom deserializer is needed in order to sanitize
 #[cfg(feature = "serde")]
-impl<'a, 'de> serde::Deserialize<'de> for Path<'a> {
+impl<'de: 'a, 'a> serde::Deserialize<'de> for Path<'a> {
 	fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
 	where
 		D: serde::Deserializer<'de>,
 	{
-		let s = String::deserialize(deserializer)?;
-		Ok(s.into())
-	}
-}
-
-#[cfg(feature = "serde")]
-impl<'de> serde::Serialize for Path<'de> {
-	fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-	where
-		S: serde::Serializer,
-	{
-		serializer.serialize_str(self.as_str())
+		let s = <&'a str as serde::Deserialize<'de>>::deserialize(deserializer)?;
+		Ok(Path::new(s))
 	}
 }
 

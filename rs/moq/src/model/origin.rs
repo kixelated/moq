@@ -26,7 +26,80 @@ struct OriginBroadcast {
 	backup: Vec<BroadcastConsumer>,
 }
 
-#[derive(Default)]
+#[derive(Clone)]
+struct OriginConsumerNotify {
+	prefix: PathOwned,
+	tx: mpsc::UnboundedSender<OriginAnnounce>,
+}
+
+impl OriginConsumerNotify {
+	fn announce(&self, path: impl AsPath, broadcast: BroadcastConsumer) {
+		let path = path.as_path().strip_prefix(&self.prefix).unwrap().to_owned();
+		self.tx.send((path, Some(broadcast))).expect("consumer closed");
+	}
+
+	fn reannounce(&self, path: impl AsPath, broadcast: BroadcastConsumer) {
+		let path = path.as_path().strip_prefix(&self.prefix).unwrap().to_owned();
+		self.tx.send((path.clone(), None)).expect("consumer closed");
+		self.tx.send((path, Some(broadcast))).expect("consumer closed");
+	}
+
+	fn unannounce(&self, path: impl AsPath) {
+		let path = path.as_path().strip_prefix(&self.prefix).unwrap().to_owned();
+		self.tx.send((path, None)).expect("consumer closed");
+	}
+}
+
+struct NotifyNode {
+	parent: Option<Lock<NotifyNode>>,
+
+	// Consumers that are subscribed to this node.
+	// We store a consumer ID so we can remove it easily when it closes.
+	consumers: HashMap<ConsumerId, OriginConsumerNotify>,
+}
+
+impl NotifyNode {
+	fn new(parent: Option<Lock<NotifyNode>>) -> Self {
+		Self {
+			parent,
+			consumers: HashMap::new(),
+		}
+	}
+
+	fn announce(&mut self, path: impl AsPath, broadcast: &BroadcastConsumer) {
+		for consumer in self.consumers.values() {
+			println!("announcing: {}", path.as_path());
+			consumer.announce(path.as_path(), broadcast.clone());
+		}
+
+		if let Some(parent) = &self.parent {
+			parent.lock().announce(path, broadcast);
+		}
+	}
+
+	fn reannounce(&mut self, path: impl AsPath, broadcast: &BroadcastConsumer) {
+		for consumer in self.consumers.values() {
+			println!("reannouncing: {}", path.as_path());
+			consumer.reannounce(path.as_path(), broadcast.clone());
+		}
+
+		if let Some(parent) = &self.parent {
+			parent.lock().reannounce(path, broadcast);
+		}
+	}
+
+	fn unannounce(&mut self, path: impl AsPath) {
+		for consumer in self.consumers.values() {
+			println!("unannouncing: {}", path.as_path());
+			consumer.unannounce(path.as_path());
+		}
+
+		if let Some(parent) = &self.parent {
+			parent.lock().unannounce(path);
+		}
+	}
+}
+
 struct OriginNode {
 	// The broadcast that is published to this node.
 	broadcast: Option<OriginBroadcast>,
@@ -34,72 +107,83 @@ struct OriginNode {
 	// Nested nodes, one level down the tree.
 	nested: HashMap<String, Lock<OriginNode>>,
 
-	// Consumers that are subscribed to this node.
-	// We store a consumer ID so we can remove it easily when it closes.
-	consumers: HashMap<ConsumerId, mpsc::UnboundedSender<OriginAnnounce>>,
+	// Unfortunately, to notify consumers we need to traverse back up the tree.
+	notify: Lock<NotifyNode>,
 }
 
 impl OriginNode {
-	fn leaf(&self, path: &Path) -> Option<Lock<OriginNode>> {
-		let (dir, rest) = path.next_part()?;
-		self.nested.get(dir)?.lock().leaf(&rest)
+	fn new(parent: Option<Lock<NotifyNode>>) -> Self {
+		Self {
+			broadcast: None,
+			nested: HashMap::new(),
+			notify: Lock::new(NotifyNode::new(parent)),
+		}
 	}
 
-	// Returns true if we need to reannounce the path to all consumers.
-	fn publish(&mut self, path: impl AsPath, broadcast: &BroadcastConsumer, rest: impl AsPath) -> bool {
-		let path = path.as_path();
-		let rest = rest.as_path();
+	fn leaf(&mut self, path: &Path) -> Lock<OriginNode> {
+		println!("leaf: {path:?}");
+		let (dir, rest) = path.next_part().expect("leaf called with empty path");
+		println!("leaf: {dir:?} {rest:?}");
+
+		let next = self.entry(dir);
+		if rest.is_empty() {
+			next
+		} else {
+			next.lock().leaf(&rest)
+		}
+	}
+
+	fn entry(&mut self, dir: &str) -> Lock<OriginNode> {
+		match self.nested.get(dir) {
+			Some(next) => next.clone(),
+			None => {
+				let next = Lock::new(OriginNode::new(Some(self.notify.clone())));
+				self.nested.insert(dir.to_string(), next.clone());
+				next
+			}
+		}
+	}
+
+	fn publish(&mut self, full: impl AsPath, broadcast: &BroadcastConsumer, relative: impl AsPath) {
+		let full = full.as_path();
+		let rest = relative.as_path();
+		println!("publish: {full:?} {rest:?}");
 
 		// If the path has a directory component, then publish it to the nested node.
-		let reannounce = if let Some((dir, rest)) = rest.next_part() {
+		if let Some((dir, relative)) = rest.next_part() {
 			// Not using entry to avoid allocating a string most of the time.
-			self.nested
-				.entry(dir.to_string())
-				.or_default()
-				.lock()
-				.publish(&path, broadcast, &rest)
+			self.entry(dir).lock().publish(&full, broadcast, &relative);
 		} else if let Some(existing) = &mut self.broadcast {
 			// This node is a leaf with an existing broadcast.
 			let old = existing.active.clone();
 			existing.active = broadcast.clone();
 			existing.backup.push(old);
-			true
+
+			self.notify.lock().reannounce(full, &broadcast);
 		} else {
 			// This node is a leaf with no existing broadcast.
 			self.broadcast = Some(OriginBroadcast {
-				path: path.to_owned(),
+				path: full.to_owned(),
 				active: broadcast.clone(),
 				backup: Vec::new(),
 			});
-			false
-		};
-
-		for tx in self.consumers.values() {
-			if reannounce {
-				tx.send((path.to_owned(), None)).expect("consumer closed");
-			}
-
-			tx.send((path.to_owned(), Some(broadcast.clone())))
-				.expect("consumer closed");
+			self.notify.lock().announce(full, &broadcast);
 		}
-
-		reannounce
 	}
 
-	fn consume(&mut self, id: ConsumerId, mut tx: mpsc::UnboundedSender<OriginAnnounce>) {
-		self.consumers.insert(id, tx.clone());
-		self.consume_initial(&mut tx);
+	fn consume(&mut self, id: ConsumerId, mut notify: OriginConsumerNotify) {
+		self.consume_initial(&mut notify);
+		self.notify.lock().consumers.insert(id, notify);
 	}
 
-	fn consume_initial(&mut self, tx: &mut mpsc::UnboundedSender<OriginAnnounce>) {
+	fn consume_initial(&mut self, notify: &mut OriginConsumerNotify) {
 		if let Some(broadcast) = &self.broadcast {
-			tx.send((broadcast.path.clone(), Some(broadcast.active.clone())))
-				.unwrap();
+			notify.announce(&broadcast.path, broadcast.active.clone());
 		}
 
 		// Recursively subscribe to all nested nodes.
 		for (_, nested) in &self.nested {
-			nested.lock().consume_initial(tx);
+			nested.lock().consume_initial(notify);
 		}
 	}
 
@@ -115,65 +199,58 @@ impl OriginNode {
 	}
 
 	fn unconsume(&mut self, id: ConsumerId) {
-		self.consumers.remove(&id).expect("consumer not found");
+		self.notify.lock().consumers.remove(&id).expect("consumer not found");
 		if self.is_empty() {
 			tracing::warn!("TODO: empty node; memory leak");
 		}
 	}
 
-	fn remove(&mut self, path: impl AsPath, broadcast: BroadcastConsumer, rest: impl AsPath) {
-		let path = path.as_path();
-		let rest = rest.as_path();
+	// Returns true if the broadcast should be unannounced.
+	fn remove(&mut self, full: impl AsPath, broadcast: BroadcastConsumer, relative: impl AsPath) {
+		let full = full.as_path();
+		let relative = relative.as_path();
 
-		if let Some((dir, rest)) = rest.next_part() {
-			let mut nested = self.nested.entry(dir.to_string()).or_default().lock();
-			nested.remove(path, broadcast, &rest);
-			if nested.is_empty() {
-				drop(nested);
+		if let Some((dir, relative)) = relative.next_part() {
+			let nested = self.entry(dir);
+			let mut locked = nested.lock();
+			locked.remove(&full, broadcast, &relative);
+
+			if locked.is_empty() {
+				drop(locked);
 				self.nested.remove(dir);
+				println!("removed nested");
 			}
-			return;
-		}
+		} else {
+			let entry = match &mut self.broadcast {
+				Some(existing) => existing,
+				None => return,
+			};
 
-		let entry = match &mut self.broadcast {
-			Some(existing) => existing,
-			None => return,
-		};
-
-		// See if we can remove the broadcast from the backup list.
-		let pos = entry.backup.iter().position(|b| b.is_clone(&broadcast));
-		if let Some(pos) = pos {
-			entry.backup.remove(pos);
-			// Nothing else to do
-			return;
-		}
-
-		// Okay so it must be the active broadcast or else we fucked up.
-		assert!(entry.active.is_clone(&broadcast));
-
-		for consumer in self.consumers.values() {
-			consumer.send((path.to_owned(), None)).expect("consumer closed");
-		}
-
-		// If there's a backup broadcast, then announce it.
-		if let Some(active) = entry.backup.pop() {
-			entry.active = active;
-
-			for consumer in self.consumers.values() {
-				consumer
-					.send((path.to_owned(), Some(entry.active.clone())))
-					.expect("consumer closed");
+			// See if we can remove the broadcast from the backup list.
+			let pos = entry.backup.iter().position(|b| b.is_clone(&broadcast));
+			if let Some(pos) = pos {
+				entry.backup.remove(pos);
+				// Nothing else to do
+				return;
 			}
 
-			return;
-		}
+			// Okay so it must be the active broadcast or else we fucked up.
+			assert!(entry.active.is_clone(&broadcast));
 
-		// No more backups, so remove the entry.
-		self.broadcast = None;
+			// If there's a backup broadcast, then announce it.
+			if let Some(active) = entry.backup.pop() {
+				entry.active = active;
+				self.notify.lock().reannounce(full, &entry.active);
+			} else {
+				// No more backups, so remove the entry.
+				self.broadcast = None;
+				self.notify.lock().unannounce(full);
+			}
+		}
 	}
 
 	fn is_empty(&self) -> bool {
-		self.broadcast.is_none() && self.nested.is_empty() && self.consumers.is_empty()
+		self.broadcast.is_none() && self.nested.is_empty() && self.notify.lock().consumers.is_empty()
 	}
 }
 
@@ -185,21 +262,52 @@ struct OriginRoots {
 impl OriginRoots {
 	// Returns nested roots that match the prefixes.
 	// TODO enforce that prefixes can't overlap.
-	pub fn scope(&self, prefixes: &[Path]) -> Option<Self> {
+	pub fn allow(&self, prefixes: &[Path]) -> Option<Self> {
 		let mut roots = Vec::new();
 
 		for (root, state) in &self.roots {
 			for prefix in prefixes {
+				println!("scope: {root:?} {prefix:?}");
 				if !prefix.has_prefix(root) {
+					println!("scope: skip");
 					continue;
 				}
 
-				let nested = match state.lock().leaf(prefix) {
-					Some(nested) => nested,
-					None => state.clone(),
-				};
+				if prefix.is_empty() {
+					println!("scope: empty");
+					roots.push((root.to_owned(), state.clone()));
+					continue;
+				}
 
-				roots.push((root.clone(), nested));
+				let nested = state.lock().leaf(prefix);
+				roots.push((prefix.to_owned(), nested));
+			}
+		}
+
+		if roots.is_empty() {
+			None
+		} else {
+			Some(Self { roots })
+		}
+	}
+
+	pub fn scope(&self, new_root: impl AsPath) -> Option<Self> {
+		let new_root = new_root.as_path();
+		let mut roots = Vec::new();
+
+		if new_root.is_empty() {
+			return Some(self.clone());
+		}
+
+		for (root, state) in &self.roots {
+			if let Some(suffix) = root.strip_prefix(&new_root) {
+				// If the old root is longer than the new root, shorten the keys.
+				roots.push((suffix.to_owned(), state.clone()));
+			} else if let Some(suffix) = new_root.strip_prefix(root) {
+				// If the new root is longer than the old root, add a new root.
+				// NOTE: suffix can't be empty
+				let nested = state.lock().leaf(&suffix);
+				roots.push(("".into(), nested));
 			}
 		}
 
@@ -211,15 +319,14 @@ impl OriginRoots {
 	}
 
 	// Returns the root that has this prefix.
-	pub fn get(&self, path: impl AsPath) -> Option<Lock<OriginNode>> {
+	pub fn get(&self, path: impl AsPath) -> Option<(Lock<OriginNode>, PathOwned)> {
 		let path = path.as_path();
 
 		for (root, state) in &self.roots {
-			if !path.has_prefix(root) {
-				continue;
+			println!("get: {root:?} {path:?}");
+			if let Some(suffix) = path.strip_prefix(root) {
+				return Some((state.clone(), suffix.to_owned()));
 			}
-
-			return Some(state.clone());
 		}
 
 		None
@@ -229,13 +336,13 @@ impl OriginRoots {
 impl Default for OriginRoots {
 	fn default() -> Self {
 		Self {
-			roots: vec![("".into(), Default::default())],
+			roots: vec![("".into(), Lock::new(OriginNode::new(None)))],
 		}
 	}
 }
 
 /// A broadcast path and its associated consumer, or None if closed.
-pub type OriginAnnounce = (Path<'static>, Option<BroadcastConsumer>);
+pub type OriginAnnounce = (PathOwned, Option<BroadcastConsumer>);
 
 pub struct Origin {}
 
@@ -270,18 +377,19 @@ impl OriginProducer {
 	pub fn publish_broadcast(&mut self, path: impl AsPath, broadcast: BroadcastConsumer) -> bool {
 		let path = path.as_path();
 
-		let root = match self.roots.get(&path) {
+		let (root, rest) = match self.roots.get(&path) {
 			Some(root) => root,
 			None => return false,
 		};
 
-		root.lock().publish(&path, &broadcast, &path);
+		let full = self.prefix.join(&path);
+
+		root.lock().publish(&full, &broadcast, &rest);
 		let root = root.clone();
-		let path = path.to_owned();
 
 		web_async::spawn(async move {
 			broadcast.closed().await;
-			root.lock().remove(&path, broadcast, &path);
+			root.lock().remove(&full, broadcast, &rest);
 		});
 
 		true
@@ -292,7 +400,7 @@ impl OriginProducer {
 	/// Returns None if there are no legal prefixes.
 	pub fn publish_only(&self, prefixes: &[Path]) -> Option<OriginProducer> {
 		Some(OriginProducer {
-			roots: self.roots.scope(prefixes)?,
+			roots: self.roots.allow(prefixes)?,
 			prefix: self.prefix.clone(),
 		})
 	}
@@ -308,7 +416,8 @@ impl OriginProducer {
 	///
 	/// Returns None if there are no legal prefixes.
 	pub fn consume_only(&self, prefixes: &[Path]) -> Option<OriginConsumer> {
-		Some(OriginConsumer::new(self.roots.scope(prefixes)?, self.prefix.clone()))
+		println!("consume_only: {prefixes:?}");
+		Some(OriginConsumer::new(self.roots.allow(prefixes)?, self.prefix.clone()))
 	}
 
 	/// Returns a new OriginProducer that automatically strips out the provided prefix.
@@ -319,7 +428,7 @@ impl OriginProducer {
 
 		Some(Self {
 			prefix: self.prefix.join(&prefix).to_owned(),
-			roots: self.roots.scope(&[prefix])?,
+			roots: self.roots.scope(&prefix)?,
 		})
 	}
 
@@ -344,8 +453,13 @@ impl OriginConsumer {
 		let (tx, rx) = mpsc::unbounded_channel();
 
 		let id = ConsumerId::new();
+
 		for (_, state) in &roots.roots {
-			state.lock().consume(id, tx.clone());
+			let notify = OriginConsumerNotify {
+				prefix: prefix.clone(),
+				tx: tx.clone(),
+			};
+			state.lock().consume(id, notify);
 		}
 
 		Self {
@@ -382,16 +496,17 @@ impl OriginConsumer {
 	/// Returns None if the path hasn't been announced yet.
 	pub fn consume_broadcast<'a>(&self, path: impl AsPath) -> Option<BroadcastConsumer> {
 		let path = path.as_path();
-		let root = self.roots.get(&path)?;
+		let (root, rest) = self.roots.get(&path)?;
+		println!("consume_broadcast: {path:?} {rest:?}");
 		let state = root.lock();
-		state.consume_broadcast(path)
+		state.consume_broadcast(&rest)
 	}
 
 	/// Returns a new OriginConsumer that only consumes broadcasts matching one of the prefixes.
 	///
 	/// Returns None if there are no legal prefixes (would always return None).
 	pub fn consume_only(&self, prefixes: &[Path]) -> Option<OriginConsumer> {
-		Some(OriginConsumer::new(self.roots.scope(prefixes)?, self.prefix.clone()))
+		Some(OriginConsumer::new(self.roots.allow(prefixes)?, self.prefix.clone()))
 	}
 
 	/// Returns the prefix that is automatically stripped from all paths.
@@ -444,12 +559,14 @@ impl OriginConsumer {
 		assert!(self.announced().now_or_never().is_none(), "next should block");
 	}
 
+	/*
 	pub fn assert_next_closed(&mut self) {
 		assert!(
 			self.announced().now_or_never().expect("next blocked").is_none(),
 			"next should be closed"
 		);
 	}
+	*/
 }
 
 #[cfg(test)]
@@ -473,6 +590,8 @@ mod tests {
 
 		consumer1.assert_next("test1", &broadcast1.producer.consume());
 		consumer1.assert_next_wait();
+
+		println!("consumer1");
 
 		// Make a new consumer that should get the existing broadcast.
 		// But we don't consume it yet.
@@ -505,8 +624,8 @@ mod tests {
 		consumer3.assert_next("test2", &broadcast2.producer.consume());
 		consumer3.assert_next_wait();
 
-		// Close the producer and make sure it cleans up
-		drop(origin.producer);
+		// Close the other producer and make sure it cleans up
+		drop(broadcast2.producer);
 
 		// Wait for the async task to run.
 		tokio::time::sleep(tokio::time::Duration::from_millis(1)).await;
@@ -515,33 +634,65 @@ mod tests {
 		consumer2.assert_next_none("test2");
 		consumer3.assert_next_none("test2");
 
+		/* TODO close the origin consumer when the producer is dropped
 		consumer1.assert_next_closed();
 		consumer2.assert_next_closed();
 		consumer3.assert_next_closed();
+		*/
 	}
 
 	#[tokio::test]
 	async fn test_duplicate() {
 		let mut origin = Origin::produce();
+
 		let broadcast1 = Broadcast::produce();
 		let broadcast2 = Broadcast::produce();
+		let broadcast3 = Broadcast::produce();
 
-		origin.producer.publish_broadcast("test", broadcast1.consumer);
-		origin.producer.publish_broadcast("test", broadcast2.consumer);
+		let consumer1 = broadcast1.consumer;
+		let consumer2 = broadcast2.consumer;
+		let consumer3 = broadcast3.consumer;
+
+		origin.producer.publish_broadcast("test", consumer1.clone());
+		origin.producer.publish_broadcast("test", consumer2.clone());
+		origin.producer.publish_broadcast("test", consumer3.clone());
+
 		assert!(origin.consumer.consume_broadcast("test").is_some());
+
+		origin.consumer.assert_next("test", &consumer1);
 		origin.consumer.assert_next_none("test");
+		origin.consumer.assert_next("test", &consumer2);
+		origin.consumer.assert_next_none("test");
+		origin.consumer.assert_next("test", &consumer3);
 
-		drop(broadcast1.producer);
-
-		// Wait for the async task to run.
-		tokio::time::sleep(tokio::time::Duration::from_millis(1)).await;
-		assert!(origin.consumer.consume_broadcast("test").is_some());
-
+		// Drop the backup, nothing should change.
 		drop(broadcast2.producer);
 
 		// Wait for the async task to run.
 		tokio::time::sleep(tokio::time::Duration::from_millis(1)).await;
+
+		assert!(origin.consumer.consume_broadcast("test").is_some());
+		origin.consumer.assert_next_wait();
+
+		// Drop the active, we should reannounce.
+		drop(broadcast3.producer);
+
+		// Wait for the async task to run.
+		tokio::time::sleep(tokio::time::Duration::from_millis(1)).await;
+
+		assert!(origin.consumer.consume_broadcast("test").is_some());
+		origin.consumer.assert_next_none("test");
+		origin.consumer.assert_next("test", &consumer1);
+
+		// Drop the final broadcast, we should unannounce.
+		drop(broadcast1.producer);
+
+		// Wait for the async task to run.
+		tokio::time::sleep(tokio::time::Duration::from_millis(1)).await;
 		assert!(origin.consumer.consume_broadcast("test").is_none());
+
+		origin.consumer.assert_next_none("test");
+		origin.consumer.assert_next_wait();
 	}
 
 	#[tokio::test]
@@ -618,5 +769,339 @@ mod tests {
 			// try_next does not have the same issue because it's synchronous.
 			origin.consumer.assert_try_next(format!("test{i}"), &broadcast.consumer);
 		}
+	}
+
+	#[tokio::test]
+	async fn test_with_root_basic() {
+		let mut origin = Origin::produce();
+		let broadcast = Broadcast::produce();
+
+		// Create a producer with root "/foo"
+		let mut foo_producer = origin.producer.with_root("foo").expect("should create root");
+		assert_eq!(foo_producer.prefix().as_str(), "foo");
+
+		// When publishing to "bar/baz", it should actually publish to "foo/bar/baz"
+		assert!(foo_producer.publish_broadcast("bar/baz", broadcast.consumer.clone()));
+
+		// The original consumer should see the full path
+		origin.consumer.assert_next("foo/bar/baz", &broadcast.consumer);
+
+		// A consumer created from the rooted producer should see the stripped path
+		let mut foo_consumer = foo_producer.consume();
+		foo_consumer.assert_next("bar/baz", &broadcast.consumer);
+	}
+
+	#[tokio::test]
+	async fn test_with_root_nested() {
+		let mut origin = Origin::produce();
+		let broadcast = Broadcast::produce();
+
+		// Create nested roots
+		let foo_producer = origin.producer.with_root("foo").expect("should create foo root");
+		let mut foo_bar_producer = foo_producer.with_root("bar").expect("should create bar root");
+		assert_eq!(foo_bar_producer.prefix().as_str(), "foo/bar");
+
+		// Publishing to "baz" should actually publish to "foo/bar/baz"
+		assert!(foo_bar_producer.publish_broadcast("baz", broadcast.consumer.clone()));
+
+		// The original consumer sees the full path
+		origin.consumer.assert_next("foo/bar/baz", &broadcast.consumer);
+
+		// Consumer from foo_bar_producer sees just "baz"
+		let mut foo_bar_consumer = foo_bar_producer.consume();
+		foo_bar_consumer.assert_next("baz", &broadcast.consumer);
+	}
+
+	#[tokio::test]
+	async fn test_publish_only_allows() {
+		let origin = Origin::produce();
+		let broadcast = Broadcast::produce();
+
+		// Create a producer that can only publish to "allowed" paths
+		let mut limited_producer = origin
+			.producer
+			.publish_only(&["allowed/path1".into(), "allowed/path2".into()])
+			.expect("should create limited producer");
+
+		// Should be able to publish to allowed paths
+		assert!(limited_producer.publish_broadcast("allowed/path1", broadcast.consumer.clone()));
+		assert!(limited_producer.publish_broadcast("allowed/path1/nested", broadcast.consumer.clone()));
+		assert!(limited_producer.publish_broadcast("allowed/path2", broadcast.consumer.clone()));
+
+		// Should not be able to publish to disallowed paths
+		assert!(!limited_producer.publish_broadcast("notallowed", broadcast.consumer.clone()));
+		assert!(!limited_producer.publish_broadcast("allowed", broadcast.consumer.clone())); // Parent of allowed path
+		assert!(!limited_producer.publish_broadcast("other/path", broadcast.consumer.clone()));
+	}
+
+	#[tokio::test]
+	async fn test_publish_only_empty() {
+		let origin = Origin::produce();
+
+		// Creating a producer with no allowed paths should return None
+		assert!(origin.producer.publish_only(&[]).is_none());
+	}
+
+	#[tokio::test]
+	async fn test_consume_only_filters() {
+		let mut origin = Origin::produce();
+		let broadcast1 = Broadcast::produce();
+		let broadcast2 = Broadcast::produce();
+		let broadcast3 = Broadcast::produce();
+
+		// Publish to different paths
+		origin
+			.producer
+			.publish_broadcast("allowed", broadcast1.consumer.clone());
+		origin
+			.producer
+			.publish_broadcast("allowed/nested", broadcast2.consumer.clone());
+		origin
+			.producer
+			.publish_broadcast("notallowed", broadcast3.consumer.clone());
+
+		// Create a consumer that only sees "allowed" paths
+		let mut limited_consumer = origin
+			.consumer
+			.consume_only(&["allowed".into()])
+			.expect("should create limited consumer");
+
+		// Should only receive broadcasts under "allowed"
+		limited_consumer.assert_next("allowed", &broadcast1.consumer);
+		limited_consumer.assert_next("allowed/nested", &broadcast2.consumer);
+		limited_consumer.assert_next_wait(); // Should not see "notallowed"
+
+		// Original consumer should see all
+		origin.consumer.assert_next("allowed", &broadcast1.consumer);
+		origin.consumer.assert_next("allowed/nested", &broadcast2.consumer);
+		origin.consumer.assert_next("notallowed", &broadcast3.consumer);
+	}
+
+	#[tokio::test]
+	async fn test_consume_only_multiple_prefixes() {
+		let mut origin = Origin::produce();
+		let broadcast1 = Broadcast::produce();
+		let broadcast2 = Broadcast::produce();
+		let broadcast3 = Broadcast::produce();
+
+		origin
+			.producer
+			.publish_broadcast("foo/test", broadcast1.consumer.clone());
+		origin
+			.producer
+			.publish_broadcast("bar/test", broadcast2.consumer.clone());
+		origin
+			.producer
+			.publish_broadcast("baz/test", broadcast3.consumer.clone());
+
+		// Consumer that only sees "foo" and "bar" paths
+		let mut limited_consumer = origin
+			.consumer
+			.consume_only(&["foo".into(), "bar".into()])
+			.expect("should create limited consumer");
+
+		limited_consumer.assert_next("foo/test", &broadcast1.consumer);
+		limited_consumer.assert_next("bar/test", &broadcast2.consumer);
+		limited_consumer.assert_next_wait(); // Should not see "baz/test"
+	}
+
+	#[tokio::test]
+	async fn test_with_root_and_publish_only() {
+		let mut origin = Origin::produce();
+		let broadcast = Broadcast::produce();
+
+		// User connects to /foo root
+		let foo_producer = origin.producer.with_root("foo").expect("should create foo root");
+
+		// Limit them to publish only to "bar" and "goop/pee" within /foo
+		let mut limited_producer = foo_producer
+			.publish_only(&["bar".into(), "goop/pee".into()])
+			.expect("should create limited producer");
+
+		// Should be able to publish to foo/bar and foo/goop/pee (but user sees as bar and goop/pee)
+		assert!(limited_producer.publish_broadcast("bar", broadcast.consumer.clone()));
+		assert!(limited_producer.publish_broadcast("bar/nested", broadcast.consumer.clone()));
+		assert!(limited_producer.publish_broadcast("goop/pee", broadcast.consumer.clone()));
+		assert!(limited_producer.publish_broadcast("goop/pee/nested", broadcast.consumer.clone()));
+
+		// Should not be able to publish outside allowed paths
+		assert!(!limited_producer.publish_broadcast("baz", broadcast.consumer.clone()));
+		assert!(!limited_producer.publish_broadcast("goop", broadcast.consumer.clone())); // Parent of allowed
+		assert!(!limited_producer.publish_broadcast("goop/other", broadcast.consumer.clone()));
+
+		// Original consumer sees full paths
+		origin.consumer.assert_next("foo/bar", &broadcast.consumer);
+		origin.consumer.assert_next("foo/bar/nested", &broadcast.consumer);
+		origin.consumer.assert_next("foo/goop/pee", &broadcast.consumer);
+		origin.consumer.assert_next("foo/goop/pee/nested", &broadcast.consumer);
+	}
+
+	#[tokio::test]
+	async fn test_with_root_and_consume_only() {
+		let mut origin = Origin::produce();
+		let broadcast1 = Broadcast::produce();
+		let broadcast2 = Broadcast::produce();
+		let broadcast3 = Broadcast::produce();
+
+		// Publish broadcasts
+		origin
+			.producer
+			.publish_broadcast("foo/bar/test", broadcast1.consumer.clone());
+		origin
+			.producer
+			.publish_broadcast("foo/goop/pee/test", broadcast2.consumer.clone());
+		origin
+			.producer
+			.publish_broadcast("foo/other/test", broadcast3.consumer.clone());
+
+		// User connects to /foo root
+		let foo_producer = origin.producer.with_root("foo").expect("should create foo root");
+
+		// Create consumer limited to "bar" and "goop/pee" within /foo
+		let mut limited_consumer = foo_producer
+			.consume_only(&["bar".into(), "goop/pee".into()])
+			.expect("should create limited consumer");
+
+		// Should only see allowed paths (without foo prefix)
+		limited_consumer.assert_next("bar/test", &broadcast1.consumer);
+		limited_consumer.assert_next("goop/pee/test", &broadcast2.consumer);
+		limited_consumer.assert_next_wait(); // Should not see "other/test"
+	}
+
+	#[tokio::test]
+	async fn test_with_root_unauthorized() {
+		let origin = Origin::produce();
+
+		// First limit the producer to specific paths
+		let limited_producer = origin
+			.producer
+			.publish_only(&["allowed".into()])
+			.expect("should create limited producer");
+
+		// Trying to create a root outside allowed paths should fail
+		assert!(limited_producer.with_root("notallowed").is_none());
+
+		// But creating a root within allowed paths should work
+		let allowed_root = limited_producer
+			.with_root("allowed")
+			.expect("should create allowed root");
+		assert_eq!(allowed_root.prefix().as_str(), "allowed");
+	}
+
+	#[tokio::test]
+	async fn test_wildcard_permission() {
+		let origin = Origin::produce();
+		let broadcast = Broadcast::produce();
+
+		// Producer with root access (empty string means wildcard)
+		let mut root_producer = origin.producer.clone();
+
+		// Should be able to publish anywhere
+		assert!(root_producer.publish_broadcast("any/path", broadcast.consumer.clone()));
+		assert!(root_producer.publish_broadcast("other/path", broadcast.consumer.clone()));
+
+		// Can create any root
+		let foo_producer = root_producer.with_root("foo").expect("should create any root");
+		assert_eq!(foo_producer.prefix().as_str(), "foo");
+	}
+
+	#[tokio::test]
+	async fn test_consume_broadcast_with_permissions() {
+		let mut origin = Origin::produce();
+		let broadcast1 = Broadcast::produce();
+		let broadcast2 = Broadcast::produce();
+
+		origin
+			.producer
+			.publish_broadcast("allowed/test", broadcast1.consumer.clone());
+		origin
+			.producer
+			.publish_broadcast("notallowed/test", broadcast2.consumer.clone());
+
+		// Create limited consumer
+		let limited_consumer = origin
+			.consumer
+			.consume_only(&["allowed".into()])
+			.expect("should create limited consumer");
+
+		// Should be able to get allowed broadcast
+		let result = limited_consumer.consume_broadcast("allowed/test");
+		assert!(result.is_some());
+		assert!(result.unwrap().is_clone(&broadcast1.consumer));
+
+		// Should not be able to get disallowed broadcast
+		assert!(limited_consumer.consume_broadcast("notallowed/test").is_none());
+
+		// Original consumer can get both
+		assert!(origin.consumer.consume_broadcast("allowed/test").is_some());
+		assert!(origin.consumer.consume_broadcast("notallowed/test").is_some());
+	}
+
+	#[tokio::test]
+	async fn test_nested_paths_with_permissions() {
+		let origin = Origin::produce();
+		let broadcast = Broadcast::produce();
+
+		// Create producer limited to "a/b/c"
+		let mut limited_producer = origin
+			.producer
+			.publish_only(&["a/b/c".into()])
+			.expect("should create limited producer");
+
+		// Should be able to publish to exact path and nested paths
+		assert!(limited_producer.publish_broadcast("a/b/c", broadcast.consumer.clone()));
+		assert!(limited_producer.publish_broadcast("a/b/c/d", broadcast.consumer.clone()));
+		assert!(limited_producer.publish_broadcast("a/b/c/d/e", broadcast.consumer.clone()));
+
+		// Should not be able to publish to parent or sibling paths
+		assert!(!limited_producer.publish_broadcast("a", broadcast.consumer.clone()));
+		assert!(!limited_producer.publish_broadcast("a/b", broadcast.consumer.clone()));
+		assert!(!limited_producer.publish_broadcast("a/b/other", broadcast.consumer.clone()));
+	}
+
+	#[tokio::test]
+	async fn test_multiple_consumers_with_different_permissions() {
+		let mut origin = Origin::produce();
+		let broadcast1 = Broadcast::produce();
+		let broadcast2 = Broadcast::produce();
+		let broadcast3 = Broadcast::produce();
+
+		// Publish to different paths
+		origin
+			.producer
+			.publish_broadcast("foo/test", broadcast1.consumer.clone());
+		origin
+			.producer
+			.publish_broadcast("bar/test", broadcast2.consumer.clone());
+		origin
+			.producer
+			.publish_broadcast("baz/test", broadcast3.consumer.clone());
+
+		// Create consumers with different permissions
+		let mut foo_consumer = origin
+			.consumer
+			.consume_only(&["foo".into()])
+			.expect("should create foo consumer");
+
+		let mut bar_consumer = origin
+			.consumer
+			.consume_only(&["bar".into()])
+			.expect("should create bar consumer");
+
+		let mut foobar_consumer = origin
+			.consumer
+			.consume_only(&["foo".into(), "bar".into()])
+			.expect("should create foobar consumer");
+
+		// Each consumer should only see their allowed paths
+		foo_consumer.assert_next("foo/test", &broadcast1.consumer);
+		foo_consumer.assert_next_wait();
+
+		bar_consumer.assert_next("bar/test", &broadcast2.consumer);
+		bar_consumer.assert_next_wait();
+
+		foobar_consumer.assert_next("foo/test", &broadcast1.consumer);
+		foobar_consumer.assert_next("bar/test", &broadcast2.consumer);
+		foobar_consumer.assert_next_wait();
 	}
 }

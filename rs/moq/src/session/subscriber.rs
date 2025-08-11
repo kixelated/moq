@@ -4,8 +4,8 @@ use std::{
 };
 
 use crate::{
-	message, model::BroadcastProducer, Broadcast, Error, Frame, FrameProducer, Group, GroupProducer, OriginProducer,
-	Path, PathOwned, TrackProducer,
+	message, model::BroadcastProducer, AsPath, Broadcast, Error, Frame, FrameProducer, Group, GroupProducer,
+	OriginProducer, Path, PathOwned, TrackProducer,
 };
 
 use tokio::sync::oneshot;
@@ -76,12 +76,14 @@ impl Subscriber {
 
 		let mut stream = Stream::open(&mut self.session, message::ControlType::Announce).await?;
 
-		let prefix = self.origin.as_ref().unwrap().prefix().clone();
+		let prefix = self.origin.as_ref().unwrap().prefix().to_owned();
 		tracing::trace!(%prefix, "announced start");
 
 		// Ask for everything.
 		// TODO This needs to actually ask for the root?
-		let msg = message::AnnouncePlease { prefix };
+		let msg = message::AnnouncePlease {
+			prefix: prefix.as_path(),
+		};
 		stream.writer.encode(&msg).await?;
 
 		let mut producers = HashMap::new();
@@ -102,7 +104,7 @@ impl Subscriber {
 					tracing::debug!(broadcast = %self.log_path(&path), "unannounced");
 
 					// Close the producer.
-					let mut producer = producers.remove(&path).ok_or(Error::NotFound)?;
+					let mut producer = producers.remove(&path.into_owned()).ok_or(Error::NotFound)?;
 					producer.close();
 				}
 			}
@@ -122,7 +124,7 @@ impl Subscriber {
 		let broadcast = Broadcast::produce();
 
 		// Make sure the peer doesn't double announce.
-		match producers.entry(path.clone()) {
+		match producers.entry(path.to_owned()) {
 			Entry::Occupied(_) => return Err(Error::Duplicate),
 			Entry::Vacant(entry) => entry.insert(broadcast.producer.clone()),
 		};
@@ -294,7 +296,7 @@ impl Subscriber {
 		Ok(())
 	}
 
-	fn log_path(&self, path: &Path<'_>) -> Path {
+	fn log_path(&self, path: impl AsPath) -> Path {
 		self.origin.as_ref().unwrap().prefix().join(path)
 	}
 }

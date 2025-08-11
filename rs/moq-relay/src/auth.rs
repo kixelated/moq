@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use anyhow::Context;
-use moq_lite::{Path, PathOwned};
+use moq_lite::{AsPath, Path, PathOwned};
 use serde::{Deserialize, Serialize};
 use url::Url;
 
@@ -17,13 +17,21 @@ pub struct AuthConfig {
 	/// If present, unauthorized users will be able to read and write to this prefix ONLY.
 	/// If a user provides a token, then they can only access the prefix only if it is specified in the token.
 	#[arg(long = "auth-public", env = "MOQ_AUTH_PUBLIC")]
-	pub public: Option<PathOwned>,
+	pub public: Option<String>,
 }
 
 impl AuthConfig {
 	pub fn init(self) -> anyhow::Result<Auth> {
 		Auth::new(self)
 	}
+}
+
+#[derive(Debug)]
+pub struct AuthToken {
+	pub root: PathOwned,
+	pub subscribe: Vec<PathOwned>,
+	pub publish: Vec<PathOwned>,
+	pub cluster: bool,
 }
 
 #[derive(Clone)]
@@ -49,16 +57,16 @@ impl Auth {
 
 		Ok(Self {
 			key: key.map(Arc::new),
-			public,
+			public: public.map(|p| p.as_path().to_owned()),
 		})
 	}
 
 	// Parse the token from the user provided URL, returning the claims if successful.
 	// If no token is provided, then the claims will use the public path if it is set.
-	pub fn verify(&self, url: &Url) -> anyhow::Result<moq_token::Claims> {
+	pub fn verify(&self, url: &Url) -> anyhow::Result<AuthToken> {
 		// Find the token in the query parameters.
 		// ?jwt=...
-		let mut claims = if let Some((_, token)) = url.query_pairs().find(|(k, _)| k == "jwt") {
+		let claims = if let Some((_, token)) = url.query_pairs().find(|(k, _)| k == "jwt") {
 			if let Some(key) = self.key.as_ref() {
 				key.decode(&token)?
 			} else {
@@ -66,9 +74,9 @@ impl Auth {
 			}
 		} else if let Some(public) = &self.public {
 			moq_token::Claims {
-				root: public.clone(),
-				subscribe: vec![Path::new("")],
-				publish: vec![Path::new("")],
+				root: public.to_string(),
+				subscribe: "".into(),
+				publish: "".into(),
 				..Default::default()
 			}
 		} else {
@@ -77,41 +85,48 @@ impl Auth {
 
 		// Get the path from the URL, removing any leading or trailing slashes.
 		// We will automatically add a trailing slash when joining the path with the subscribe/publish roots.
-		let path = Path::new(url.path());
+		let root = Path::new(url.path());
 
 		// Make sure the URL path matches the root path.
-		let suffix = path
+		let suffix = root
 			.strip_prefix(&claims.root)
 			.context("path does not match the root")?;
 
 		// If a more specific path is is provided, reduce the permissions.
-		claims.subscribe = claims
+		let subscribe = claims
 			.subscribe
+			.into_vec()
 			.into_iter()
 			.filter_map(|p| {
+				let p = Path::new(&p);
 				if !p.is_empty() {
 					p.strip_prefix(&suffix).map(|p| p.to_owned())
 				} else {
-					Some(p)
+					Some(p.to_owned())
 				}
 			})
 			.collect();
 
-		claims.publish = claims
+		let publish = claims
 			.publish
+			.into_vec()
 			.into_iter()
 			.filter_map(|p| {
+				let p = Path::new(&p);
 				if !p.is_empty() {
 					p.strip_prefix(&suffix).map(|p| p.to_owned())
 				} else {
-					Some(p)
+					Some(p.to_owned())
 				}
 			})
 			.collect();
 
-		claims.root = path.to_owned();
-
-		Ok(claims)
+		Ok(AuthToken {
+			root: root.to_owned(),
+			subscribe,
+			publish,
+			cluster: claims.cluster,
+		})
 	}
 }
 
@@ -133,22 +148,22 @@ mod tests {
 		// Test anonymous access to /anon path
 		let auth = Auth::new(AuthConfig {
 			key: None,
-			public: Some(Path::new("anon")),
+			public: Some("anon".to_string()),
 		})?;
 
 		// Should succeed for anonymous path
 		let url = Url::parse("https://relay.example.com/anon")?;
-		let claims = auth.verify(&url)?;
-		assert_eq!(claims.root, Path::new("anon"));
-		assert_eq!(claims.subscribe, vec![Path::new("")]);
-		assert_eq!(claims.publish, vec![Path::new("")]);
+		let token = auth.verify(&url)?;
+		assert_eq!(token.root, "anon".as_path());
+		assert_eq!(token.subscribe, vec!["".as_path()]);
+		assert_eq!(token.publish, vec!["".as_path()]);
 
 		// Should succeed for sub-paths under anonymous
 		let url = Url::parse("https://relay.example.com/anon/room/123")?;
-		let claims = auth.verify(&url)?;
-		assert_eq!(claims.root, Path::new("anon/room/123"));
-		assert_eq!(claims.subscribe, vec![Path::new("")]);
-		assert_eq!(claims.publish, vec![Path::new("")]);
+		let token = auth.verify(&url)?;
+		assert_eq!(token.root, Path::new("anon/room/123").to_owned());
+		assert_eq!(token.subscribe, vec![Path::new("").to_owned()]);
+		assert_eq!(token.publish, vec![Path::new("").to_owned()]);
 
 		Ok(())
 	}
@@ -158,15 +173,15 @@ mod tests {
 		// Test fully public access (public = "")
 		let auth = Auth::new(AuthConfig {
 			key: None,
-			public: Some(Path::new("")),
+			public: Some("".to_string()),
 		})?;
 
 		// Should succeed for any path
 		let url = Url::parse("https://relay.example.com/any/path")?;
-		let claims = auth.verify(&url)?;
-		assert_eq!(claims.root, Path::new("any/path"));
-		assert_eq!(claims.subscribe, vec![Path::new("")]);
-		assert_eq!(claims.publish, vec![Path::new("")]);
+		let token = auth.verify(&url)?;
+		assert_eq!(token.root, Path::new("any/path").to_owned());
+		assert_eq!(token.subscribe, vec![Path::new("").to_owned()]);
+		assert_eq!(token.publish, vec![Path::new("").to_owned()]);
 
 		Ok(())
 	}
@@ -176,7 +191,7 @@ mod tests {
 		// Test anonymous access denied for wrong prefix
 		let auth = Auth::new(AuthConfig {
 			key: None,
-			public: Some(Path::new("anon")),
+			public: Some("anon".to_string()),
 		})?;
 
 		// Should fail for non-anonymous path
@@ -212,7 +227,7 @@ mod tests {
 	fn test_token_provided_but_no_key_configured() -> anyhow::Result<()> {
 		let auth = Auth::new(AuthConfig {
 			key: None,
-			public: Some(Path::new("anon")),
+			public: Some("anon".to_string()),
 		})?;
 
 		// Should fail when token provided but no key configured
@@ -237,19 +252,19 @@ mod tests {
 
 		// Create a token with basic permissions
 		let claims = moq_token::Claims {
-			root: Path::new("room/123"),
-			subscribe: vec![Path::new("")],
-			publish: vec![Path::new("alice")],
+			root: "room/123".to_string(),
+			subscribe: None.into(),
+			publish: "alice".into(),
 			..Default::default()
 		};
 		let token = key.encode(&claims)?;
 
 		// Should succeed with valid token and matching path
 		let url = Url::parse(&format!("https://relay.example.com/room/123?jwt={token}"))?;
-		let verified_claims = auth.verify(&url)?;
-		assert_eq!(verified_claims.root, Path::new("room/123"));
-		assert_eq!(verified_claims.subscribe, vec![Path::new("")]);
-		assert_eq!(verified_claims.publish, vec![Path::new("alice")]);
+		let token = auth.verify(&url)?;
+		assert_eq!(token.root, "room/123".as_path());
+		assert_eq!(token.subscribe, vec!["".as_path()]);
+		assert_eq!(token.publish, vec!["alice".as_path()]);
 
 		Ok(())
 	}
@@ -264,9 +279,9 @@ mod tests {
 
 		// Create a token for room/123
 		let claims = moq_token::Claims {
-			root: Path::new("room/123"),
-			subscribe: vec![Path::new("")],
-			publish: vec![Path::new("")],
+			root: "room/123".to_string(),
+			subscribe: None.into(),
+			publish: None.into(),
 			..Default::default()
 		};
 		let token = key.encode(&claims)?;
@@ -290,19 +305,19 @@ mod tests {
 
 		// Create a token with specific pub/sub restrictions
 		let claims = moq_token::Claims {
-			root: Path::new("room/123"),
-			subscribe: vec![Path::new("bob")],
-			publish: vec![Path::new("alice")],
+			root: "room/123".to_string(),
+			subscribe: "bob".into(),
+			publish: "alice".into(),
 			..Default::default()
 		};
 		let token = key.encode(&claims)?;
 
 		// Verify the restrictions are preserved
 		let url = Url::parse(&format!("https://relay.example.com/room/123?jwt={token}"))?;
-		let verified_claims = auth.verify(&url)?;
-		assert_eq!(verified_claims.root, Path::new("room/123"));
-		assert_eq!(verified_claims.subscribe, vec![Path::new("bob")]);
-		assert_eq!(verified_claims.publish, vec![Path::new("alice")]);
+		let token = auth.verify(&url)?;
+		assert_eq!(token.root, "room/123".as_path());
+		assert_eq!(token.subscribe, vec!["bob".as_path()]);
+		assert_eq!(token.publish, vec!["alice".as_path()]);
 
 		Ok(())
 	}
@@ -317,17 +332,17 @@ mod tests {
 
 		// Create a read-only token (no publish permissions)
 		let claims = moq_token::Claims {
-			root: Path::new("room/123"),
-			subscribe: vec![Path::new("")],
-			publish: vec![],
+			root: "room/123".to_string(),
+			subscribe: None.into(),
+			publish: None.into(),
 			..Default::default()
 		};
 		let token = key.encode(&claims)?;
 
 		let url = Url::parse(&format!("https://relay.example.com/room/123?jwt={token}"))?;
-		let verified_claims = auth.verify(&url)?;
-		assert_eq!(verified_claims.subscribe, vec![Path::new("")]);
-		assert_eq!(verified_claims.publish, vec![]);
+		let token = auth.verify(&url)?;
+		assert_eq!(token.subscribe, vec!["".as_path()]);
+		assert_eq!(token.publish, vec![]);
 
 		Ok(())
 	}
@@ -342,17 +357,17 @@ mod tests {
 
 		// Create a write-only token (no subscribe permissions)
 		let claims = moq_token::Claims {
-			root: Path::new("room/123"),
-			subscribe: vec![],
-			publish: vec![Path::new("")],
+			root: "room/123".to_string(),
+			subscribe: None.into(),
+			publish: "".into(),
 			..Default::default()
 		};
 		let token = key.encode(&claims)?;
 
 		let url = Url::parse(&format!("https://relay.example.com/room/123?jwt={token}"))?;
-		let verified_claims = auth.verify(&url)?;
-		assert_eq!(verified_claims.subscribe, vec![]);
-		assert_eq!(verified_claims.publish, vec![Path::new("")]);
+		let token = auth.verify(&url)?;
+		assert_eq!(token.subscribe, vec![]);
+		assert_eq!(token.publish, vec!["".as_path()]);
 
 		Ok(())
 	}
@@ -367,22 +382,22 @@ mod tests {
 
 		// Create a token with root at room/123 and unrestricted pub/sub
 		let claims = moq_token::Claims {
-			root: Path::new("room/123"),
-			subscribe: vec![Path::new("")],
-			publish: vec![Path::new("")],
+			root: "room/123".to_string(),
+			subscribe: None.into(),
+			publish: None.into(),
 			..Default::default()
 		};
 		let token = key.encode(&claims)?;
 
 		// Connect to more specific path room/123/alice
 		let url = Url::parse(&format!("https://relay.example.com/room/123/alice?jwt={token}"))?;
-		let verified_claims = auth.verify(&url)?;
+		let token = auth.verify(&url)?;
 
 		// Root should be updated to the more specific path
-		assert_eq!(verified_claims.root, Path::new("room/123/alice"));
+		assert_eq!(token.root, Path::new("room/123/alice"));
 		// Empty permissions remain empty (full access under new root)
-		assert_eq!(verified_claims.subscribe, vec![Path::new("")]);
-		assert_eq!(verified_claims.publish, vec![Path::new("")]);
+		assert_eq!(token.subscribe, vec!["".as_path()]);
+		assert_eq!(token.publish, vec!["".as_path()]);
 
 		Ok(())
 	}
@@ -397,21 +412,21 @@ mod tests {
 
 		// Token allows publishing only to alice/*
 		let claims = moq_token::Claims {
-			root: Path::new("room/123"),
-			subscribe: vec![Path::new("")],
-			publish: vec![Path::new("alice")],
+			root: "room/123".to_string(),
+			subscribe: None.into(),
+			publish: "alice".into(),
 			..Default::default()
 		};
 		let token = key.encode(&claims)?;
 
 		// Connect to room/123/alice - should remove alice prefix from publish
 		let url = Url::parse(&format!("https://relay.example.com/room/123/alice?jwt={token}"))?;
-		let verified_claims = auth.verify(&url)?;
+		let token = auth.verify(&url)?;
 
-		assert_eq!(verified_claims.root, Path::new("room/123/alice"));
-		assert_eq!(verified_claims.subscribe, vec![Path::new("")]);
+		assert_eq!(token.root, "room/123/alice".as_path());
+		assert_eq!(token.subscribe, vec!["".as_path()]);
 		// alice prefix stripped, now can publish to everything under room/123/alice
-		assert_eq!(verified_claims.publish, vec![Path::new("")]);
+		assert_eq!(token.publish, vec!["".as_path()]);
 
 		Ok(())
 	}
@@ -426,21 +441,21 @@ mod tests {
 
 		// Token allows subscribing only to bob/*
 		let claims = moq_token::Claims {
-			root: Path::new("room/123"),
-			subscribe: vec![Path::new("bob")],
-			publish: vec![Path::new("")],
+			root: "room/123".to_string(),
+			subscribe: "bob".into(),
+			publish: None.into(),
 			..Default::default()
 		};
 		let token = key.encode(&claims)?;
 
 		// Connect to room/123/bob - should remove bob prefix from subscribe
 		let url = Url::parse(&format!("https://relay.example.com/room/123/bob?jwt={token}"))?;
-		let verified_claims = auth.verify(&url)?;
+		let token = auth.verify(&url)?;
 
-		assert_eq!(verified_claims.root, Path::new("room/123/bob"));
+		assert_eq!(token.root, "room/123/bob".as_path());
 		// bob prefix stripped, now can subscribe to everything under room/123/bob
-		assert_eq!(verified_claims.subscribe, vec![Path::new("")]);
-		assert_eq!(verified_claims.publish, vec![Path::new("")]);
+		assert_eq!(token.subscribe, vec!["".as_path()]);
+		assert_eq!(token.publish, vec!["".as_path()]);
 
 		Ok(())
 	}
@@ -455,32 +470,32 @@ mod tests {
 
 		// Token allows publishing to alice/* and subscribing to bob/*
 		let claims = moq_token::Claims {
-			root: Path::new("room/123"),
-			subscribe: vec![Path::new("bob")],
-			publish: vec![Path::new("alice")],
+			root: "room/123".to_string(),
+			subscribe: "bob".into(),
+			publish: "alice".into(),
 			..Default::default()
 		};
 		let token = key.encode(&claims)?;
 
 		// Connect to room/123/alice - loses ability to subscribe to bob
 		let url = Url::parse(&format!("https://relay.example.com/room/123/alice?jwt={token}"))?;
-		let verified_claims = auth.verify(&url)?;
+		let verified = auth.verify(&url)?;
 
-		assert_eq!(verified_claims.root, Path::new("room/123/alice"));
+		assert_eq!(verified.root, "room/123/alice".as_path());
 		// Can't subscribe to bob anymore (alice doesn't have bob prefix)
-		assert_eq!(verified_claims.subscribe, vec![]);
+		assert_eq!(verified.subscribe, vec![]);
 		// Can publish to everything under alice
-		assert_eq!(verified_claims.publish, vec![Path::new("")]);
+		assert_eq!(verified.publish, vec!["".as_path()]);
 
 		// Connect to room/123/bob - loses ability to publish to alice
 		let url = Url::parse(&format!("https://relay.example.com/room/123/bob?jwt={token}"))?;
-		let verified_claims = auth.verify(&url)?;
+		let token = auth.verify(&url)?;
 
-		assert_eq!(verified_claims.root, Path::new("room/123/bob"));
+		assert_eq!(token.root, "room/123/bob".as_path());
 		// Can subscribe to everything under bob
-		assert_eq!(verified_claims.subscribe, vec![Path::new("")]);
+		assert_eq!(token.subscribe, vec!["".as_path()]);
 		// Can't publish to alice anymore (bob doesn't have alice prefix)
-		assert_eq!(verified_claims.publish, vec![]);
+		assert_eq!(token.publish, vec![]);
 
 		Ok(())
 	}
@@ -495,31 +510,31 @@ mod tests {
 
 		// Token with nested publish/subscribe paths
 		let claims = moq_token::Claims {
-			root: Path::new("room/123"),
-			subscribe: vec![Path::new("users/bob/screen")],
-			publish: vec![Path::new("users/alice/camera")],
+			root: "room/123".to_string(),
+			subscribe: "users/bob/screen".into(),
+			publish: "users/alice/camera".into(),
 			..Default::default()
 		};
 		let token = key.encode(&claims)?;
 
 		// Connect to room/123/users - permissions should be reduced
 		let url = Url::parse(&format!("https://relay.example.com/room/123/users?jwt={token}"))?;
-		let verified_claims = auth.verify(&url)?;
+		let verified = auth.verify(&url)?;
 
-		assert_eq!(verified_claims.root, Path::new("room/123/users"));
+		assert_eq!(verified.root, "room/123/users".as_path());
 		// users prefix removed from paths
-		assert_eq!(verified_claims.subscribe, vec![Path::new("bob/screen")]);
-		assert_eq!(verified_claims.publish, vec![Path::new("alice/camera")]);
+		assert_eq!(verified.subscribe, vec!["bob/screen".as_path()]);
+		assert_eq!(verified.publish, vec!["alice/camera".as_path()]);
 
 		// Connect to room/123/users/alice - further reduction
 		let url = Url::parse(&format!("https://relay.example.com/room/123/users/alice?jwt={token}"))?;
-		let verified_claims = auth.verify(&url)?;
+		let token = auth.verify(&url)?;
 
-		assert_eq!(verified_claims.root, Path::new("room/123/users/alice"));
+		assert_eq!(token.root, "room/123/users/alice".as_path());
 		// Can't subscribe (alice doesn't have bob prefix)
-		assert_eq!(verified_claims.subscribe, vec![]);
+		assert_eq!(token.subscribe, vec![]);
 		// users/alice prefix removed, left with camera
-		assert_eq!(verified_claims.publish, vec![Path::new("camera")]);
+		assert_eq!(token.publish, vec!["camera".as_path()]);
 
 		Ok(())
 	}
@@ -534,36 +549,36 @@ mod tests {
 
 		// Read-only token
 		let claims = moq_token::Claims {
-			root: Path::new("room/123"),
-			subscribe: vec![Path::new("alice")],
-			publish: vec![], // No publish permissions
+			root: "room/123".to_string(),
+			subscribe: "alice".into(),
+			publish: None.into(),
 			..Default::default()
 		};
 		let token = key.encode(&claims)?;
 
 		// Connect to more specific path
 		let url = Url::parse(&format!("https://relay.example.com/room/123/alice?jwt={token}"))?;
-		let verified_claims = auth.verify(&url)?;
+		let token = auth.verify(&url)?;
 
 		// Should remain read-only
-		assert_eq!(verified_claims.subscribe, vec![Path::new("")]);
-		assert_eq!(verified_claims.publish, vec![]);
+		assert_eq!(token.subscribe, vec!["".as_path()]);
+		assert_eq!(token.publish, vec![]);
 
 		// Write-only token
 		let claims = moq_token::Claims {
-			root: Path::new("room/123"),
-			subscribe: vec![], // No subscribe permissions
-			publish: vec![Path::new("alice")],
+			root: "room/123".to_string(),
+			subscribe: None.into(),
+			publish: "alice".into(),
 			..Default::default()
 		};
 		let token = key.encode(&claims)?;
 
 		let url = Url::parse(&format!("https://relay.example.com/room/123/alice?jwt={token}"))?;
-		let verified_claims = auth.verify(&url)?;
+		let verified = auth.verify(&url)?;
 
 		// Should remain write-only
-		assert_eq!(verified_claims.subscribe, vec![]);
-		assert_eq!(verified_claims.publish, vec![Path::new("")]);
+		assert_eq!(verified.subscribe, vec![]);
+		assert_eq!(verified.publish, vec!["".as_path()]);
 
 		Ok(())
 	}

@@ -4,7 +4,7 @@ use base64::Engine;
 use jsonwebtoken::{DecodingKey, EncodingKey, Header};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
-use crate::{Algorithm, Claims};
+use crate::{Algorithm, Claims, Paths};
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash, PartialOrd, Ord)]
 #[serde(rename_all = "camelCase")]
@@ -208,7 +208,6 @@ fn generate_hmac_key<const SIZE: usize>() -> Vec<u8> {
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use moq_lite::Path;
 	use std::time::{Duration, SystemTime};
 
 	fn create_test_key() -> Key {
@@ -224,10 +223,10 @@ mod tests {
 
 	fn create_test_claims() -> Claims {
 		Claims {
-			root: Path::new("test-path"),
-			publish: vec![Path::new("test-pub")],
+			root: "test-path".to_string(),
+			publish: "test-pub".into(),
 			cluster: false,
-			subscribe: vec![Path::new("test-sub")],
+			subscribe: "test-sub".into(),
 			expires: Some(SystemTime::now() + Duration::from_secs(3600)),
 			issued: Some(SystemTime::now()),
 		}
@@ -287,9 +286,9 @@ mod tests {
 	fn test_key_sign_invalid_claims() {
 		let key = create_test_key();
 		let invalid_claims = Claims {
-			root: Path::new("test-path"),
-			publish: vec![],
-			subscribe: vec![],
+			root: "test-path".to_string(),
+			publish: Paths::None,
+			subscribe: Paths::None,
 			cluster: false,
 			expires: None,
 			issued: None,
@@ -362,9 +361,9 @@ mod tests {
 	fn test_key_verify_token_without_exp() {
 		let key = create_test_key();
 		let claims = Claims {
-			root: Path::new("test-path"),
-			publish: vec![Path::new("test-pub")],
-			subscribe: vec![],
+			root: "test-path".to_string(),
+			publish: "test-pub".into(),
+			subscribe: Paths::None,
 			cluster: false,
 			expires: None,
 			issued: None,
@@ -381,9 +380,9 @@ mod tests {
 	fn test_key_round_trip() {
 		let key = create_test_key();
 		let original_claims = Claims {
-			root: Path::new("test-path"),
-			publish: vec![Path::new("test-pub")],
-			subscribe: vec![Path::new("test-sub")],
+			root: "test-path".to_string(),
+			publish: "test-pub".into(),
+			subscribe: "test-sub".into(),
 			cluster: true,
 			expires: Some(SystemTime::now() + Duration::from_secs(3600)),
 			issued: Some(SystemTime::now()),

@@ -1616,7 +1616,6 @@ dependencies = [
  "aws-lc-rs",
  "base64",
  "jsonwebtoken",
- "moq-lite",
  "serde",
  "serde_json",
  "serde_with",

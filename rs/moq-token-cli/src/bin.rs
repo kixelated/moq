@@ -1,6 +1,5 @@
 use anyhow::Context;
 use clap::{Parser, Subcommand};
-use moq_lite::PathOwned;
 use std::{io, path::PathBuf};
 
 #[derive(Debug, Parser)]
@@ -37,13 +36,13 @@ enum Commands {
 		/// The user MUST connect to this WebTransport path and any broadcasts are relative to it.
 		/// Any trailing/leading slashes are ignored.
 		#[arg(long, default_value = "")]
-		root: PathOwned,
+		root: String,
 
 		/// If specified, the user can publish any matching path prefixes.
 		/// If not specified, the user will not publish any broadcasts.
 		/// This can be specified multiple times to publish multiple paths.
 		#[arg(long)]
-		publish: Vec<PathOwned>,
+		publish: Vec<String>,
 
 		/// If true, then this client is considered a cluster node.
 		/// Both the client and server will only announce broadcasts from non-cluster clients.
@@ -55,7 +54,7 @@ enum Commands {
 		/// If not specified, the user will not receive announcements and cannot subscribe to any broadcasts.
 		/// This can be specified multiple times to subscribe to multiple paths.
 		#[arg(long)]
-		subscribe: Vec<PathOwned>,
+		subscribe: Vec<String>,
 
 		/// The expiration time of the token as a unix timestamp.
 		#[arg(long, value_parser = parse_unix_timestamp)]
@@ -93,9 +92,9 @@ fn main() -> anyhow::Result<()> {
 
 			let payload = moq_token::Claims {
 				root,
-				publish,
+				publish: publish.into(),
 				cluster,
-				subscribe,
+				subscribe: subscribe.into(),
 				expires,
 				issued,
 			};
