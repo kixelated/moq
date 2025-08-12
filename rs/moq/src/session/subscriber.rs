@@ -76,7 +76,7 @@ impl Subscriber {
 
 		let mut stream = Stream::open(&mut self.session, message::ControlType::Announce).await?;
 
-		tracing::trace!(prefix = %self.log_path(""), "announced start");
+		tracing::trace!(root = %self.log_path(""), "announced start");
 
 		// Ask for everything.
 		// TODO This should actually ask for each root.
@@ -116,7 +116,7 @@ impl Subscriber {
 		path: PathOwned,
 		producers: &mut HashMap<PathOwned, BroadcastProducer>,
 	) -> Result<(), Error> {
-		tracing::debug!(broadcast = %self.log_path(&path), "announced");
+		tracing::debug!(broadcast = %self.log_path(&path), suffix = %path, "announced");
 
 		let broadcast = Broadcast::produce();
 
@@ -166,13 +166,11 @@ impl Subscriber {
 	}
 
 	async fn run_subscribe(&mut self, id: u64, broadcast: Path<'_>, track: TrackProducer) {
-		let prefix = self.origin.as_ref().unwrap().prefix().to_owned();
-
 		self.subscribes.lock().insert(id, track.clone());
 
 		let msg = message::Subscribe {
 			id,
-			broadcast: prefix.join(&broadcast),
+			broadcast: broadcast.to_owned(),
 			track: (&track.info.name).into(),
 			priority: track.info.priority,
 		};
@@ -294,6 +292,6 @@ impl Subscriber {
 	}
 
 	fn log_path(&self, path: impl AsPath) -> Path {
-		self.origin.as_ref().unwrap().prefix().join(path)
+		self.origin.as_ref().unwrap().root().join(path)
 	}
 }

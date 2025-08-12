@@ -299,7 +299,7 @@ mod tests {
 		assert!(result
 			.unwrap_err()
 			.to_string()
-			.contains("no read or write allowed; token is useless"));
+			.contains("no publish or subscribe allowed; token is useless"));
 	}
 
 	#[test]

@@ -48,7 +48,7 @@ pub struct Claims {
 impl Claims {
 	pub fn validate(&self) -> anyhow::Result<()> {
 		if self.publish.is_empty() && self.subscribe.is_empty() {
-			anyhow::bail!("no read or write allowed; token is useless");
+			anyhow::bail!("no publish or subscribe allowed; token is useless");
 		}
 
 		Ok(())
@@ -94,7 +94,7 @@ mod tests {
 		assert!(result
 			.unwrap_err()
 			.to_string()
-			.contains("no read or write allowed; token is useless"));
+			.contains("no publish or subscribe allowed; token is useless"));
 	}
 
 	#[test]

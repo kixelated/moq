@@ -75,8 +75,8 @@ impl Auth {
 		} else if let Some(public) = &self.public {
 			moq_token::Claims {
 				root: public.to_string(),
-				subscribe: vec![],
-				publish: vec![],
+				subscribe: vec!["".to_string()],
+				publish: vec!["".to_string()],
 				..Default::default()
 			}
 		} else {

@@ -48,7 +48,7 @@ impl Publisher {
 		let prefix = interest.prefix.to_owned();
 
 		// For logging, show the full path that we're announcing.
-		tracing::trace!(prefix = %self.origin.absolute(&prefix), "announcing start");
+		tracing::trace!(root = %self.origin.absolute(&prefix), "announcing start");
 
 		let mut origin = self
 			.origin
@@ -111,11 +111,11 @@ impl Publisher {
 							let suffix = path.strip_prefix(&prefix).expect("origin returned invalid path").to_owned();
 
 							if active.is_some() {
-								tracing::debug!(broadcast = %origin.absolute(&path), "announce");
+								tracing::debug!(broadcast = %origin.absolute(&path), suffix = %suffix, "announce");
 								let msg = message::Announce::Active { suffix };
 								stream.writer.encode(&msg).await?;
 							} else {
-								tracing::debug!(broadcast = %origin.absolute(&path), "unannounce");
+								tracing::debug!(broadcast = %origin.absolute(&path), suffix = %suffix, "unannounce");
 								let msg = message::Announce::Ended { suffix };
 								stream.writer.encode(&msg).await?;
 							}
@@ -132,36 +132,30 @@ impl Publisher {
 
 		let id = subscribe.id;
 		let track = subscribe.track.clone();
-		let broadcast_path = subscribe.broadcast.to_owned();
-		
-		// The subscribe.broadcast contains the absolute path (e.g., "demo/bbb")
-		// But our origin has a prefix (e.g., "demo"), so we need the relative path
-		let relative_path = subscribe.broadcast
-			.strip_prefix(self.origin.prefix())
-			.unwrap_or_else(|| subscribe.broadcast.as_path());
-		
-		tracing::debug!(%id, broadcast = %broadcast_path, prefix = %self.origin.prefix(), relative = %relative_path, %track, "subscribed started");
+		let absolute = self.origin.absolute(&subscribe.broadcast).to_owned();
 
-		let broadcast = self.origin.consume_broadcast(relative_path);
+		tracing::debug!(%id, broadcast = %absolute, %track, "subscribed started");
+
+		let broadcast = self.origin.consume_broadcast(&subscribe.broadcast);
 
 		let session = self.session.clone();
 		web_async::spawn(async move {
 			if let Err(err) = Self::run_subscribe(session, &mut stream, &subscribe, broadcast).await {
 				match &err {
 					Error::Cancel => {
-						tracing::debug!(%id, broadcast = %broadcast_path, %track, "subscribed cancelled")
+						tracing::debug!(%id, broadcast = %absolute, %track, "subscribed cancelled")
 					}
 					// TODO better classify WebTransport errors.
 					Error::WebTransport(_) => {
-						tracing::debug!(%id, broadcast = %broadcast_path, %track, "subscribed cancelled")
+						tracing::debug!(%id, broadcast = %absolute, %track, "subscribed cancelled")
 					}
 					err => {
-						tracing::warn!(%err, %id, broadcast = %broadcast_path, %track, "subscribed error")
+						tracing::warn!(%err, %id, broadcast = %absolute, %track, "subscribed error")
 					}
 				}
 				stream.writer.abort(&err);
 			} else {
-				tracing::debug!(%id, broadcast = %broadcast_path, %track, "subscribed complete")
+				tracing::debug!(%id, broadcast = %absolute, %track, "subscribed complete")
 			}
 		});
 

@@ -28,24 +28,24 @@ struct OriginBroadcast {
 
 #[derive(Clone)]
 struct OriginConsumerNotify {
-	prefix: PathOwned,
+	root: PathOwned,
 	tx: mpsc::UnboundedSender<OriginAnnounce>,
 }
 
 impl OriginConsumerNotify {
 	fn announce(&self, path: impl AsPath, broadcast: BroadcastConsumer) {
-		let path = path.as_path().strip_prefix(&self.prefix).unwrap().to_owned();
+		let path = path.as_path().strip_prefix(&self.root).unwrap().to_owned();
 		self.tx.send((path, Some(broadcast))).expect("consumer closed");
 	}
 
 	fn reannounce(&self, path: impl AsPath, broadcast: BroadcastConsumer) {
-		let path = path.as_path().strip_prefix(&self.prefix).unwrap().to_owned();
+		let path = path.as_path().strip_prefix(&self.root).unwrap().to_owned();
 		self.tx.send((path.clone(), None)).expect("consumer closed");
 		self.tx.send((path, Some(broadcast))).expect("consumer closed");
 	}
 
 	fn unannounce(&self, path: impl AsPath) {
-		let path = path.as_path().strip_prefix(&self.prefix).unwrap().to_owned();
+		let path = path.as_path().strip_prefix(&self.root).unwrap().to_owned();
 		self.tx.send((path, None)).expect("consumer closed");
 	}
 }
@@ -68,7 +68,6 @@ impl NotifyNode {
 
 	fn announce(&mut self, path: impl AsPath, broadcast: &BroadcastConsumer) {
 		for (id, consumer) in &self.consumers {
-			println!("announcing: {} {}", id.0, path.as_path());
 			consumer.announce(path.as_path(), broadcast.clone());
 		}
 
@@ -79,7 +78,6 @@ impl NotifyNode {
 
 	fn reannounce(&mut self, path: impl AsPath, broadcast: &BroadcastConsumer) {
 		for (id, consumer) in &self.consumers {
-			println!("reannouncing: {} {}", id.0, path.as_path());
 			consumer.reannounce(path.as_path(), broadcast.clone());
 		}
 
@@ -90,7 +88,6 @@ impl NotifyNode {
 
 	fn unannounce(&mut self, path: impl AsPath) {
 		for (id, consumer) in &self.consumers {
-			println!("unannouncing: {} {}", id.0, path.as_path());
 			consumer.unannounce(path.as_path());
 		}
 
@@ -121,9 +118,7 @@ impl OriginNode {
 	}
 
 	fn leaf(&mut self, path: &Path) -> Lock<OriginNode> {
-		println!("leaf: {path:?}");
 		let (dir, rest) = path.next_part().expect("leaf called with empty path");
-		println!("leaf: {dir:?} {rest:?}");
 
 		let next = self.entry(dir);
 		if rest.is_empty() {
@@ -147,7 +142,6 @@ impl OriginNode {
 	fn publish(&mut self, full: impl AsPath, broadcast: &BroadcastConsumer, relative: impl AsPath) {
 		let full = full.as_path();
 		let rest = relative.as_path();
-		println!("publish: {full:?} {rest:?}");
 
 		// If the path has a directory component, then publish it to the nested node.
 		if let Some((dir, relative)) = rest.next_part() {
@@ -219,7 +213,6 @@ impl OriginNode {
 			if locked.is_empty() {
 				drop(locked);
 				self.nested.remove(dir);
-				println!("removed nested");
 			}
 		} else {
 			let entry = match &mut self.broadcast {
@@ -256,26 +249,23 @@ impl OriginNode {
 }
 
 #[derive(Clone)]
-struct OriginRoots {
-	roots: Vec<(PathOwned, Lock<OriginNode>)>,
+struct OriginNodes {
+	nodes: Vec<(PathOwned, Lock<OriginNode>)>,
 }
 
-impl OriginRoots {
+impl OriginNodes {
 	// Returns nested roots that match the prefixes.
 	// TODO enforce that prefixes can't overlap.
-	pub fn allow(&self, prefixes: &[Path]) -> Option<Self> {
+	pub fn select(&self, prefixes: &[Path]) -> Option<Self> {
 		let mut roots = Vec::new();
 
-		for (root, state) in &self.roots {
+		for (root, state) in &self.nodes {
 			for prefix in prefixes {
-				println!("scope: {root:?} {prefix:?}");
 				if !prefix.has_prefix(root) {
-					println!("scope: skip");
 					continue;
 				}
 
 				if prefix.is_empty() {
-					println!("scope: empty");
 					roots.push((root.to_owned(), state.clone()));
 					continue;
 				}
@@ -288,11 +278,11 @@ impl OriginRoots {
 		if roots.is_empty() {
 			None
 		} else {
-			Some(Self { roots })
+			Some(Self { nodes: roots })
 		}
 	}
 
-	pub fn scope(&self, new_root: impl AsPath) -> Option<Self> {
+	pub fn root(&self, new_root: impl AsPath) -> Option<Self> {
 		let new_root = new_root.as_path();
 		let mut roots = Vec::new();
 
@@ -300,7 +290,7 @@ impl OriginRoots {
 			return Some(self.clone());
 		}
 
-		for (root, state) in &self.roots {
+		for (root, state) in &self.nodes {
 			if let Some(suffix) = root.strip_prefix(&new_root) {
 				// If the old root is longer than the new root, shorten the keys.
 				roots.push((suffix.to_owned(), state.clone()));
@@ -315,7 +305,7 @@ impl OriginRoots {
 		if roots.is_empty() {
 			None
 		} else {
-			Some(Self { roots })
+			Some(Self { nodes: roots })
 		}
 	}
 
@@ -323,8 +313,7 @@ impl OriginRoots {
 	pub fn get(&self, path: impl AsPath) -> Option<(Lock<OriginNode>, PathOwned)> {
 		let path = path.as_path();
 
-		for (root, state) in &self.roots {
-			println!("get: {root:?} {path:?}");
+		for (root, state) in &self.nodes {
 			if let Some(suffix) = path.strip_prefix(root) {
 				return Some((state.clone(), suffix.to_owned()));
 			}
@@ -334,10 +323,10 @@ impl OriginRoots {
 	}
 }
 
-impl Default for OriginRoots {
+impl Default for OriginNodes {
 	fn default() -> Self {
 		Self {
-			roots: vec![("".into(), Lock::new(OriginNode::new(None)))],
+			nodes: vec![("".into(), Lock::new(OriginNode::new(None)))],
 		}
 	}
 }
@@ -360,10 +349,10 @@ impl Origin {
 pub struct OriginProducer {
 	// The roots of the tree that we are allowed to publish.
 	// A path of "" means we can publish anything.
-	roots: OriginRoots,
+	nodes: OriginNodes,
 
 	/// The prefix that is automatically stripped from all paths.
-	prefix: PathOwned,
+	root: PathOwned,
 }
 
 impl OriginProducer {
@@ -378,12 +367,12 @@ impl OriginProducer {
 	pub fn publish_broadcast(&self, path: impl AsPath, broadcast: BroadcastConsumer) -> bool {
 		let path = path.as_path();
 
-		let (root, rest) = match self.roots.get(&path) {
+		let (root, rest) = match self.nodes.get(&path) {
 			Some(root) => root,
 			None => return false,
 		};
 
-		let full = self.prefix.join(&path);
+		let full = self.root.join(&path);
 
 		root.lock().publish(&full, &broadcast, &rest);
 		let root = root.clone();
@@ -401,15 +390,14 @@ impl OriginProducer {
 	/// Returns None if there are no legal prefixes.
 	pub fn publish_only(&self, prefixes: &[Path]) -> Option<OriginProducer> {
 		Some(OriginProducer {
-			roots: self.roots.allow(prefixes)?,
-			prefix: self.prefix.clone(),
+			nodes: self.nodes.select(prefixes)?,
+			root: self.root.clone(),
 		})
 	}
 
 	/// Subscribe to all announced broadcasts.
 	pub fn consume(&self) -> OriginConsumer {
-		println!("consume: ");
-		OriginConsumer::new(self.roots.clone(), self.prefix.clone())
+		OriginConsumer::new(self.root.clone(), self.nodes.clone())
 	}
 
 	/// Subscribe to all announced broadcasts matching the prefix.
@@ -418,8 +406,7 @@ impl OriginProducer {
 	///
 	/// Returns None if there are no legal prefixes.
 	pub fn consume_only(&self, prefixes: &[Path]) -> Option<OriginConsumer> {
-		println!("consume_only: {prefixes:?}");
-		Some(OriginConsumer::new(self.roots.allow(prefixes)?, self.prefix.clone()))
+		Some(OriginConsumer::new(self.root.clone(), self.nodes.select(prefixes)?))
 	}
 
 	/// Returns a new OriginProducer that automatically strips out the provided prefix.
@@ -429,19 +416,23 @@ impl OriginProducer {
 		let prefix = prefix.as_path();
 
 		Some(Self {
-			prefix: self.prefix.join(&prefix).to_owned(),
-			roots: self.roots.scope(&prefix)?,
+			root: self.root.join(&prefix).to_owned(),
+			nodes: self.nodes.root(&prefix)?,
 		})
 	}
 
-	/// Returns the prefix that is automatically stripped from all paths.
-	pub fn prefix(&self) -> &Path {
-		&self.prefix
+	/// Returns the root that is automatically stripped from all paths.
+	pub fn root(&self) -> &Path {
+		&self.root
+	}
+
+	pub fn allowed(&self) -> impl Iterator<Item = &Path> {
+		self.nodes.nodes.iter().map(|(root, _)| root)
 	}
 
 	/// Converts a relative path to an absolute path.
 	pub fn absolute(&self, path: impl AsPath) -> Path {
-		self.prefix.join(path)
+		self.root.join(path)
 	}
 }
 
@@ -449,23 +440,22 @@ impl OriginProducer {
 // Not clone because it's expensive; call `consume` instead.
 pub struct OriginConsumer {
 	id: ConsumerId,
-	roots: OriginRoots,
+	nodes: OriginNodes,
 	updates: mpsc::UnboundedReceiver<OriginAnnounce>,
 
 	/// A prefix that is automatically stripped from all paths.
-	prefix: PathOwned,
+	root: PathOwned,
 }
 
 impl OriginConsumer {
-	fn new(roots: OriginRoots, prefix: PathOwned) -> Self {
+	fn new(root: PathOwned, nodes: OriginNodes) -> Self {
 		let (tx, rx) = mpsc::unbounded_channel();
 
 		let id = ConsumerId::new();
-		println!("new consumer: {id:?} {prefix:?}");
 
-		for (_, state) in &roots.roots {
+		for (_, state) in &nodes.nodes {
 			let notify = OriginConsumerNotify {
-				prefix: prefix.clone(),
+				root: root.clone(),
 				tx: tx.clone(),
 			};
 			state.lock().consume(id, notify);
@@ -473,9 +463,9 @@ impl OriginConsumer {
 
 		Self {
 			id,
-			roots,
+			nodes,
 			updates: rx,
-			prefix,
+			root,
 		}
 	}
 
@@ -499,7 +489,7 @@ impl OriginConsumer {
 	}
 
 	pub fn consume(&self) -> OriginConsumer {
-		OriginConsumer::new(self.roots.clone(), self.prefix.clone())
+		OriginConsumer::new(self.root.clone(), self.nodes.clone())
 	}
 
 	/// Get a specific broadcast by path.
@@ -509,8 +499,7 @@ impl OriginConsumer {
 	/// Returns None if the path hasn't been announced yet.
 	pub fn consume_broadcast<'a>(&self, path: impl AsPath) -> Option<BroadcastConsumer> {
 		let path = path.as_path();
-		let (root, rest) = self.roots.get(&path)?;
-		println!("consume_broadcast: {path:?} {rest:?}");
+		let (root, rest) = self.nodes.get(&path)?;
 		let state = root.lock();
 		state.consume_broadcast(&rest)
 	}
@@ -519,24 +508,27 @@ impl OriginConsumer {
 	///
 	/// Returns None if there are no legal prefixes (would always return None).
 	pub fn consume_only(&self, prefixes: &[Path]) -> Option<OriginConsumer> {
-		println!("consume_only: {prefixes:?}");
-		Some(OriginConsumer::new(self.roots.allow(prefixes)?, self.prefix.clone()))
+		Some(OriginConsumer::new(self.root.clone(), self.nodes.select(prefixes)?))
 	}
 
 	/// Returns the prefix that is automatically stripped from all paths.
-	pub fn prefix(&self) -> &Path {
-		&self.prefix
+	pub fn root(&self) -> &Path {
+		&self.root
+	}
+
+	pub fn allowed(&self) -> impl Iterator<Item = &Path> {
+		self.nodes.nodes.iter().map(|(root, _)| root)
 	}
 
 	/// Converts a relative path to an absolute path.
 	pub fn absolute(&self, path: impl AsPath) -> Path {
-		self.prefix.join(path)
+		self.root.join(path)
 	}
 }
 
 impl Drop for OriginConsumer {
 	fn drop(&mut self) {
-		for (_, root) in &self.roots.roots {
+		for (_, root) in &self.nodes.nodes {
 			root.lock().unconsume(self.id);
 		}
 	}
@@ -603,8 +595,6 @@ mod tests {
 
 		consumer1.assert_next("test1", &broadcast1.producer.consume());
 		consumer1.assert_next_wait();
-
-		println!("consumer1");
 
 		// Make a new consumer that should get the existing broadcast.
 		// But we don't consume it yet.
@@ -791,7 +781,7 @@ mod tests {
 
 		// Create a producer with root "/foo"
 		let foo_producer = origin.producer.with_root("foo").expect("should create root");
-		assert_eq!(foo_producer.prefix().as_str(), "foo");
+		assert_eq!(foo_producer.root().as_str(), "foo");
 
 		// When publishing to "bar/baz", it should actually publish to "foo/bar/baz"
 		assert!(foo_producer.publish_broadcast("bar/baz", broadcast.consumer.clone()));
@@ -812,7 +802,7 @@ mod tests {
 		// Create nested roots
 		let foo_producer = origin.producer.with_root("foo").expect("should create foo root");
 		let foo_bar_producer = foo_producer.with_root("bar").expect("should create bar root");
-		assert_eq!(foo_bar_producer.prefix().as_str(), "foo/bar");
+		assert_eq!(foo_bar_producer.root().as_str(), "foo/bar");
 
 		// Publishing to "baz" should actually publish to "foo/bar/baz"
 		assert!(foo_bar_producer.publish_broadcast("baz", broadcast.consumer.clone()));
@@ -998,7 +988,7 @@ mod tests {
 		let allowed_root = limited_producer
 			.with_root("allowed")
 			.expect("should create allowed root");
-		assert_eq!(allowed_root.prefix().as_str(), "allowed");
+		assert_eq!(allowed_root.root().as_str(), "allowed");
 	}
 
 	#[tokio::test]
@@ -1015,7 +1005,7 @@ mod tests {
 
 		// Can create any root
 		let foo_producer = root_producer.with_root("foo").expect("should create any root");
-		assert_eq!(foo_producer.prefix().as_str(), "foo");
+		assert_eq!(foo_producer.root().as_str(), "foo");
 	}
 
 	#[tokio::test]

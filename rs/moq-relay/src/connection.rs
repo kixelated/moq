@@ -48,11 +48,15 @@ impl Connection {
 
 		match (&subscribe, &publish) {
 			(Some(subscribe), Some(publish)) => {
-				tracing::info!(subscribe = %subscribe.prefix(), publish = %publish.prefix(), "session accepted")
+				tracing::info!(root = %token.root, subscribe = %subscribe.allowed().map(|p| p.as_str()).collect::<Vec<_>>().join(","), publish = %publish.allowed().map(|p| p.as_str()).collect::<Vec<_>>().join(","), "session accepted");
 			}
-			(Some(subscribe), None) => tracing::info!(subscribe = %subscribe.prefix(), "subscriber accepted"),
-			(None, Some(publish)) => tracing::info!(publish = %publish.prefix(), "publisher accepted"),
-			_ => unreachable!(),
+			(Some(subscribe), None) => {
+				tracing::info!(root = %token.root, subscribe = %subscribe.allowed().map(|p| p.as_str()).collect::<Vec<_>>().join(","), "subscriber accepted");
+			}
+			(None, Some(publish)) => {
+				tracing::info!(root = %token.root, publish = %publish.allowed().map(|p| p.as_str()).collect::<Vec<_>>().join(","), "publisher accepted")
+			}
+			_ => anyhow::bail!("invalid session; no allowed paths"),
 		}
 
 		// NOTE: subscribe and publish seem backwards because of how relays work.
