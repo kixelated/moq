@@ -362,8 +362,8 @@ mod tests {
 		let key = create_test_key();
 		let claims = Claims {
 			root: "test-path".to_string(),
-			publish: vec![],
-			subscribe: vec![],
+			publish: vec!["".to_string()],
+			subscribe: vec!["".to_string()],
 			cluster: false,
 			expires: None,
 			issued: None,

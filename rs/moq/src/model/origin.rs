@@ -67,7 +67,7 @@ impl NotifyNode {
 	}
 
 	fn announce(&mut self, path: impl AsPath, broadcast: &BroadcastConsumer) {
-		for (id, consumer) in &self.consumers {
+		for consumer in self.consumers.values() {
 			consumer.announce(path.as_path(), broadcast.clone());
 		}
 
@@ -77,7 +77,7 @@ impl NotifyNode {
 	}
 
 	fn reannounce(&mut self, path: impl AsPath, broadcast: &BroadcastConsumer) {
-		for (id, consumer) in &self.consumers {
+		for consumer in self.consumers.values() {
 			consumer.reannounce(path.as_path(), broadcast.clone());
 		}
 
@@ -87,7 +87,7 @@ impl NotifyNode {
 	}
 
 	fn unannounce(&mut self, path: impl AsPath) {
-		for (id, consumer) in &self.consumers {
+		for consumer in self.consumers.values() {
 			consumer.unannounce(path.as_path());
 		}
 

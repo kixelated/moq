@@ -381,8 +381,8 @@ mod tests {
 		// Create a token with root at room/123 and unrestricted pub/sub
 		let claims = moq_token::Claims {
 			root: "room/123".to_string(),
-			subscribe: vec![],
-			publish: vec![],
+			subscribe: vec!["".to_string()],
+			publish: vec!["".to_string()],
 			..Default::default()
 		};
 		let token = key.encode(&claims)?;
