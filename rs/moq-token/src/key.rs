@@ -4,7 +4,7 @@ use base64::Engine;
 use jsonwebtoken::{DecodingKey, EncodingKey, Header};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
-use crate::{Algorithm, Claims, Paths};
+use crate::{Algorithm, Claims};
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash, PartialOrd, Ord)]
 #[serde(rename_all = "camelCase")]
@@ -224,9 +224,9 @@ mod tests {
 	fn create_test_claims() -> Claims {
 		Claims {
 			root: "test-path".to_string(),
-			publish: "test-pub".into(),
+			publish: vec!["test-pub".into()],
 			cluster: false,
-			subscribe: "test-sub".into(),
+			subscribe: vec!["test-sub".into()],
 			expires: Some(SystemTime::now() + Duration::from_secs(3600)),
 			issued: Some(SystemTime::now()),
 		}
@@ -287,8 +287,8 @@ mod tests {
 		let key = create_test_key();
 		let invalid_claims = Claims {
 			root: "test-path".to_string(),
-			publish: Paths::None,
-			subscribe: Paths::None,
+			publish: vec![],
+			subscribe: vec![],
 			cluster: false,
 			expires: None,
 			issued: None,
@@ -299,7 +299,7 @@ mod tests {
 		assert!(result
 			.unwrap_err()
 			.to_string()
-			.contains("no publish or subscribe allowed; token is useless"));
+			.contains("no read or write allowed; token is useless"));
 	}
 
 	#[test]
@@ -362,8 +362,8 @@ mod tests {
 		let key = create_test_key();
 		let claims = Claims {
 			root: "test-path".to_string(),
-			publish: "test-pub".into(),
-			subscribe: Paths::None,
+			publish: vec![],
+			subscribe: vec![],
 			cluster: false,
 			expires: None,
 			issued: None,
@@ -373,6 +373,7 @@ mod tests {
 		let verified_claims = key.decode(&token).unwrap();
 		assert_eq!(verified_claims.root, claims.root);
 		assert_eq!(verified_claims.publish, claims.publish);
+		assert_eq!(verified_claims.subscribe, claims.subscribe);
 		assert_eq!(verified_claims.expires, None);
 	}
 
@@ -381,8 +382,8 @@ mod tests {
 		let key = create_test_key();
 		let original_claims = Claims {
 			root: "test-path".to_string(),
-			publish: "test-pub".into(),
-			subscribe: "test-sub".into(),
+			publish: vec!["test-pub".into()],
+			subscribe: vec!["test-sub".into()],
 			cluster: true,
 			expires: Some(SystemTime::now() + Duration::from_secs(3600)),
 			issued: Some(SystemTime::now()),

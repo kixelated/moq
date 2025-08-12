@@ -61,7 +61,7 @@ async fn main() -> anyhow::Result<()> {
 			let track = broadcast.producer.create_track(track);
 			let clock = clock::Publisher::new(track);
 
-			let mut origin = moq_lite::Origin::produce();
+			let origin = moq_lite::Origin::produce();
 			origin.producer.publish_broadcast(&config.broadcast, broadcast.consumer);
 
 			let session = moq_lite::Session::connect(session, origin.consumer, None).await?;

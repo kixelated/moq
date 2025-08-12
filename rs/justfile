@@ -31,32 +31,32 @@ root:
 	fi
 
 # Generate authentication tokens for local development
-# demo-me.jwt - allows publishing to demo/me/* and subscribing to demo/*
-# demo-pub.jwt - allows publishing to demo/* but no subscribing
-# cluster.jwt - allows publishing and subscribing to all paths
+# demo-web.jwt - allows publishing to demo/me/* and subscribing to demo/*
+# demo-cli.jwt - allows publishing to demo/* but no subscribing
+# root.jwt - allows publishing and subscribing to all paths
 auth: root
-	@if [ ! -f "dev/demo-me.jwt" ]; then \
+	@if [ ! -f "dev/demo-web.jwt" ]; then \
 		cargo run --quiet --bin moq-token -- --key "dev/root.jwk" sign \
 			--root "demo" \
 			--subscribe "" \
 			--publish "me" \
-			> dev/demo-me.jwt ; \
+			> dev/demo-web.jwt ; \
 	fi
 
-	@if [ ! -f "dev/demo-pub.jwt" ]; then \
+	@if [ ! -f "dev/demo-cli.jwt" ]; then \
 		cargo run --quiet --bin moq-token -- --key "dev/root.jwk" sign \
 			--root "demo" \
 			--publish "" \
-			> dev/demo-pub.jwt ; \
+			> dev/demo-cli.jwt ; \
 	fi
 
-	@if [ ! -f "dev/cluster.jwt" ]; then \
+	@if [ ! -f "dev/root.jwt" ]; then \
 		cargo run --quiet --bin moq-token -- --key "dev/root.jwk" sign \
 			--root "" \
 			--subscribe "" \
 			--publish "" \
 			--cluster \
-			> dev/cluster.jwt ; \
+			> dev/root.jwt ; \
 	fi
 
 # Download the video and convert it to a fragmented MP4 that we can stream

@@ -15,5 +15,4 @@ path = "src/bin.rs"
 [dependencies]
 anyhow = "1"
 clap = { version = "4", features = ["derive"] }
-moq-lite = { workspace = true, features = ["serde"] }
 moq-token = { version = "0.5", path = "../moq-token" }

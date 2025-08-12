@@ -15,7 +15,7 @@ pub trait AsPath {
 
 impl<'a> AsPath for &'a str {
 	fn as_path(&self) -> Path<'a> {
-		Path::new(*self)
+		Path::new(self)
 	}
 }
 
@@ -34,7 +34,7 @@ impl<'a> AsPath for Path<'a> {
 
 impl<'a> AsPath for String {
 	fn as_path(&self) -> Path<'_> {
-		Path(Cow::Borrowed(&self))
+		Path(Cow::Borrowed(self))
 	}
 }
 
@@ -360,7 +360,7 @@ mod tests {
 		assert_eq!(Path::new("foo").join("bar").as_str(), "foo/bar");
 		assert_eq!(Path::new("foo/").join(Path::new("bar")).as_str(), "foo/bar");
 		assert_eq!(Path::new("").join("bar").as_str(), "bar");
-		assert_eq!(Path::new("foo/bar").join(&Path::new("baz")).as_str(), "foo/bar/baz");
+		assert_eq!(Path::new("foo/bar").join(Path::new("baz")).as_str(), "foo/bar/baz");
 	}
 
 	#[test]
@@ -567,7 +567,7 @@ mod tests {
 
 		// Test conversions
 		let path = Path::new("foo/bar");
-		let path_ref = Path::from(path);
+		let path_ref = path;
 		assert_eq!(path_ref.as_str(), "foo/bar");
 
 		// Test that Path methods work with PathRef

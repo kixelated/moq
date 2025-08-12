@@ -92,9 +92,9 @@ fn main() -> anyhow::Result<()> {
 
 			let payload = moq_token::Claims {
 				root,
-				publish: publish.into(),
+				publish,
 				cluster,
-				subscribe: subscribe.into(),
+				subscribe,
 				expires,
 				issued,
 			};

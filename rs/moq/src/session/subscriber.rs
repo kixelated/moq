@@ -76,14 +76,11 @@ impl Subscriber {
 
 		let mut stream = Stream::open(&mut self.session, message::ControlType::Announce).await?;
 
-		let prefix = self.origin.as_ref().unwrap().prefix().to_owned();
-		tracing::trace!(%prefix, "announced start");
+		tracing::trace!(prefix = %self.log_path(""), "announced start");
 
 		// Ask for everything.
-		// TODO This needs to actually ask for the root?
-		let msg = message::AnnouncePlease {
-			prefix: prefix.as_path(),
-		};
+		// TODO This should actually ask for each root.
+		let msg = message::AnnouncePlease { prefix: "".into() };
 		stream.writer.encode(&msg).await?;
 
 		let mut producers = HashMap::new();

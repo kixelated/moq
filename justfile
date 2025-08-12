@@ -33,8 +33,8 @@ dev:
 	# It doesn't matter if the web beats BBB because we support automatic reloading.
 	js/node_modules/.bin/concurrently --kill-others --names srv,bbb,web --prefix-colors auto \
 		"just relay" \
-		"sleep 1 && just pub bbb http://localhost:4443/demo?jwt=$(cat rs/dev/demo-pub.jwt)" \
-		"sleep 2 && just web http://localhost:4443/demo?jwt=$(cat rs/dev/demo-me.jwt)"
+		"sleep 1 && just pub bbb http://localhost:4443/demo?jwt=$(cat rs/dev/demo-cli.jwt)" \
+		"sleep 2 && just web http://localhost:4443/demo?jwt=$(cat rs/dev/demo-web.jwt)"
 
 # Run a localhost relay server
 relay:
@@ -57,9 +57,9 @@ cluster:
 	js/node_modules/.bin/concurrently --kill-others --names root,leaf,bbb,tos,web --prefix-colors auto \
 		"just relay" \
 		"sleep 1 && just leaf" \
-		"sleep 2 && just pub bbb http://localhost:4444/demo?jwt=$(cat rs/dev/demo-pub.jwt)" \
-		"sleep 3 && just pub tos http://localhost:4443/demo?jwt=$(cat rs/dev/demo-pub.jwt)" \
-		"sleep 4 && just web http://localhost:4443/demo?jwt=$(cat rs/dev/demo-me.jwt)"
+		"sleep 2 && just pub bbb http://localhost:4444/demo?jwt=$(cat rs/dev/demo-cli.jwt)" \
+		"sleep 3 && just pub tos http://localhost:4443/demo?jwt=$(cat rs/dev/demo-cli.jwt)" \
+		"sleep 4 && just web http://localhost:4443/demo?jwt=$(cat rs/dev/demo-web.jwt)"
 
 # Run a leaf node
 leaf:

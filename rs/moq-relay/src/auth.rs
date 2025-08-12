@@ -75,8 +75,8 @@ impl Auth {
 		} else if let Some(public) = &self.public {
 			moq_token::Claims {
 				root: public.to_string(),
-				subscribe: "".into(),
-				publish: "".into(),
+				subscribe: vec![],
+				publish: vec![],
 				..Default::default()
 			}
 		} else {
@@ -95,7 +95,6 @@ impl Auth {
 		// If a more specific path is is provided, reduce the permissions.
 		let subscribe = claims
 			.subscribe
-			.into_vec()
 			.into_iter()
 			.filter_map(|p| {
 				let p = Path::new(&p);
@@ -109,7 +108,6 @@ impl Auth {
 
 		let publish = claims
 			.publish
-			.into_vec()
 			.into_iter()
 			.filter_map(|p| {
 				let p = Path::new(&p);
@@ -253,8 +251,8 @@ mod tests {
 		// Create a token with basic permissions
 		let claims = moq_token::Claims {
 			root: "room/123".to_string(),
-			subscribe: None.into(),
-			publish: "alice".into(),
+			subscribe: vec![],
+			publish: vec!["alice".into()],
 			..Default::default()
 		};
 		let token = key.encode(&claims)?;
@@ -280,8 +278,8 @@ mod tests {
 		// Create a token for room/123
 		let claims = moq_token::Claims {
 			root: "room/123".to_string(),
-			subscribe: None.into(),
-			publish: None.into(),
+			subscribe: vec![],
+			publish: vec![],
 			..Default::default()
 		};
 		let token = key.encode(&claims)?;
@@ -306,8 +304,8 @@ mod tests {
 		// Create a token with specific pub/sub restrictions
 		let claims = moq_token::Claims {
 			root: "room/123".to_string(),
-			subscribe: "bob".into(),
-			publish: "alice".into(),
+			subscribe: vec!["bob".into()],
+			publish: vec!["alice".into()],
 			..Default::default()
 		};
 		let token = key.encode(&claims)?;
@@ -333,8 +331,8 @@ mod tests {
 		// Create a read-only token (no publish permissions)
 		let claims = moq_token::Claims {
 			root: "room/123".to_string(),
-			subscribe: None.into(),
-			publish: None.into(),
+			subscribe: vec![],
+			publish: vec![],
 			..Default::default()
 		};
 		let token = key.encode(&claims)?;
@@ -358,8 +356,8 @@ mod tests {
 		// Create a write-only token (no subscribe permissions)
 		let claims = moq_token::Claims {
 			root: "room/123".to_string(),
-			subscribe: None.into(),
-			publish: "".into(),
+			subscribe: vec![],
+			publish: vec!["".into()],
 			..Default::default()
 		};
 		let token = key.encode(&claims)?;
@@ -383,8 +381,8 @@ mod tests {
 		// Create a token with root at room/123 and unrestricted pub/sub
 		let claims = moq_token::Claims {
 			root: "room/123".to_string(),
-			subscribe: None.into(),
-			publish: None.into(),
+			subscribe: vec![],
+			publish: vec![],
 			..Default::default()
 		};
 		let token = key.encode(&claims)?;
@@ -413,8 +411,8 @@ mod tests {
 		// Token allows publishing only to alice/*
 		let claims = moq_token::Claims {
 			root: "room/123".to_string(),
-			subscribe: None.into(),
-			publish: "alice".into(),
+			subscribe: vec![],
+			publish: vec!["alice".into()],
 			..Default::default()
 		};
 		let token = key.encode(&claims)?;
@@ -442,8 +440,8 @@ mod tests {
 		// Token allows subscribing only to bob/*
 		let claims = moq_token::Claims {
 			root: "room/123".to_string(),
-			subscribe: "bob".into(),
-			publish: None.into(),
+			subscribe: vec!["bob".into()],
+			publish: vec![],
 			..Default::default()
 		};
 		let token = key.encode(&claims)?;
@@ -471,8 +469,8 @@ mod tests {
 		// Token allows publishing to alice/* and subscribing to bob/*
 		let claims = moq_token::Claims {
 			root: "room/123".to_string(),
-			subscribe: "bob".into(),
-			publish: "alice".into(),
+			subscribe: vec!["bob".into()],
+			publish: vec!["alice".into()],
 			..Default::default()
 		};
 		let token = key.encode(&claims)?;
@@ -511,8 +509,8 @@ mod tests {
 		// Token with nested publish/subscribe paths
 		let claims = moq_token::Claims {
 			root: "room/123".to_string(),
-			subscribe: "users/bob/screen".into(),
-			publish: "users/alice/camera".into(),
+			subscribe: vec!["users/bob/screen".into()],
+			publish: vec!["users/alice/camera".into()],
 			..Default::default()
 		};
 		let token = key.encode(&claims)?;
@@ -550,8 +548,8 @@ mod tests {
 		// Read-only token
 		let claims = moq_token::Claims {
 			root: "room/123".to_string(),
-			subscribe: "alice".into(),
-			publish: None.into(),
+			subscribe: vec!["alice".into()],
+			publish: vec![],
 			..Default::default()
 		};
 		let token = key.encode(&claims)?;
@@ -567,8 +565,8 @@ mod tests {
 		// Write-only token
 		let claims = moq_token::Claims {
 			root: "room/123".to_string(),
-			subscribe: None.into(),
-			publish: "alice".into(),
+			subscribe: vec![],
+			publish: vec!["alice".into()],
 			..Default::default()
 		};
 		let token = key.encode(&claims)?;
