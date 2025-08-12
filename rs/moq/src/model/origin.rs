@@ -261,17 +261,17 @@ impl OriginNodes {
 
 		for (root, state) in &self.nodes {
 			for prefix in prefixes {
-				if !prefix.has_prefix(root) {
-					continue;
-				}
-
-				if prefix.is_empty() {
+				if root.has_prefix(prefix) {
+					// Keep the existing node if we're allowed to access it.
 					roots.push((root.to_owned(), state.clone()));
 					continue;
 				}
 
-				let nested = state.lock().leaf(prefix);
-				roots.push((prefix.to_owned(), nested));
+				if let Some(suffix) = prefix.strip_prefix(root) {
+					// If the requested prefix is larger than the allowed prefix, then we further scope it.
+					let nested = state.lock().leaf(&suffix);
+					roots.push((prefix.to_owned(), nested));
+				}
 			}
 		}
 

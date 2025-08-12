@@ -7,23 +7,28 @@ default:
   just --list
 
 # Install any required dependencies.
-setup: auth
+setup:
 	cargo install cargo-shear cargo-sort cargo-upgrades cargo-edit
 
-# Run a localhost relay server
-relay: root
+# Run a localhost relay server without authentication.
+relay:
 	# Run the relay server overriding the provided configuration file.
-	cargo run --bin moq-relay -- moq-relay/dev.toml
+	cargo run --bin moq-relay -- moq-relay/cfg/dev.toml
 
-# Run a localhost leaf server, connecting to the relay server
-leaf:
+# Run a localhost root server, accepting connections from leaf nodes.
+root: auth-key
+	# Run the root server with a special configuration file.
+	cargo run --bin moq-relay -- moq-relay/cfg/root.toml
+
+# Run a localhost leaf server, connecting to the root server.
+leaf: auth-token
 	# Run the leaf server with a special configuration file.
-	cargo run --bin moq-relay -- moq-relay/leaf.toml
+	cargo run --bin moq-relay -- moq-relay/cfg/leaf.toml
 
 # Generate a random secret key for authentication.
 # By default, this uses HMAC-SHA256, so it's symmetric.
 # If some one wants to contribute, public/private key pairs would be nice.
-root:
+auth-key:
 	@mkdir -p dev
 	@if [ ! -f "dev/root.jwk" ]; then \
 		rm -f dev/*.jwt; \
@@ -34,7 +39,7 @@ root:
 # demo-web.jwt - allows publishing to demo/me/* and subscribing to demo/*
 # demo-cli.jwt - allows publishing to demo/* but no subscribing
 # root.jwt - allows publishing and subscribing to all paths
-auth: root
+auth-token: auth-key
 	@if [ ! -f "dev/demo-web.jwt" ]; then \
 		cargo run --quiet --bin moq-token -- --key "dev/root.jwk" sign \
 			--root "demo" \

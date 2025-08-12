@@ -1,0 +1,29 @@
+[log]
+# Enable debug logging for development.
+# The RUST_LOG environment variable will take precedence.
+level = "debug"
+
+[server]
+# Listen for QUIC connections on UDP:4443
+# Sometimes IPv6 causes issues; try 127.0.0.1:4443 instead.
+listen = "[::]:4443"
+
+# Generate a self-signed certificate for the given hostnames.
+# This is used for local development, in conjunction with a fingerprint, or with TLS verification disabled.
+tls.generate = ["localhost"]
+
+# In production, we would use a real certificate from something like Let's Encrypt.
+# Multiple certificates are supported; the first one that matches the SNI will be used.
+# [[server.tls.cert]]
+# chain = "dev/quic.video.pem"
+# key = "dev/quic.video.key"
+
+# Authentication is rather crude because it's GOOD ENOUGH for now.
+# see docs/auth.md for more information.
+[auth]
+# `just auth-key` will generate a root key.
+# If you want to disable authentication, don't specify a key.
+key = "dev/root.jwk"
+
+# Allow anonymous publishing and subscribing for anon/**
+public = "anon"

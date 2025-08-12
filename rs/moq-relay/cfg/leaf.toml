@@ -34,7 +34,7 @@ tls.generate = ["localhost"]
 connect = "localhost:4443"
 
 # Use the token in this file when connecting to other nodes.
-# `just auth` will populate this file.
+# `just auth-token` will populate this file.
 token = "dev/root.jwt"
 
 # My hostname, which must be accessible from other nodes.
@@ -58,7 +58,7 @@ tls.disable_verify = true
 # ex. You could host the root at a private `.internal` domain and generate a matching certificate.
 
 [auth]
-# `just leaf` will populate this file.
+# `just auth-key` will populate this file.
 key = "dev/root.jwk"
 
 # Allow anonymous publishing and subscribing for this prefix.

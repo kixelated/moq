@@ -111,11 +111,11 @@ impl Publisher {
 							let suffix = path.strip_prefix(&prefix).expect("origin returned invalid path").to_owned();
 
 							if active.is_some() {
-								tracing::debug!(broadcast = %origin.absolute(&path), suffix = %suffix, "announce");
+								tracing::debug!(broadcast = %origin.absolute(&path), "announce");
 								let msg = message::Announce::Active { suffix };
 								stream.writer.encode(&msg).await?;
 							} else {
-								tracing::debug!(broadcast = %origin.absolute(&path), suffix = %suffix, "unannounce");
+								tracing::debug!(broadcast = %origin.absolute(&path), "unannounce");
 								let msg = message::Announce::Ended { suffix };
 								stream.writer.encode(&msg).await?;
 							}

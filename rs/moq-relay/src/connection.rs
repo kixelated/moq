@@ -21,6 +21,8 @@ impl Connection {
 			}
 		};
 
+		tracing::info!(token = ?token, "session accepted");
+
 		// Accept the connection.
 		let session = self.request.ok().await?;
 
