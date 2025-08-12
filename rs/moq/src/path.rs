@@ -32,7 +32,7 @@ impl<'a> AsPath for Path<'a> {
 	}
 }
 
-impl<'a> AsPath for String {
+impl AsPath for String {
 	fn as_path(&self) -> Path<'_> {
 		Path(Cow::Borrowed(self))
 	}
@@ -118,7 +118,7 @@ impl<'a> Path<'a> {
 	/// let path = Path::new("foobar");
 	/// assert!(!path.has_prefix("foo"));
 	/// ```
-	pub fn has_prefix<'b>(&self, prefix: impl AsPath) -> bool {
+	pub fn has_prefix(&self, prefix: impl AsPath) -> bool {
 		let prefix = prefix.as_path();
 
 		if prefix.is_empty() {
@@ -214,12 +214,13 @@ impl<'a> Path<'a> {
 	/// let joined = base.join(&Path::new("bar"));
 	/// assert_eq!(joined.as_str(), "foo/bar");
 	/// ```
-	pub fn join<'b>(&self, other: impl AsPath) -> PathOwned {
+	pub fn join(&self, other: impl AsPath) -> PathOwned {
 		let other = other.as_path();
 
 		if self.0.is_empty() {
 			Path(Cow::Owned(other.0.to_string()))
 		} else if other.is_empty() {
+			// Technically, we could avoid allocating here, but it's nicer to return a PathOwned.
 			self.to_owned()
 		} else {
 			// Since paths are trimmed, we always need to add a slash

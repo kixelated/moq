@@ -251,7 +251,7 @@ mod tests {
 		// Create a token with basic permissions
 		let claims = moq_token::Claims {
 			root: "room/123".to_string(),
-			subscribe: vec![],
+			subscribe: vec!["".to_string()],
 			publish: vec!["alice".into()],
 			..Default::default()
 		};
@@ -278,8 +278,8 @@ mod tests {
 		// Create a token for room/123
 		let claims = moq_token::Claims {
 			root: "room/123".to_string(),
-			subscribe: vec![],
-			publish: vec![],
+			subscribe: vec!["".to_string()],
+			publish: vec!["".to_string()],
 			..Default::default()
 		};
 		let token = key.encode(&claims)?;
@@ -331,7 +331,7 @@ mod tests {
 		// Create a read-only token (no publish permissions)
 		let claims = moq_token::Claims {
 			root: "room/123".to_string(),
-			subscribe: vec![],
+			subscribe: vec!["".to_string()],
 			publish: vec![],
 			..Default::default()
 		};
@@ -357,7 +357,7 @@ mod tests {
 		let claims = moq_token::Claims {
 			root: "room/123".to_string(),
 			subscribe: vec![],
-			publish: vec!["".into()],
+			publish: vec!["bob".into()],
 			..Default::default()
 		};
 		let token = key.encode(&claims)?;
@@ -365,7 +365,7 @@ mod tests {
 		let url = Url::parse(&format!("https://relay.example.com/room/123?jwt={token}"))?;
 		let token = auth.verify(&url)?;
 		assert_eq!(token.subscribe, vec![]);
-		assert_eq!(token.publish, vec!["".as_path()]);
+		assert_eq!(token.publish, vec!["bob".as_path()]);
 
 		Ok(())
 	}
@@ -411,7 +411,7 @@ mod tests {
 		// Token allows publishing only to alice/*
 		let claims = moq_token::Claims {
 			root: "room/123".to_string(),
-			subscribe: vec![],
+			subscribe: vec!["".to_string()],
 			publish: vec!["alice".into()],
 			..Default::default()
 		};
@@ -422,6 +422,7 @@ mod tests {
 		let token = auth.verify(&url)?;
 
 		assert_eq!(token.root, "room/123/alice".as_path());
+		// Alice still can't subscribe to anything.
 		assert_eq!(token.subscribe, vec!["".as_path()]);
 		// alice prefix stripped, now can publish to everything under room/123/alice
 		assert_eq!(token.publish, vec!["".as_path()]);
@@ -441,7 +442,7 @@ mod tests {
 		let claims = moq_token::Claims {
 			root: "room/123".to_string(),
 			subscribe: vec!["bob".into()],
-			publish: vec![],
+			publish: vec!["".to_string()],
 			..Default::default()
 		};
 		let token = key.encode(&claims)?;

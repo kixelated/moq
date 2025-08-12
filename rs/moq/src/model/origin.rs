@@ -497,7 +497,7 @@ impl OriginConsumer {
 	/// TODO This should include announcement support.
 	///
 	/// Returns None if the path hasn't been announced yet.
-	pub fn consume_broadcast<'a>(&self, path: impl AsPath) -> Option<BroadcastConsumer> {
+	pub fn consume_broadcast(&self, path: impl AsPath) -> Option<BroadcastConsumer> {
 		let path = path.as_path();
 		let (root, rest) = self.nodes.get(&path)?;
 		let state = root.lock();

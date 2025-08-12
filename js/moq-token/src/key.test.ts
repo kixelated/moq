@@ -20,8 +20,8 @@ const testKey = {
 
 const testClaims: Claims = {
 	root: "test-path",
-	pub: "test-pub",
-	sub: "test-sub",
+	put: "test-pub",
+	get: "test-sub",
 	cluster: false,
 	exp: Math.floor((Date.now() + 60 * 1000) / 1000), // 1 minute from now in seconds
 	iat: Math.floor(Date.now() / 1000), // now in seconds
@@ -118,8 +118,8 @@ test("verify - successful verification", async () => {
 	const claims = await verify(key, token, testClaims.root);
 
 	assert.strictEqual(claims.root, testClaims.root);
-	assert.strictEqual(claims.pub, testClaims.pub);
-	assert.strictEqual(claims.sub, testClaims.sub);
+	assert.strictEqual(claims.put, testClaims.put);
+	assert.strictEqual(claims.get, testClaims.get);
 	assert.strictEqual(claims.cluster, testClaims.cluster);
 });
 
@@ -160,7 +160,7 @@ test("verify - expired token", async () => {
 test("verify - token without exp field", async () => {
 	const claimsWithoutExp: Claims = {
 		root: "test-path",
-		pub: "test-pub",
+		put: "test-pub",
 	};
 
 	const key = load(encodeJwk(testKey));
@@ -168,7 +168,7 @@ test("verify - token without exp field", async () => {
 	const claims = await verify(key, token, claimsWithoutExp.root);
 
 	assert.strictEqual(claims.root, "test-path");
-	assert.strictEqual(claims.pub, "test-pub");
+	assert.strictEqual(claims.put, "test-pub");
 	assert.strictEqual(claims.exp, undefined);
 });
 
@@ -190,8 +190,8 @@ test("round-trip - sign and verify", async () => {
 	const key = load(encodeJwk(testKey));
 	const originalClaims: Claims = {
 		root: "test-path",
-		pub: "test-pub",
-		sub: "test-sub",
+		put: "test-pub",
+		get: "test-sub",
 		cluster: true,
 		exp: Math.floor((Date.now() + 60 * 1000) / 1000),
 		iat: Math.floor(Date.now() / 1000),
@@ -201,8 +201,8 @@ test("round-trip - sign and verify", async () => {
 	const verifiedClaims = await verify(key, token, originalClaims.root);
 
 	assert.strictEqual(verifiedClaims.root, originalClaims.root);
-	assert.strictEqual(verifiedClaims.pub, originalClaims.pub);
-	assert.strictEqual(verifiedClaims.sub, originalClaims.sub);
+	assert.strictEqual(verifiedClaims.put, originalClaims.put);
+	assert.strictEqual(verifiedClaims.get, originalClaims.get);
 	assert.strictEqual(verifiedClaims.cluster, originalClaims.cluster);
 	assert.strictEqual(verifiedClaims.exp, originalClaims.exp);
 	assert.strictEqual(verifiedClaims.iat, originalClaims.iat);
@@ -233,7 +233,7 @@ test("sign - claims validation path not prefix absolute sub", async () => {
 	const key = load(encodeJwk(testKey));
 	const validClaims: Claims = {
 		root: "test-path",
-		sub: "absolute-sub",
+		get: "absolute-sub",
 	};
 
 	const token = await sign(key, validClaims);
@@ -245,8 +245,8 @@ test("sign - claims validation path is prefix with relative paths", async () => 
 	const key = load(encodeJwk(testKey));
 	const validClaims: Claims = {
 		root: "test-path",
-		pub: "relative-pub",
-		sub: "relative-sub",
+		put: "relative-pub",
+		get: "relative-sub",
 	};
 
 	const token = await sign(key, validClaims);
@@ -258,7 +258,7 @@ test("sign - claims validation empty root", async () => {
 	const key = load(encodeJwk(testKey));
 	const validClaims: Claims = {
 		root: "",
-		pub: "test-pub",
+		put: "test-pub",
 	};
 
 	const token = await sign(key, validClaims);
@@ -279,7 +279,7 @@ test("different algorithms - HS384", async () => {
 	const verifiedClaims = await verify(key, token, testClaims.root);
 
 	assert.strictEqual(verifiedClaims.root, testClaims.root);
-	assert.strictEqual(verifiedClaims.pub, testClaims.pub);
+	assert.strictEqual(verifiedClaims.put, testClaims.put);
 });
 
 test("different algorithms - HS512", async () => {
@@ -295,7 +295,7 @@ test("different algorithms - HS512", async () => {
 	const verifiedClaims = await verify(key, token, testClaims.root);
 
 	assert.strictEqual(verifiedClaims.root, testClaims.root);
-	assert.strictEqual(verifiedClaims.pub, testClaims.pub);
+	assert.strictEqual(verifiedClaims.put, testClaims.put);
 });
 
 test("cross-algorithm verification fails", async () => {
@@ -390,7 +390,7 @@ test("sign - sets issued at timestamp", async () => {
 	const key = load(encodeJwk(testKey));
 	const claimsWithoutIat: Claims = {
 		root: "test-path",
-		pub: "test-pub",
+		put: "test-pub",
 	};
 
 	const beforeSign = Math.floor(Date.now() / 1000);
@@ -443,7 +443,7 @@ test("verify - claims validation during verification", async () => {
 	const key = load(encodeJwk(testKey));
 
 	// We need to create a token with valid claims since sign() would reject invalid ones
-	const token = await sign(key, { root: "test-path", pub: "/absolute-pub" });
+	const token = await sign(key, { root: "test-path", put: "/absolute-pub" });
 
 	// Test that valid tokens pass verification
 	const verifiedClaims = await verify(key, token, "test-path");
