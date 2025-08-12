@@ -170,7 +170,7 @@ impl HangSink {
 		RUNTIME.block_on(async move {
 			let session = client.connect(url.clone()).await.expect("failed to connect");
 
-			let mut origin = moq_lite::Origin::produce();
+			let origin = moq_lite::Origin::produce();
 			let broadcast = moq_lite::Broadcast::produce();
 
 			let name = settings.broadcast.as_ref().expect("broadcast is required");
