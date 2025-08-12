@@ -17,7 +17,8 @@
 		"./container": "./src/container/index.ts",
 		"./support": "./src/support/index.ts",
 		"./support/element": "./src/support/element.ts",
-		"./connection": "./src/connection.ts"
+		"./connection": "./src/connection.ts",
+		"./preview": "./src/preview/index.ts"
 	},
 	"sideEffects": [
 		"./src/publish/element.ts",

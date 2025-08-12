@@ -74,10 +74,10 @@ export function create<K extends keyof HTMLElementTagNameMap>(
 	return element;
 }
 
-export type Render = (effect: Effect) => HTMLElement[] | HTMLElement | undefined;
+export type Render = HTMLElement[] | HTMLElement | ((effect: Effect) => HTMLElement[] | HTMLElement | undefined);
 
 export function render(parent: HTMLElement, effect: Effect, render: Render) {
-	const element = render(effect);
+	const element = typeof render === "function" ? render(effect) : render;
 	if (element instanceof HTMLElement) {
 		parent.appendChild(element);
 		effect.cleanup(() => element.remove());
