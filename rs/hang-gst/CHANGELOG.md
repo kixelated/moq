@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.2](https://github.com/kixelated/moq/compare/hang-gst-v0.2.1...hang-gst-v0.2.2) - 2025-08-12
+
+### Other
+
+- Support an array of authorized paths ([#536](https://github.com/kixelated/moq/pull/536))
+- Revamp the Producer/Consumer API for moq_lite ([#516](https://github.com/kixelated/moq/pull/516))
+
 ## [0.2.1](https://github.com/kixelated/moq/compare/hang-gst-v0.2.0...hang-gst-v0.2.1) - 2025-07-22
 
 ### Other

@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.7.7](https://github.com/kixelated/moq/compare/moq-native-v0.7.6...moq-native-v0.7.7) - 2025-08-12
+
+### Other
+
+- Less verbose errors, using % instead of ? ([#521](https://github.com/kixelated/moq/pull/521))
+
 ## [0.7.6](https://github.com/kixelated/moq/compare/moq-native-v0.7.5...moq-native-v0.7.6) - 2025-07-31
 
 ### Other

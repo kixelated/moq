@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.3](https://github.com/kixelated/moq/compare/hang-v0.5.2...hang-v0.5.3) - 2025-08-12
+
+### Other
+
+- Revamp the Producer/Consumer API for moq_lite ([#516](https://github.com/kixelated/moq/pull/516))
+
 ## [0.5.2](https://github.com/kixelated/moq/compare/hang-v0.5.1...hang-v0.5.2) - 2025-07-31
 
 ### Other

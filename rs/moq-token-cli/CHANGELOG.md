@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.5](https://github.com/kixelated/moq/compare/moq-token-cli-v0.2.4...moq-token-cli-v0.2.5) - 2025-08-12
+
+### Other
+
+- Support an array of authorized paths ([#536](https://github.com/kixelated/moq/pull/536))
+
 ## [0.2.4](https://github.com/kixelated/moq/compare/moq-token-cli-v0.2.3...moq-token-cli-v0.2.4) - 2025-07-31
 
 ### Other

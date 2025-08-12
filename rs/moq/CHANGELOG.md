@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.2](https://github.com/kixelated/moq/compare/moq-lite-v0.6.1...moq-lite-v0.6.2) - 2025-08-12
+
+### Other
+
+- Support an array of authorized paths ([#536](https://github.com/kixelated/moq/pull/536))
+- Revamp the Producer/Consumer API for moq_lite ([#516](https://github.com/kixelated/moq/pull/516))
+- Add support for connecting to either moq-lite or moq-transport-07. ([#532](https://github.com/kixelated/moq/pull/532))
+- Another simpler fix for now-or-never ([#526](https://github.com/kixelated/moq/pull/526))
+- Less verbose errors, using % instead of ? ([#521](https://github.com/kixelated/moq/pull/521))
+
 ## [0.6.1](https://github.com/kixelated/moq/compare/moq-lite-v0.6.0...moq-lite-v0.6.1) - 2025-07-31
 
 ### Other

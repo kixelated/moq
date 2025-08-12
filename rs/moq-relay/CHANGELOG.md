@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.8.8](https://github.com/kixelated/moq/compare/moq-relay-v0.8.7...moq-relay-v0.8.8) - 2025-08-12
+
+### Other
+
+- Support an array of authorized paths ([#536](https://github.com/kixelated/moq/pull/536))
+- Revamp the Producer/Consumer API for moq_lite ([#516](https://github.com/kixelated/moq/pull/516))
+- Another simpler fix for now-or-never ([#526](https://github.com/kixelated/moq/pull/526))
+- Less verbose errors, using % instead of ? ([#521](https://github.com/kixelated/moq/pull/521))
+
 ## [0.8.7](https://github.com/kixelated/moq/compare/moq-relay-v0.8.6...moq-relay-v0.8.7) - 2025-07-31
 
 ### Other

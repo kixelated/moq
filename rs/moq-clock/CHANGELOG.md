@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.7.5](https://github.com/kixelated/moq/compare/moq-clock-v0.7.4...moq-clock-v0.7.5) - 2025-08-12
+
+### Other
+
+- Support an array of authorized paths ([#536](https://github.com/kixelated/moq/pull/536))
+- Revamp the Producer/Consumer API for moq_lite ([#516](https://github.com/kixelated/moq/pull/516))
+
 ## [0.7.4](https://github.com/kixelated/moq/compare/moq-clock-v0.7.3...moq-clock-v0.7.4) - 2025-07-31
 
 ### Other
