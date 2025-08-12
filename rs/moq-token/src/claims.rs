@@ -34,7 +34,12 @@ pub struct Claims {
 
 	/// If specified, the user can publish any matching broadcasts.
 	/// If not specified, the user will not publish any broadcasts.
-	#[serde(default, rename = "put", skip_serializing_if = "Vec::is_empty", deserialize_with = "string_or_vec")]
+	#[serde(
+		default,
+		rename = "put",
+		skip_serializing_if = "Vec::is_empty",
+		deserialize_with = "string_or_vec"
+	)]
 	pub publish: Vec<String>,
 
 	/// If true, then this client is considered a cluster node.
@@ -48,7 +53,12 @@ pub struct Claims {
 	/// If specified, the user can subscribe to any matching broadcasts.
 	/// If not specified, the user will not receive announcements and cannot subscribe to any broadcasts.
 	// NOTE: This can't be renamed to "sub" because that's a reserved JWT field.
-	#[serde(default, rename = "get", skip_serializing_if = "Vec::is_empty", deserialize_with = "string_or_vec")]
+	#[serde(
+		default,
+		rename = "get",
+		skip_serializing_if = "Vec::is_empty",
+		deserialize_with = "string_or_vec"
+	)]
 	pub subscribe: Vec<String>,
 
 	/// The expiration time of the token as a unix timestamp.

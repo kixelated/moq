@@ -561,7 +561,9 @@ impl OriginConsumer {
 	}
 
 	pub fn assert_next_wait(&mut self) {
-		assert!(self.announced().now_or_never().is_none(), "next should block");
+		if let Some(res) = self.announced().now_or_never() {
+			panic!("next should block: got {:?}", res.map(|(path, _)| path));
+		}
 	}
 
 	/*
@@ -1106,5 +1108,210 @@ mod tests {
 		foobar_consumer.assert_next("foo/test", &broadcast1.consumer);
 		foobar_consumer.assert_next("bar/test", &broadcast2.consumer);
 		foobar_consumer.assert_next_wait();
+	}
+
+	#[tokio::test]
+	async fn test_select_with_empty_prefix() {
+		let origin = Origin::produce();
+		let broadcast1 = Broadcast::produce();
+		let broadcast2 = Broadcast::produce();
+
+		// User with root "demo" allowed to subscribe to "worm-node" and "foobar"
+		let demo_producer = origin.producer.with_root("demo").expect("should create demo root");
+		let limited_producer = demo_producer
+			.publish_only(&["worm-node".into(), "foobar".into()])
+			.expect("should create limited producer");
+
+		// Publish some broadcasts
+		assert!(limited_producer.publish_broadcast("worm-node/test", broadcast1.consumer.clone()));
+		assert!(limited_producer.publish_broadcast("foobar/test", broadcast2.consumer.clone()));
+
+		// consume_only with empty prefix should keep the exact same "worm-node" and "foobar" nodes
+		let mut consumer = limited_producer
+			.consume_only(&["".into()])
+			.expect("should create consumer with empty prefix");
+
+		// Should still see both broadcasts
+		consumer.assert_next("worm-node/test", &broadcast1.consumer);
+		consumer.assert_next("foobar/test", &broadcast2.consumer);
+		consumer.assert_next_wait();
+	}
+
+	#[tokio::test]
+	async fn test_select_narrowing_scope() {
+		let origin = Origin::produce();
+		let broadcast1 = Broadcast::produce();
+		let broadcast2 = Broadcast::produce();
+		let broadcast3 = Broadcast::produce();
+
+		// User with root "demo" allowed to subscribe to "worm-node" and "foobar"
+		let demo_producer = origin.producer.with_root("demo").expect("should create demo root");
+		let limited_producer = demo_producer
+			.publish_only(&["worm-node".into(), "foobar".into()])
+			.expect("should create limited producer");
+
+		// Publish broadcasts at different levels
+		assert!(limited_producer.publish_broadcast("worm-node", broadcast1.consumer.clone()));
+		assert!(limited_producer.publish_broadcast("worm-node/foo", broadcast2.consumer.clone()));
+		assert!(limited_producer.publish_broadcast("foobar/bar", broadcast3.consumer.clone()));
+
+		// Test 1: consume_only("worm-node") should result in a single "" node with contents of "worm-node" ONLY
+		let mut worm_consumer = limited_producer
+			.consume_only(&["worm-node".into()])
+			.expect("should create worm-node consumer");
+
+		// Should see worm-node content with paths stripped to ""
+		worm_consumer.assert_next("worm-node", &broadcast1.consumer);
+		worm_consumer.assert_next("worm-node/foo", &broadcast2.consumer);
+		worm_consumer.assert_next_wait(); // Should NOT see foobar content
+
+		// Test 2: consume_only("worm-node/foo") should result in a "" node with contents of "worm-node/foo"
+		let mut foo_consumer = limited_producer
+			.consume_only(&["worm-node/foo".into()])
+			.expect("should create worm-node/foo consumer");
+
+		foo_consumer.assert_next("worm-node/foo", &broadcast2.consumer);
+		foo_consumer.assert_next_wait(); // Should NOT see other content
+	}
+
+	#[tokio::test]
+	async fn test_select_multiple_roots_with_empty_prefix() {
+		let origin = Origin::produce();
+		let broadcast1 = Broadcast::produce();
+		let broadcast2 = Broadcast::produce();
+		let broadcast3 = Broadcast::produce();
+
+		// Producer with multiple allowed roots
+		let limited_producer = origin
+			.producer
+			.publish_only(&["app1".into(), "app2".into(), "shared".into()])
+			.expect("should create limited producer");
+
+		// Publish to each root
+		assert!(limited_producer.publish_broadcast("app1/data", broadcast1.consumer.clone()));
+		assert!(limited_producer.publish_broadcast("app2/config", broadcast2.consumer.clone()));
+		assert!(limited_producer.publish_broadcast("shared/resource", broadcast3.consumer.clone()));
+
+		// consume_only with empty prefix should maintain all roots
+		let mut consumer = limited_producer
+			.consume_only(&["".into()])
+			.expect("should create consumer with empty prefix");
+
+		// Should see all broadcasts from all roots
+		consumer.assert_next("app1/data", &broadcast1.consumer);
+		consumer.assert_next("app2/config", &broadcast2.consumer);
+		consumer.assert_next("shared/resource", &broadcast3.consumer);
+		consumer.assert_next_wait();
+	}
+
+	#[tokio::test]
+	async fn test_publish_only_with_empty_prefix() {
+		let origin = Origin::produce();
+		let broadcast = Broadcast::produce();
+
+		// Producer with specific allowed paths
+		let limited_producer = origin
+			.producer
+			.publish_only(&["services/api".into(), "services/web".into()])
+			.expect("should create limited producer");
+
+		// publish_only with empty prefix should keep the same restrictions
+		let same_producer = limited_producer
+			.publish_only(&["".into()])
+			.expect("should create producer with empty prefix");
+
+		// Should still have the same publishing restrictions
+		assert!(same_producer.publish_broadcast("services/api", broadcast.consumer.clone()));
+		assert!(same_producer.publish_broadcast("services/web", broadcast.consumer.clone()));
+		assert!(!same_producer.publish_broadcast("services/db", broadcast.consumer.clone()));
+		assert!(!same_producer.publish_broadcast("other", broadcast.consumer.clone()));
+	}
+
+	#[tokio::test]
+	async fn test_select_narrowing_to_deeper_path() {
+		let origin = Origin::produce();
+		let broadcast1 = Broadcast::produce();
+		let broadcast2 = Broadcast::produce();
+		let broadcast3 = Broadcast::produce();
+
+		// Producer with broad permission
+		let limited_producer = origin
+			.producer
+			.publish_only(&["org".into()])
+			.expect("should create limited producer");
+
+		// Publish at various depths
+		assert!(limited_producer.publish_broadcast("org/team1/project1", broadcast1.consumer.clone()));
+		assert!(limited_producer.publish_broadcast("org/team1/project2", broadcast2.consumer.clone()));
+		assert!(limited_producer.publish_broadcast("org/team2/project1", broadcast3.consumer.clone()));
+
+		// Narrow down to team1 only
+		let mut team1_consumer = limited_producer
+			.consume_only(&["org/team2".into()])
+			.expect("should create team1 consumer");
+
+		team1_consumer.assert_next("org/team2/project1", &broadcast3.consumer);
+		team1_consumer.assert_next_wait(); // Should NOT see team1 content
+
+		// Further narrow down to team1/project1
+		let mut project1_consumer = limited_producer
+			.consume_only(&["org/team1/project1".into()])
+			.expect("should create project1 consumer");
+
+		// Should only see project1 content at root
+		project1_consumer.assert_next("org/team1/project1", &broadcast1.consumer);
+		project1_consumer.assert_next_wait();
+	}
+
+	#[tokio::test]
+	async fn test_select_with_non_matching_prefix() {
+		let origin = Origin::produce();
+
+		// Producer with specific allowed paths
+		let limited_producer = origin
+			.producer
+			.publish_only(&["allowed/path".into()])
+			.expect("should create limited producer");
+
+		// Trying to consume_only with a completely different prefix should return None
+		assert!(limited_producer.consume_only(&["different/path".into()]).is_none());
+
+		// Similarly for publish_only
+		assert!(limited_producer.publish_only(&["other/path".into()]).is_none());
+	}
+
+	#[tokio::test]
+	async fn test_select_maintains_access_with_wider_prefix() {
+		let origin = Origin::produce();
+		let broadcast1 = Broadcast::produce();
+		let broadcast2 = Broadcast::produce();
+
+		// Setup: user with root "demo" allowed to subscribe to specific paths
+		let demo_producer = origin.producer.with_root("demo").expect("should create demo root");
+		let user_producer = demo_producer
+			.publish_only(&["worm-node".into(), "foobar".into()])
+			.expect("should create user producer");
+
+		// Publish some data
+		assert!(user_producer.publish_broadcast("worm-node/data", broadcast1.consumer.clone()));
+		assert!(user_producer.publish_broadcast("foobar", broadcast2.consumer.clone()));
+
+		// Key test: consume_only with "" should maintain access to allowed roots
+		let mut consumer = user_producer
+			.consume_only(&["".into()])
+			.expect("consume_only with empty prefix should not fail when user has specific permissions");
+
+		// Should still receive broadcasts from allowed paths
+		consumer.assert_next("worm-node/data", &broadcast1.consumer);
+		consumer.assert_next("foobar", &broadcast2.consumer);
+		consumer.assert_next_wait();
+
+		// Also test that we can still narrow the scope
+		let mut narrow_consumer = user_producer
+			.consume_only(&["worm-node".into()])
+			.expect("should be able to narrow scope to worm-node");
+
+		narrow_consumer.assert_next("worm-node/data", &broadcast1.consumer);
+		narrow_consumer.assert_next_wait(); // Should not see foobar
 	}
 }
