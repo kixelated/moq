@@ -26,15 +26,12 @@ dev:
 	# Build the rust packages so `cargo run` has a head start.
 	cd rs && just build
 
-	# Generate auth tokens if needed
-	@cd rs && just auth
-
 	# Then run the relay with a slight head start.
 	# It doesn't matter if the web beats BBB because we support automatic reloading.
 	js/node_modules/.bin/concurrently --kill-others --names srv,bbb,web --prefix-colors auto \
 		"just relay" \
-		"sleep 1 && just pub bbb http://localhost:4443/demo?jwt=$(cat rs/dev/demo-cli.jwt)" \
-		"sleep 2 && just web http://localhost:4443/demo?jwt=$(cat rs/dev/demo-web.jwt)"
+		"sleep 1 && just pub bbb http://localhost:4443/anon" \
+		"sleep 2 && just web http://localhost:4443/anon"
 
 # Run a localhost relay server
 relay:
