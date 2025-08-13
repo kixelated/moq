@@ -92,7 +92,8 @@ download-url name:
 # Publish a video using ffmpeg to the localhost relay server
 # NOTE: The `http` means that we perform insecure certificate verification.
 # Switch it to `https` when you're ready to use a real certificate.
-pub name url="http://localhost:4443/anon":
+#pub name url="http://localhost:4443/anon":
+pub name url="https://enter.domain.here:4443/anon":
 	# Download the sample media.
 	just download {{name}}
 
@@ -100,15 +101,24 @@ pub name url="http://localhost:4443/anon":
 	cargo build --bin hang
 
 	# Run ffmpeg and pipe the output to hang
-	ffmpeg -hide_banner -v quiet \
-		-stream_loop -1 -re \
-		-i "dev/{{name}}.fmp4" \
-		-c copy \
-		-f mp4 -movflags cmaf+separate_moof+delay_moov+skip_trailer+frag_every_frame \
-		- | cargo run --bin hang -- publish --url "{{url}}" --name "{{name}}"
+	#ffmpeg -hide_banner -v quiet \
+	#	-stream_loop -1 -re \
+	#	-i "dev/{{name}}.fmp4" \
+	#	-c copy \
+	#	-f mp4 -movflags cmaf+separate_moof+delay_moov+skip_trailer+frag_every_frame \
+	#	- | cargo run --bin hang -- publish --url "{{url}}" --name "{{name}}"
+	# Streaming desktop from the "server" using x11grab
+	ffmpeg -hide_banner \
+		-f x11grab -i :0.0 \
+		-c:v libx264 -preset veryfast -tune zerolatency \
+		-pix_fmt yuv420p \
+		-f mp4 \
+		-g 1 -keyint_min 1 -sc_threshold 0 \
+		-movflags +frag_keyframe+empty_moov+default_base_moof \
+		- | RUST_LOG=debug cargo run --bin hang -- publish --url "{{url}}" --name "{{name}}"
 
 # Publish a video using gstreamer to the localhost relay server
-pub-gst name url="http://localhost:4443/anon":
+pub-gst name url="https://enter.domain.here:4443/anon":
 	# Download the sample media.
 	just download {{name}}
 
@@ -124,7 +134,7 @@ pub-gst name url="http://localhost:4443/anon":
 		demux.audio_0 ! aacparse ! queue ! mux.
 
 # Subscribe to a video using gstreamer
-sub name url="http://localhost:4443/anon":
+sub name url="https://enter.domain.here:4443/anon":
 	# Build the plugins
 	cargo build -p hang-gst
 
@@ -152,13 +162,18 @@ serve name:
 
 # Publish the clock broadcast
 # `action` is either `publish` or `subscribe`
-clock action url="http://localhost:4443/anon":
+clock action url="https://enter.domain.here/anon":
 	if [ "{{action}}" != "publish" ] && [ "{{action}}" != "subscribe" ]; then \
 		echo "Error: action must be 'publish' or 'subscribe', got '{{action}}'" >&2; \
 		exit 1; \
 	fi
 
 	cargo run --bin moq-clock -- "{{url}}" --name "clock" {{action}}
+
+controller:
+	cargo build --bin moq-gamecontroller
+
+	RUST_LOG=debug cargo run --bin moq-gamecontroller -- "https://enter.domain.here:4443/anon/controller"
 
 # Run the CI checks
 check flags="":
