@@ -12,10 +12,10 @@ The TypeScript implementation mirrors the Rust CLI interface:
 
 ```bash
 # Publish a clock broadcast
-./src/main.ts --url https://relay.quic.video/anon --broadcast myclock publish
+./src/main.ts --url https://relay.moq.dev/anon --broadcast myclock publish
 
 # Subscribe to a clock broadcast
-./src/main.ts --url https://relay.quic.video/anon --broadcast myclock subscribe
+./src/main.ts --url https://relay.moq.dev/anon --broadcast myclock subscribe
 ```
 
 If you're running a relay server locally, use `http://localhost:4443/anon` instead.

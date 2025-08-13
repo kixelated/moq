@@ -9,7 +9,7 @@
 
 # Media over QUIC
 
-[Media over QUIC](https://quic.video) (MoQ) is a next-generation live media protocol that provides **real-time latency** at **massive scale**.
+[Media over QUIC](https://moq.dev) (MoQ) is a next-generation live media protocol that provides **real-time latency** at **massive scale**.
 Built using modern web technologies, MoQ delivers WebRTC-like latency without the constraints of WebRTC.
 The core networking is delegated to a QUIC library but the rest is in application-space, giving you full control over your media pipeline.
 
@@ -21,7 +21,7 @@ The core networking is delegated to a QUIC library but the rest is in applicatio
 - 🎯 **Multi-language** with both Rust (native) and TypeScript (web) libraries.
 - 🔧 **Generic transport** for any live data, not just media. Includes text chat as both an example and a core feature.
 
-> **Note:** This project is a [fork](https://quic.video/blog/transfork) of the [IETF MoQ specification](https://datatracker.ietf.org/group/moq/documents/). The focus is narrower, focusing on simplicity and deployability.
+> **Note:** This project is a [fork](https://moq.dev/blog/transfork) of the [IETF MoQ specification](https://datatracker.ietf.org/group/moq/documents/). The focus is narrower, focusing on simplicity and deployability.
 
 
 ## Demo

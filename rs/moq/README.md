@@ -4,7 +4,7 @@
 
 # moq-lite
 
-A Rust implementation of the [Media over QUIC](https://quic.video) transport.
+A Rust implementation of the [Media over QUIC](https://moq.dev) transport.
 
 This crate provides the core networking layer, implementing the [moq-lite specification](https://datatracker.ietf.org/doc/draft-lcurley-moq-lite/).
 Live media is built on top of this layer using something like [hang](../hang).
@@ -22,7 +22,7 @@ Live media is built on top of this layer using something like [hang](../hang).
 
 	// For local development, use: http://localhost:4443/anon
 	// The "anon" path is usually configured to bypass authentication; be careful!
-	let url = url::Url::parse("https://relay.quic.video/anon").unwrap();
+	let url = url::Url::parse("https://relay.moq.dev/anon").unwrap();
 
 	// Establish a WebTransport/QUIC connection.
 	let connection = client.connect(url).await?;

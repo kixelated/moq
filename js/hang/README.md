@@ -7,12 +7,12 @@
 [![npm version](https://img.shields.io/npm/v/@kixelated/hang)](https://www.npmjs.com/package/@kixelated/hang)
 [![TypeScript](https://img.shields.io/badge/TypeScript-ready-blue.svg)](https://www.typescriptlang.org/)
 
-A TypeScript library for real-time media streaming using [Media over QUIC](https://quic.video/) (MoQ), supported by modern web browsers.
+A TypeScript library for real-time media streaming using [Media over QUIC](https://moq.dev/) (MoQ), supported by modern web browsers.
 
 **`@kixelated/hang`** provides high-level media components for live audio and video streaming, built on top of [`@kixelated/moq`](../moq).
 It uses new web APIs like WebCodecs, WebTransport, and Web Components.
 
-> **Note:** This project is a [fork](https://quic.video/blog/transfork) of the [IETF MoQ specification](https://datatracker.ietf.org/group/moq/documents/), optimized for practical deployment with a narrower focus and exponentially simpler implementation.
+> **Note:** This project is a [fork](https://moq.dev/blog/transfork) of the [IETF MoQ specification](https://datatracker.ietf.org/group/moq/documents/), optimized for practical deployment with a narrower focus and exponentially simpler implementation.
 
 ## Features
 
@@ -119,7 +119,7 @@ Subscribes to a hang broadcast and renders it.
 
 <!-- NOTE: You'll also need to publish a broadcast with the same name. See below. -->
 <hang-watch
-    url="https://relay.quic.video/anon"
+    url="https://relay.moq.dev/anon"
 	name="room123/me"
     controls>
 	<!-- canvas for rendering, otherwise video element will be disabled -->
@@ -146,7 +146,7 @@ Publishes a microphone/camera or screen as a hang broadcast.
 </script>
 
 <hang-publish
-    url="https://relay.quic.video/anon" name="room123/me" audio video controls>
+    url="https://relay.moq.dev/anon" name="room123/me" audio video controls>
     <!-- Optional: video element for preview -->
     <video autoplay muted></video>
 </hang-publish>
@@ -163,7 +163,7 @@ Very crude and best as an example; use the JS API instead.
 </script>
 
 <hang-meet
-    url="https://relay.quic.video/anon"
+    url="https://relay.moq.dev/anon"
 	name="room123"
     audio video
     controls>
@@ -196,7 +196,7 @@ You're on your own when it comes to documentation... for now.
 import * as Hang from "@kixelated/hang";
 
 // Create a new connection, available via `.established`
-const connection = new Hang.Connection("https://relay.quic.video/anon");
+const connection = new Hang.Connection("https://relay.moq.dev/anon");
 
 // Publishing media, with (optional) initial settings
 const publish = new Hang.Publish.Broadcast(connection, {

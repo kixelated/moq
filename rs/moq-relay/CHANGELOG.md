@@ -91,7 +91,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Other
 
 - Minor changes. ([#409](https://github.com/kixelated/moq/pull/409))
-- Small fixes discovered when trying to run quic.video ([#407](https://github.com/kixelated/moq/pull/407))
+- Small fixes discovered when trying to run moq.dev ([#407](https://github.com/kixelated/moq/pull/407))
 
 ## [0.7.1](https://github.com/kixelated/moq/compare/moq-relay-v0.7.0...moq-relay-v0.7.1) - 2025-06-03
 

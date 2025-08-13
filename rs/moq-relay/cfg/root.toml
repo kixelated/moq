@@ -15,8 +15,8 @@ tls.generate = ["localhost"]
 # In production, we would use a real certificate from something like Let's Encrypt.
 # Multiple certificates are supported; the first one that matches the SNI will be used.
 # [[server.tls.cert]]
-# chain = "dev/quic.video.pem"
-# key = "dev/quic.video.key"
+# chain = "dev/moq.dev.pem"
+# key = "dev/moq.dev.key"
 
 # Authentication is rather crude because it's GOOD ENOUGH for now.
 # see docs/auth.md for more information.

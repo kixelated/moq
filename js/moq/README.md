@@ -7,11 +7,11 @@
 [![npm version](https://img.shields.io/npm/v/@kixelated/moq)](https://www.npmjs.com/package/@kixelated/moq)
 [![TypeScript](https://img.shields.io/badge/TypeScript-ready-blue.svg)](https://www.typescriptlang.org/)
 
-A TypeScript implementation of [Media over QUIC](https://quic.video/) (MoQ) providing real-time data delivery in web browsers.
-Specificially, this package implements the networking layer called [moq-lite](https://quic.video/blog/moq-lite).
+A TypeScript implementation of [Media over QUIC](https://moq.dev/) (MoQ) providing real-time data delivery in web browsers.
+Specificially, this package implements the networking layer called [moq-lite](https://moq.dev/blog/moq-lite).
 Check out [../hang] for a higher-level media library that uses this package.
 
-> **Note:** This project is a [fork](https://quic.video/blog/transfork) of the [IETF MoQ specification](https://datatracker.ietf.org/group/moq/documents/), optimized for practical deployment with a narrower focus and exponentially simpler implementation.
+> **Note:** This project is a [fork](https://moq.dev/blog/transfork) of the [IETF MoQ specification](https://datatracker.ietf.org/group/moq/documents/), optimized for practical deployment with a narrower focus and exponentially simpler implementation.
 
 ## Quick Start
 
@@ -29,7 +29,7 @@ yarn add @kixelated/moq
 import * as Moq from "@kixelated/moq";
 
 // Connect to a MoQ relay server
-const connection = await Moq.connect("https://relay.quic.video/anon");
+const connection = await Moq.connect("https://relay.moq.dev/anon");
 console.log("Connected to MoQ relay!");
 ```
 
@@ -38,7 +38,7 @@ console.log("Connected to MoQ relay!");
 ```typescript
 import * as Moq from "@kixelated/moq";
 
-const connection = await Moq.connect("https://relay.quic.video/anon");
+const connection = await Moq.connect("https://relay.moq.dev/anon");
 
 // Create a broadcast, not associated with any connection/name yet.
 const broadcast = new Moq.BroadcastProducer();
@@ -61,7 +61,7 @@ console.log("Published data to my-broadcast");
 ```typescript
 import * as Moq from "@kixelated/moq";
 
-const connection = await Moq.connect("https://relay.quic.video/anon");
+const connection = await Moq.connect("https://relay.moq.dev/anon");
 
 // Subscribe to a broadcast
 const broadcast = connection.consume("my-broadcast");
@@ -89,7 +89,7 @@ for (;;) {
 ```typescript
 import * as Moq from "@kixelated/moq";
 
-const connection = await Moq.connect("https://relay.quic.video/anon");
+const connection = await Moq.connect("https://relay.moq.dev/anon");
 
 // Discover streams with an optional prefix
 const announced = connection.announced("");
