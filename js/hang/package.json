@@ -1,7 +1,7 @@
 {
 	"name": "@kixelated/hang",
 	"type": "module",
-	"version": "0.3.8",
+	"version": "0.3.9",
 	"description": "Media over QUIC library",
 	"license": "(MIT OR Apache-2.0)",
 	"repository": "github:kixelated/moq",
