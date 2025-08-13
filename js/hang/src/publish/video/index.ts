@@ -361,7 +361,9 @@ export class Video {
 		const track = effect.get(this.#track);
 		if (!track) return;
 
-		const description = decoderConfig.description ? Hex.fromBytes(decoderConfig.description as Uint8Array) : undefined;
+		const description = decoderConfig.description
+			? Hex.fromBytes(decoderConfig.description as Uint8Array)
+			: undefined;
 
 		const catalog: Catalog.Video = {
 			track: {
