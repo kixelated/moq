@@ -33,7 +33,7 @@
 		"tsconfig.json"
 	],
 	"scripts": {
-		"build": "tsc -b && tsx ../scripts/package.ts",
+		"build": "rm -rf dist && tsc -b && tsx ../scripts/package.ts",
 		"check": "tsc --noEmit",
 		"release": "tsx ../scripts/release.ts"
 	},

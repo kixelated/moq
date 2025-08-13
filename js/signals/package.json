@@ -15,9 +15,9 @@
 		"./src"
 	],
 	"scripts": {
-		"build": "tsc -b",
+		"build": "rm -rf dist && tsc -b && tsx ../scripts/package.ts",
 		"check": "tsc --noEmit",
-		"release": "tsx ../scripts/release.ts"
+		"release": "pnpm build && tsx ../scripts/release.ts"
 	},
 	"dependencies": {
 		"dequal": "^2.0.3"
