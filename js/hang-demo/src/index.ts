@@ -42,7 +42,7 @@ const checkAxes = (gp: any) => {
 		const differences = modifiedAxes.filter(x => !centervalues.includes(x));
 		if (differences.length > 1) {
 			publish.controller?.message.set(`axes;${modifiedAxes}`);
-			//console.log("gp.axes:", gp.axes);
+			console.log("gp.axes:", gp.axes);
 		}
 }
 

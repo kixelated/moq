@@ -1,3 +1,4 @@
+use tokio::sync::broadcast;
 use url::Url;
 
 use anyhow::Context;
@@ -40,18 +41,24 @@ async fn main() -> anyhow::Result<()> {
 	println!("[moq-gamecontroller] Connecting to server...\n");
 
 	let session = client.connect(config.url).await?;
-	let origin = moq_lite::OriginProducer::default();
-	let session = moq_lite::Session::connect(session, None, origin.clone()).await?;
+	//let origin = moq_lite::OriginProducer::default();
+	let origin = moq_lite::Origin::produce();
+	//let session = moq_lite::Session::connect(session, None, origin.clone()).await?;
+	let session = moq_lite::Session::connect(session, None, Some(origin.producer)).await?;
 
 	let track = Track { name: config.track, priority: 0, };
 	println!("[moq-gamecontroller] Track: {}", track.name);
 
 	//let broadcast = session.consume("");
-	let broadcast = origin.consume(&config.broadcast).context("[moq-gamecontroller] broadcast not found")?;
-	let track = broadcast.subscribe(&track);
+	//let broadcast = origin.consume(&config.broadcast).context("[moq-gamecontroller] broadcast not found")?;
+	let broadcast = origin.consumer.consume_broadcast(&config.broadcast).context("[moq-gamecontroller] broadcast not found")?;
+	let track = broadcast.subscribe_track(&track);
 	println!("[moq-gamecontroller] Creating a new Receiver:");
 	let receiver = gamecontroller::Receiver::new(track);
 
-	receiver.run().await
+	tokio::select! {
+		res = session.closed() => Err(res.into()),
+		_ = receiver.run() => Ok(()),
+	}
 
 }
