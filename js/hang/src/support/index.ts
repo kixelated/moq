@@ -1,4 +1,4 @@
-import { isFirefox } from "../hacks";
+import { isFirefox } from "../util/hacks";
 
 export type SupportMode = "core" | "watch" | "publish" | "all";
 export type Partial = "full" | "partial" | "none";

@@ -15,9 +15,9 @@
 		"./src"
 	],
 	"scripts": {
-		"build": "rm -rf dist && tsc -b && tsx ../scripts/package.ts",
+		"build": "rimraf dist && tsc -b && tsx ../scripts/package.ts",
 		"check": "tsc --noEmit",
-		"release": "pnpm build && tsx ../scripts/release.ts"
+		"release": "tsx ../scripts/release.ts"
 	},
 	"dependencies": {
 		"dequal": "^2.0.3"

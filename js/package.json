@@ -9,6 +9,7 @@
 		"concurrently": "^9.1.2",
 		"cpy-cli": "^5.0.0",
 		"knip": "^5.60.2",
+		"rimraf": "^6.0.1",
 		"typescript": "^5.8.3",
 		"@eslint/js": "^9.29.0",
 		"eslint": "^9.29.0",

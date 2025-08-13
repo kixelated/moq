@@ -1,8 +1,8 @@
 import type * as Moq from "@kixelated/moq";
 import { Effect, type Getter, Signal } from "@kixelated/signals";
-import { Buffer } from "buffer";
 import type * as Catalog from "../../catalog";
 import * as Container from "../../container";
+import * as Hex from "../../util/hex";
 import type * as Render from "./render";
 
 export * from "./emitter";
@@ -132,10 +132,11 @@ export class Audio {
 		effect.cleanup(() => decoder.close());
 
 		const config = selected.config;
+		const description = config.description ? Hex.toBytes(config.description) : undefined;
 
 		decoder.configure({
 			...config,
-			description: config.description ? Buffer.from(config.description, "hex") : undefined,
+			description,
 		});
 
 		effect.spawn(async (cancel) => {

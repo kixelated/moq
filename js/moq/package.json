@@ -13,7 +13,7 @@
 		".": "./src/index.ts"
 	},
 	"scripts": {
-		"build": "rm -rf dist && tsc -b && tsx ../scripts/package.ts",
+		"build": "rimraf dist && tsc -b && tsx ../scripts/package.ts",
 		"check": "tsc --noEmit",
 		"test": "tsx --test",
 		"release": "tsx ../scripts/release.ts"

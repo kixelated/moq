@@ -1,6 +1,6 @@
 import { Effect, Signal } from "@kixelated/signals";
 import * as DOM from "@kixelated/signals/dom";
-import { isFirefox } from "../hacks";
+import { isFirefox } from "../util/hacks";
 import { type Codec, type Full, isSupported, type Partial, type SupportMode } from "./";
 
 const OBSERVED = ["mode", "show", "details"] as const;

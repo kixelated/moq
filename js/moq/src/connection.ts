@@ -4,6 +4,7 @@ import * as Ietf from "./ietf";
 import * as Lite from "./lite";
 import type * as Path from "./path";
 import { Stream } from "./stream";
+import * as Hex from "./util/hex";
 
 export interface Connection {
 	readonly url: URL;
@@ -28,20 +29,6 @@ export async function connect(url: URL): Promise<Connection> {
 		requireUnreliable: true,
 	};
 
-	const hexToBytes = (hex: string) => {
-		hex = hex.startsWith("0x") ? hex.slice(2) : hex;
-		if (hex.length % 2) {
-			throw new Error("invalid hex string length");
-		}
-
-		const matches = hex.match(/.{2}/g);
-		if (!matches) {
-			throw new Error("invalid hex string format");
-		}
-
-		return new Uint8Array(matches.map((byte) => parseInt(byte, 16)));
-	};
-
 	let adjustedUrl = url;
 
 	if (url.protocol === "http:") {
@@ -57,7 +44,7 @@ export async function connect(url: URL): Promise<Connection> {
 		options.serverCertificateHashes = [
 			{
 				algorithm: "sha-256",
-				value: hexToBytes(fingerprintText),
+				value: Hex.toBytes(fingerprintText),
 			},
 		];
 

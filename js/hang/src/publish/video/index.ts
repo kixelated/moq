@@ -1,10 +1,10 @@
 import * as Moq from "@kixelated/moq";
 import { Effect, type Getter, Signal } from "@kixelated/signals";
-import { Buffer } from "buffer";
 import type * as Catalog from "../../catalog";
 import { u8, u53 } from "../../catalog/integers";
 import * as Container from "../../container";
-import { isFirefox } from "../../hacks";
+import { isFirefox } from "../../util/hacks";
+import * as Hex from "../../util/hex";
 import { Detection, type DetectionProps } from "./detection";
 import { VideoTrackProcessor } from "./polyfill";
 
@@ -361,9 +361,7 @@ export class Video {
 		const track = effect.get(this.#track);
 		if (!track) return;
 
-		const description = decoderConfig.description
-			? Buffer.from(decoderConfig.description as Uint8Array).toString("hex")
-			: undefined;
+		const description = decoderConfig.description ? Hex.fromBytes(decoderConfig.description as Uint8Array) : undefined;
 
 		const catalog: Catalog.Video = {
 			track: {

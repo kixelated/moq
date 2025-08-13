@@ -1,8 +1,8 @@
 import type * as Moq from "@kixelated/moq";
 import { Effect, Signal } from "@kixelated/signals";
-import { Buffer } from "buffer";
 import type * as Catalog from "../../catalog";
 import * as Container from "../../container";
+import * as Hex from "../../util/hex";
 import { Detection, type DetectionProps } from "./detection";
 
 export * from "./detection";
@@ -94,10 +94,11 @@ export class Video {
 		effect.cleanup(() => decoder.close());
 
 		const config = selected.config;
+		const description = config.description ? Hex.toBytes(config.description) : undefined;
 
 		decoder.configure({
 			...config,
-			description: config.description ? Buffer.from(config.description, "hex") : undefined,
+			description,
 			optimizeForLatency: config.optimizeForLatency ?? true,
 		});
 

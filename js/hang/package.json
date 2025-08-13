@@ -1,7 +1,7 @@
 {
 	"name": "@kixelated/hang",
 	"type": "module",
-	"version": "0.3.9",
+	"version": "0.3.10",
 	"description": "Media over QUIC library",
 	"license": "(MIT OR Apache-2.0)",
 	"repository": "github:kixelated/moq",
@@ -33,14 +33,13 @@
 		"tsconfig.json"
 	],
 	"scripts": {
-		"build": "rm -rf dist && tsc -b && tsx ../scripts/package.ts",
+		"build": "rimraf dist && tsc -b && tsx ../scripts/package.ts",
 		"check": "tsc --noEmit",
 		"release": "tsx ../scripts/release.ts"
 	},
 	"dependencies": {
 		"@kixelated/moq": "workspace:^",
 		"@kixelated/signals": "workspace:^",
-		"buffer": "^6.0.3",
 		"zod": "^4.0.0",
 		"comlink": "^4.4.2",
 		"@huggingface/transformers": "^3.7.0"
