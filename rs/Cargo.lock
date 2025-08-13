@@ -1282,6 +1282,23 @@ dependencies = [
 ]
 
 [[package]]
+name = "inputtino"
+version = "0.1.0"
+source = "git+https://github.com/games-on-whales/inputtino.git?branch=stable#83cf70ef33196a2a022671ccf8a686fc8f67ae8e"
+dependencies = [
+ "inputtino-sys",
+]
+
+[[package]]
+name = "inputtino-sys"
+version = "0.1.0"
+source = "git+https://github.com/games-on-whales/inputtino.git?branch=stable#83cf70ef33196a2a022671ccf8a686fc8f67ae8e"
+dependencies = [
+ "bindgen",
+ "cmake",
+]
+
+[[package]]
 name = "io-uring"
 version = "0.7.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1533,6 +1550,21 @@ dependencies = [
  "anyhow",
  "chrono",
  "clap",
+ "moq-lite",
+ "moq-native",
+ "tokio",
+ "tracing",
+ "url",
+]
+
+[[package]]
+name = "moq-gamecontroller"
+version = "0.6.0"
+dependencies = [
+ "anyhow",
+ "chrono",
+ "clap",
+ "inputtino",
  "moq-lite",
  "moq-native",
  "tokio",
