@@ -11,7 +11,8 @@
 		"check": "tsc --noEmit"
 	},
 	"dependencies": {
-		"@kixelated/hang": "workspace:^"
+		"@kixelated/hang": "workspace:^",
+		"@kixelated/moq": "workspace:^0.6.1"
 	},
 	"devDependencies": {
 		"@tailwindcss/postcss": "^4.1.10",

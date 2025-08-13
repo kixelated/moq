@@ -27,10 +27,12 @@
 		TODO: There's a bug with Big Buck Bunny causing audio to stutter, so we need to increase the latency to 100ms.
 
 	-->
-	<hang-watch url="%VITE_RELAY_URL%" name="bbb" muted controls captions latency="100">
+	<!--<hang-watch url="%VITE_RELAY_URL%" name="bbb" muted controls captions latency="100">-->
+	<hang-watch url="https://enter.domain.here:4443/anon" name="bbb" muted controls captions latency="100"></hang-watch>
 		<canvas style="max-width: 100%; height: auto; border-radius: 4px; margin: 0 auto;"></canvas>
 	</hang-watch>
 
+	<!--
 	<h3>Other demos:</h3>
 	<ul>
 		<li><a href="publish.html">Publish a broadcast.</a></li>
@@ -156,6 +158,7 @@ just pub bbb
 		And if you're feeing extra adventurous, use <code class="language-bash">just sub-gst tos</code> to <i>watch</i>
 		via gstreamer.
 	</p>
+	-->
 </body>
 
 <script type="module" src="index.ts"></script>

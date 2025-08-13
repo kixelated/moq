@@ -7,7 +7,7 @@ default:
   just --list
 
 # Run the web server
-web url='http://localhost:4443/anon':
+web url='https://enter.domain.here:4443/anon':
 	pnpm -r i
 	VITE_RELAY_URL="{{url}}" pnpm -r run dev
 

@@ -28,10 +28,14 @@ dev:
 
 	# Then run the relay with a slight head start.
 	# It doesn't matter if the web beats BBB because we support automatic reloading.
+	#js/node_modules/.bin/concurrently --kill-others --names srv,bbb,web --prefix-colors auto \
+	#	"just relay" \
+	#	"sleep 1 && just pub bbb http://localhost:4443/anon" \
+	#	"sleep 2 && just web http://localhost:4443/anon"
 	js/node_modules/.bin/concurrently --kill-others --names srv,bbb,web --prefix-colors auto \
 		"just relay" \
-		"sleep 1 && just pub bbb http://localhost:4443/anon" \
-		"sleep 2 && just web http://localhost:4443/anon"
+		"sleep 1 && just pub bbb https://enter.domain.here:4443/anon" \
+		"sleep 2 && just web https://enter.domain.here:4443/anon"
 
 # Run a localhost relay server
 relay:
@@ -51,12 +55,18 @@ cluster:
 	# Then run a BOATLOAD of services to make sure they all work correctly.
 	# Publish the funny bunny to the root node.
 	# Publish the robot fanfic to the leaf node.
+	#js/node_modules/.bin/concurrently --kill-others --names root,leaf,bbb,tos,web --prefix-colors auto \
+	#	"just root" \
+	#	"sleep 1 && just leaf" \
+	#	"sleep 2 && just pub bbb http://localhost:4444/demo?jwt=$(cat rs/dev/demo-cli.jwt)" \
+	#	"sleep 3 && just pub tos http://localhost:4443/demo?jwt=$(cat rs/dev/demo-cli.jwt)" \
+	#	"sleep 4 && just web http://localhost:4443/demo?jwt=$(cat rs/dev/demo-web.jwt)"
 	js/node_modules/.bin/concurrently --kill-others --names root,leaf,bbb,tos,web --prefix-colors auto \
 		"just root" \
 		"sleep 1 && just leaf" \
-		"sleep 2 && just pub bbb http://localhost:4444/demo?jwt=$(cat rs/dev/demo-cli.jwt)" \
-		"sleep 3 && just pub tos http://localhost:4443/demo?jwt=$(cat rs/dev/demo-cli.jwt)" \
-		"sleep 4 && just web http://localhost:4443/demo?jwt=$(cat rs/dev/demo-web.jwt)"
+		"sleep 2 && just pub bbb https://enter.domain.here:4444/demo?jwt=$(cat rs/dev/demo-cli.jwt)" \
+		"sleep 3 && just pub tos https://enter.domain.here:4443/demo?jwt=$(cat rs/dev/demo-cli.jwt)" \
+		"sleep 4 && just web https://enter.domain.here:4443/demo?jwt=$(cat rs/dev/demo-web.jwt)"
 
 # Run a root node, accepting connections from leaf nodes.
 root:
@@ -67,15 +77,15 @@ leaf:
 	just --justfile rs/justfile leaf
 
 # Publish a video using ffmpeg to the localhost relay server
-pub name url='http://localhost:4443/anon':
+pub name url='https://enter.domain.here:4443/anon':
 	just --justfile rs/justfile pub {{name}} {{url}}
 
 # Publish a video using gstreamer to the localhost relay server
-pub-gst name url='http://localhost:4443/anon':
+pub-gst name url='https://enter.domain.here:4443/anon':
 	just --justfile rs/justfile pub-gst {{name}} {{url}}
 
 # Subscribe to a video using gstreamer
-sub name url='http://localhost:4443/anon':
+sub name url='https://enter.domain.here:4443/anon':
 	just --justfile rs/justfile sub {{name}} {{url}}
 
 # Publish a video using ffmpeg directly from hang to the localhost
@@ -83,7 +93,7 @@ serve name:
 	just --justfile rs/justfile serve {{name}}
 
 # Run the web server
-web url='http://localhost:4443/anon':
+web url='https://enter.domain.here:4443/anon':
 	just --justfile js/justfile web {{url}}
 
 # Publish the clock broadcast

@@ -80,6 +80,9 @@ importers:
       '@kixelated/hang':
         specifier: workspace:^
         version: link:../hang
+      '@kixelated/moq':
+        specifier: workspace:^0.6.1
+        version: link:../moq
     devDependencies:
       '@tailwindcss/postcss':
         specifier: ^4.1.10
