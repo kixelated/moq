@@ -8,9 +8,6 @@ import type * as Capture from "./capture";
 
 export * from "./captions";
 
-// Create a group every half a second
-const GOP_DURATION = 0.5;
-
 const GAIN_MIN = 0.001;
 const FADE_TIME = 0.2;
 
@@ -51,6 +48,10 @@ export type AudioProps = {
 	muted?: boolean;
 	volume?: number;
 	captions?: CaptionsProps;
+
+	// The size of each group. Larger groups mean fewer drops but the viewer can fall further behind.
+	// NOTE: Each frame is always flushed to the network immediately.
+	maxLatency?: DOMHighResTimeStamp;
 };
 
 export class Audio {
@@ -60,6 +61,7 @@ export class Audio {
 	muted: Signal<boolean>;
 	volume: Signal<number>;
 	captions: Captions;
+	maxLatency: DOMHighResTimeStamp;
 
 	media: Signal<AudioTrack | undefined>;
 	constraints: Signal<AudioConstraints | undefined>;
@@ -86,6 +88,7 @@ export class Audio {
 		this.constraints = new Signal(props?.constraints);
 		this.muted = new Signal(props?.muted ?? false);
 		this.volume = new Signal(props?.volume ?? 1);
+		this.maxLatency = props?.maxLatency ?? 100; // Default is a group every 100ms
 
 		this.#signals.effect(this.#runSource.bind(this));
 		this.#signals.effect(this.#runGain.bind(this));
@@ -197,7 +200,7 @@ export class Audio {
 					throw new Error("only key frames are supported");
 				}
 
-				if (!this.#group || frame.timestamp - this.#groupTimestamp >= 1000 * 1000 * GOP_DURATION) {
+				if (!this.#group || frame.timestamp - this.#groupTimestamp >= 1000 * this.maxLatency) {
 					this.#group?.close();
 					this.#group = track.appendGroup();
 					this.#groupTimestamp = frame.timestamp;

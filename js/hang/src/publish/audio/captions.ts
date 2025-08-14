@@ -29,7 +29,7 @@ export class Captions {
 
 	constructor(audio: Audio, props?: CaptionsProps) {
 		this.audio = audio;
-		this.#ttl = props?.ttl ?? 5000;
+		this.#ttl = props?.ttl ?? 10000;
 		this.enabled = new Signal(props?.enabled ?? false);
 
 		this.signals.effect(this.#run.bind(this));
