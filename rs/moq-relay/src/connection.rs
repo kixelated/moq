@@ -1,10 +1,11 @@
 use crate::{Auth, Cluster};
 
-use web_transport::quinn::http;
+use moq_lite::transport::quinn as web_transport_quinn;
+use web_transport_quinn::http;
 
 pub struct Connection {
 	pub id: u64,
-	pub request: web_transport::quinn::Request,
+	pub request: web_transport_quinn::Request,
 	pub cluster: Cluster,
 	pub auth: Auth,
 }

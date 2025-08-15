@@ -8,4 +8,4 @@ pub use server::*;
 
 // Re-export these crates.
 pub use moq_lite;
-pub use web_transport;
+pub use moq_lite::transport::quinn as web_transport_quinn;

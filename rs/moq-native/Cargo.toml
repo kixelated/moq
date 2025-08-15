@@ -32,5 +32,4 @@ tokio = { workspace = true, features = ["full"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 url = "2"
-web-transport = { workspace = true }
 webpki = "0.22"

@@ -14,7 +14,7 @@ use futures::future::BoxFuture;
 use futures::stream::{FuturesUnordered, StreamExt};
 use futures::FutureExt;
 
-use web_transport::quinn as web_transport_quinn;
+use super::web_transport_quinn;
 
 #[derive(clap::Args, Clone, Debug, serde::Serialize, serde::Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -105,7 +105,7 @@ impl Server {
 			.with_cert_resolver(Arc::new(serve));
 
 		tls.alpn_protocols = vec![
-			web_transport::quinn::ALPN.as_bytes().to_vec(),
+			web_transport_quinn::ALPN.as_bytes().to_vec(),
 			moq_lite::ALPN.as_bytes().to_vec(),
 		];
 		tls.key_log = Arc::new(rustls::KeyLogFile::new());
@@ -186,9 +186,9 @@ impl Server {
 		span.record("id", conn.stable_id()); // TODO can we get this earlier?
 
 		match alpn.as_str() {
-			web_transport::quinn::ALPN => {
+			web_transport_quinn::ALPN => {
 				// Wait for the CONNECT request.
-				web_transport::quinn::Request::accept(conn)
+				web_transport_quinn::Request::accept(conn)
 					.await
 					.context("failed to receive WebTransport request")
 			}

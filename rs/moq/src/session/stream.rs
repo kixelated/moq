@@ -1,14 +1,14 @@
 use super::{Reader, Writer};
-use crate::{message, Error};
+use crate::{message, transport, Error};
 
-pub(super) struct Stream {
-	pub writer: Writer,
-	pub reader: Reader,
+pub(super) struct Stream<S: transport::Session> {
+	pub writer: Writer<S::SendStream>,
+	pub reader: Reader<S::RecvStream>,
 }
 
-impl Stream {
-	pub async fn open(session: &mut web_transport::Session, typ: message::ControlType) -> Result<Self, Error> {
-		let (send, recv) = session.open_bi().await?;
+impl<S: transport::Session> Stream<S> {
+	pub async fn open(session: &S, typ: message::ControlType) -> Result<Self, Error> {
+		let (send, recv) = session.open_bi().await.map_err(|err| Error::Transport(err.into()))?;
 
 		let mut writer = Writer::new(send);
 		let reader = Reader::new(recv);
@@ -17,8 +17,8 @@ impl Stream {
 		Ok(Stream { writer, reader })
 	}
 
-	pub async fn accept(session: &mut web_transport::Session) -> Result<Self, Error> {
-		let (send, recv) = session.accept_bi().await?;
+	pub async fn accept(session: &S) -> Result<Self, Error> {
+		let (send, recv) = session.accept_bi().await.map_err(|err| Error::Transport(err.into()))?;
 
 		let writer = Writer::new(send);
 		let reader = Reader::new(recv);
