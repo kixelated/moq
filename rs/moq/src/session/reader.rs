@@ -2,25 +2,30 @@ use std::{cmp, io};
 
 use bytes::{Buf, Bytes, BytesMut};
 
-use crate::{coding::*, Error};
+use crate::{coding::*, transport, Error};
 
-pub struct Reader {
-	stream: web_transport::RecvStream,
+pub struct Reader<S: transport::RecvStream> {
+	stream: S,
 	buffer: BytesMut,
 }
 
-impl Reader {
-	pub fn new(stream: web_transport::RecvStream) -> Self {
+impl<S: transport::RecvStream> Reader<S> {
+	pub fn new(stream: S) -> Self {
 		Self {
 			stream,
 			buffer: Default::default(),
 		}
 	}
 
-	pub async fn accept(session: &mut web_transport::Session) -> Result<Self, Error> {
+	/*
+	pub async fn accept<S: transport::Session>(session: &S) -> Result<Self, Error>
+	where
+		S::RecvStream: T,
+	{
 		let stream = session.accept_uni().await?;
 		Ok(Self::new(stream))
 	}
+	*/
 
 	pub async fn decode<T: Decode>(&mut self) -> Result<T, Error> {
 		loop {
@@ -32,7 +37,13 @@ impl Reader {
 				}
 				Err(DecodeError::Short) => {
 					// Try to read more data
-					if self.stream.read_buf(&mut self.buffer).await?.is_none() {
+					if self
+						.stream
+						.read_buf(&mut self.buffer)
+						.await
+						.map_err(|e| Error::Transport(Box::new(e)))?
+						.is_none()
+					{
 						// Stream closed while we still need more data
 						return Err(Error::Decode(DecodeError::Short));
 					}
@@ -59,12 +70,22 @@ impl Reader {
 			return Ok(Some(data));
 		}
 
-		Ok(self.stream.read(max).await?)
+		self.stream
+			.read_chunk(max)
+			.await
+			.map_err(|e| Error::Transport(Box::new(e)))
 	}
 
 	/// Wait until the stream is closed, erroring if there are any additional bytes.
 	pub async fn closed(&mut self) -> Result<(), Error> {
-		if self.buffer.is_empty() && self.stream.read_buf(&mut self.buffer).await?.is_none() {
+		if self.buffer.is_empty()
+			&& self
+				.stream
+				.read_buf(&mut self.buffer)
+				.await
+				.map_err(|e| Error::Transport(Box::new(e)))?
+				.is_none()
+		{
 			return Ok(());
 		}
 

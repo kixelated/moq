@@ -6,7 +6,7 @@ use std::path::PathBuf;
 use std::{fs, io, net, sync::Arc, time};
 use url::Url;
 
-use web_transport::quinn as web_transport_quinn;
+use super::web_transport_quinn;
 
 #[derive(Clone, Default, Debug, clap::Args, serde::Serialize, serde::Deserialize)]
 #[serde(default, deny_unknown_fields)]
@@ -170,7 +170,7 @@ impl Client {
 		}
 
 		let alpn = match url.scheme() {
-			"https" => web_transport::quinn::ALPN,
+			"https" => web_transport_quinn::ALPN,
 			"moql" => moq_lite::ALPN,
 			_ => anyhow::bail!("url scheme must be 'http', 'https', or 'moql'"),
 		};
@@ -189,8 +189,8 @@ impl Client {
 		tracing::Span::current().record("id", connection.stable_id());
 
 		let session = match url.scheme() {
-			"https" => web_transport::quinn::Session::connect(connection, url).await?,
-			moq_lite::ALPN => web_transport::quinn::Session::raw(connection, url),
+			"https" => web_transport_quinn::Session::connect(connection, url).await?,
+			moq_lite::ALPN => web_transport_quinn::Session::raw(connection, url),
 			_ => unreachable!(),
 		};
 

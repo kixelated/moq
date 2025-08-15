@@ -1553,7 +1553,7 @@ dependencies = [
  "tokio",
  "tracing",
  "web-async",
- "web-transport",
+ "web-transport-quinn",
 ]
 
 [[package]]
@@ -1579,7 +1579,6 @@ dependencies = [
  "tracing",
  "tracing-subscriber",
  "url",
- "web-transport",
  "webpki",
 ]
 
@@ -1605,7 +1604,6 @@ dependencies = [
  "tower-http",
  "tracing",
  "url",
- "web-transport",
 ]
 
 [[package]]
@@ -3214,18 +3212,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "web-streams"
-version = "0.1.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "15c4d5dbf19463c4b65e974303d453cc11991873c7a4a4953214f791d73303a2"
-dependencies = [
- "thiserror 2.0.14",
- "wasm-bindgen",
- "wasm-bindgen-futures",
- "web-sys",
-]
-
-[[package]]
 name = "web-sys"
 version = "0.3.77"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3243,19 +3229,6 @@ checksum = "5a6580f308b1fad9207618087a65c04e7a10bc77e02c8e84e9b00dd4b12fa0bb"
 dependencies = [
  "js-sys",
  "wasm-bindgen",
-]
-
-[[package]]
-name = "web-transport"
-version = "0.9.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8dd16497e7d916fe90639b0b8553bdb3098d488f576c3a825da852ed0e630d59"
-dependencies = [
- "bytes",
- "thiserror 2.0.14",
- "url",
- "web-transport-quinn",
- "web-transport-wasm",
 ]
 
 [[package]]
@@ -3289,22 +3262,6 @@ dependencies = [
  "tokio",
  "url",
  "web-transport-proto",
-]
-
-[[package]]
-name = "web-transport-wasm"
-version = "0.5.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b3ad9b5e49988cf8f4fd722c1b390bad43482b866ac7a2ba0f23280eba74c893"
-dependencies = [
- "bytes",
- "js-sys",
- "thiserror 2.0.14",
- "url",
- "wasm-bindgen",
- "wasm-bindgen-futures",
- "web-streams",
- "web-sys",
 ]
 
 [[package]]

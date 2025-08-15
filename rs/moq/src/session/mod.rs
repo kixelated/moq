@@ -1,4 +1,4 @@
-use crate::{message, Error, OriginConsumer, OriginProducer};
+use crate::{message, transport, Error, OriginConsumer, OriginProducer};
 
 mod publisher;
 mod reader;
@@ -17,14 +17,14 @@ use writer::*;
 ///
 /// This simplifies the state machine and immediately rejects any subscriptions that don't match the origin prefix.
 /// You probably want to use [Session] unless you're writing a relay.
-pub struct Session {
-	pub webtransport: web_transport::Session,
+pub struct Session<S: transport::Session> {
+	pub transport: S,
 }
 
-impl Session {
+impl<S: transport::Session> Session<S> {
 	async fn new(
-		mut session: web_transport::Session,
-		stream: Stream,
+		session: S,
+		stream: Stream<S>,
 		// We will publish any local broadcasts from this origin.
 		publish: Option<OriginConsumer>,
 		// We will consume any remote broadcasts, inserting them into this origin.
@@ -34,7 +34,7 @@ impl Session {
 		let subscriber = Subscriber::new(session.clone(), subscribe);
 
 		let this = Self {
-			webtransport: session.clone(),
+			transport: session.clone(),
 		};
 
 		let init = oneshot::channel();
@@ -47,17 +47,17 @@ impl Session {
 			};
 
 			match res {
-				Err(Error::WebTransport(web_transport::Error::Session(_))) => {
+				Err(Error::Transport(_)) => {
 					tracing::info!("session terminated");
-					session.close(1, "");
+					session.close(1, b"");
 				}
 				Err(err) => {
 					tracing::warn!(%err, "session error");
-					session.close(err.to_code(), &err.to_string());
+					session.close(err.to_code(), err.to_string().as_bytes());
 				}
 				_ => {
 					tracing::info!("session closed");
-					session.close(0, "");
+					session.close(0, b"");
 				}
 			}
 		});
@@ -73,18 +73,17 @@ impl Session {
 
 	/// Perform the MoQ handshake as a client.
 	pub async fn connect(
-		session: impl Into<web_transport::Session>,
+		session: S,
 		publish: impl Into<Option<OriginConsumer>>,
 		subscribe: impl Into<Option<OriginProducer>>,
 	) -> Result<Self, Error> {
-		let mut session = session.into();
-		let mut stream = Stream::open(&mut session, message::ControlType::Session).await?;
+		let mut stream = Stream::open(&session, message::ControlType::Session).await?;
 		Self::connect_setup(&mut stream).await?;
 		let session = Self::new(session, stream, publish.into(), subscribe.into()).await?;
 		Ok(session)
 	}
 
-	async fn connect_setup(setup: &mut Stream) -> Result<(), Error> {
+	async fn connect_setup(setup: &mut Stream<S>) -> Result<(), Error> {
 		let client = message::ClientSetup {
 			versions: [message::Version::CURRENT].into(),
 			extensions: Default::default(),
@@ -99,17 +98,12 @@ impl Session {
 	}
 
 	/// Perform the MoQ handshake as a server
-	pub async fn accept<
-		T: Into<web_transport::Session>,
-		P: Into<Option<OriginConsumer>>,
-		C: Into<Option<OriginProducer>>,
-	>(
-		session: T,
+	pub async fn accept<P: Into<Option<OriginConsumer>>, C: Into<Option<OriginProducer>>>(
+		session: S,
 		publish: P,
 		subscribe: C,
 	) -> Result<Self, Error> {
-		let mut session = session.into();
-		let mut stream = Stream::accept(&mut session).await?;
+		let mut stream = Stream::accept(&session).await?;
 		let kind = stream.reader.decode().await?;
 
 		Self::accept_setup(kind, &mut stream).await?;
@@ -117,7 +111,7 @@ impl Session {
 		Ok(session)
 	}
 
-	async fn accept_setup(kind: message::ControlType, control: &mut Stream) -> Result<(), Error> {
+	async fn accept_setup(kind: message::ControlType, control: &mut Stream<S>) -> Result<(), Error> {
 		if kind != message::ControlType::Session && kind != message::ControlType::ClientCompat {
 			return Err(Error::UnexpectedStream(kind));
 		}
@@ -147,18 +141,18 @@ impl Session {
 	}
 
 	// TODO do something useful with this
-	async fn run_session(mut stream: Stream) -> Result<(), Error> {
+	async fn run_session(mut stream: Stream<S>) -> Result<(), Error> {
 		while let Some(_info) = stream.reader.decode_maybe::<message::SessionInfo>().await? {}
 		Err(Error::Cancel)
 	}
 
-	/// Close the underlying WebTransport session.
-	pub fn close(mut self, err: Error) {
-		self.webtransport.close(err.to_code(), &err.to_string());
+	/// Close the underlying transport session.
+	pub fn close(self, err: Error) {
+		self.transport.close(err.to_code(), err.to_string().as_bytes());
 	}
 
-	/// Block until the WebTransport session is closed.
+	/// Block until the transport session is closed.
 	pub async fn closed(&self) -> Error {
-		self.webtransport.closed().await.into()
+		Error::Transport(Box::new(self.transport.closed().await))
 	}
 }
