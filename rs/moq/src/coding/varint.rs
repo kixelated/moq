@@ -18,7 +18,7 @@ pub struct BoundsExceeded;
 /// Values of this type are suitable for encoding as QUIC variable-length integer.
 /// It would be neat if we could express to Rust that the top two bits are available for use as enum
 /// discriminants
-#[derive(Default, Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash)]
+#[derive(Debug, Default, Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash)]
 pub struct VarInt(u64);
 
 impl VarInt {

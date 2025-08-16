@@ -48,7 +48,7 @@ pub trait Session: Clone + Send + Sync + 'static {
 }
 
 /// A trait describing the "send" actions of a QUIC stream.
-pub trait SendStream: Unpin + Send + Sync {
+pub trait SendStream: Send {
 	type Error: ErrorCode;
 
 	/// Set the stream's priority relative to other streams on the same connection.
@@ -76,7 +76,7 @@ pub trait SendStream: Unpin + Send + Sync {
 }
 
 /// A trait describing the "receive" actions of a QUIC stream.
-pub trait RecvStream: Unpin + Send + Sync {
+pub trait RecvStream: Send {
 	type Error: ErrorCode;
 
 	/// Send a `STOP_SENDING` QUIC code.

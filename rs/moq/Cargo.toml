@@ -30,3 +30,4 @@ tokio = { workspace = true, features = [
 tracing = "0.1"
 web-async = { workspace = true }
 web-transport-quinn = { workspace = true }
+tokio-tungstenite = "0.24"
