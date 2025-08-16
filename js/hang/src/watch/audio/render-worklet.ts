@@ -50,7 +50,7 @@ class Render extends AudioWorkletProcessor {
 
 		// Discard old samples from the front to prevent an overflow.
 		const discard = this.#writeIndex - this.#readIndex + samples - this.#buffer[0].length;
-		if (discard >= 0) {
+		if (discard > 0) {
 			this.#refill = false;
 			this.#readIndex += discard;
 		}
