@@ -28,7 +28,7 @@ export class Audio {
 	broadcast: Getter<Moq.BroadcastConsumer | undefined>;
 	catalog: Getter<Catalog.Root | undefined>;
 	enabled: Signal<boolean>;
-	selected = new Signal<Catalog.Audio | undefined>(undefined);
+	info = new Signal<Catalog.Audio | undefined>(undefined);
 
 	// The root of the audio graph, which can be used for custom visualizations.
 	// You can access the audio context via `root.context`.
@@ -58,10 +58,10 @@ export class Audio {
 		this.catalog = catalog;
 		this.enabled = new Signal(props?.enabled ?? false);
 		this.latency = props?.latency ?? 100; // TODO Reduce this once fMP4 stuttering is fixed.
-		this.captions = new Captions(broadcast, this.selected, props?.captions);
+		this.captions = new Captions(broadcast, this.info, props?.captions);
 
 		this.#signals.effect((effect) => {
-			this.selected.set(effect.get(this.catalog)?.audio?.[0]);
+			this.info.set(effect.get(this.catalog)?.audio?.[0]);
 		});
 
 		this.#signals.effect(this.#runWorklet.bind(this));
@@ -70,11 +70,11 @@ export class Audio {
 
 	#runWorklet(effect: Effect): void {
 		const enabled = effect.get(this.enabled);
-		const selected = effect.get(this.selected);
-		if (!enabled || !selected) return;
+		const info = effect.get(this.info);
+		if (!enabled || !info) return;
 
-		const sampleRate = selected.config.sampleRate;
-		const channelCount = selected.config.numberOfChannels;
+		const sampleRate = info.config.sampleRate;
+		const channelCount = info.config.numberOfChannels;
 
 		// NOTE: We still create an AudioContext even when muted.
 		// This way we can process the audio for visualizations.
@@ -116,13 +116,13 @@ export class Audio {
 		const enabled = effect.get(this.enabled);
 		if (!enabled) return;
 
-		const selected = effect.get(this.selected);
-		if (!selected) return;
+		const info = effect.get(this.info);
+		if (!info) return;
 
 		const broadcast = effect.get(this.broadcast);
 		if (!broadcast) return;
 
-		const sub = broadcast.subscribe(selected.track.name, selected.track.priority);
+		const sub = broadcast.subscribe(info.track.name, info.track.priority);
 		effect.cleanup(() => sub.close());
 
 		const decoder = new AudioDecoder({
@@ -131,7 +131,7 @@ export class Audio {
 		});
 		effect.cleanup(() => decoder.close());
 
-		const config = selected.config;
+		const config = info.config;
 		const description = config.description ? Hex.toBytes(config.description) : undefined;
 
 		decoder.configure({

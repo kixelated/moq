@@ -8,7 +8,7 @@ export type CaptionsProps = {
 
 export class Captions {
 	broadcast: Getter<Moq.BroadcastConsumer | undefined>;
-	selected: Getter<Catalog.Audio | undefined>;
+	info: Getter<Catalog.Audio | undefined>;
 	enabled: Signal<boolean>;
 
 	// The most recent caption downloaded.
@@ -19,11 +19,11 @@ export class Captions {
 
 	constructor(
 		broadcast: Getter<Moq.BroadcastConsumer | undefined>,
-		selected: Getter<Catalog.Audio | undefined>,
+		info: Getter<Catalog.Audio | undefined>,
 		props?: CaptionsProps,
 	) {
 		this.broadcast = broadcast;
-		this.selected = selected;
+		this.info = info;
 
 		this.enabled = new Signal(props?.enabled ?? false);
 		this.#signals.effect(this.#run.bind(this));
@@ -36,12 +36,12 @@ export class Captions {
 		const broadcast = effect.get(this.broadcast);
 		if (!broadcast) return;
 
-		const selected = effect.get(this.selected);
-		if (!selected) return;
+		const info = effect.get(this.info);
+		if (!info) return;
 
-		if (!selected.captions) return;
+		if (!info.captions) return;
 
-		const sub = broadcast.subscribe(selected.captions.track.name, selected.captions.track.priority);
+		const sub = broadcast.subscribe(info.captions.track.name, info.captions.track.priority);
 		effect.cleanup(() => sub.close());
 
 		effect.spawn(async (cancel) => {

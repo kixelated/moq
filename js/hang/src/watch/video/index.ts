@@ -18,7 +18,7 @@ export class Video {
 	broadcast: Signal<Moq.BroadcastConsumer | undefined>;
 	enabled: Signal<boolean>; // Don't download any longer
 	catalog: Signal<Catalog.Root | undefined>;
-	selected = new Signal<Catalog.Video | undefined>(undefined);
+	info = new Signal<Catalog.Video | undefined>(undefined);
 	active = new Signal<boolean>(false);
 
 	detection: Detection;
@@ -44,9 +44,9 @@ export class Video {
 
 		// TODO use isConfigSupported
 		this.#signals.effect((effect) => {
-			const selected = effect.get(this.catalog)?.video?.[0];
-			this.selected.set(selected);
-			this.active.set(selected !== undefined);
+			const info = effect.get(this.catalog)?.video?.[0];
+			this.info.set(info);
+			this.active.set(info !== undefined);
 		});
 
 		this.#signals.effect(this.#init.bind(this));
@@ -56,14 +56,14 @@ export class Video {
 		const enabled = effect.get(this.enabled);
 		if (!enabled) return;
 
-		const selected = effect.get(this.selected);
-		if (!selected) return;
+		const info = effect.get(this.info);
+		if (!info) return;
 
 		const broadcast = effect.get(this.broadcast);
 		if (!broadcast) return;
 
 		// We don't clear previous frames so we can seamlessly switch tracks.
-		const sub = broadcast.subscribe(selected.track.name, selected.track.priority);
+		const sub = broadcast.subscribe(info.track.name, info.track.priority);
 		effect.cleanup(() => sub.close());
 
 		const decoder = new VideoDecoder({
@@ -93,7 +93,7 @@ export class Video {
 		});
 		effect.cleanup(() => decoder.close());
 
-		const config = selected.config;
+		const config = info.config;
 		const description = config.description ? Hex.toBytes(config.description) : undefined;
 
 		decoder.configure({

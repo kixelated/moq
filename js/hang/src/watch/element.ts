@@ -6,7 +6,7 @@ import { AudioEmitter } from "./audio";
 import { Broadcast } from "./broadcast";
 import { VideoRenderer } from "./video";
 
-const OBSERVED = ["url", "name", "paused", "volume", "muted", "controls", "captions"] as const;
+const OBSERVED = ["url", "name", "paused", "volume", "muted", "controls", "captions", "reload"] as const;
 type Observed = (typeof OBSERVED)[number];
 
 // An optional web component that wraps a <canvas>
@@ -30,7 +30,11 @@ export default class HangWatch extends HTMLElement {
 		const canvas = this.querySelector("canvas") as HTMLCanvasElement | undefined;
 
 		this.connection = new Connection();
-		this.broadcast = new Broadcast(this.connection, { enabled: true });
+		this.broadcast = new Broadcast(this.connection, {
+			enabled: true,
+			// TODO: Temporarily defaults to false: Don't automatically reload the broadcast.
+			reload: false,
+		});
 		this.video = new VideoRenderer(this.broadcast.video, { canvas });
 		this.audio = new AudioEmitter(this.broadcast.audio);
 
@@ -116,6 +120,8 @@ export default class HangWatch extends HTMLElement {
 			this.controls = newValue !== null;
 		} else if (name === "captions") {
 			this.captions = newValue !== null;
+		} else if (name === "reload") {
+			this.reload = newValue !== null;
 		} else {
 			const exhaustive: never = name;
 			throw new Error(`Invalid attribute: ${exhaustive}`);
@@ -177,6 +183,14 @@ export default class HangWatch extends HTMLElement {
 
 	set captions(captions: boolean) {
 		this.broadcast.audio.captions.enabled.set(captions);
+	}
+
+	get reload(): boolean {
+		return this.broadcast.reload.peek();
+	}
+
+	set reload(reload: boolean) {
+		this.broadcast.reload.set(reload);
 	}
 
 	// TODO Do this on disconnectedCallback?
