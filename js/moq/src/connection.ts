@@ -6,6 +6,11 @@ import type * as Path from "./path";
 import { Stream } from "./stream";
 import * as Hex from "./util/hex";
 
+// Import and apply polyfill if WebTransport is not available (e.g., Safari)
+if (typeof globalThis !== "undefined" && !("WebTransport" in globalThis)) {
+	await import("@kixelated/web-transport-polyfill");
+}
+
 export interface Connection {
 	readonly url: URL;
 

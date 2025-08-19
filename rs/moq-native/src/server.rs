@@ -14,8 +14,6 @@ use futures::future::BoxFuture;
 use futures::stream::{FuturesUnordered, StreamExt};
 use futures::FutureExt;
 
-use super::web_transport_quinn;
-
 #[derive(clap::Args, Clone, Debug, serde::Serialize, serde::Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct ServerTlsCert {

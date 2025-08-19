@@ -2,14 +2,14 @@ use std::{cmp, io};
 
 use bytes::{Buf, Bytes, BytesMut};
 
-use crate::{coding::*, transport, Error};
+use crate::{coding::*, Error};
 
-pub struct Reader<S: transport::RecvStream> {
+pub struct Reader<S: web_transport_generic::RecvStream> {
 	stream: S,
 	buffer: BytesMut,
 }
 
-impl<S: transport::RecvStream> Reader<S> {
+impl<S: web_transport_generic::RecvStream> Reader<S> {
 	pub fn new(stream: S) -> Self {
 		Self {
 			stream,
@@ -70,10 +70,7 @@ impl<S: transport::RecvStream> Reader<S> {
 			return Ok(Some(data));
 		}
 
-		self.stream
-			.read_chunk(max)
-			.await
-			.map_err(|e| Error::Transport(Box::new(e)))
+		self.stream.read().await.map_err(|e| Error::Transport(Box::new(e)))
 	}
 
 	/// Wait until the stream is closed, erroring if there are any additional bytes.

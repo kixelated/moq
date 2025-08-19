@@ -107,6 +107,10 @@ importers:
         version: 3.2.2(vite@6.3.5(@types/node@24.0.1)(jiti@2.4.2)(lightningcss@1.30.1)(terser@5.43.1)(tsx@4.20.3))
 
   moq:
+    dependencies:
+      '@kixelated/web-transport-polyfill':
+        specifier: file:../../../web-transport-rs/web-transport-polyfill
+        version: file:../../web-transport-rs/web-transport-polyfill
     devDependencies:
       '@types/deno':
         specifier: ^2.3.0
@@ -636,6 +640,9 @@ packages:
 
   '@jridgewell/trace-mapping@0.3.25':
     resolution: {integrity: sha512-vNk6aEwybGtawWmy/PzwnGDOjCkLWSD2wqvjGGAgOAwCGWySYXfYoxt00IJkTF+8Lb57DwOb3Aa0o9CApepiYQ==}
+
+  '@kixelated/web-transport-polyfill@file:../../web-transport-rs/web-transport-polyfill':
+    resolution: {directory: ../../web-transport-rs/web-transport-polyfill, type: directory}
 
   '@napi-rs/wasm-runtime@0.2.11':
     resolution: {integrity: sha512-9DPkXtvHydrcOsopiYpUgPHpmj0HWZKMUnL2dZqpvC42lsratuBG06V5ipyno0fUek5VlFsNQ+AcFATSrJXgMA==}
@@ -2526,6 +2533,8 @@ snapshots:
     dependencies:
       '@jridgewell/resolve-uri': 3.1.2
       '@jridgewell/sourcemap-codec': 1.5.0
+
+  '@kixelated/web-transport-polyfill@file:../../web-transport-rs/web-transport-polyfill': {}
 
   '@napi-rs/wasm-runtime@0.2.11':
     dependencies:

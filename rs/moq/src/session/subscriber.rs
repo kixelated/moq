@@ -4,17 +4,17 @@ use std::{
 };
 
 use crate::{
-	message, model::BroadcastProducer, transport, AsPath, Broadcast, Error, Frame, FrameProducer, Group, GroupProducer,
+	message, model::BroadcastProducer, AsPath, Broadcast, Error, Frame, FrameProducer, Group, GroupProducer,
 	OriginProducer, Path, PathOwned, TrackProducer,
 };
 
 use tokio::sync::oneshot;
-use web_async::{spawn, Lock};
+use web_async::Lock;
 
 use super::{Reader, Stream};
 
 #[derive(Clone)]
-pub(super) struct Subscriber<S: transport::Session> {
+pub(super) struct Subscriber<S: web_transport_generic::Session> {
 	session: S,
 
 	origin: Option<OriginProducer>,
@@ -23,7 +23,7 @@ pub(super) struct Subscriber<S: transport::Session> {
 	next_id: Arc<atomic::AtomicU64>,
 }
 
-impl<S: transport::Session> Subscriber<S> {
+impl<S: web_transport_generic::Session> Subscriber<S> {
 	pub fn new(session: S, origin: Option<OriginProducer>) -> Self {
 		Self {
 			session,
@@ -138,7 +138,7 @@ impl<S: transport::Session> Subscriber<S> {
 			.unwrap()
 			.publish_broadcast(path.clone(), broadcast.consumer);
 
-		spawn(self.clone().run_broadcast(path, broadcast.producer));
+		web_async::spawn(self.clone().run_broadcast(path, broadcast.producer));
 
 		Ok(())
 	}
@@ -161,7 +161,7 @@ impl<S: transport::Session> Subscriber<S> {
 			let mut this = self.clone();
 
 			let path = path.clone();
-			spawn(async move {
+			web_async::spawn(async move {
 				this.run_subscribe(id, path, track).await;
 				this.subscribes.lock().remove(&id);
 			});

@@ -5,6 +5,8 @@ use moq_lite::{AsPath, Broadcast, BroadcastConsumer, BroadcastProducer, Origin, 
 use tracing::Instrument;
 use url::Url;
 
+use crate::AuthToken;
+
 #[serde_with::serde_as]
 #[derive(clap::Args, Clone, Debug, serde::Serialize, serde::Deserialize, Default)]
 #[serde_with::skip_serializing_none]
@@ -62,6 +64,33 @@ impl Cluster {
 			secondary: Arc::new(Origin::produce()),
 			combined: Arc::new(Origin::produce()),
 		}
+	}
+
+	// For a given auth token, return the origin that should be used for the session.
+	pub fn subscriber(&self, token: &AuthToken) -> Option<OriginConsumer> {
+		// These broadcasts will be served to the session (when it subscribes).
+		// If this is a cluster node, then only publish our primary broadcasts.
+		// Otherwise publish everything.
+		let subscribe_origin = match token.cluster {
+			true => &self.primary,
+			false => &self.combined,
+		};
+
+		// Scope the origin to our root.
+		let subscribe_origin = subscribe_origin.producer.with_root(&token.root).unwrap();
+		subscribe_origin.consume_only(&token.subscribe)
+	}
+
+	pub fn publisher(&self, token: &AuthToken) -> Option<OriginProducer> {
+		// If this is a cluster node, then add its broadcasts to the secondary origin.
+		// That way we won't publish them to other cluster nodes.
+		let publish_origin = match token.cluster {
+			true => &self.secondary,
+			false => &self.primary,
+		};
+
+		let publish_origin = publish_origin.producer.with_root(&token.root).unwrap();
+		publish_origin.publish_only(&token.publish)
 	}
 
 	pub fn get(&self, broadcast: &str) -> Option<BroadcastConsumer> {

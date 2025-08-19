@@ -1,20 +1,18 @@
 use web_async::FuturesExt;
+use web_transport_generic::SendStream;
 
 use crate::{
-	message,
-	model::GroupConsumer,
-	transport::{self, SendStream},
-	AsPath, BroadcastConsumer, Error, Origin, OriginConsumer, Track, TrackConsumer,
+	message, model::GroupConsumer, AsPath, BroadcastConsumer, Error, Origin, OriginConsumer, Track, TrackConsumer,
 };
 
 use super::{Stream, Writer};
 
-pub(super) struct Publisher<S: transport::Session> {
+pub(super) struct Publisher<S: web_transport_generic::Session> {
 	session: S,
 	origin: OriginConsumer,
 }
 
-impl<S: transport::Session> Publisher<S> {
+impl<S: web_transport_generic::Session> Publisher<S> {
 	pub fn new(session: S, origin: Option<OriginConsumer>) -> Self {
 		// Default to a dummy origin that is immediately closed.
 		let origin = origin.unwrap_or_else(|| Origin::produce().consumer);

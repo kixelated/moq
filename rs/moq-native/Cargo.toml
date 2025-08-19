@@ -12,6 +12,8 @@ keywords = ["quic", "http3", "webtransport", "media", "live"]
 categories = ["multimedia", "network-programming", "web-programming"]
 
 [dependencies]
+web-transport-quinn = { workspace = true }
+
 anyhow = { version = "1", features = ["backtrace"] }
 clap = { version = "4", features = ["derive", "env"] }
 futures = "0.3"

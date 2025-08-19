@@ -1,26 +1,26 @@
 [workspace]
 members = [
-    "hang",
-    "hang-cli",
-    "hang-gst",
-    "moq",
-    "moq-clock",
-    "moq-native",
-    "moq-relay",
-    "moq-token",
-    "moq-token-cli",
+	"hang",
+	"hang-cli",
+	"hang-gst",
+	"moq",
+	"moq-clock",
+	"moq-native",
+	"moq-relay",
+	"moq-token",
+	"moq-token-cli",
 ]
 
 # without hang-gst because it requires gstreamer to be installed
 default-members = [
-    "hang",
-    "hang-cli",
-    "moq",
-    "moq-clock",
-    "moq-native",
-    "moq-relay",
-    "moq-token",
-    "moq-token-cli",
+	"hang",
+	"hang-cli",
+	"moq",
+	"moq-clock",
+	"moq-native",
+	"moq-relay",
+	"moq-token",
+	"moq-token-cli",
 ]
 resolver = "2"
 
@@ -34,4 +34,5 @@ moq-token = { version = "0.5", path = "moq-token" }
 serde = { version = "1", features = ["derive"] }
 tokio = "1.45"
 web-async = { version = "0.1.1", features = ["tracing"] }
-web-transport-quinn = "0.7.3"
+web-transport-quinn = { version = "0.7.3", path = "../../web-transport-rs/web-transport-quinn" }
+web-transport-generic = { version = "0.1.0", path = "../../web-transport-rs/web-transport-generic" }

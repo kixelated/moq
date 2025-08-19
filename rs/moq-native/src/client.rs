@@ -6,8 +6,6 @@ use std::path::PathBuf;
 use std::{fs, io, net, sync::Arc, time};
 use url::Url;
 
-use super::web_transport_quinn;
-
 #[derive(Clone, Default, Debug, clap::Args, serde::Serialize, serde::Deserialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct ClientTls {

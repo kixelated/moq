@@ -9,6 +9,7 @@ pub use cluster::*;
 pub use config::*;
 pub use connection::*;
 pub use web::*;
+pub use web_socket::*;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -25,10 +26,11 @@ async fn main() -> anyhow::Result<()> {
 	tokio::spawn(async move { cloned.run().await.expect("cluster failed") });
 
 	// Create a web server too.
-	let web = Web::new(WebConfig {
-		bind: addr,
-		fingerprints,
+	let web = Web::new(WebState {
+		auth: auth.clone(),
 		cluster: cluster.clone(),
+		fingerprints,
+		config: config.web,
 	});
 
 	tokio::spawn(async move {

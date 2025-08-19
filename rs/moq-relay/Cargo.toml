@@ -12,8 +12,10 @@ keywords = ["quic", "http3", "webtransport", "media", "live"]
 categories = ["multimedia", "network-programming", "web-programming"]
 
 [dependencies]
+web-transport-polyfill = { version = "0.1", path = "../../web-transport-rs/web-transport-polyfill" }
+
 anyhow = { version = "1", features = ["backtrace"] }
-axum = { version = "0.8", features = ["tokio"] }
+axum = { version = "0.8", features = ["tokio", "ws"] }
 bytes = "1"
 clap = { version = "4", features = ["derive"] }
 http-body = "1"

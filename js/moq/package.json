@@ -18,6 +18,9 @@
 		"test": "tsx --test",
 		"release": "tsx ../scripts/release.ts"
 	},
+	"dependencies": {
+		"@kixelated/web-transport-polyfill": "file:../../../web-transport-rs/web-transport-polyfill"
+	},
 	"devDependencies": {
 		"@typescript/lib-dom": "npm:@types/web@^0.0.241",
 		"tsx": "^4.20.1",

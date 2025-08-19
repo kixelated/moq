@@ -21,7 +21,6 @@ mod session;
 
 pub mod coding;
 pub mod message;
-pub mod transport;
 
 pub use error::*;
 pub use model::*;

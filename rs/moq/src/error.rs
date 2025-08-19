@@ -107,10 +107,4 @@ impl Clone for Error {
 	}
 }
 
-impl From<web_transport_quinn::SessionError> for Error {
-	fn from(err: web_transport_quinn::SessionError) -> Self {
-		Error::Transport(Box::new(err))
-	}
-}
-
 pub type Result<T> = std::result::Result<T, Error>;

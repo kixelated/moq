@@ -1,7 +1,7 @@
 use clap::Parser;
 use serde::{Deserialize, Serialize};
 
-use crate::{AuthConfig, ClusterConfig};
+use crate::{AuthConfig, ClusterConfig, WebConfig};
 
 #[derive(Parser, Clone, Debug, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
@@ -29,6 +29,11 @@ pub struct Config {
 	#[command(flatten)]
 	#[serde(default)]
 	pub auth: AuthConfig,
+
+	/// Optionally run a HTTP and WebSocket server.
+	#[command(flatten)]
+	#[serde(default)]
+	pub web: WebConfig,
 
 	/// If provided, load the configuration from this file.
 	#[serde(default)]

@@ -1,69 +1,72 @@
 use std::{
 	net,
 	pin::Pin,
+	sync::Arc,
 	task::{ready, Context, Poll},
 };
 
 use axum::{
 	body::Body,
-	extract::Path,
+	extract::{ws::WebSocket, Path, Query, State, WebSocketUpgrade},
 	http::{Method, StatusCode},
 	response::{IntoResponse, Response},
-	routing::get,
+	routing::{any, get},
 	Router,
 };
 use bytes::Bytes;
+use clap::Parser;
 use hyper_serve::accept::DefaultAcceptor;
+use moq_lite::{OriginConsumer, OriginProducer};
+use serde::{Deserialize, Serialize};
 use std::future::Future;
 use tower_http::cors::{Any, CorsLayer};
 
-use crate::Cluster;
+use crate::{Auth, Cluster};
 
+#[derive(Debug, Deserialize)]
+struct Params {
+	jwt: Option<String>,
+}
+
+#[derive(Parser, Clone, Default, Debug, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
 pub struct WebConfig {
-	pub bind: net::SocketAddr,
-	pub fingerprints: Vec<String>,
+	/// Listen for HTTP and WebSocket connections on the given address.
+	/// Defaults to disabled if not provided.
+	#[arg(long = "web-bind", env = "MOQ_WEB_BIND")]
+	pub bind: Option<net::SocketAddr>,
+}
+
+pub struct WebState {
+	pub auth: Auth,
 	pub cluster: Cluster,
+	pub fingerprints: Vec<String>,
+	pub config: WebConfig,
 }
 
 // Run a HTTP server using Axum
-// TODO remove this when Chrome adds support for self-signed certificates using WebTransport
 pub struct Web {
 	app: Router,
 	server: hyper_serve::Server<DefaultAcceptor>,
 }
 
 impl Web {
-	pub fn new(config: WebConfig) -> Self {
+	pub fn new(state: WebState) -> Self {
 		// Get the first certificate's fingerprint.
 		// TODO serve all of them so we can support multiple signature algorithms.
-		let fingerprint = config.fingerprints.first().expect("missing certificate").clone();
+		let fingerprint = state.fingerprints.first().expect("missing certificate").clone();
+		let bind = state.config.bind.unwrap_or("[::]:443".parse().unwrap());
 
 		let app = Router::new()
 			.route("/certificate.sha256", get(fingerprint))
-			.route(
-				"/announced",
-				get({
-					let cluster = config.cluster.clone();
-					move || serve_announced(Path("".to_string()), cluster.clone())
-				}),
-			)
-			.route(
-				"/announced/{*prefix}",
-				get({
-					let cluster = config.cluster.clone();
-					move |path| serve_announced(path, cluster)
-				}),
-			)
-			.route(
-				"/fetch/{*path}",
-				get({
-					let cluster = config.cluster.clone();
-					move |path| serve_fetch(path, cluster)
-				}),
-			)
-			.layer(CorsLayer::new().allow_origin(Any).allow_methods([Method::GET]));
+			.route("/announced", get(serve_announced))
+			.route("/announced/{*prefix}", get(serve_announced))
+			.route("/fetch/{*path}", get(serve_fetch))
+			.route("/ws/{*path}", any(serve_ws))
+			.layer(CorsLayer::new().allow_origin(Any).allow_methods([Method::GET]))
+			.with_state(Arc::new(state));
 
-		let server = hyper_serve::bind(config.bind);
+		let server = hyper_serve::bind(bind);
 
 		Self { app, server }
 	}
@@ -74,9 +77,40 @@ impl Web {
 	}
 }
 
+async fn serve_ws(
+	ws: WebSocketUpgrade,
+	Path(path): Path<String>,
+	Query(params): Query<Params>,
+	State(state): State<Arc<WebState>>,
+) -> axum::response::Result<Response> {
+	let token = state.auth.verify(&path, params.jwt.as_deref())?;
+	let publish = state.cluster.publisher(&token);
+	let subscribe = state.cluster.subscriber(&token);
+
+	if publish.is_none() && subscribe.is_none() {
+		// Bad token, we can't publish or subscribe.
+		return Err(StatusCode::UNAUTHORIZED.into());
+	}
+
+	Ok(ws.on_upgrade(move |socket| handle_socket(socket, publish, subscribe)))
+}
+
+async fn handle_socket(mut socket: WebSocket, publish: Option<OriginProducer>, subscribe: Option<OriginConsumer>) {
+	// Wrap the WebSocket in a WebTransport compatibility layer.
+	let ws = web_transport_axum::new(socket);
+
+	let session = moq_lite::Session::connect(ws, publish, subscribe).await?;
+	session.closed().await;
+}
+
 /// Serve the announced broadcasts for a given prefix.
-async fn serve_announced(Path(prefix): Path<String>, cluster: Cluster) -> axum::response::Result<String> {
-	let mut origin = match cluster.combined.consumer.consume_only(&[prefix.into()]) {
+async fn serve_announced(
+	Path(prefix): Path<String>,
+	Query(params): Query<Params>,
+	State(state): State<Arc<WebState>>,
+) -> axum::response::Result<String> {
+	let token = state.auth.verify(&prefix, params.jwt.as_deref())?;
+	let mut origin = match state.cluster.subscriber(&token) {
 		Some(origin) => origin,
 		None => return Err(StatusCode::UNAUTHORIZED.into()),
 	};
@@ -93,14 +127,27 @@ async fn serve_announced(Path(prefix): Path<String>, cluster: Cluster) -> axum::
 }
 
 /// Serve the latest group for a given track
-async fn serve_fetch(Path(path): Path<String>, cluster: Cluster) -> axum::response::Result<ServeGroup> {
+async fn serve_fetch(
+	Path(path): Path<String>,
+	Query(params): Query<Params>,
+	State(state): State<Arc<WebState>>,
+) -> axum::response::Result<ServeGroup> {
+	// The path containts a broadcast/track
 	let mut path: Vec<&str> = path.split("/").collect();
-	if path.len() < 2 {
+	let track = path.pop().unwrap().to_string();
+
+	// We need at least a broadcast and a track.
+	if path.is_empty() {
 		return Err(StatusCode::BAD_REQUEST.into());
 	}
 
-	let track = path.pop().unwrap().to_string();
 	let broadcast = path.join("/");
+	let token = state.auth.verify(&broadcast, params.jwt.as_deref())?;
+
+	let origin = match state.cluster.subscriber(&token) {
+		Some(origin) => origin,
+		None => return Err(StatusCode::UNAUTHORIZED.into()),
+	};
 
 	tracing::info!(%broadcast, %track, "subscribing to track");
 
@@ -109,7 +156,7 @@ async fn serve_fetch(Path(path): Path<String>, cluster: Cluster) -> axum::respon
 		priority: 0,
 	};
 
-	let broadcast = cluster.get(&broadcast).ok_or(StatusCode::NOT_FOUND)?;
+	let broadcast = origin.consume_broadcast(&broadcast).ok_or(StatusCode::NOT_FOUND)?;
 	let mut track = broadcast.subscribe_track(&track);
 
 	let group = match track.next_group().await {

@@ -1,4 +1,4 @@
-use crate::{message, transport, Error, OriginConsumer, OriginProducer};
+use crate::{message, Error, OriginConsumer, OriginProducer};
 
 mod publisher;
 mod reader;
@@ -17,11 +17,11 @@ use writer::*;
 ///
 /// This simplifies the state machine and immediately rejects any subscriptions that don't match the origin prefix.
 /// You probably want to use [Session] unless you're writing a relay.
-pub struct Session<S: transport::Session> {
+pub struct Session<S: web_transport_generic::Session> {
 	pub transport: S,
 }
 
-impl<S: transport::Session> Session<S> {
+impl<S: web_transport_generic::Session + Sync> Session<S> {
 	async fn new(
 		session: S,
 		stream: Stream<S>,
