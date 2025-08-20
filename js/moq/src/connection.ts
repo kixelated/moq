@@ -8,7 +8,7 @@ import * as Hex from "./util/hex";
 
 // Check if we need to load the polyfill.
 let polyfill: Promise<typeof import("@kixelated/web-transport-polyfill")>;
-if (typeof globalThis !== "undefined" && !("WebTransport" in globalThis) || true) {
+if (typeof globalThis !== "undefined" && !("WebTransport" in globalThis)) {
 	polyfill = import("@kixelated/web-transport-polyfill");
 }
 

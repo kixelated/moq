@@ -15,7 +15,6 @@ categories = ["multimedia", "network-programming", "web-programming"]
 serde = ["dep:serde"]
 
 [dependencies]
-anyhow = "1"
 async-channel = "2"
 bytes = "1"
 futures = "0.3"

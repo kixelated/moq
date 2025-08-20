@@ -85,15 +85,12 @@ impl Error {
 impl Clone for Error {
 	fn clone(&self) -> Self {
 		match self {
-			Error::Transport(_) => Error::Transport(Box::new(std::io::Error::new(
-				std::io::ErrorKind::Other,
-				"Transport error (cloned)",
-			))),
+			Error::Transport(_) => Error::Transport(Box::new(std::io::Error::other("Transport error (cloned)"))),
 			Error::Decode(e) => Error::Decode(e.clone()),
 			Error::Version(v1, v2) => Error::Version(v1.clone(), v2.clone()),
 			Error::RequiredExtension(e) => Error::RequiredExtension(*e),
 			Error::UnexpectedStream(s) => Error::UnexpectedStream(*s),
-			Error::BoundsExceeded(b) => Error::BoundsExceeded(b.clone()),
+			Error::BoundsExceeded(b) => Error::BoundsExceeded(*b),
 			Error::Duplicate => Error::Duplicate,
 			Error::Cancel => Error::Cancel,
 			Error::Timeout => Error::Timeout,

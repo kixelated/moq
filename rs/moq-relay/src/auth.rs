@@ -19,8 +19,8 @@ pub enum AuthError {
 	IncorrectRoot,
 }
 
-impl Into<http::StatusCode> for AuthError {
-	fn into(self) -> http::StatusCode {
+impl From<AuthError> for http::StatusCode {
+	fn from(val: AuthError) -> Self {
 		http::StatusCode::UNAUTHORIZED
 	}
 }
@@ -94,7 +94,7 @@ impl Auth {
 		// ?jwt=...
 		let claims = if let Some(token) = token {
 			if let Some(key) = self.key.as_ref() {
-				key.decode(&token).map_err(|_| AuthError::DecodeFailed)?
+				key.decode(token).map_err(|_| AuthError::DecodeFailed)?
 			} else {
 				return Err(AuthError::UnexpectedToken);
 			}

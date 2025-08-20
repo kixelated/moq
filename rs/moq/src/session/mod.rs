@@ -103,11 +103,8 @@ impl<S: web_transport_generic::Session + Sync> Session<S> {
 		publish: P,
 		subscribe: C,
 	) -> Result<Self, Error> {
-		tracing::info!("accepting session");
 		let mut stream = Stream::accept(&session).await?;
-		tracing::info!("got stream");
 		let kind = stream.reader.decode().await?;
-		tracing::info!(?kind, "got kind");
 
 		Self::accept_setup(kind, &mut stream).await?;
 		let session = Self::new(session, stream, publish.into(), subscribe.into()).await?;
@@ -119,10 +116,7 @@ impl<S: web_transport_generic::Session + Sync> Session<S> {
 			return Err(Error::UnexpectedStream(kind));
 		}
 
-		tracing::info!("decoding client setup");
 		let client: message::ClientSetup = control.reader.decode().await?;
-		tracing::info!(?client, "got client setup");
-
 		if !client.versions.contains(&message::Version::CURRENT) {
 			return Err(Error::Version(client.versions, [message::Version::CURRENT].into()));
 		}
@@ -138,9 +132,7 @@ impl<S: web_transport_generic::Session + Sync> Session<S> {
 			control.writer.encode(&message::ControlType::ServerCompat).await?;
 		}
 
-		tracing::info!("sending server setup");
 		control.writer.encode(&server).await?;
-		tracing::info!("sent server setup");
 
 		tracing::debug!(version = ?server.version, "connected");
 

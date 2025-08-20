@@ -61,7 +61,7 @@ impl Web {
 		// Get the first certificate's fingerprint.
 		// TODO serve all of them so we can support multiple signature algorithms.
 		let fingerprint = state.fingerprints.first().expect("missing certificate").clone();
-		let listen = state.config.listen.clone();
+		let listen = state.config.listen;
 
 		let app = Router::new()
 			.route("/certificate.sha256", get(fingerprint))

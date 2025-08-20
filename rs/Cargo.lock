@@ -1607,7 +1607,6 @@ dependencies = [
 name = "moq-lite"
 version = "0.6.2"
 dependencies = [
- "anyhow",
  "async-channel",
  "bytes",
  "futures",
