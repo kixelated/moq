@@ -91,7 +91,7 @@ export class Client {
 		this.parameters = parameters;
 	}
 
-	async #encode(w: Writer): Promise<void> {
+	async encodeMessage(w: Writer): Promise<void> {
 		await w.u8(0x01); // 1 support version
 		await w.u53(CURRENT_VERSION);
 
@@ -105,7 +105,7 @@ export class Client {
 		}
 	}
 
-	static async #decode(r: Reader): Promise<Client> {
+	static async decodeMessage(r: Reader): Promise<Client> {
 		// Number of supported versions
 		const numVersions = await r.u53();
 		if (numVersions > MAX_VERSIONS) {
@@ -149,7 +149,7 @@ export class Server {
 		this.parameters = parameters;
 	}
 
-	async #encode(w: Writer): Promise<void> {
+	async encodeMessage(w: Writer): Promise<void> {
 		// Selected version
 		await w.u53(CURRENT_VERSION);
 
@@ -163,7 +163,7 @@ export class Server {
 		}
 	}
 
-	static async #decode(r: Reader): Promise<Server> {
+	static async decodeMessage(r: Reader): Promise<Server> {
 		// Selected version
 		const selectedVersion = await r.u53();
 		if (selectedVersion !== CURRENT_VERSION) {
