@@ -34,9 +34,5 @@
 		"solid-js": {
 			"optional": true
 		}
-	},
-	"devDependencies": {
-		"tsx": "^4.20.1",
-		"typescript": "^5.8.3"
 	}
 }
