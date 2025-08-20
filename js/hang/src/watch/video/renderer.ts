@@ -34,6 +34,18 @@ export class VideoRenderer {
 
 		this.#signals.effect(this.#schedule.bind(this));
 		this.#signals.effect(this.#runEnabled.bind(this));
+
+		this.#signals.effect((effect) => {
+			const canvas = effect.get(this.canvas);
+			if (!canvas) return;
+
+			const enabled = effect.get(this.source.enabled);
+			if (enabled) return;
+
+			// Shrink the canvas when the video is disabled.
+			canvas.width = 0;
+			canvas.height = 0;
+		});
 	}
 
 	// Detect when video should be downloaded.

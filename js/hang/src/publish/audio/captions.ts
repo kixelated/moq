@@ -25,7 +25,7 @@ export class Captions {
 	signals = new Effect();
 
 	#ttl: DOMHighResTimeStamp;
-	#track = new Moq.TrackProducer("captions.text", 1);
+	#track = new Moq.TrackProducer("captions.txt", 1);
 
 	constructor(audio: Audio, props?: CaptionsProps) {
 		this.audio = audio;

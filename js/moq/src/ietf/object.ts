@@ -85,11 +85,9 @@ export class Frame {
 		}
 
 		const status = await r.u53();
-		if (status === 0) {
-			return new Frame(id, new Uint8Array());
-		}
 
-		if (status === GROUP_END) {
+		// TODO status === 0 should be an empty frame, but moq-rs seems to be sending it incorrectly on group end.
+		if (status === 0 || status === GROUP_END) {
 			return new Frame(id);
 		}
 

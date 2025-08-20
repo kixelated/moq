@@ -5,7 +5,7 @@ import { Writer } from "../stream";
 import type { TrackConsumer } from "../track";
 import { error } from "../util/error";
 import { Announce, type AnnounceCancel, type AnnounceError, type AnnounceOk, Unannounce } from "./announce";
-import * as Control from "./control";
+import type * as Control from "./control";
 import { Frame, Group, writeStreamType } from "./object";
 import { type Subscribe, SubscribeDone, SubscribeError, SubscribeOk, type Unsubscribe } from "./subscribe";
 import type { SubscribeAnnounces, UnsubscribeAnnounces } from "./subscribe_announces";
@@ -18,7 +18,7 @@ import { TrackStatus, type TrackStatusRequest } from "./track";
  */
 export class Publisher {
 	#quic: WebTransport;
-	#control: Writer;
+	#control: Control.Stream;
 	#root: Path.Valid;
 
 	// Our published broadcasts.
@@ -31,7 +31,7 @@ export class Publisher {
 	 *
 	 * @internal
 	 */
-	constructor(quic: WebTransport, control: Writer, root: Path.Valid) {
+	constructor(quic: WebTransport, control: Control.Stream, root: Path.Valid) {
 		this.#quic = quic;
 		this.#control = control;
 		this.#root = root;
@@ -50,13 +50,13 @@ export class Publisher {
 	async #runPublish(full: Path.Valid, broadcast: BroadcastConsumer) {
 		try {
 			const announce = new Announce(full);
-			await Control.write(this.#control, announce);
+			await this.#control.write(announce);
 
 			// Wait until the broadcast is closed, then remove it from the lookup.
 			await broadcast.closed();
 
 			const unannounce = new Unannounce(full);
-			await Control.write(this.#control, unannounce);
+			await this.#control.write(unannounce);
 		} catch (err: unknown) {
 			const e = error(err);
 			console.warn(`announce failed: broadcast=${full} error=${e.message}`);
@@ -84,7 +84,7 @@ export class Publisher {
 				"Broadcast not found",
 				msg.trackAlias,
 			);
-			await Control.write(this.#control, errorMsg);
+			await this.#control.write(errorMsg);
 			return;
 		}
 
@@ -92,7 +92,7 @@ export class Publisher {
 
 		// Send SUBSCRIBE_OK response on control stream
 		const okMsg = new SubscribeOk(msg.subscribeId);
-		await Control.write(this.#control, okMsg);
+		await this.#control.write(okMsg);
 
 		// Start sending track data using ObjectStream (Subgroup delivery mode only)
 		void this.#runTrack(msg.subscribeId, msg.trackAlias, track);
@@ -121,11 +121,11 @@ export class Publisher {
 			}
 
 			const msg = new SubscribeDone(subscribeId, 200, "OK");
-			await Control.write(this.#control, msg);
+			await this.#control.write(msg);
 		} catch (err: unknown) {
 			const e = error(err);
 			const msg = new SubscribeDone(subscribeId, 500, e.message);
-			await Control.write(this.#control, msg);
+			await this.#control.write(msg);
 		} finally {
 			track.close();
 		}
@@ -188,7 +188,7 @@ export class Publisher {
 	async handleTrackStatusRequest(msg: TrackStatusRequest) {
 		// moq-lite doesn't support track status requests
 		const statusMsg = new TrackStatus(msg.trackNamespace, msg.trackName, TrackStatus.STATUS_NOT_FOUND, 0n, 0n);
-		await Control.write(this.#control, statusMsg);
+		await this.#control.write(statusMsg);
 	}
 
 	/**

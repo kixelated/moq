@@ -2,11 +2,11 @@ import { type AnnouncedConsumer, AnnouncedProducer } from "../announced";
 import { type BroadcastConsumer, BroadcastProducer } from "../broadcast";
 import { GroupProducer } from "../group";
 import * as Path from "../path";
-import type { Reader, Writer } from "../stream";
+import type { Reader }from "../stream";
 import type { TrackProducer } from "../track";
 import { error } from "../util/error";
 import type { Announce, Unannounce } from "./announce";
-import * as Control from "./control";
+import type * as Control from "./control";
 import { Frame, type Group } from "./object";
 import { Subscribe, type SubscribeDone, type SubscribeError, type SubscribeOk, Unsubscribe } from "./subscribe";
 import type { SubscribeAnnouncesError, SubscribeAnnouncesOk } from "./subscribe_announces";
@@ -18,7 +18,7 @@ import type { TrackStatus } from "./track";
  * @internal
  */
 export class Subscriber {
-	#control: Writer;
+	#control: Control.Stream;
 	#root: Path.Valid;
 
 	// Our subscribed tracks - keyed by subscription ID
@@ -43,7 +43,7 @@ export class Subscriber {
 	 *
 	 * @internal
 	 */
-	constructor(control: Writer, root: Path.Valid) {
+	constructor(control: Control.Stream, root: Path.Valid) {
 		this.#control = control;
 		this.#root = root;
 		this.#announced = new AnnouncedProducer();
@@ -120,7 +120,7 @@ export class Subscriber {
 			this.#subscribeCallbacks.set(subscribeId, { resolve, reject });
 		});
 
-		await Control.write(this.#control, msg);
+		await this.#control.write(msg);
 
 		try {
 			await responsePromise;
@@ -129,7 +129,7 @@ export class Subscriber {
 			track.close();
 
 			const msg = new Unsubscribe(subscribeId);
-			await Control.write(this.#control, msg);
+			await this.#control.write(msg);
 		} catch (err) {
 			const e = error(err);
 			track.abort(e);

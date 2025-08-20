@@ -35,8 +35,11 @@ export interface Error {
 
 const SAMPLE_RATE = 16000;
 
-const VAD_CHUNK_SIZE = 512; // This VAD model expects 512 samples at a time, or 31ms
-const VAD_SILENCE_PADDING = 4;
+ // This VAD model expects 512 samples at a time, or 31ms
+const VAD_CHUNK_SIZE = 512;
+
+// Require 8 silence chunks to be detected before we consider the user done speaking.
+const VAD_SILENCE_PADDING = 8;
 
 class Vad {
 	whisper: Whisper;
