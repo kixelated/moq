@@ -125,7 +125,7 @@ impl<S: web_transport_generic::Session> Publisher<S> {
 								stream.writer.encode(&msg).await?;
 							}
 						},
-						None => return stream.writer.close().await,
+						None => return stream.writer.finish().await,
 					}
 				}
 			}
@@ -194,7 +194,7 @@ impl<S: web_transport_generic::Session> Publisher<S> {
 			res = stream.reader.closed() => res?,
 		}
 
-		stream.writer.close().await
+		stream.writer.finish().await
 	}
 
 	async fn run_track(session: S, mut track: TrackConsumer, subscribe: &message::Subscribe<'_>) -> Result<(), Error> {
@@ -313,7 +313,7 @@ impl<S: web_transport_generic::Session> Publisher<S> {
 			}
 		}
 
-		stream.close().await?;
+		stream.finish().await?;
 
 		Ok(())
 	}

@@ -48,7 +48,7 @@ impl<S: web_transport_generic::SendStream> Writer<S> {
 	}
 
 	/// A clean termination of the stream, waiting for the peer to close.
-	pub async fn close(&mut self) -> Result<(), Error> {
+	pub async fn finish(&mut self) -> Result<(), Error> {
 		self.stream.finish().await.map_err(|e| Error::Transport(e.into()))?;
 		Ok(())
 	}

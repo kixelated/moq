@@ -114,7 +114,7 @@ impl<S: web_transport_generic::Session> Subscriber<S> {
 		}
 
 		// Close the stream when there's nothing more to announce.
-		stream.writer.close().await
+		stream.writer.finish().await
 	}
 
 	fn start_announce(
@@ -212,7 +212,7 @@ impl<S: web_transport_generic::Session> Subscriber<S> {
 			return Err(err);
 		}
 
-		stream.writer.close().await
+		stream.writer.finish().await
 	}
 
 	async fn run_track_stream(&mut self, stream: &mut Stream<S>, msg: message::Subscribe<'_>) -> Result<(), Error> {
