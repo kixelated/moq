@@ -82,5 +82,4 @@ export async function connect(url: URL): Promise<Connection> {
 	} else {
 		throw new Error(`unsupported server version: ${server.version.toString()}`);
 	}
-
 }
