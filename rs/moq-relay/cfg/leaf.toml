@@ -12,6 +12,11 @@ listen = "[::]:4444"
 # You should use a real certificate in production.
 tls.generate = ["localhost"]
 
+[web]
+# Listen for HTTP and WebSocket (TCP) connections on the given address.
+# Defaults to disabled if not provided.
+listen = "[::]:4444"
+
 # This clustering scheme is very very simple for now.
 #
 # There is a root node that is used to connect leaf nodes together.

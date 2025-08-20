@@ -8,12 +8,12 @@ default:
 
 # Run the web server
 web url='http://localhost:4443/anon':
-	pnpm -r i
+	pnpm i
 	VITE_RELAY_URL="{{url}}" pnpm -r run dev
 
 # Run the CI checks
 check flags="":
-	pnpm -r install {{flags}}
+	pnpm install {{flags}}
 
 	# Make sure Typescript compiles
 	pnpm -r run check
@@ -33,7 +33,7 @@ check flags="":
 # Automatically fix some issues.
 fix flags="":
 	# Fix the JS packages
-	pnpm -r install {{flags}}
+	pnpm install {{flags}}
 
 	# Format and lint
 	pnpm exec biome check --fix
@@ -50,5 +50,5 @@ upgrade:
 
 # Build the packages
 build flags="":
-	pnpm -r install {{flags}}
+	pnpm install {{flags}}
 	pnpm -r run build

@@ -4,7 +4,7 @@ use axum::http::StatusCode;
 use axum::response::IntoResponse;
 use axum::{http::Method, routing::get, Router};
 use hang::{cmaf, moq_lite};
-use moq_lite::transport::quinn;
+use moq_native::web_transport_quinn;
 use std::net::SocketAddr;
 use std::path::PathBuf;
 use tokio::io::AsyncRead;
@@ -66,7 +66,7 @@ async fn accept(
 #[tracing::instrument("session", skip_all, fields(id))]
 async fn run_session(
 	id: u64,
-	session: quinn::Request,
+	session: web_transport_quinn::Request,
 	name: String,
 	consumer: moq_lite::BroadcastConsumer,
 ) -> anyhow::Result<()> {

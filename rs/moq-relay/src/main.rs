@@ -9,7 +9,6 @@ pub use cluster::*;
 pub use config::*;
 pub use connection::*;
 pub use web::*;
-pub use web_socket::*;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -31,6 +30,7 @@ async fn main() -> anyhow::Result<()> {
 		cluster: cluster.clone(),
 		fingerprints,
 		config: config.web,
+		conn_id: Default::default(),
 	});
 
 	tokio::spawn(async move {

@@ -1,13 +1,18 @@
+use futures::{SinkExt, StreamExt};
 use std::{
 	net,
 	pin::Pin,
-	sync::Arc,
+	sync::{
+		atomic::{AtomicU64, Ordering},
+		Arc,
+	},
 	task::{ready, Context, Poll},
 };
+use web_transport_polyfill::tungstenite;
 
 use axum::{
 	body::Body,
-	extract::{ws::WebSocket, Path, Query, State, WebSocketUpgrade},
+	extract::{Path, Query, State, WebSocketUpgrade},
 	http::{Method, StatusCode},
 	response::{IntoResponse, Response},
 	routing::{any, get},
@@ -33,8 +38,8 @@ struct Params {
 pub struct WebConfig {
 	/// Listen for HTTP and WebSocket connections on the given address.
 	/// Defaults to disabled if not provided.
-	#[arg(long = "web-bind", env = "MOQ_WEB_BIND")]
-	pub bind: Option<net::SocketAddr>,
+	#[arg(long = "web-listen", id = "web-listen", env = "MOQ_WEB_LISTEN")]
+	pub listen: Option<net::SocketAddr>,
 }
 
 pub struct WebState {
@@ -42,12 +47,13 @@ pub struct WebState {
 	pub cluster: Cluster,
 	pub fingerprints: Vec<String>,
 	pub config: WebConfig,
+	pub conn_id: AtomicU64,
 }
 
 // Run a HTTP server using Axum
 pub struct Web {
 	app: Router,
-	server: hyper_serve::Server<DefaultAcceptor>,
+	server: Option<hyper_serve::Server<DefaultAcceptor>>,
 }
 
 impl Web {
@@ -55,7 +61,7 @@ impl Web {
 		// Get the first certificate's fingerprint.
 		// TODO serve all of them so we can support multiple signature algorithms.
 		let fingerprint = state.fingerprints.first().expect("missing certificate").clone();
-		let bind = state.config.bind.unwrap_or("[::]:443".parse().unwrap());
+		let listen = state.config.listen.clone();
 
 		let app = Router::new()
 			.route("/certificate.sha256", get(fingerprint))
@@ -66,13 +72,14 @@ impl Web {
 			.layer(CorsLayer::new().allow_origin(Any).allow_methods([Method::GET]))
 			.with_state(Arc::new(state));
 
-		let server = hyper_serve::bind(bind);
-
+		let server = listen.map(hyper_serve::bind);
 		Self { app, server }
 	}
 
 	pub async fn run(self) -> anyhow::Result<()> {
-		self.server.serve(self.app.into_make_service()).await?;
+		if let Some(server) = self.server {
+			server.serve(self.app.into_make_service()).await?;
+		}
 		Ok(())
 	}
 }
@@ -83,6 +90,8 @@ async fn serve_ws(
 	Query(params): Query<Params>,
 	State(state): State<Arc<WebState>>,
 ) -> axum::response::Result<Response> {
+	let ws = ws.protocols(["webtransport"]);
+
 	let token = state.auth.verify(&path, params.jwt.as_deref())?;
 	let publish = state.cluster.publisher(&token);
 	let subscribe = state.cluster.subscriber(&token);
@@ -92,15 +101,47 @@ async fn serve_ws(
 		return Err(StatusCode::UNAUTHORIZED.into());
 	}
 
-	Ok(ws.on_upgrade(move |socket| handle_socket(socket, publish, subscribe)))
+	Ok(ws.on_upgrade(async move |socket| {
+		let id = state.conn_id.fetch_add(1, Ordering::Relaxed);
+
+		// Unfortuantely, we need to convert from Axum to Tungstenite.
+		// Axum uses Tungstenite internally, but it's not exposed to avoid semvar issues.
+		let socket = socket
+			.map(axum_to_tungstenite)
+			// TODO Figure out how to avoid swallowing errors.
+			.sink_map_err(|err| {
+				tracing::warn!(%err, "WebSocket error");
+				tungstenite::Error::ConnectionClosed
+			})
+			.with(tungstenite_to_axum);
+		let _ = handle_socket(id, socket, publish, subscribe).await;
+	}))
 }
 
-async fn handle_socket(mut socket: WebSocket, publish: Option<OriginProducer>, subscribe: Option<OriginConsumer>) {
-	// Wrap the WebSocket in a WebTransport compatibility layer.
-	let ws = web_transport_axum::new(socket);
+#[tracing::instrument("ws", err, skip_all, fields(id = _id))]
+async fn handle_socket<T>(
+	_id: u64,
+	socket: T,
+	publish: Option<OriginProducer>,
+	subscribe: Option<OriginConsumer>,
+) -> anyhow::Result<()>
+where
+	T: futures::Stream<Item = Result<tungstenite::Message, tungstenite::Error>>
+		+ futures::Sink<tungstenite::Message, Error = tungstenite::Error>
+		+ Send
+		+ Unpin
+		+ 'static,
+{
+	tracing::info!("session accepted");
 
-	let session = moq_lite::Session::connect(ws, publish, subscribe).await?;
-	session.closed().await;
+	// Wrap the WebSocket in a WebTransport compatibility layer.
+	let ws = web_transport_polyfill::Session::new(socket, true);
+
+	tracing::info!("connecting session");
+	let session = moq_lite::Session::accept(ws, subscribe, publish).await?;
+	tracing::info!("web session connected");
+
+	Err(session.closed().await.into())
 }
 
 /// Serve the announced broadcasts for a given prefix.
@@ -233,4 +274,46 @@ impl IntoResponse for ServeGroupError {
 	fn into_response(self) -> Response {
 		(StatusCode::INTERNAL_SERVER_ERROR, self.0.to_string()).into_response()
 	}
+}
+
+// https://github.com/tokio-rs/axum/discussions/848#discussioncomment-11443587
+
+fn axum_to_tungstenite(
+	message: Result<axum::extract::ws::Message, axum::Error>,
+) -> Result<tungstenite::Message, tungstenite::Error> {
+	match message {
+		Ok(msg) => Ok(match msg {
+			axum::extract::ws::Message::Text(text) => tungstenite::Message::Text(text.to_string()),
+			axum::extract::ws::Message::Binary(bin) => tungstenite::Message::Binary(bin.into()),
+			axum::extract::ws::Message::Ping(ping) => tungstenite::Message::Ping(ping.into()),
+			axum::extract::ws::Message::Pong(pong) => tungstenite::Message::Pong(pong.into()),
+			axum::extract::ws::Message::Close(close) => {
+				tungstenite::Message::Close(close.map(|c| tungstenite::protocol::CloseFrame {
+					code: c.code.into(),
+					reason: c.reason.to_string().into(),
+				}))
+			}
+		}),
+		Err(_err) => Err(tungstenite::Error::ConnectionClosed),
+	}
+}
+
+fn tungstenite_to_axum(
+	message: tungstenite::Message,
+) -> Pin<Box<dyn Future<Output = Result<axum::extract::ws::Message, tungstenite::Error>> + Send + Sync>> {
+	Box::pin(async move {
+		Ok(match message {
+			tungstenite::Message::Text(text) => axum::extract::ws::Message::Text(text.into()),
+			tungstenite::Message::Binary(bin) => axum::extract::ws::Message::Binary(bin.into()),
+			tungstenite::Message::Ping(ping) => axum::extract::ws::Message::Ping(ping.into()),
+			tungstenite::Message::Pong(pong) => axum::extract::ws::Message::Pong(pong.into()),
+			tungstenite::Message::Frame(_frame) => unreachable!(),
+			tungstenite::Message::Close(close) => {
+				axum::extract::ws::Message::Close(close.map(|c| axum::extract::ws::CloseFrame {
+					code: c.code.into(),
+					reason: c.reason.to_string().into(),
+				}))
+			}
+		})
+	})
 }

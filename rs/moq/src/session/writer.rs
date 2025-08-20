@@ -36,24 +36,20 @@ impl<S: web_transport_generic::SendStream> Writer<S> {
 			self.stream
 				.write_buf(&mut self.buffer)
 				.await
-				.map_err(|e| Error::Transport(Box::new(e)))?;
+				.map_err(|e| Error::Transport(e.into()))?;
 		}
 
 		Ok(())
 	}
 
 	pub async fn write(&mut self, buf: &[u8]) -> Result<(), Error> {
-		self.stream
-			.write(buf)
-			.await
-			.map_err(|e| Error::Transport(Box::new(e)))?;
+		self.stream.write(buf).await.map_err(|e| Error::Transport(e.into()))?;
 		Ok(())
 	}
 
 	/// A clean termination of the stream, waiting for the peer to close.
 	pub async fn close(&mut self) -> Result<(), Error> {
-		self.stream.finish().map_err(|e| Error::Transport(Box::new(e)))?;
-		self.stream.closed().await.map_err(|e| Error::Transport(Box::new(e)))?; // TODO Return any error code?
+		self.stream.finish().await.map_err(|e| Error::Transport(e.into()))?;
 		Ok(())
 	}
 
@@ -62,7 +58,7 @@ impl<S: web_transport_generic::SendStream> Writer<S> {
 	}
 
 	pub async fn closed(&mut self) -> Result<(), Error> {
-		self.stream.closed().await.map_err(|e| Error::Transport(Box::new(e)))?;
+		self.stream.closed().await.map_err(|e| Error::Transport(e.into()))?;
 		Ok(())
 	}
 }

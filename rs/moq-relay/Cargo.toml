@@ -12,7 +12,7 @@ keywords = ["quic", "http3", "webtransport", "media", "live"]
 categories = ["multimedia", "network-programming", "web-programming"]
 
 [dependencies]
-web-transport-polyfill = { version = "0.1", path = "../../web-transport-rs/web-transport-polyfill" }
+web-transport-polyfill = { version = "0.1", path = "../../../web-transport-rs/web-transport-polyfill" }
 
 anyhow = { version = "1", features = ["backtrace"] }
 axum = { version = "0.8", features = ["tokio", "ws"] }
@@ -23,6 +23,7 @@ hyper-serve = { version = "0.6", features = [
 	"tls-rustls",
 ] } # fork of axum-server
 moq-lite = { workspace = true, features = ["serde"] }
+futures = "0.3"
 moq-native = { workspace = true }
 moq-token = { workspace = true }
 serde = { version = "1", features = ["derive"] }

@@ -49,15 +49,15 @@ impl<S: web_transport_generic::Session + Sync> Session<S> {
 			match res {
 				Err(Error::Transport(_)) => {
 					tracing::info!("session terminated");
-					session.close(1, b"");
+					session.close(1, "");
 				}
 				Err(err) => {
 					tracing::warn!(%err, "session error");
-					session.close(err.to_code(), err.to_string().as_bytes());
+					session.close(err.to_code(), err.to_string().as_ref());
 				}
 				_ => {
 					tracing::info!("session closed");
-					session.close(0, b"");
+					session.close(0, "");
 				}
 			}
 		});
@@ -103,8 +103,11 @@ impl<S: web_transport_generic::Session + Sync> Session<S> {
 		publish: P,
 		subscribe: C,
 	) -> Result<Self, Error> {
+		tracing::info!("accepting session");
 		let mut stream = Stream::accept(&session).await?;
+		tracing::info!("got stream");
 		let kind = stream.reader.decode().await?;
+		tracing::info!(?kind, "got kind");
 
 		Self::accept_setup(kind, &mut stream).await?;
 		let session = Self::new(session, stream, publish.into(), subscribe.into()).await?;
@@ -116,7 +119,9 @@ impl<S: web_transport_generic::Session + Sync> Session<S> {
 			return Err(Error::UnexpectedStream(kind));
 		}
 
+		tracing::info!("decoding client setup");
 		let client: message::ClientSetup = control.reader.decode().await?;
+		tracing::info!(?client, "got client setup");
 
 		if !client.versions.contains(&message::Version::CURRENT) {
 			return Err(Error::Version(client.versions, [message::Version::CURRENT].into()));
@@ -133,7 +138,9 @@ impl<S: web_transport_generic::Session + Sync> Session<S> {
 			control.writer.encode(&message::ControlType::ServerCompat).await?;
 		}
 
+		tracing::info!("sending server setup");
 		control.writer.encode(&server).await?;
+		tracing::info!("sent server setup");
 
 		tracing::debug!(version = ?server.version, "connected");
 
@@ -148,11 +155,11 @@ impl<S: web_transport_generic::Session + Sync> Session<S> {
 
 	/// Close the underlying transport session.
 	pub fn close(self, err: Error) {
-		self.transport.close(err.to_code(), err.to_string().as_bytes());
+		self.transport.close(err.to_code(), err.to_string().as_ref());
 	}
 
 	/// Block until the transport session is closed.
 	pub async fn closed(&self) -> Error {
-		Error::Transport(Box::new(self.transport.closed().await))
+		Error::Transport(self.transport.closed().await.into())
 	}
 }

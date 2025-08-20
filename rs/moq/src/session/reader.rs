@@ -41,7 +41,7 @@ impl<S: web_transport_generic::RecvStream> Reader<S> {
 						.stream
 						.read_buf(&mut self.buffer)
 						.await
-						.map_err(|e| Error::Transport(Box::new(e)))?
+						.map_err(|e| Error::Transport(e.into()))?
 						.is_none()
 					{
 						// Stream closed while we still need more data
@@ -70,7 +70,7 @@ impl<S: web_transport_generic::RecvStream> Reader<S> {
 			return Ok(Some(data));
 		}
 
-		self.stream.read().await.map_err(|e| Error::Transport(Box::new(e)))
+		self.stream.read().await.map_err(|e| Error::Transport(e.into()))
 	}
 
 	/// Wait until the stream is closed, erroring if there are any additional bytes.
@@ -80,7 +80,7 @@ impl<S: web_transport_generic::RecvStream> Reader<S> {
 				.stream
 				.read_buf(&mut self.buffer)
 				.await
-				.map_err(|e| Error::Transport(Box::new(e)))?
+				.map_err(|e| Error::Transport(e.into()))?
 				.is_none()
 		{
 			return Ok(());

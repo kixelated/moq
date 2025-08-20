@@ -12,6 +12,11 @@ listen = "[::]:4443"
 # This is used for local development, in conjunction with a fingerprint, or with TLS verification disabled.
 tls.generate = ["localhost"]
 
+[web]
+# Listen for HTTP and WebSocket (TCP) connections on the given address.
+# Defaults to disabled if not provided.
+listen = "[::]:4443"
+
 # In production, we would use a real certificate from something like Let's Encrypt.
 # Multiple certificates are supported; the first one that matches the SNI will be used.
 # [[server.tls.cert]]

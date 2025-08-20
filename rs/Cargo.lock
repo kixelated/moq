@@ -1607,6 +1607,7 @@ dependencies = [
 name = "moq-lite"
 version = "0.6.2"
 dependencies = [
+ "anyhow",
  "async-channel",
  "bytes",
  "futures",
@@ -1614,7 +1615,6 @@ dependencies = [
  "serde",
  "thiserror 2.0.14",
  "tokio",
- "tokio-tungstenite 0.24.0",
  "tracing",
  "web-async",
  "web-transport-generic",
@@ -1655,6 +1655,7 @@ dependencies = [
  "axum",
  "bytes",
  "clap",
+ "futures",
  "http-body",
  "hyper-serve",
  "moq-lite",
@@ -1669,6 +1670,7 @@ dependencies = [
  "tower-http",
  "tracing",
  "url",
+ "web-transport-polyfill",
 ]
 
 [[package]]
@@ -3419,6 +3421,19 @@ name = "web-transport-generic"
 version = "0.1.0"
 dependencies = [
  "bytes",
+]
+
+[[package]]
+name = "web-transport-polyfill"
+version = "0.1.0"
+dependencies = [
+ "bytes",
+ "futures",
+ "thiserror 2.0.14",
+ "tokio",
+ "tokio-tungstenite 0.24.0",
+ "web-transport-generic",
+ "web-transport-proto",
 ]
 
 [[package]]

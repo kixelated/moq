@@ -28,7 +28,6 @@
 	],
 	"files": [
 		"./src",
-		"./dist",
 		"README.md",
 		"tsconfig.json"
 	],
