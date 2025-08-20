@@ -34,10 +34,19 @@ export default class HangPublish extends HTMLElement {
 		});
 
 		this.#signals.effect((effect) => {
+			if (!preview) return;
+
 			const media = effect.get(this.broadcast.video.media);
-			if (!media || !preview) return;
+			if (!media) {
+				preview.style.width = "0px";
+				preview.style.height = "0px";
+				return;
+			}
 
 			preview.srcObject = new MediaStream([media]);
+			preview.style.width = "auto";
+			preview.style.height = "auto";
+
 			effect.cleanup(() => {
 				preview.srcObject = null;
 			});

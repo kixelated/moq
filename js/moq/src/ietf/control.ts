@@ -64,7 +64,7 @@ export class Stream {
 	 * Format: Message Type (varint) + Message Length (varint) + Message Payload
 	 */
 	async write<T extends Message>(message: T): Promise<void> {
-		console.debug("control message write", message);
+		console.debug("message write", message);
 
 		await this.#writeLock.runExclusive(async () => {
 			// Write message type
@@ -86,10 +86,15 @@ export class Stream {
 				throw new Error(`Unknown control message type: ${messageType}`);
 			}
 
-			const f: (r: Reader) => Promise<Message> = Messages[messageType].decodeMessage;
-			const msg = await this.stream.reader.message(f);
-			console.debug("control message read", msg);
-			return msg;
+			try {
+				const f: (r: Reader) => Promise<Message> = Messages[messageType].decodeMessage;
+				const msg = await this.stream.reader.message(f);
+				console.debug("message read", msg);
+				return msg;
+			} catch (err) {
+				console.error("failed to decode message", messageType, err);
+				throw err;
+			}
 		});
 	}
 }
