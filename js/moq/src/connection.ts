@@ -55,8 +55,11 @@ export async function connect(url: URL): Promise<Connection> {
 	const quic = new WebTransport(adjustedUrl, options);
 	await quic.ready;
 
-	const msg = new Lite.SessionClient([Lite.CURRENT_VERSION, Ietf.CURRENT_VERSION]);
+	// moq-rs currently requires the ROLE extension to be set.
+	const extensions = new Lite.Extensions();
+	extensions.set(0x0n, new Uint8Array([0x03]));
 
+	const msg = new Lite.SessionClient([Lite.CURRENT_VERSION, Ietf.CURRENT_VERSION], extensions);
 	const stream = await Stream.open(quic);
 
 	// We're encoding 0x40 so it's backwards compatible with moq-transport
@@ -71,10 +74,13 @@ export async function connect(url: URL): Promise<Connection> {
 
 	const server = await Lite.SessionServer.decode(stream.reader);
 	if (server.version === Lite.CURRENT_VERSION) {
+		console.debug("moq-lite session established");
 		return new Lite.Connection(adjustedUrl, quic, stream);
 	} else if (server.version === Ietf.CURRENT_VERSION) {
+		console.debug("moq-ietf session established");
 		return new Ietf.Connection(adjustedUrl, quic, stream);
 	} else {
 		throw new Error(`unsupported server version: ${server.version.toString()}`);
 	}
+
 }
