@@ -43,7 +43,7 @@ export class VideoRenderer {
 			if (info) {
 				// Initialize the canvas to the correct size.
 				// NOTE: each frame will resize the canvas, so this is mostly to avoid pop-in.
-				canvas.width = info.config.displayAspectWidth?? info.config.codedWidth ?? 1;
+				canvas.width = info.config.displayAspectWidth ?? info.config.codedWidth ?? 1;
 				canvas.height = info.config.displayAspectHeight ?? info.config.codedHeight ?? 1;
 			} else {
 				// Hide the canvas when no broadcast is selected.
