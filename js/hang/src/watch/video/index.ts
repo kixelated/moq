@@ -44,6 +44,7 @@ export class Video {
 
 		// TODO use isConfigSupported
 		this.#signals.effect((effect) => {
+			// NOTE: Not gated based on enabled
 			const info = effect.get(this.catalog)?.video?.[0];
 			this.info.set(info);
 			this.active.set(info !== undefined);

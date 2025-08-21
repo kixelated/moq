@@ -3,6 +3,7 @@ import { z } from "zod";
 import { u53Schema } from "./integers";
 import { TrackSchema } from "./track";
 
+// Based on VideoDecoderConfig
 export const VideoConfigSchema = z.object({
 	// See: https://w3c.github.io/webcodecs/codec_registry.html
 	codec: z.string(),
@@ -19,8 +20,8 @@ export const VideoConfigSchema = z.object({
 	// Ratio of display width/height to coded width/height
 	// Allows stretching/squishing individual "pixels" of the video
 	// If not provided, the display ratio is 1:1
-	displayRatioWidth: u53Schema.optional(),
-	displayRatioHeight: u53Schema.optional(),
+	displayAspectWidth: u53Schema.optional(),
+	displayAspectHeight: u53Schema.optional(),
 
 	// The frame rate of the video in frames per second
 	framerate: z.number().optional(),
