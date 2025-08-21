@@ -78,7 +78,8 @@ impl Cluster {
 			// Otherwise, we're the root node so we wait for other nodes to connect to us.
 			_ => {
 				tracing::info!("running as root, accepting leaf nodes");
-				return self.run_combined().await;
+				self.run_combined().await?;
+				anyhow::bail!("combined connection closed");
 			}
 		};
 
@@ -102,10 +103,20 @@ impl Cluster {
 
 		let noop = self.noop.consumer.clone();
 
+		// Despite returning a Result, we should NEVER return an Ok
 		tokio::select! {
-			res = self.clone().run_remote(&connect, token.clone(), noop) => res.context("failed to connect to root"),
-			res = self.clone().run_remotes(token) => res.context("failed to connect to remotes"),
-			res = self.run_combined() => res.context("failed to run combined"),
+			res = self.clone().run_remote(&connect, token.clone(), noop) => {
+				res.context("failed to connect to root")?;
+				anyhow::bail!("connection to root closed");
+			}
+			res = self.clone().run_remotes(token) => {
+				res.context("failed to connect to remotes")?;
+				anyhow::bail!("connection to remotes closed");
+			}
+			res = self.run_combined() => {
+				res.context("failed to run combined")?;
+				anyhow::bail!("combined connection closed");
+			}
 		}
 	}
 
@@ -142,7 +153,7 @@ impl Cluster {
 		// Discover other origins.
 		// NOTE: The root node will connect to all other nodes as a client, ignoring the existing (server) connection.
 		// This ensures that nodes are advertising a valid hostname before any tracks get announced.
-		while let Some((node, origin)) = origins.try_announced() {
+		while let Some((node, origin)) = origins.announced().await {
 			if Some(node.as_str()) == self.config.advertise.as_deref() {
 				// Skip ourselves.
 				continue;
