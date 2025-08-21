@@ -39,12 +39,16 @@ export class VideoRenderer {
 			const canvas = effect.get(this.canvas);
 			if (!canvas) return;
 
-			const enabled = effect.get(this.source.enabled);
-			if (enabled) return;
+			const broadcast = effect.get(this.source.broadcast);
+			if (broadcast) return;
 
-			// Shrink the canvas when the video is disabled.
-			canvas.width = 0;
-			canvas.height = 0;
+			// Hide the canvas when no broadcast is selected.
+			const display = canvas.style.display;
+
+			canvas.style.display = "none";
+			effect.cleanup(() => {
+				canvas.style.display = display;
+			});
 		});
 	}
 

@@ -38,14 +38,12 @@ export default class HangPublish extends HTMLElement {
 
 			const media = effect.get(this.broadcast.video.media);
 			if (!media) {
-				preview.style.width = "0px";
-				preview.style.height = "0px";
+				preview.style.display = "none";
 				return;
 			}
 
 			preview.srcObject = new MediaStream([media]);
-			preview.style.width = "auto";
-			preview.style.height = "auto";
+			preview.style.display = "block";
 
 			effect.cleanup(() => {
 				preview.srcObject = null;
