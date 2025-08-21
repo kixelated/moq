@@ -2,7 +2,7 @@ import { type AnnouncedConsumer, AnnouncedProducer } from "../announced";
 import { type BroadcastConsumer, BroadcastProducer } from "../broadcast";
 import { GroupProducer } from "../group";
 import * as Path from "../path";
-import type { Reader }from "../stream";
+import type { Reader } from "../stream";
 import type { TrackProducer } from "../track";
 import { error } from "../util/error";
 import type { Announce, Unannounce } from "./announce";
