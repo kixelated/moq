@@ -106,6 +106,7 @@ export class Audio {
 		}
 
 		const context = new AudioContext({
+			latencyHint: "interactive",
 			sampleRate: settings.sampleRate,
 		});
 		effect.cleanup(() => context.close());

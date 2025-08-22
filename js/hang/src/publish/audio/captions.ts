@@ -84,6 +84,7 @@ export class Captions {
 		});
 
 		const ctx = new AudioContext({
+			latencyHint: "interactive",
 			sampleRate: 16000, // required by the model.
 		});
 		effect.cleanup(() => ctx.close());
