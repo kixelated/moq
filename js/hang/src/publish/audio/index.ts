@@ -74,10 +74,10 @@ export class Audio {
 	#gain = new Signal<GainNode | undefined>(undefined);
 	readonly root: Getter<AudioNode | undefined> = this.#gain;
 
+	#track = new Moq.TrackProducer("audio", 1);
 	#group?: Moq.GroupProducer;
 	#groupTimestamp = 0;
 
-	#id = 0;
 	#signals = new Effect();
 
 	constructor(broadcast: Moq.BroadcastProducer, props?: AudioProps) {
@@ -165,11 +165,10 @@ export class Audio {
 		const worklet = effect.get(this.#worklet);
 		if (!worklet) return;
 
-		const track = new Moq.TrackProducer(`audio-${this.#id++}`, 1);
-		effect.cleanup(() => track.close());
-
-		this.broadcast.insertTrack(track.consume());
-		effect.cleanup(() => this.broadcast.removeTrack(track.name));
+		this.broadcast.insertTrack(this.#track.consume());
+		effect.cleanup(() => {
+			this.broadcast.removeTrack(this.#track.name);
+		});
 
 		const settings = media.getSettings() as AudioTrackSettings;
 
@@ -178,8 +177,8 @@ export class Audio {
 
 		const catalog: Catalog.Audio = {
 			track: {
-				name: track.name,
-				priority: u8(track.priority),
+				name: this.#track.name,
+				priority: u8(this.#track.priority),
 			},
 			config: {
 				// TODO get codec and description from decoderConfig
@@ -203,7 +202,7 @@ export class Audio {
 
 				if (!this.#group || frame.timestamp - this.#groupTimestamp >= 1000 * this.maxLatency) {
 					this.#group?.close();
-					this.#group = track.appendGroup();
+					this.#group = this.#track.appendGroup();
 					this.#groupTimestamp = frame.timestamp;
 				}
 
@@ -214,10 +213,16 @@ export class Audio {
 				this.#group?.abort(err);
 				this.#group = undefined;
 
-				track.abort(err);
+				this.#track.abort(err);
 			},
 		});
 		effect.cleanup(() => encoder.close());
+
+		effect.cleanup(() => {
+			this.#group?.close();
+			this.#group = undefined;
+			this.#groupTimestamp = 0;
+		});
 
 		const config = catalog.config;
 
@@ -256,5 +261,6 @@ export class Audio {
 	close() {
 		this.#signals.close();
 		this.captions.close();
+		this.#track.close();
 	}
 }

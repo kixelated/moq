@@ -6,6 +6,7 @@ export default defineConfig({
 	plugins: [tailwindcss()],
 	build: {
 		target: "esnext",
+		sourcemap: process.env.NODE_ENV === "production" ? false : "inline",
 		rollupOptions: {
 			input: {
 				watch: "index.html",
