@@ -29,7 +29,7 @@ export class VideoRenderer {
 
 		this.#signals.effect((effect) => {
 			const canvas = effect.get(this.canvas);
-			this.#ctx.set(canvas?.getContext("2d", { desynchronized: true }) ?? undefined);
+			this.#ctx.set(canvas?.getContext("2d") ?? undefined);
 		});
 
 		this.#signals.effect(this.#schedule.bind(this));
