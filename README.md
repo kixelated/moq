@@ -119,7 +119,7 @@ This repository provides both [Rust](/rs) and [TypeScript](/js) libraries with s
 | [moq-token](rs/moq-token)   | An authentication scheme supported by `moq-relay`. Can be used as a library or as [a CLI](rs/moq-token-cli) to authenticate sessions. |                                                                                |
 | [moq-native](rs/moq-native) | Opinionated helpers to configure a Quinn QUIC endpoint. It's harder than it should be.                                                | [![docs.rs](https://docs.rs/moq-native/badge.svg)](https://docs.rs/moq-native) |
 | [hang](rs/hang)             | Media-specific encoding/streaming layered on top of `moq-lite`. Can be used as a library or [a CLI](rs/hang-cli).                     | [![docs.rs](https://docs.rs/hang/badge.svg)](https://docs.rs/hang)             |
-| [hang-gst](rs/hang-gst)     | A simple gstreamer plugin for publishing or consuming hang broadcasts.                                                                |                                                                                |
+| [hang-gst](https://github.com/kixelated/hang-gst) | A GStreamer plugin for publishing or consuming hang broadcasts. A separate repo to avoid requiring gstreamer as a build dependency.            |                                                                                |
 
 
 ### TypeScript
