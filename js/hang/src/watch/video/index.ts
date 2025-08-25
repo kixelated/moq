@@ -1,5 +1,5 @@
 import type * as Moq from "@kixelated/moq";
-import { Effect, Signal } from "@kixelated/signals";
+import { Effect, Getter, Signal } from "@kixelated/signals";
 import type * as Catalog from "../../catalog";
 import * as Container from "../../container";
 import * as Hex from "../../util/hex";
@@ -23,7 +23,7 @@ export class Video {
 
 	// Helper that is populated from the catalog.
 	#flip = new Signal<boolean | undefined>(undefined);
-	readonly flip = this.#flip;
+	readonly flip: Getter<boolean | undefined> = this.#flip;
 
 	detection: Detection;
 
