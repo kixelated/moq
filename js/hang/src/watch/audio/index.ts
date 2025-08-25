@@ -8,8 +8,7 @@ import type * as Render from "./render";
 export * from "./emitter";
 
 import { Captions, type CaptionsProps } from "./captions";
-// Unfortunately, we need to use a Vite-exclusive import for now.
-import RenderWorklet from "./render-worklet?worker&url";
+import { Speaking, type SpeakingProps } from "./speaking";
 
 export type AudioProps = {
 	// Enable to download the audio track.
@@ -20,7 +19,14 @@ export type AudioProps = {
 
 	// Enable to download the captions track.
 	captions?: CaptionsProps;
+
+	// Enable to download the speaking track. (boolean)
+	speaking?: SpeakingProps;
 };
+
+
+// Unfortunately, we need to use a Vite-exclusive import for now.
+import RenderWorklet from "./render-worklet?worker&url";
 
 // Downloads audio from a track and emits it to an AudioContext.
 // The user is responsible for hooking up audio to speakers, an analyzer, etc.
@@ -40,6 +46,7 @@ export class Audio {
 	readonly sampleRate: Getter<number | undefined> = this.#sampleRate;
 
 	captions: Captions;
+	speaking: Speaking;
 
 	// Not a signal because it updates constantly.
 	#buffered: DOMHighResTimeStamp = 0;
@@ -59,6 +66,7 @@ export class Audio {
 		this.enabled = new Signal(props?.enabled ?? false);
 		this.latency = props?.latency ?? 100; // TODO Reduce this once fMP4 stuttering is fixed.
 		this.captions = new Captions(broadcast, this.info, props?.captions);
+		this.speaking = new Speaking(broadcast, this.info, props?.speaking);
 
 		this.#signals.effect((effect) => {
 			this.info.set(effect.get(this.catalog)?.audio?.[0]);
@@ -195,6 +203,7 @@ export class Audio {
 	close() {
 		this.#signals.close();
 		this.captions.close();
+		this.speaking.close();
 	}
 
 	get buffered() {

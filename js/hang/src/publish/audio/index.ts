@@ -13,6 +13,7 @@ const FADE_TIME = 0.2;
 
 // Unfortunately, we need to use a Vite-exclusive import for now.
 import CaptureWorklet from "./capture-worklet?worker&url";
+import { Speaking, type SpeakingProps } from "./speaking";
 
 export type AudioConstraints = Omit<
 	MediaTrackConstraints,
@@ -48,6 +49,7 @@ export type AudioProps = {
 	muted?: boolean;
 	volume?: number;
 	captions?: CaptionsProps;
+	speaking?: SpeakingProps;
 
 	// The size of each group. Larger groups mean fewer drops but the viewer can fall further behind.
 	// NOTE: Each frame is always flushed to the network immediately.
@@ -61,6 +63,7 @@ export class Audio {
 	muted: Signal<boolean>;
 	volume: Signal<number>;
 	captions: Captions;
+	speaking: Speaking;
 	maxLatency: DOMHighResTimeStamp;
 
 	media: Signal<AudioTrack | undefined>;
@@ -68,6 +71,9 @@ export class Audio {
 
 	#catalog = new Signal<Catalog.Audio | undefined>(undefined);
 	readonly catalog: Getter<Catalog.Audio | undefined> = this.#catalog;
+
+	#config = new Signal<Catalog.AudioConfig | undefined>(undefined);
+	readonly config: Getter<Catalog.AudioConfig | undefined> = this.#config;
 
 	#worklet = new Signal<AudioWorkletNode | undefined>(undefined);
 
@@ -84,6 +90,7 @@ export class Audio {
 		this.broadcast = broadcast;
 		this.media = new Signal(props?.media);
 		this.enabled = new Signal(props?.enabled ?? false);
+		this.speaking = new Speaking(this, props?.speaking);
 		this.captions = new Captions(this, props?.captions);
 		this.constraints = new Signal(props?.constraints);
 		this.muted = new Signal(props?.muted ?? false);
@@ -93,6 +100,7 @@ export class Audio {
 		this.#signals.effect(this.#runSource.bind(this));
 		this.#signals.effect(this.#runGain.bind(this));
 		this.#signals.effect(this.#runEncoder.bind(this));
+		this.#signals.effect(this.#runCatalog.bind(this));
 	}
 
 	#runSource(effect: Effect): void {
@@ -172,27 +180,15 @@ export class Audio {
 
 		const settings = media.getSettings() as AudioTrackSettings;
 
-		// TODO don't reininalize the encoder just because the captions track changed.
-		const captions = effect.get(this.captions.catalog);
-
-		const catalog: Catalog.Audio = {
-			track: {
-				name: this.#track.name,
-				priority: u8(this.#track.priority),
-			},
-			config: {
-				// TODO get codec and description from decoderConfig
-				codec: "opus",
-				// Firefox doesn't provide the sampleRate in the settings.
-				sampleRate: u53(settings.sampleRate ?? worklet?.context.sampleRate),
-				numberOfChannels: u53(settings.channelCount),
-				// TODO configurable
-				bitrate: u53(settings.channelCount * 32_000),
-			},
-			captions,
+		const config = {
+			// TODO get codec and description from decoderConfig
+			codec: "opus",
+			// Firefox doesn't provide the sampleRate in the settings.
+			sampleRate: u53(settings.sampleRate ?? worklet?.context.sampleRate),
+			numberOfChannels: u53(settings.channelCount),
+			// TODO configurable
+			bitrate: u53(settings.channelCount * 32_000),
 		};
-
-		effect.set(this.#catalog, catalog);
 
 		const encoder = new AudioEncoder({
 			output: (frame) => {
@@ -224,7 +220,6 @@ export class Audio {
 			this.#groupTimestamp = 0;
 		});
 
-		const config = catalog.config;
 
 		encoder.configure({
 			codec: config.codec,
@@ -232,6 +227,8 @@ export class Audio {
 			sampleRate: config.sampleRate,
 			bitrate: config.bitrate,
 		});
+
+		effect.set(this.#config, config);
 
 		worklet.port.onmessage = ({ data }: { data: Capture.AudioFrame }) => {
 			const channels = data.channels.slice(0, settings.channelCount);
@@ -256,6 +253,26 @@ export class Audio {
 			encoder.encode(frame);
 			frame.close();
 		};
+	}
+
+	#runCatalog(effect: Effect): void {
+		const config = effect.get(this.#config);
+		if (!config) return;
+
+		const captions = effect.get(this.captions.catalog);
+		const speaking = effect.get(this.speaking.catalog);
+
+		const catalog: Catalog.Audio = {
+			track: {
+				name: this.#track.name,
+				priority: u8(this.#track.priority),
+			},
+			config,
+			captions,
+			speaking,
+		};
+
+		effect.set(this.#catalog, catalog);
 	}
 
 	close() {

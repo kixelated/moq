@@ -3,36 +3,29 @@ import { Effect, Signal } from "@kixelated/signals";
 import type * as Catalog from "../../catalog";
 import { u8 } from "../../catalog";
 import type { Audio } from ".";
-import type { Request, Result } from "./captions-worker";
 import CaptureWorklet from "./capture-worklet?worker&url";
+import type { Request, Result } from "./speaking-worker";
 
-export type CaptionsProps = {
+export type SpeakingProps = {
 	enabled?: boolean;
-	transcribe?: boolean;
-
-	// Captions are cleared after this many milliseconds. (10s default)
-	ttl?: DOMHighResTimeStamp;
 };
 
-export class Captions {
+// Detects when the user is speaking.
+export class Speaking {
 	audio: Audio;
 
-	// Enable caption generation via an on-device model (whisper).
 	enabled: Signal<boolean>;
 
-	text = new Signal<string | undefined>(undefined);
-	catalog = new Signal<Catalog.Captions | undefined>(undefined);
+	active = new Signal<boolean>(false);
+	catalog = new Signal<Catalog.Speaking | undefined>(undefined);
 
 	signals = new Effect();
 
-	#ttl: DOMHighResTimeStamp;
-	#track = new Moq.TrackProducer("captions.txt", 1);
+	#track = new Moq.TrackProducer("speaking.bool", 1);
 
-	constructor(audio: Audio, props?: CaptionsProps) {
+	constructor(audio: Audio, props?: SpeakingProps) {
 		this.audio = audio;
-		this.#ttl = props?.ttl ?? 10000;
 		this.enabled = new Signal(props?.enabled ?? false);
-
 		this.signals.effect(this.#run.bind(this));
 	}
 
@@ -45,7 +38,7 @@ export class Captions {
 		this.audio.broadcast.insertTrack(this.#track.consume());
 		effect.cleanup(() => this.audio.broadcast.removeTrack(this.#track.name));
 
-		const catalog: Catalog.Captions = {
+		const catalog: Catalog.Speaking = {
 			track: {
 				name: this.#track.name,
 				priority: u8(this.#track.priority),
@@ -53,30 +46,29 @@ export class Captions {
 		};
 		effect.set(this.catalog, catalog);
 
-		// Create a nested effect to avoid recreating the track every time the caption changes.
+		// Create a nested effect to avoid recreating the track every time the speaking changes.
 		effect.effect((nested) => {
-			const text = nested.get(this.text) ?? "";
-			this.#track.appendFrame(new TextEncoder().encode(text));
-
-			// Clear the caption after a timeout. (TODO based on the size)
-			nested.timer(() => this.text.set(undefined), this.#ttl);
+			const active = nested.get(this.active);
+			// .bool is a 1-byte true, 0-byte false.
+			this.#track.appendFrame(active ? new Uint8Array([1]) : new Uint8Array([0]));
 		});
 
-		const worker = new Worker(new URL("./captions-worker", import.meta.url), { type: "module" });
+		const worker = new Worker(new URL("./speaking-worker", import.meta.url), { type: "module" });
 		effect.cleanup(() => worker.terminate());
 
 		// Handle messages from the worker
 		worker.onmessage = ({ data }: MessageEvent<Result>) => {
-			if (data.type === "text") {
-				this.text.set(data.text);
+			if (data.type === "speaking") {
+				// Use heuristics to determine if we've toggled speaking or not
+				this.active.set(data.speaking);
 			} else if (data.type === "error") {
 				console.error("VAD worker error:", data.message);
-				this.text.set(undefined);
+				this.active.set(false);
 			}
 		};
 
 		effect.cleanup(() => {
-			this.text.set(undefined);
+			this.active.set(false);
 		});
 
 		const ctx = new AudioContext({
@@ -112,15 +104,6 @@ export class Captions {
 				worklet: worklet.port,
 			};
 			worker.postMessage(init, [init.worklet]);
-		});
-
-		effect.effect((nested) => {
-			if (!nested.get(this.audio.speaking.enabled)) {
-				console.warn("VAD needs to be enabled to transcribe");
-				return;
-			}
-			const speaking = nested.get(this.audio.speaking.active);
-			worker.postMessage({ type: "speaking", speaking });
 		});
 	}
 

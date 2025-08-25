@@ -4,14 +4,13 @@ import * as DOM from "@kixelated/signals/dom";
 import { Connection } from "../connection";
 import { Broadcast, type Device } from "./broadcast";
 
-const OBSERVED = ["url", "name", "device", "audio", "video", "controls", "transcribe", "captions"] as const;
+const OBSERVED = ["url", "name", "device", "audio", "video", "controls", "captions"] as const;
 type Observed = (typeof OBSERVED)[number];
 
 export default class HangPublish extends HTMLElement {
 	static observedAttributes = OBSERVED;
 
 	#controls = new Signal(false);
-	#captions = new Signal(false);
 
 	connection: Connection;
 	broadcast: Broadcast;
@@ -71,8 +70,6 @@ export default class HangPublish extends HTMLElement {
 			this.video = newValue !== null;
 		} else if (name === "controls") {
 			this.controls = newValue !== null;
-		} else if (name === "transcribe") {
-			this.transcribe = newValue !== null;
 		} else if (name === "captions") {
 			this.captions = newValue !== null;
 		} else {
@@ -129,29 +126,13 @@ export default class HangPublish extends HTMLElement {
 		this.#controls.set(controls);
 	}
 
-	get transcribe(): boolean {
+	get captions(): boolean {
 		return this.broadcast.audio.captions.enabled.peek();
 	}
 
-	set transcribe(transcribe: boolean) {
-		this.broadcast.audio.captions.enabled.set(transcribe);
-
-		if (!transcribe && this.#captions.peek()) {
-			// Disable captions if transcribe is disabled.
-			this.#captions.set(false);
-		}
-	}
-
-	get captions(): boolean {
-		return this.#captions.peek();
-	}
-
 	set captions(captions: boolean) {
-		this.#captions.set(captions);
-		if (captions) {
-			// Enable transcribe if captions are enabled.
-			this.broadcast.audio.captions.enabled.set(true);
-		}
+		this.broadcast.audio.captions.enabled.set(captions);
+		this.broadcast.audio.speaking.enabled.set(captions);
 	}
 
 	#renderControls() {
@@ -192,7 +173,7 @@ export default class HangPublish extends HTMLElement {
 		this.#signals.cleanup(() => this.removeChild(captions));
 
 		this.#signals.effect((effect) => {
-			const show = effect.get(this.#captions);
+			const show = effect.get(this.broadcast.audio.captions.enabled);
 			if (!show) return;
 
 			const leftSpacer = DOM.create("div", {
@@ -209,7 +190,7 @@ export default class HangPublish extends HTMLElement {
 
 			effect.effect((effect) => {
 				const text = effect.get(this.broadcast.audio.captions.text);
-				const speaking = effect.get(this.broadcast.audio.captions.speaking);
+				const speaking = effect.get(this.broadcast.audio.speaking.active);
 
 				captionText.textContent = text ?? "";
 				speakingIcon.textContent = speaking ? "🗣️" : " ";
