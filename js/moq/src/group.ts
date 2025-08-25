@@ -92,6 +92,14 @@ export class GroupConsumer {
 	}
 
 	/**
+	 * Returns a promise that resolves when the reader is closed.
+	 * @returns A promise that resolves when closed
+	 */
+	async closed(): Promise<void> {
+		await this.#frames.closed();
+	}
+
+	/**
 	 * Closes the reader.
 	 */
 	close() {

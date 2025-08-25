@@ -1,6 +1,7 @@
 import type * as Moq from "@kixelated/moq";
 import { Effect, type Getter, Signal } from "@kixelated/signals";
 import type * as Catalog from "../../catalog";
+import { BoolConsumer } from "../../container/bool";
 
 export type SpeakingProps = {
 	enabled?: boolean;
@@ -44,13 +45,14 @@ export class Speaking {
 		const sub = broadcast.subscribe(info.speaking.track.name, info.speaking.track.priority);
 		effect.cleanup(() => sub.close());
 
+		const bool = new BoolConsumer(sub);
+
 		effect.spawn(async (cancel) => {
 			for (;;) {
-				const frame = await Promise.race([sub.nextFrame(), cancel]);
-				if (!frame) break;
+				const speaking = await Promise.race([bool.next(), cancel]);
+				if (speaking === undefined) break;
 
-				const active = frame.data.length > 0;
-				this.#active.set(active);
+				this.#active.set(speaking);
 			}
 		});
 		effect.cleanup(() => this.#active.set(undefined));
