@@ -1,5 +1,5 @@
 import type * as Moq from "@kixelated/moq";
-import { Effect, Getter, Signal } from "@kixelated/signals";
+import { Effect, type Getter, Signal } from "@kixelated/signals";
 import type * as Catalog from "../../catalog";
 import * as Container from "../../container";
 import * as Hex from "../../util/hex";

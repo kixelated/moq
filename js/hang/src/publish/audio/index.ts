@@ -220,7 +220,6 @@ export class Audio {
 			this.#groupTimestamp = 0;
 		});
 
-
 		encoder.configure({
 			codec: config.codec,
 			numberOfChannels: config.numberOfChannels,

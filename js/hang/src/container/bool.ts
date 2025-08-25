@@ -50,10 +50,7 @@ export class BoolConsumer {
 				return true;
 			}
 
-			const group = await Promise.race([
-				this.track.nextGroup(),
-				this.#group.closed(),
-			])
+			const group = await Promise.race([this.track.nextGroup(), this.#group.closed()]);
 			if (group) {
 				this.#group = group;
 				continue;

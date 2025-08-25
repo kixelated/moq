@@ -24,7 +24,6 @@ export type AudioProps = {
 	speaking?: SpeakingProps;
 };
 
-
 // Unfortunately, we need to use a Vite-exclusive import for now.
 import RenderWorklet from "./render-worklet?worker&url";
 
