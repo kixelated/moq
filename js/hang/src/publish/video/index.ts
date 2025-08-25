@@ -161,7 +161,8 @@ export class Video {
 			effect.set(this.#encoderConfig, config);
 
 			while (frame) {
-				const keyFrame = groupTimestamp + GOP_DURATION_US < frame.timestamp;
+				// Force a keyframe if this is the first frame (no group yet), or GOP elapsed.
+				const keyFrame = !group || groupTimestamp + GOP_DURATION_US <= frame.timestamp;
 				if (keyFrame) {
 					groupTimestamp = frame.timestamp;
 				}
