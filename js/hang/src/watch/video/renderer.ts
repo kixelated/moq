@@ -132,7 +132,7 @@ export class VideoRenderer {
 				ctx.scale(-1, 1);
 				ctx.translate(-ctx.canvas.width, 0);
 			}
-			
+
 			ctx.drawImage(frame, 0, 0, ctx.canvas.width, ctx.canvas.height);
 			ctx.restore();
 		} else {
