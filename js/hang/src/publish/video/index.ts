@@ -44,6 +44,7 @@ export type VideoProps = {
 	media?: VideoTrack;
 	constraints?: VideoConstraints;
 	detection?: DetectionProps;
+	flip?: boolean;
 };
 
 export class Video {
@@ -51,6 +52,7 @@ export class Video {
 	detection: Detection;
 
 	enabled: Signal<boolean>;
+	flip: Signal<boolean>;
 
 	readonly media: Signal<VideoTrack | undefined>;
 	readonly constraints: Signal<VideoConstraints | undefined>;
@@ -66,9 +68,6 @@ export class Video {
 	#encoderConfig = new Signal<VideoEncoderConfig | undefined>(undefined);
 	#decoderConfig = new Signal<VideoDecoderConfig | undefined>(undefined);
 
-	#group?: Moq.GroupProducer;
-	#groupTimestamp = 0;
-
 	#signals = new Effect();
 	#id = 0;
 
@@ -82,6 +81,7 @@ export class Video {
 		this.media = new Signal(props?.media);
 		this.enabled = new Signal(props?.enabled ?? false);
 		this.constraints = new Signal(props?.constraints);
+		this.flip = new Signal(props?.flip ?? false);
 
 		this.#signals.effect(this.#runTrack.bind(this));
 		this.#signals.effect(this.#runEncoder.bind(this));
@@ -116,57 +116,54 @@ export class Video {
 		const reader = processor.getReader();
 		effect.cleanup(() => reader.cancel());
 
+		let group: Moq.GroupProducer | undefined;
+		effect.cleanup(() => group?.close());
+
+		let groupTimestamp = 0;
+
 		const encoder = new VideoEncoder({
 			output: (frame: EncodedVideoChunk, metadata?: EncodedVideoChunkMetadata) => {
 				if (metadata?.decoderConfig) {
-					this.#decoderConfig.set(metadata.decoderConfig);
+					effect.set(this.#decoderConfig, metadata.decoderConfig);
 				}
 
 				if (frame.type === "key") {
-					this.#groupTimestamp = frame.timestamp;
-					this.#group?.close();
-					this.#group = track.appendGroup();
-				} else if (!this.#group) {
+					groupTimestamp = frame.timestamp;
+					group?.close();
+					group = track.appendGroup();
+				} else if (!group) {
 					throw new Error("no keyframe");
 				}
 
 				const buffer = Container.encodeFrame(frame, frame.timestamp);
-				this.#group.writeFrame(buffer);
+				group?.writeFrame(buffer);
 			},
 			error: (err: Error) => {
-				this.#group?.abort(err);
-				this.#group = undefined;
-
+				group?.abort(err);
 				track.abort(err);
 			},
 		});
+		effect.cleanup(() => encoder.close());
 
-		this.#encoderConfig.set(undefined);
-		this.#decoderConfig.set(undefined);
+		effect.spawn(async (cancel) => {
+			let next = await Promise.race([reader.read(), cancel]);
+			if (!next || !next.value) return;
 
-		void this.#runFrames(encoder, reader, settings);
-	}
+			effect.set(this.#active, true, false);
 
-	async #runFrames(
-		encoder: VideoEncoder,
-		reader: ReadableStreamDefaultReader<VideoFrame>,
-		settings: VideoTrackSettings,
-	) {
-		try {
-			let { value: frame } = await reader.read();
-			if (!frame) return;
+			let frame = next.value;
 
-			this.#active.set(true);
+			const config = await Promise.race([Video.#bestEncoderConfig(settings, frame), cancel]);
+			if (!config) return; // cancelled
 
-			const config = await Video.#bestEncoderConfig(settings, frame);
 			encoder.configure(config);
 
-			this.#encoderConfig.set(config);
+			effect.set(this.#encoderConfig, config);
 
 			while (frame) {
-				const keyFrame = this.#groupTimestamp + GOP_DURATION_US < frame.timestamp;
+				const keyFrame = groupTimestamp + GOP_DURATION_US < frame.timestamp;
 				if (keyFrame) {
-					this.#groupTimestamp = frame.timestamp;
+					groupTimestamp = frame.timestamp;
 				}
 
 				this.frame.set((prev) => {
@@ -176,15 +173,12 @@ export class Video {
 
 				encoder.encode(frame, { keyFrame });
 
-				({ value: frame } = await reader.read());
-			}
-		} finally {
-			encoder.close();
-			this.#active.set(false);
+				next = await reader.read();
+				if (!next || !next.value) return;
 
-			this.#group?.close();
-			this.#group = undefined;
-		}
+				frame = next.value;
+			}
+		});
 	}
 
 	// Try to determine the best config for the given settings.
@@ -361,6 +355,8 @@ export class Video {
 		const track = effect.get(this.#track);
 		if (!track) return;
 
+		const flip = effect.get(this.flip);
+
 		const description = decoderConfig.description
 			? Hex.fromBytes(decoderConfig.description as Uint8Array)
 			: undefined;
@@ -381,9 +377,8 @@ export class Video {
 				framerate: encoderConfig.framerate,
 				bitrate: encoderConfig.bitrate ? u53(encoderConfig.bitrate) : undefined,
 				optimizeForLatency: decoderConfig.optimizeForLatency,
-				// rotation and flip are not standard VideoEncoderConfig properties
+				flip,
 				rotation: undefined,
-				flip: undefined,
 			},
 		};
 

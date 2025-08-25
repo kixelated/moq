@@ -21,6 +21,10 @@ export class Video {
 	info = new Signal<Catalog.Video | undefined>(undefined);
 	active = new Signal<boolean>(false);
 
+	// Helper that is populated from the catalog.
+	#flip = new Signal<boolean | undefined>(undefined);
+	readonly flip = this.#flip;
+
 	detection: Detection;
 
 	// Unfortunately, browsers don't let us hold on to multiple VideoFrames.
@@ -46,8 +50,9 @@ export class Video {
 		this.#signals.effect((effect) => {
 			// NOTE: Not gated based on enabled
 			const info = effect.get(this.catalog)?.video?.[0];
-			this.info.set(info);
-			this.active.set(info !== undefined);
+			effect.set(this.info, info);
+			effect.set(this.active, info !== undefined, false);
+			effect.set(this.#flip, info?.config.flip, undefined);
 		});
 
 		this.#signals.effect(this.#init.bind(this));
