@@ -17,10 +17,17 @@
 	"linter": {
 		"rules": {
 			"a11y": {
+				// We mostly make headless <video> elements.
 				"useMediaCaption": "off"
 			},
 			"style": {
 				"useNodejsImportProtocol": "off"
+			},
+			"suspicious": {
+				// Until Tailwind support lands (very soon)
+				"noUnknownAtRules": "off",
+				// Some runtimes need ts-ignore
+				 "noTsIgnore": "off"
 			}
 		}
 	},

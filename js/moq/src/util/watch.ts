@@ -18,9 +18,8 @@ export class Deferred<T> {
 	}
 }
 
-// eslint-disable-next-line @typescript-eslint/ban-ts-comment
-// @ts-ignore depends on the bundler
-const dev = import.meta.env?.MODE !== "production";
+// @ts-ignore - Some environments don't recognize import.meta.env
+const dev = typeof import.meta.env !== "undefined" && import.meta.env?.MODE !== "production";
 
 export class WatchProducer<T> {
 	#current: T;

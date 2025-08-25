@@ -16,8 +16,7 @@
   "workspace": {
     "packageJson": {
       "dependencies": [
-        "npm:@types/deno@^2.3.0",
-        "npm:typescript@^5.8.3"
+        "npm:@types/deno@^2.3.0"
       ]
     }
   }

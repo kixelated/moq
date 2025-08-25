@@ -82,9 +82,13 @@ export function render(parent: HTMLElement, effect: Effect, render: Render) {
 		parent.appendChild(element);
 		effect.cleanup(() => element.remove());
 	} else if (Array.isArray(element)) {
-		element.forEach((child) => parent.appendChild(child));
+		element.forEach((child) => {
+			parent.appendChild(child);
+		});
 		effect.cleanup(() => {
-			element.forEach((child) => child.remove());
+			element.forEach((child) => {
+				child.remove();
+			});
 		});
 	}
 }

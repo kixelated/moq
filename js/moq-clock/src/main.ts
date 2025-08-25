@@ -176,7 +176,7 @@ async function subscribe(config: Config) {
 			}
 
 			const seconds = new TextDecoder().decode(deltaFrame);
-			const secondsNum = parseInt(seconds);
+			const secondsNum = parseInt(seconds, 10);
 
 			// Clock emoji positions
 			const clockEmojis = ["🕛", "🕐", "🕑", "🕒", "🕓", "🕔", "🕕", "🕖", "🕗", "🕘", "🕙", "🕚"];

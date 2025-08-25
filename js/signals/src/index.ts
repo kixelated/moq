@@ -4,9 +4,8 @@ export type Dispose = () => void;
 
 type Subscriber<T> = (value: T) => void;
 
-// eslint-disable-next-line @typescript-eslint/ban-ts-comment
-// @ts-ignore depends on the bundler.
-const dev = import.meta.env?.MODE !== "production";
+// @ts-ignore - Some environments don't recognize import.meta.env
+const dev = typeof import.meta.env !== "undefined" && import.meta.env?.MODE !== "production";
 
 export interface Getter<T> {
 	peek(): T;
@@ -80,10 +79,6 @@ type SetterType<S> = S extends Setter<infer T> ? T : never;
 
 // TODO Make this a single instance of an Effect, so close() can work correctly from async code.
 export class Effect {
-	// eslint-disable-next-line @typescript-eslint/ban-ts-comment
-	// @ts-ignore depends on the bundler.
-	static dev = import.meta.env?.MODE !== "production";
-
 	// Sanity check to make sure roots are being disposed on dev.
 	static #finalizer = new FinalizationRegistry<string>((debugInfo) => {
 		console.warn(`Signals was garbage collected without being closed:\n${debugInfo}`);
@@ -102,14 +97,14 @@ export class Effect {
 
 	// If a function is provided, it will be run with the effect as an argument.
 	constructor(fn?: (effect: Effect) => void) {
-		if (Effect.dev) {
+		if (dev) {
 			const debug = new Error("created here:").stack ?? "No stack";
 			Effect.#finalizer.register(this, debug, this);
 		}
 
 		this.#fn = fn;
 
-		if (Effect.dev) {
+		if (dev) {
 			this.#stack = new Error().stack;
 		}
 
@@ -147,7 +142,7 @@ export class Effect {
 			let warn: ReturnType<typeof setTimeout> | undefined;
 			const timeout = new Promise<void>((resolve) => {
 				warn = setTimeout(() => {
-					if (Effect.dev) {
+					if (dev) {
 						console.warn("spawn is still running after 1s; continuing anyway", this.#stack);
 					}
 
@@ -187,7 +182,7 @@ export class Effect {
 	// Get the current value of a signal, monitoring it for changes (via ===) and rerunning on change.
 	get<T>(signal: Getter<T>): T {
 		if (this.#dispose === undefined) {
-			if (Effect.dev) {
+			if (dev) {
 				console.warn("Effect.get called when closed, returning current value");
 			}
 			return signal.peek();
@@ -209,7 +204,7 @@ export class Effect {
 		...args: undefined extends SetterType<S> ? [cleanup?: SetterType<S>] : [cleanup: SetterType<S>]
 	): void {
 		if (this.#dispose === undefined) {
-			if (Effect.dev) {
+			if (dev) {
 				console.warn("Effect.set called when closed, ignoring");
 			}
 			return;
@@ -229,7 +224,7 @@ export class Effect {
 		const promise = fn(this.#stopped);
 
 		if (this.#dispose === undefined) {
-			if (Effect.dev) {
+			if (dev) {
 				console.warn("Effect.spawn called when closed");
 			}
 
@@ -242,7 +237,7 @@ export class Effect {
 	// Run the function after the given delay in milliseconds UNLESS the effect is cleaned up first.
 	timer(fn: () => void, ms: DOMHighResTimeStamp) {
 		if (this.#dispose === undefined) {
-			if (Effect.dev) {
+			if (dev) {
 				console.warn("Effect.timer called when closed, ignoring");
 			}
 			return;
@@ -258,7 +253,7 @@ export class Effect {
 
 	interval(fn: () => void, ms: DOMHighResTimeStamp) {
 		if (this.#dispose === undefined) {
-			if (Effect.dev) {
+			if (dev) {
 				console.warn("Effect.interval called when closed, ignoring");
 			}
 			return;
@@ -273,7 +268,7 @@ export class Effect {
 	// Create a nested effect that can be rerun independently.
 	effect(fn: (effect: Effect) => void) {
 		if (this.#dispose === undefined) {
-			if (Effect.dev) {
+			if (dev) {
 				console.warn("Effect.nested called when closed, ignoring");
 			}
 			return;
@@ -367,7 +362,7 @@ export class Effect {
 		options?: boolean | AddEventListenerOptions,
 	): void {
 		if (this.#dispose === undefined) {
-			if (Effect.dev) {
+			if (dev) {
 				console.warn("Effect.eventListener called when closed, ignoring");
 			}
 			return;
@@ -380,7 +375,7 @@ export class Effect {
 	// Register a cleanup function.
 	cleanup(fn: Dispose): void {
 		if (this.#dispose === undefined) {
-			if (Effect.dev) {
+			if (dev) {
 				console.warn("Effect.cleanup called when closed, running immediately");
 			}
 
@@ -406,7 +401,7 @@ export class Effect {
 
 		this.#async.length = 0;
 
-		if (Effect.dev) {
+		if (dev) {
 			Effect.#finalizer.unregister(this);
 		}
 	}
