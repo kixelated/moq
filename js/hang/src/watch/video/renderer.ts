@@ -120,7 +120,18 @@ export class VideoRenderer {
 		if (frame) {
 			ctx.canvas.width = frame.displayWidth;
 			ctx.canvas.height = frame.displayHeight;
-			ctx.drawImage(frame, 0, 0, ctx.canvas.width, ctx.canvas.height);
+
+			// Apply horizontal flip if specified in the video config
+			const flip = this.source.flip.peek();
+			if (flip) {
+				ctx.save();
+				ctx.scale(-1, 1);
+				ctx.translate(-ctx.canvas.width, 0);
+				ctx.drawImage(frame, 0, 0, ctx.canvas.width, ctx.canvas.height);
+				ctx.restore();
+			} else {
+				ctx.drawImage(frame, 0, 0, ctx.canvas.width, ctx.canvas.height);
+			}
 		}
 
 		// Draw a loading icon when the lag 2+ seconds
