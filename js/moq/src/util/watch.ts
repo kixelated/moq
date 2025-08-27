@@ -72,6 +72,9 @@ export class WatchProducer<T> {
 	}
 
 	close() {
+		if (!this.#closed.pending) {
+			return; // Already closed, make idempotent
+		}
 		this.#closed.resolve(undefined);
 		this.#unused.resolve(undefined);
 
@@ -81,6 +84,9 @@ export class WatchProducer<T> {
 	}
 
 	abort(reason: Error) {
+		if (!this.#closed.pending) {
+			return; // Already closed, make idempotent
+		}
 		this.#closed.reject(reason);
 		this.#unused.reject(reason);
 
@@ -209,6 +215,9 @@ export class WatchConsumer<T> {
 	}
 
 	close() {
+		if (!this.#closed.pending) {
+			return; // Already closed, make idempotent
+		}
 		this.#closed.resolve(undefined);
 		this.#watch.unsubscribe();
 		if (DEV) {

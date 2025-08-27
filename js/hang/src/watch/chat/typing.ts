@@ -37,13 +37,13 @@ export class Typing {
 	}
 
 	#run(effect: Effect) {
+		if (!effect.get(this.enabled)) return;
+
 		const catalog = effect.get(this.#catalog);
 		if (!catalog) return;
 
 		const broadcast = effect.get(this.broadcast);
 		if (!broadcast) return;
-
-		if (!catalog) return;
 
 		const track = broadcast.subscribe(catalog.name, catalog.priority);
 		effect.cleanup(() => track.close());

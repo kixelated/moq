@@ -39,19 +39,20 @@ export class Message {
 	}
 
 	#run(effect: Effect) {
+		if (!effect.get(this.enabled)) return;
+
 		const catalog = effect.get(this.#catalog);
 		if (!catalog) return;
 
 		const broadcast = effect.get(this.broadcast);
 		if (!broadcast) return;
 
-		if (!catalog) return;
-
 		const track = broadcast.subscribe(catalog.name, catalog.priority);
 		effect.cleanup(() => track.close());
 
 		// Undefined is only when we're not subscribed to the track.
 		effect.set(this.#latest, "");
+		effect.cleanup(() => this.#latest.set(undefined));
 
 		effect.spawn(async (cancel) => {
 			for (;;) {

@@ -47,7 +47,7 @@ export class Captions {
 		effect.spawn(async (cancel) => {
 			for (;;) {
 				const frame = await Promise.race([sub.readString(), cancel]);
-				if (!frame) break;
+				if (frame === undefined) break; // don't treat "" as EOS
 				this.#text.set(frame);
 			}
 		});

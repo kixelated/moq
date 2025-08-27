@@ -9,7 +9,7 @@ export async function read<T = unknown>(
 	schema: z.ZodType<T>,
 ): Promise<T | undefined> {
 	const next = await source.readJson();
-	if (!next) return undefined;
+	if (next === undefined) return undefined; // only treat undefined as EOF, not other falsy values
 	return schema.parse(next);
 }
 
