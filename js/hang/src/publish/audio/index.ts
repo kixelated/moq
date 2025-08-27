@@ -3,15 +3,17 @@ import { Effect, type Getter, Signal } from "@kixelated/signals";
 import type * as Catalog from "../../catalog";
 import { u8, u53 } from "../../catalog/integers";
 import * as Frame from "../../frame";
-import { loadAudioWorklet } from "../../util/hacks";
 import { Captions, type CaptionsProps } from "./captions";
 import type * as Capture from "./capture";
-import { Speaking, type SpeakingProps } from "./speaking";
 
 export * from "./captions";
 
 const GAIN_MIN = 0.001;
 const FADE_TIME = 0.2;
+
+// Unfortunately, we need to use a Vite-exclusive import for now.
+import CaptureWorklet from "./capture-worklet?worker&url";
+import { Speaking, type SpeakingProps } from "./speaking";
 
 export type AudioConstraints = Omit<
 	MediaTrackConstraints,
@@ -130,12 +132,7 @@ export class Audio {
 
 		// Async because we need to wait for the worklet to be registered.
 		effect.spawn(async () => {
-			await context.audioWorklet.addModule(
-				await loadAudioWorklet(() =>
-					navigator.serviceWorker.register(new URL("./capture-worklet", import.meta.url)),
-				),
-			);
-
+			await context.audioWorklet.addModule(CaptureWorklet);
 			const worklet = new AudioWorkletNode(context, "capture", {
 				numberOfInputs: 1,
 				numberOfOutputs: 0,
