@@ -48,7 +48,7 @@ const track = broadcast.createTrack("chat");
 
 // Send data in groups (e.g., keyframe boundaries)
 const group = track.createGroup();
-await group.writeFrame(new TextEncoder().encode("Hello, MoQ!"));
+await group.writeString("Hello, MoQ!");
 await group.close();
 
 // Publish the broadcast to the connection
@@ -75,11 +75,10 @@ for (;;) {
 	if (!group) break;
 
 	for (;;) {
-		const frame = await group.next();
+		const frame = await group.readString();
 		if (!frame) break;
 
-        const text = new TextDecoder().decode(frame.data);
-        console.log("Received:", text);
+        console.log("Received:", frame);
     }
 }
 ```

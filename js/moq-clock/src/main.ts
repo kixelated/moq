@@ -94,7 +94,7 @@ async function publish(config: Config) {
 
 		// Send the base timestamp (everything but seconds) - matching Rust format
 		const base = `${now.toISOString().slice(0, 16).replace("T", " ")}:`;
-		group.writeFrame(new TextEncoder().encode(base));
+		group.writeString(base);
 
 		// Send individual seconds for this minute
 		const currentMinute = now.getMinutes();
@@ -103,7 +103,7 @@ async function publish(config: Config) {
 			const secondsNow = new Date();
 			const seconds = secondsNow.getSeconds().toString().padStart(2, "0");
 
-			group.writeFrame(new TextEncoder().encode(seconds));
+			group.writeString(seconds);
 
 			// Wait until next second
 			const nextSecond = new Date(secondsNow);
@@ -160,7 +160,7 @@ async function subscribe(config: Config) {
 		}
 
 		// Get the base timestamp (first frame in group)
-		const baseFrame = await group.nextFrame();
+		const baseFrame = await group.readFrame();
 		if (!baseFrame) {
 			console.warn("❌ No base frame found");
 			continue;
@@ -170,19 +170,18 @@ async function subscribe(config: Config) {
 
 		// Read individual second frames
 		for (;;) {
-			const deltaFrame = await group.nextFrame();
-			if (!deltaFrame) {
+			const frame = await group.readString();
+			if (!frame) {
 				break; // End of group
 			}
 
-			const seconds = new TextDecoder().decode(deltaFrame);
-			const secondsNum = parseInt(seconds, 10);
+			const seconds = parseInt(frame, 10);
 
 			// Clock emoji positions
 			const clockEmojis = ["🕛", "🕐", "🕑", "🕒", "🕓", "🕔", "🕕", "🕖", "🕗", "🕘", "🕙", "🕚"];
 
 			// Map 60 seconds to 12 clock positions (5 seconds per position)
-			const clockIndex = Math.floor((secondsNum / 60) * clockEmojis.length) % clockEmojis.length;
+			const clockIndex = Math.floor((seconds / 60) * clockEmojis.length) % clockEmojis.length;
 			const clockEmoji = clockEmojis[clockIndex];
 
 			console.log(clockEmoji, base + seconds);

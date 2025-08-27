@@ -1,7 +1,7 @@
 import type * as Moq from "@kixelated/moq";
 import { Effect, type Getter, Signal } from "@kixelated/signals";
 import type * as Catalog from "../../catalog";
-import * as Container from "../../container";
+import * as Frame from "../../frame";
 import * as Hex from "../../util/hex";
 import { Detection, type DetectionProps } from "./detection";
 
@@ -114,7 +114,7 @@ export class Video {
 					const next = await Promise.race([sub.nextFrame(), cancel]);
 					if (!next) break;
 
-					const decoded = Container.decodeFrame(next.data);
+					const decoded = Frame.decode(next.data);
 
 					const chunk = new EncodedVideoChunk({
 						type: next.frame === 0 ? "key" : "delta",

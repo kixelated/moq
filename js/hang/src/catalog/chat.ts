@@ -2,7 +2,8 @@ import { z } from "zod";
 import { TrackSchema } from "./track";
 
 export const ChatSchema = z.object({
-	track: TrackSchema,
+	message: TrackSchema.optional(),
+	typing: TrackSchema.optional(),
 });
 
 export type Chat = z.infer<typeof ChatSchema>;

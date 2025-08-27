@@ -56,7 +56,7 @@ export class Captions {
 		// Create a nested effect to avoid recreating the track every time the caption changes.
 		effect.effect((nested) => {
 			const text = nested.get(this.text) ?? "";
-			this.#track.appendFrame(new TextEncoder().encode(text));
+			this.#track.writeString(text);
 
 			// Clear the caption after a timeout. (TODO based on the size)
 			nested.timer(() => this.text.set(undefined), this.#ttl);

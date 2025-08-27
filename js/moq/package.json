@@ -10,7 +10,8 @@
 		"README.md"
 	],
 	"exports": {
-		".": "./src/index.ts"
+		".": "./src/index.ts",
+		"./zod": "./src/zod.ts"
 	},
 	"scripts": {
 		"build": "rimraf dist && tsc -b && tsx ../scripts/package.ts",
@@ -20,6 +21,9 @@
 	},
 	"dependencies": {
 		"async-mutex": "^0.5.0"
+	},
+	"peerDependencies": {
+		"zod": "^4.0.0"
 	},
 	"devDependencies": {
 		"@typescript/lib-dom": "npm:@types/web@^0.0.241",

@@ -1,4 +1,5 @@
 import type * as Moq from "@kixelated/moq";
+import * as Zod from "@kixelated/moq/zod";
 import { Effect, Signal } from "@kixelated/signals";
 import * as Preview from "./info";
 
@@ -28,19 +29,10 @@ export class Member {
 			effect.spawn(async (cancel) => {
 				try {
 					for (;;) {
-						const frame = await Promise.race([track.nextFrame(), cancel]);
+						const frame = await Promise.race([Zod.read(track, Preview.InfoSchema), cancel]);
 						if (!frame) break;
 
-						// An empty group wipes the preview.
-						if (frame.data.byteLength === 0) {
-							this.info.set(undefined);
-							continue;
-						}
-
-						const decoder = new TextDecoder();
-						const json = decoder.decode(frame.data);
-						const parsed = JSON.parse(json);
-						this.info.set(Preview.InfoSchema.parse(parsed));
+						this.info.set(frame);
 					}
 				} finally {
 					this.info.set(undefined);

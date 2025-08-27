@@ -5,7 +5,7 @@ import type { Connection } from "../connection";
 import { Audio, type AudioProps } from "./audio";
 import { Chat, type ChatProps } from "./chat";
 import { Location, type LocationProps } from "./location";
-import { type PreviewProps, PreviewWatch } from "./preview";
+import { Preview, type PreviewProps } from "./preview";
 import { Video, type VideoProps } from "./video";
 import { Detection, type DetectionProps } from "./video/detection";
 
@@ -44,7 +44,7 @@ export class Broadcast {
 	location: Location;
 	chat: Chat;
 	detection: Detection;
-	preview: PreviewWatch;
+	preview: Preview;
 
 	#broadcast = new Signal<Moq.BroadcastConsumer | undefined>(undefined);
 
@@ -67,7 +67,7 @@ export class Broadcast {
 		this.location = new Location(this.#broadcast, this.#catalog, props?.location);
 		this.chat = new Chat(this.#broadcast, this.#catalog, props?.chat);
 		this.detection = new Detection(this.#broadcast, this.#catalog, props?.detection);
-		this.preview = new PreviewWatch(this.#broadcast, this.#catalog, props?.preview);
+		this.preview = new Preview(this.#broadcast, this.#catalog, props?.preview);
 
 		this.signals.effect((effect) => {
 			this.user.set(effect.get(this.#catalog)?.user);

@@ -46,11 +46,9 @@ export class Captions {
 
 		effect.spawn(async (cancel) => {
 			for (;;) {
-				const frame = await Promise.race([sub.nextFrame(), cancel]);
+				const frame = await Promise.race([sub.readString(), cancel]);
 				if (!frame) break;
-
-				const text = frame.data.length > 0 ? new TextDecoder().decode(frame.data) : undefined;
-				this.#text.set(text);
+				this.#text.set(frame);
 			}
 		});
 		effect.cleanup(() => this.#text.set(undefined));

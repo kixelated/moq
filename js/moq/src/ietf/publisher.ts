@@ -159,7 +159,7 @@ export class Publisher {
 			try {
 				let objectId = 0;
 				for (;;) {
-					const frame = await Promise.race([group.nextFrame(), stream.closed()]);
+					const frame = await Promise.race([group.readFrame(), stream.closed()]);
 					if (!frame) break;
 
 					// Write each frame as an object

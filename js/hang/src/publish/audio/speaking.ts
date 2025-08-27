@@ -2,7 +2,6 @@ import * as Moq from "@kixelated/moq";
 import { Effect, Signal } from "@kixelated/signals";
 import type * as Catalog from "../../catalog";
 import { u8 } from "../../catalog";
-import { BoolProducer } from "../../container/bool";
 import type { Audio } from ".";
 import CaptureWorklet from "./capture-worklet?worker&url";
 import type { Request, Result } from "./speaking-worker";
@@ -22,7 +21,7 @@ export class Speaking {
 
 	signals = new Effect();
 
-	#bool = new BoolProducer(new Moq.TrackProducer("speaking.bool", 1));
+	#track = new Moq.TrackProducer("speaking.bool", 1);
 
 	constructor(audio: Audio, props?: SpeakingProps) {
 		this.audio = audio;
@@ -36,13 +35,13 @@ export class Speaking {
 		const media = effect.get(this.audio.media);
 		if (!media) return;
 
-		this.audio.broadcast.insertTrack(this.#bool.track.consume());
-		effect.cleanup(() => this.audio.broadcast.removeTrack(this.#bool.track.name));
+		this.audio.broadcast.insertTrack(this.#track.consume());
+		effect.cleanup(() => this.audio.broadcast.removeTrack(this.#track.name));
 
 		const catalog: Catalog.Speaking = {
 			track: {
-				name: this.#bool.track.name,
-				priority: u8(this.#bool.track.priority),
+				name: this.#track.name,
+				priority: u8(this.#track.priority),
 			},
 		};
 		effect.set(this.catalog, catalog);
@@ -50,7 +49,7 @@ export class Speaking {
 		// Create a nested effect to avoid recreating the track every time the speaking changes.
 		effect.effect((nested) => {
 			const active = nested.get(this.active);
-			this.#bool.write(active);
+			this.#track.writeBool(active);
 		});
 
 		const worker = new Worker(new URL("./speaking-worker", import.meta.url), { type: "module" });
@@ -109,6 +108,6 @@ export class Speaking {
 
 	close() {
 		this.signals.close();
-		this.#bool.close();
+		this.#track.close();
 	}
 }

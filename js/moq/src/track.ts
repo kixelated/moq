@@ -66,9 +66,27 @@ export class TrackProducer {
 	 *
 	 * @param frame - The frame to append
 	 */
-	appendFrame(frame: Uint8Array) {
+	writeFrame(frame: Uint8Array) {
 		const group = this.appendGroup();
 		group.writeFrame(frame);
+		group.close();
+	}
+
+	writeString(str: string) {
+		const group = this.appendGroup();
+		group.writeString(str);
+		group.close();
+	}
+
+	writeJson(json: unknown) {
+		const group = this.appendGroup();
+		group.writeJson(json);
+		group.close();
+	}
+
+	writeBool(bool: boolean) {
+		const group = this.appendGroup();
+		group.writeBool(bool);
 		group.close();
 	}
 
@@ -168,7 +186,7 @@ export class TrackConsumer {
 		this.#currentGroup?.close();
 		this.#currentGroup = group?.clone(); // clone so we don't steal from the returned consumer
 		this.#currentFrame = 0;
-		this.#nextFrame = this.#currentGroup?.nextFrame();
+		this.#nextFrame = this.#currentGroup?.readFrame();
 
 		return group;
 	}
@@ -189,7 +207,7 @@ export class TrackConsumer {
 				}
 
 				// Start reading the next frame.
-				this.#nextFrame = this.#currentGroup?.nextFrame();
+				this.#nextFrame = this.#currentGroup?.readFrame();
 
 				// Return the frame and increment the frame index.
 				return { group: this.#currentGroup?.id, frame: this.#currentFrame++, data: next.frame };
@@ -209,8 +227,33 @@ export class TrackConsumer {
 			this.#currentFrame = 0;
 
 			// Start reading the next frame.
-			this.#nextFrame = this.#currentGroup?.nextFrame();
+			this.#nextFrame = this.#currentGroup?.readFrame();
 		}
+	}
+
+	async readFrame(): Promise<Uint8Array | undefined> {
+		const next = await this.nextFrame();
+		if (!next) return undefined;
+		return next.data;
+	}
+
+	async readString(): Promise<string | undefined> {
+		const next = await this.readFrame();
+		if (!next) return undefined;
+		return new TextDecoder().decode(next);
+	}
+
+	async readJson(): Promise<unknown | undefined> {
+		const next = await this.readString();
+		if (!next) return undefined;
+		return JSON.parse(next);
+	}
+
+	async readBool(): Promise<boolean | undefined> {
+		const next = await this.readFrame();
+		if (!next) return undefined;
+		if (next.byteLength !== 1 || !(next[0] === 0 || next[0] === 1)) throw new Error("invalid bool frame");
+		return next[0] === 1;
 	}
 
 	// Returns the next non-undefined value from the nextFrame or nextGroup promises.

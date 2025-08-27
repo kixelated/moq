@@ -5,7 +5,7 @@ export type Dispose = () => void;
 type Subscriber<T> = (value: T) => void;
 
 // @ts-ignore - Some environments don't recognize import.meta.env
-const dev = typeof import.meta.env !== "undefined" && import.meta.env?.MODE !== "production";
+const DEV = typeof import.meta.env !== "undefined" && import.meta.env?.MODE !== "production";
 
 export interface Getter<T> {
 	peek(): T;
@@ -97,14 +97,14 @@ export class Effect {
 
 	// If a function is provided, it will be run with the effect as an argument.
 	constructor(fn?: (effect: Effect) => void) {
-		if (dev) {
+		if (DEV) {
 			const debug = new Error("created here:").stack ?? "No stack";
 			Effect.#finalizer.register(this, debug, this);
 		}
 
 		this.#fn = fn;
 
-		if (dev) {
+		if (DEV) {
 			this.#stack = new Error().stack;
 		}
 
@@ -142,7 +142,7 @@ export class Effect {
 			let warn: ReturnType<typeof setTimeout> | undefined;
 			const timeout = new Promise<void>((resolve) => {
 				warn = setTimeout(() => {
-					if (dev) {
+					if (DEV) {
 						console.warn("spawn is still running after 1s; continuing anyway", this.#stack);
 					}
 
@@ -182,7 +182,7 @@ export class Effect {
 	// Get the current value of a signal, monitoring it for changes (via ===) and rerunning on change.
 	get<T>(signal: Getter<T>): T {
 		if (this.#dispose === undefined) {
-			if (dev) {
+			if (DEV) {
 				console.warn("Effect.get called when closed, returning current value");
 			}
 			return signal.peek();
@@ -204,7 +204,7 @@ export class Effect {
 		...args: undefined extends SetterType<S> ? [cleanup?: SetterType<S>] : [cleanup: SetterType<S>]
 	): void {
 		if (this.#dispose === undefined) {
-			if (dev) {
+			if (DEV) {
 				console.warn("Effect.set called when closed, ignoring");
 			}
 			return;
@@ -224,7 +224,7 @@ export class Effect {
 		const promise = fn(this.#stopped);
 
 		if (this.#dispose === undefined) {
-			if (dev) {
+			if (DEV) {
 				console.warn("Effect.spawn called when closed");
 			}
 
@@ -237,7 +237,7 @@ export class Effect {
 	// Run the function after the given delay in milliseconds UNLESS the effect is cleaned up first.
 	timer(fn: () => void, ms: DOMHighResTimeStamp) {
 		if (this.#dispose === undefined) {
-			if (dev) {
+			if (DEV) {
 				console.warn("Effect.timer called when closed, ignoring");
 			}
 			return;
@@ -251,9 +251,34 @@ export class Effect {
 		this.cleanup(() => timeout && clearTimeout(timeout));
 	}
 
+	// Run the function, and clean up the nested effect after the given delay.
+	timeout(fn: (effect: Effect) => void, ms: DOMHighResTimeStamp) {
+		if (this.#dispose === undefined) {
+			if (DEV) {
+				console.warn("Effect.timeout called when closed, ignoring");
+			}
+			return;
+		}
+
+		const effect = new Effect(fn);
+		let timeout: ReturnType<typeof setTimeout> | undefined;
+
+		timeout = setTimeout(() => {
+			effect.close();
+			timeout = undefined;
+		}, ms);
+
+		this.#dispose.push(() => {
+			if (timeout) {
+				clearTimeout(timeout);
+				effect.close();
+			}
+		});
+	}
+
 	interval(fn: () => void, ms: DOMHighResTimeStamp) {
 		if (this.#dispose === undefined) {
-			if (dev) {
+			if (DEV) {
 				console.warn("Effect.interval called when closed, ignoring");
 			}
 			return;
@@ -268,7 +293,7 @@ export class Effect {
 	// Create a nested effect that can be rerun independently.
 	effect(fn: (effect: Effect) => void) {
 		if (this.#dispose === undefined) {
-			if (dev) {
+			if (DEV) {
 				console.warn("Effect.nested called when closed, ignoring");
 			}
 			return;
@@ -281,7 +306,7 @@ export class Effect {
 	// A helper to call a function when a signal changes.
 	subscribe<T>(signal: Getter<T>, fn: (value: T) => void) {
 		if (this.#dispose === undefined) {
-			if (dev) {
+			if (DEV) {
 				console.warn("Effect.subscribe called when closed, running once");
 			}
 			fn(signal.peek());
@@ -362,7 +387,7 @@ export class Effect {
 		options?: boolean | AddEventListenerOptions,
 	): void {
 		if (this.#dispose === undefined) {
-			if (dev) {
+			if (DEV) {
 				console.warn("Effect.eventListener called when closed, ignoring");
 			}
 			return;
@@ -375,7 +400,7 @@ export class Effect {
 	// Register a cleanup function.
 	cleanup(fn: Dispose): void {
 		if (this.#dispose === undefined) {
-			if (dev) {
+			if (DEV) {
 				console.warn("Effect.cleanup called when closed, running immediately");
 			}
 
@@ -401,7 +426,7 @@ export class Effect {
 
 		this.#async.length = 0;
 
-		if (dev) {
+		if (DEV) {
 			Effect.#finalizer.unregister(this);
 		}
 	}

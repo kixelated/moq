@@ -2,7 +2,7 @@ import * as Moq from "@kixelated/moq";
 import { Effect, type Getter, Signal } from "@kixelated/signals";
 import type * as Catalog from "../../catalog";
 import { u8, u53 } from "../../catalog/integers";
-import * as Container from "../../container";
+import * as Frame from "../../frame";
 import { isFirefox } from "../../util/hacks";
 import * as Hex from "../../util/hex";
 import { Detection, type DetectionProps } from "./detection";
@@ -135,7 +135,7 @@ export class Video {
 					throw new Error("no keyframe");
 				}
 
-				const buffer = Container.encodeFrame(frame, frame.timestamp);
+				const buffer = Frame.encode(frame, frame.timestamp);
 				group?.writeFrame(buffer);
 			},
 			error: (err: Error) => {

@@ -74,21 +74,48 @@ export function create<K extends keyof HTMLElementTagNameMap>(
 	return element;
 }
 
-export type Render = HTMLElement[] | HTMLElement | ((effect: Effect) => HTMLElement[] | HTMLElement | undefined);
+// Matches solid.js's JSX.Element type.
+export type Element = Node | ArrayElement | (string & {}) | number | boolean | null | undefined;
+interface ArrayElement extends Array<Element> {}
 
-export function render(parent: HTMLElement, effect: Effect, render: Render) {
-	const element = typeof render === "function" ? render(effect) : render;
-	if (element instanceof HTMLElement) {
-		parent.appendChild(element);
-		effect.cleanup(() => element.remove());
-	} else if (Array.isArray(element)) {
-		element.forEach((child) => {
-			parent.appendChild(child);
-		});
-		effect.cleanup(() => {
-			element.forEach((child) => {
-				child.remove();
-			});
-		});
+export function render(effect: Effect, parent: Node, element: Element | ((effect: Effect) => Element)) {
+	const e = typeof element === "function" ? element(effect) : element;
+	if (e === undefined || e === null) return;
+
+	let node: Node;
+	if (e instanceof Node) {
+		node = e;
+	} else if (Array.isArray(e)) {
+		node = document.createDocumentFragment();
+		for (const child of e) {
+			render(effect, node, child);
+		}
+	} else if (typeof e === "number" || typeof e === "boolean" || typeof e === "string") {
+		node = document.createTextNode(e.toString());
+	} else {
+		const exhaustive: never = e;
+		throw new Error(`Invalid element type: ${exhaustive}`);
 	}
+
+	parent.appendChild(node);
+	effect.cleanup(() => {
+		try {
+			parent.removeChild(node);
+		} catch (e) {
+			console.log("cleanup failed", parent, node);
+			throw e;
+		}
+	});
+}
+
+export function setClass(effect: Effect, element: HTMLElement, ...classNames: string[]) {
+	for (const className of classNames) {
+		element.classList.add(className);
+	}
+
+	effect.cleanup(() => {
+		for (const className of classNames) {
+			element.classList.remove(className);
+		}
+	});
 }

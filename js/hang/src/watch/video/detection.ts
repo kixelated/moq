@@ -1,4 +1,5 @@
 import type * as Moq from "@kixelated/moq";
+import * as Zod from "@kixelated/moq/zod";
 import { Effect, Signal } from "@kixelated/signals";
 import * as Catalog from "../../catalog";
 
@@ -44,15 +45,11 @@ export class Detection {
 
 			effect.spawn(async (cancel) => {
 				for (;;) {
-					const frame = await Promise.race([track.nextFrame(), cancel]);
+					const frame = await Promise.race([Zod.read(track, Catalog.DetectionObjectsSchema), cancel]);
 					if (!frame) break;
 
-					const decoder = new TextDecoder();
-					const text = decoder.decode(frame.data);
-
-					const objects = Catalog.DetectionObjectsSchema.parse(JSON.parse(text));
 					// Use a function to avoid the dequal check.
-					this.objects.set(() => objects);
+					this.objects.set(() => frame);
 				}
 			});
 

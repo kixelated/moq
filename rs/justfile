@@ -158,9 +158,6 @@ fix flags="":
 	# requires: cargo install cargo-sort
 	cargo sort --workspace
 
-	# Update any patch versions
-	cargo update
-
 # Upgrade any tooling
 upgrade:
 	# Update any patch versions

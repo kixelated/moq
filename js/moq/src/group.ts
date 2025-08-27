@@ -30,6 +30,18 @@ export class GroupProducer {
 		this.#frames.update((frames) => [...frames, frame]);
 	}
 
+	writeString(str: string) {
+		this.writeFrame(new TextEncoder().encode(str));
+	}
+
+	writeJson(json: unknown) {
+		this.writeString(JSON.stringify(json));
+	}
+
+	writeBool(bool: boolean) {
+		this.writeFrame(new Uint8Array([bool ? 1 : 0]));
+	}
+
 	/**
 	 * Closes the writer.
 	 */
@@ -86,9 +98,24 @@ export class GroupConsumer {
 	 * Reads the next frame from the group.
 	 * @returns A promise that resolves to the next frame or undefined
 	 */
-	async nextFrame(): Promise<Uint8Array | undefined> {
+	async readFrame(): Promise<Uint8Array | undefined> {
 		const frames = await this.#frames.when((frames) => frames.length > this.#index);
 		return frames?.at(this.#index++);
+	}
+
+	async readString(): Promise<string | undefined> {
+		const frame = await this.readFrame();
+		return frame ? new TextDecoder().decode(frame) : undefined;
+	}
+
+	async readJson(): Promise<unknown | undefined> {
+		const frame = await this.readString();
+		return frame ? JSON.parse(frame) : undefined;
+	}
+
+	async readBool(): Promise<boolean | undefined> {
+		const frame = await this.readFrame();
+		return frame ? frame[0] === 1 : undefined;
 	}
 
 	/**

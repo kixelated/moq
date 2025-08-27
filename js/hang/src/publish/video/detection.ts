@@ -76,7 +76,7 @@ export class Detection {
 			const result = await api.detect(Comlink.transfer(cloned, [cloned]), this.#threshold);
 
 			this.objects.set(result);
-			this.#track.appendFrame(new TextEncoder().encode(JSON.stringify(result)));
+			this.#track.writeJson(result);
 
 			// Schedule the next detection only after this one is complete.
 			// Otherwise, we're in trouble if it takes >= interval to complete.

@@ -1,7 +1,7 @@
 import type * as Moq from "@kixelated/moq";
 import { Effect, type Getter, Signal } from "@kixelated/signals";
 import type * as Catalog from "../../catalog";
-import * as Container from "../../container";
+import * as Frame from "../../frame";
 import * as Hex from "../../util/hex";
 import type * as Render from "./render";
 
@@ -149,10 +149,10 @@ export class Audio {
 		effect.spawn(async (cancel) => {
 			try {
 				for (;;) {
-					const frame = await Promise.race([sub.nextFrame(), cancel]);
+					const frame = await Promise.race([sub.readFrame(), cancel]);
 					if (!frame) break;
 
-					const decoded = Container.decodeFrame(frame.data);
+					const decoded = Frame.decode(frame);
 
 					const chunk = new EncodedAudioChunk({
 						type: "key",
