@@ -4,8 +4,6 @@ import * as Comlink from "comlink";
 import * as Catalog from "../../catalog";
 import type { Video } from ".";
 import type { DetectionWorker } from "./detection-worker";
-// Vite-specific import for worker
-import WorkerUrl from "./detection-worker?worker&url";
 
 export type DetectionProps = {
 	enabled?: boolean;
@@ -52,8 +50,7 @@ export class Detection {
 			track: { name: this.#track.name, priority: Catalog.u8(this.#track.priority) },
 		});
 
-		// Initialize worker
-		const worker = new Worker(WorkerUrl, { type: "module" });
+		const worker = new Worker(new URL("./detection-worker", import.meta.url), { type: "module" });
 		effect.cleanup(() => worker.terminate());
 
 		const api = Comlink.wrap<DetectionWorker>(worker);

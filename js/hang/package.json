@@ -38,11 +38,12 @@
 		"release": "tsx ../scripts/release.ts"
 	},
 	"dependencies": {
+		"@huggingface/transformers": "^3.7.0",
 		"@kixelated/moq": "workspace:^",
 		"@kixelated/signals": "workspace:^",
-		"zod": "^4.0.0",
+		"async-mutex": "^0.5.0",
 		"comlink": "^4.4.2",
-		"@huggingface/transformers": "^3.7.0"
+		"zod": "^4.0.0"
 	},
 	"devDependencies": {
 		"@types/audioworklet": "^0.0.77",
