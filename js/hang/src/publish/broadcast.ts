@@ -2,13 +2,11 @@ import * as Moq from "@kixelated/moq";
 import { Effect, type Getter, Signal } from "@kixelated/signals";
 import * as Catalog from "../catalog";
 import type { Connection } from "../connection";
-import { Audio, type AudioProps, type AudioTrack } from "./audio";
+import { Audio, type AudioProps } from "./audio";
 import { Chat, type ChatProps } from "./chat";
 import { Location, type LocationProps } from "./location";
 import { Preview, type PreviewProps } from "./preview";
-import { Video, type VideoProps, type VideoTrack } from "./video";
-
-export type Device = "screen" | "camera";
+import { Video, type VideoProps } from "./video";
 
 export type BroadcastProps = {
 	enabled?: boolean;
@@ -17,7 +15,6 @@ export type BroadcastProps = {
 	video?: VideoProps;
 	location?: LocationProps;
 	user?: Catalog.User;
-	device?: Device;
 	chat?: ChatProps;
 	preview?: PreviewProps;
 
@@ -32,6 +29,7 @@ export class Broadcast {
 
 	audio: Audio;
 	video: Video;
+
 	location: Location;
 	user: Signal<Catalog.User | undefined>;
 	chat: Chat;
@@ -40,7 +38,6 @@ export class Broadcast {
 	preview: Preview;
 
 	//catalog: Memo<Catalog.Root>;
-	device: Signal<Device | undefined>;
 
 	#broadcast = new Moq.BroadcastProducer();
 	#catalog = new Moq.TrackProducer("catalog.json", 0);
@@ -60,8 +57,6 @@ export class Broadcast {
 		this.chat = new Chat(this.#broadcast, props?.chat);
 		this.preview = new Preview(this.#broadcast, props?.preview);
 		this.user = new Signal(props?.user);
-
-		this.device = new Signal(props?.device);
 
 		this.#broadcast.insertTrack(this.#catalog.consume());
 
@@ -86,50 +81,11 @@ export class Broadcast {
 
 		// These are separate effects because the camera audio/video constraints can be independent.
 		// The screen constraints are needed at the same time.
-		this.signals.effect(this.#runCameraAudio.bind(this));
-		this.signals.effect(this.#runCameraVideo.bind(this));
-		this.signals.effect(this.#runScreen.bind(this));
+		//this.signals.effect(this.#runScreen.bind(this));
 		this.signals.effect(this.#runCatalog.bind(this));
 	}
 
-	#runCameraAudio(effect: Effect): void {
-		const device = effect.get(this.device);
-		if (device !== "camera") return;
-
-		if (!effect.get(this.audio.enabled)) return;
-
-		const constraints = effect.get(this.audio.constraints) ?? {};
-
-		const mediaPromise = navigator.mediaDevices.getUserMedia({
-			audio: constraints,
-		});
-
-		effect.spawn(async (_cancel) => {
-			const media = await mediaPromise;
-			const track = media.getAudioTracks().at(0) as AudioTrack | undefined;
-			effect.cleanup(() => track?.stop());
-			effect.set(this.audio.media, track);
-		});
-	}
-
-	#runCameraVideo(effect: Effect): void {
-		const device = effect.get(this.device);
-		if (device !== "camera") return;
-
-		if (!effect.get(this.video.enabled)) return;
-
-		const mediaPromise = navigator.mediaDevices.getUserMedia({
-			video: effect.get(this.video.constraints) ?? true,
-		});
-
-		effect.spawn(async (_cancel) => {
-			const media = await mediaPromise;
-			const track = media.getVideoTracks().at(0) as VideoTrack | undefined;
-			effect.cleanup(() => track?.stop());
-			effect.set(this.video.media, track);
-		});
-	}
-
+	/*
 	#runScreen(effect: Effect): void {
 		const device = effect.get(this.device);
 		if (device !== "screen") return;
@@ -160,8 +116,8 @@ export class Broadcast {
 
 		effect.spawn(async (_cancel) => {
 			const media = await mediaPromise;
-			const video = media.getVideoTracks().at(0) as VideoTrack | undefined;
-			const audio = media.getAudioTracks().at(0) as AudioTrack | undefined;
+			const video = media.getVideoTracks().at(0) as VideoStreamTrack | undefined;
+			const audio = media.getAudioTracks().at(0) as AudioStreamTrack | undefined;
 
 			effect.cleanup(() => video?.stop());
 			effect.cleanup(() => audio?.stop());
@@ -169,6 +125,7 @@ export class Broadcast {
 			effect.set(this.audio.media, audio);
 		});
 	}
+	*/
 
 	#runCatalog(effect: Effect): void {
 		if (!effect.get(this.enabled)) return;

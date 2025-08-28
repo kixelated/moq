@@ -13,7 +13,6 @@ export type SpeakingProps = {
 // Detects when the user is speaking.
 export class Speaking {
 	audio: Audio;
-
 	enabled: Signal<boolean>;
 
 	active = new Signal<boolean>(false);
@@ -32,7 +31,7 @@ export class Speaking {
 	#run(effect: Effect): void {
 		if (!effect.get(this.enabled)) return;
 
-		const media = effect.get(this.audio.media);
+		const media = effect.get(this.audio.source);
 		if (!media) return;
 
 		this.audio.broadcast.insertTrack(this.#track.consume());

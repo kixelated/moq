@@ -26,6 +26,7 @@ export class Captions {
 	signals = new Effect();
 
 	#ttl: DOMHighResTimeStamp;
+
 	#track = new Moq.TrackProducer("captions.txt", 1);
 
 	constructor(audio: Audio, props?: CaptionsProps) {
@@ -39,7 +40,7 @@ export class Captions {
 	#run(effect: Effect): void {
 		if (!effect.get(this.enabled)) return;
 
-		const media = effect.get(this.audio.media);
+		const media = effect.get(this.audio.source);
 		if (!media) return;
 
 		this.audio.broadcast.insertTrack(this.#track.consume());

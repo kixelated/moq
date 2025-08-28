@@ -2,10 +2,13 @@ import * as Moq from "@kixelated/moq";
 import { Effect, Signal } from "@kixelated/signals";
 import * as DOM from "@kixelated/signals/dom";
 import { Connection } from "../connection";
-import { Broadcast, type Device } from "./broadcast";
+import { Broadcast } from "./broadcast";
+import * as Source from "./source";
 
 const OBSERVED = ["url", "name", "device", "audio", "video", "controls", "captions"] as const;
 type Observed = (typeof OBSERVED)[number];
+
+type SourceType = "camera" | "screen";
 
 export default class HangPublish extends HTMLElement {
 	static observedAttributes = OBSERVED;
@@ -14,6 +17,10 @@ export default class HangPublish extends HTMLElement {
 
 	connection: Connection;
 	broadcast: Broadcast;
+
+	#source = new Signal<SourceType | undefined>(undefined);
+	#video?: Source.Camera | Source.Screen;
+	#audio?: Source.Microphone | Source.Screen;
 
 	#signals = new Effect();
 
@@ -26,16 +33,17 @@ export default class HangPublish extends HTMLElement {
 		this.broadcast = new Broadcast(this.connection);
 
 		// Only publish when we have media available.
+		// TODO Configurable?
 		this.#signals.effect((effect) => {
-			const audio = effect.get(this.broadcast.audio.media);
-			const video = effect.get(this.broadcast.video.media);
+			const audio = effect.get(this.broadcast.audio.source);
+			const video = effect.get(this.broadcast.video.source);
 			this.broadcast.enabled.set(!!audio || !!video);
 		});
 
 		this.#signals.effect((effect) => {
 			if (!preview) return;
 
-			const media = effect.get(this.broadcast.video.media);
+			const media = effect.get(this.broadcast.video.source);
 			if (!media) {
 				preview.style.display = "none";
 				return;
@@ -60,7 +68,7 @@ export default class HangPublish extends HTMLElement {
 			this.name = newValue ?? undefined;
 		} else if (name === "device") {
 			if (newValue === "camera" || newValue === "screen" || newValue === null) {
-				this.device = newValue ?? undefined;
+				this.source = newValue ?? undefined;
 			} else {
 				throw new Error(`Invalid device: ${newValue}`);
 			}
@@ -94,12 +102,26 @@ export default class HangPublish extends HTMLElement {
 		this.broadcast.name.set(name ? Moq.Path.from(name) : undefined);
 	}
 
-	get device(): Device | undefined {
-		return this.broadcast.device.peek();
+	get source(): SourceType | undefined {
+		return this.#source.peek();
 	}
 
-	set device(device: Device | undefined) {
-		this.broadcast.device.set(device);
+	set source(source: SourceType | undefined) {
+		this.#video?.close();
+		this.#audio?.close();
+
+		if (source === "camera") {
+			this.#video = new Source.Camera({ enabled: this.broadcast.video.enabled.peek() });
+			this.#audio = new Source.Microphone({ enabled: this.broadcast.audio.enabled.peek() });
+		} else if (source === "screen") {
+			this.#video = new Source.Screen({ enabled: this.broadcast.video.enabled.peek() || this.broadcast.audio.enabled.peek() });
+			this.#audio = this.#video;
+		} else {
+			this.#video = undefined;
+			this.#audio = undefined;
+		}
+
+		this.#source.set(source);
 	}
 
 	get audio(): boolean {
@@ -108,6 +130,13 @@ export default class HangPublish extends HTMLElement {
 
 	set audio(audio: boolean) {
 		this.broadcast.audio.enabled.set(audio);
+
+		if (this.#audio instanceof Source.Screen) {
+			// Only disable the screenshare capture if both audio and video are disabled.
+			this.#audio.enabled.set(audio || !!this.#video?.enabled.peek());
+		} else {
+			this.#audio?.enabled.set(audio);
+		}
 	}
 
 	get video(): boolean {
@@ -116,6 +145,13 @@ export default class HangPublish extends HTMLElement {
 
 	set video(video: boolean) {
 		this.broadcast.video.enabled.set(video);
+
+		if (this.#video instanceof Source.Screen) {
+			// Only disable the screenshare capture if both audio and video are disabled.
+			this.#video.enabled.set(video || (!!this.#audio?.enabled.peek()));
+		} else {
+			this.#video?.enabled.set(video);
+		}
 	}
 
 	get controls(): boolean {
@@ -220,7 +256,7 @@ export default class HangPublish extends HTMLElement {
 			"Device:",
 		);
 
-		const createButton = (device: Device | undefined, title: string, emoji: string) => {
+		const createButton = (source: SourceType | undefined, title: string, emoji: string) => {
 			const button = DOM.create(
 				"button",
 				{
@@ -232,19 +268,19 @@ export default class HangPublish extends HTMLElement {
 			);
 
 			button.addEventListener("click", () => {
-				this.broadcast.device.set(device);
+				this.source = source;
 			});
 
 			effect.effect((effect) => {
-				const selected = effect.get(this.broadcast.device);
-				button.style.opacity = selected === device ? "1" : "0.5";
+				const selected = effect.get(this.#source);
+				button.style.opacity = selected === source ? "1" : "0.5";
 			});
 
 			container.appendChild(button);
 			effect.cleanup(() => container.removeChild(button));
 		};
 
-		createButton("camera", "Camera", "🎥");
+		createButton("camera", "Camera", "📷");
 		createButton("screen", "Screen", "🖥️");
 		createButton(undefined, "Nothing", "🚫");
 
@@ -258,8 +294,8 @@ export default class HangPublish extends HTMLElement {
 		effect.effect((effect) => {
 			const url = effect.get(this.broadcast.connection.url);
 			const status = effect.get(this.broadcast.connection.status);
-			const audio = effect.get(this.broadcast.audio.catalog);
-			const video = effect.get(this.broadcast.video.catalog);
+			const audio = effect.get(this.broadcast.audio.source);
+			const video = effect.get(this.broadcast.video.source);
 
 			if (!url) {
 				container.textContent = "🔴\u00A0No URL";

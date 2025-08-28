@@ -19,9 +19,10 @@ export type AudioConstraints = Omit<
 >;
 
 // Stronger typing for the MediaStreamTrack interface.
-export interface AudioTrack extends MediaStreamTrack {
+export interface AudioStreamTrack extends MediaStreamTrack {
 	kind: "audio";
-	clone(): AudioTrack;
+	clone(): AudioStreamTrack;
+	getSettings(): AudioTrackSettings;
 }
 
 // MediaTrackSettings can represent both audio and video, which means a LOT of possibly undefined properties.
@@ -41,7 +42,7 @@ export interface AudioTrackSettings {
 // The initial values for our signals.
 export type AudioProps = {
 	enabled?: boolean;
-	media?: AudioTrack;
+	source?: AudioStreamTrack;
 	constraints?: AudioConstraints;
 
 	muted?: boolean;
@@ -64,8 +65,7 @@ export class Audio {
 	speaking: Speaking;
 	maxLatency: DOMHighResTimeStamp;
 
-	media: Signal<AudioTrack | undefined>;
-	constraints: Signal<AudioConstraints | undefined>;
+	source: Signal<AudioStreamTrack | undefined>;
 
 	#catalog = new Signal<Catalog.Audio | undefined>(undefined);
 	readonly catalog: Getter<Catalog.Audio | undefined> = this.#catalog;
@@ -79,18 +79,15 @@ export class Audio {
 	readonly root: Getter<AudioNode | undefined> = this.#gain;
 
 	#track = new Moq.TrackProducer("audio", 1);
-	#group?: Moq.GroupProducer;
-	#groupTimestamp = 0;
 
 	#signals = new Effect();
 
 	constructor(broadcast: Moq.BroadcastProducer, props?: AudioProps) {
 		this.broadcast = broadcast;
-		this.media = new Signal(props?.media);
+		this.source = new Signal(props?.source);
 		this.enabled = new Signal(props?.enabled ?? false);
 		this.speaking = new Speaking(this, props?.speaking);
 		this.captions = new Captions(this, props?.captions);
-		this.constraints = new Signal(props?.constraints);
 		this.muted = new Signal(props?.muted ?? false);
 		this.volume = new Signal(props?.volume ?? 1);
 		this.maxLatency = props?.maxLatency ?? 100; // Default is a group every 100ms
@@ -103,13 +100,14 @@ export class Audio {
 
 	#runSource(effect: Effect): void {
 		const enabled = effect.get(this.enabled);
-		const media = effect.get(this.media);
+		const media = effect.get(this.source);
 		if (!enabled || !media) return;
 
+		// Insert the track into the broadcast.
+		this.broadcast.insertTrack(this.#track.consume());
+		effect.cleanup(() => this.broadcast.removeTrack(this.#track.name));
+
 		const settings = media.getSettings();
-		if (!settings) {
-			throw new Error("track has no settings");
-		}
 
 		const context = new AudioContext({
 			latencyHint: "interactive",
@@ -170,16 +168,11 @@ export class Audio {
 	#runEncoder(effect: Effect): void {
 		if (!effect.get(this.enabled)) return;
 
-		const media = effect.get(this.media);
+		const media = effect.get(this.source);
 		if (!media) return;
 
 		const worklet = effect.get(this.#worklet);
 		if (!worklet) return;
-
-		this.broadcast.insertTrack(this.#track.consume());
-		effect.cleanup(() => {
-			this.broadcast.removeTrack(this.#track.name);
-		});
 
 		const settings = media.getSettings() as AudioTrackSettings;
 
@@ -193,35 +186,31 @@ export class Audio {
 			bitrate: u53(settings.channelCount * 32_000),
 		};
 
+		let group: Moq.GroupProducer = this.#track.appendGroup();
+		effect.cleanup(() => group.close());
+
+		let groupTimestamp = 0;
+
 		const encoder = new AudioEncoder({
 			output: (frame) => {
 				if (frame.type !== "key") {
 					throw new Error("only key frames are supported");
 				}
 
-				if (!this.#group || frame.timestamp - this.#groupTimestamp >= 1000 * this.maxLatency) {
-					this.#group?.close();
-					this.#group = this.#track.appendGroup();
-					this.#groupTimestamp = frame.timestamp;
+				if (frame.timestamp - groupTimestamp >= 1000 * this.maxLatency) {
+					group.close();
+					group = this.#track.appendGroup();
+					groupTimestamp = frame.timestamp;
 				}
 
 				const buffer = Frame.encode(frame, frame.timestamp);
-				this.#group.writeFrame(buffer);
+				group.writeFrame(buffer);
 			},
 			error: (err) => {
-				this.#group?.abort(err);
-				this.#group = undefined;
-
-				this.#track.abort(err);
+				group.abort(err);
 			},
 		});
 		effect.cleanup(() => encoder.close());
-
-		effect.cleanup(() => {
-			this.#group?.close();
-			this.#group = undefined;
-			this.#groupTimestamp = 0;
-		});
 
 		encoder.configure({
 			codec: config.codec,
