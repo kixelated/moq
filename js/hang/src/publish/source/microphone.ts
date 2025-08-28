@@ -16,13 +16,13 @@ export class Microphone {
 	#stream = new Signal<AudioStreamTrack | undefined>(undefined);
 	readonly stream: Getter<AudioStreamTrack | undefined> = this.#stream;
 
-	#signals = new Effect();
+	signals = new Effect();
 
 	constructor(props?: MicrophoneProps) {
 		this.enabled = new Signal(props?.enabled ?? false);
 		this.constraints = new Signal(props?.constraints);
 
-		this.#signals.effect(this.#run.bind(this));
+		this.signals.effect(this.#run.bind(this));
 	}
 
 	#run(effect: Effect): void {
@@ -80,7 +80,7 @@ export class Microphone {
 	}
 
 	close() {
-		this.#signals.close();
+		this.signals.close();
 		this.device.close();
 	}
 }

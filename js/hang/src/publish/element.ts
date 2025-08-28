@@ -112,10 +112,22 @@ export default class HangPublish extends HTMLElement {
 
 		if (source === "camera") {
 			this.#video = new Source.Camera({ enabled: this.broadcast.video.enabled.peek() });
+			this.#video.signals.proxy(this.#video.stream, this.broadcast.video.source);
+
 			this.#audio = new Source.Microphone({ enabled: this.broadcast.audio.enabled.peek() });
+			this.#audio.signals.proxy(this.#audio.stream, this.broadcast.audio.source);
 		} else if (source === "screen") {
-			this.#video = new Source.Screen({ enabled: this.broadcast.video.enabled.peek() || this.broadcast.audio.enabled.peek() });
-			this.#audio = this.#video;
+			const screen = new Source.Screen({ enabled: this.broadcast.video.enabled.peek() || this.broadcast.audio.enabled.peek() });
+			screen.signals.effect((effect) => {
+				const stream = effect.get(screen.stream);
+				if (!stream) return;
+
+				effect.set(this.broadcast.video.source, stream.video);
+				effect.set(this.broadcast.audio.source, stream.audio);
+			});
+
+			this.#audio = screen;
+			this.#video = screen;
 		} else {
 			this.#video = undefined;
 			this.#audio = undefined;
@@ -132,7 +144,7 @@ export default class HangPublish extends HTMLElement {
 		this.broadcast.audio.enabled.set(audio);
 
 		if (this.#audio instanceof Source.Screen) {
-			// Only disable the screenshare capture if both audio and video are disabled.
+			// Enable the screenshare capture if either audio or video are enabled.
 			this.#audio.enabled.set(audio || !!this.#video?.enabled.peek());
 		} else {
 			this.#audio?.enabled.set(audio);

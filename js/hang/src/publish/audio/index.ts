@@ -100,8 +100,12 @@ export class Audio {
 
 	#runSource(effect: Effect): void {
 		const enabled = effect.get(this.enabled);
+		console.log("enabled", enabled);
+		if (!enabled) return;
+
 		const media = effect.get(this.source);
-		if (!enabled || !media) return;
+		console.log("media", media);
+		if (!media) return;
 
 		// Insert the track into the broadcast.
 		this.broadcast.insertTrack(this.#track.consume());

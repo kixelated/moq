@@ -18,13 +18,13 @@ export class Screen {
 	#stream = new Signal<{ audio?: AudioStreamTrack; video?: VideoStreamTrack } | undefined>(undefined);
 	readonly stream: Getter<{ audio?: AudioStreamTrack; video?: VideoStreamTrack } | undefined> = this.#stream;
 
-	#signals = new Effect();
+	signals = new Effect();
 
 	constructor(props?: ScreenProps) {
 		this.enabled = new Signal(props?.enabled ?? false);
 		this.constraints = new Signal(props?.constraints);
 
-		this.#signals.effect(this.#run.bind(this));
+		this.signals.effect(this.#run.bind(this));
 	}
 
 	#run(effect: Effect): void {
@@ -68,6 +68,6 @@ export class Screen {
 	}
 
 	close() {
-		this.#signals.close();
+		this.signals.close();
 	}
 }
