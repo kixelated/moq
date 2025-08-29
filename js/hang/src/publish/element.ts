@@ -325,7 +325,7 @@ export default class HangPublish extends HTMLElement {
 			const audio = effect.get(this.#audio);
 			if (!(audio instanceof Source.Microphone)) return;
 
-			const devices = effect.get(audio.devices);
+			const devices = effect.get(audio.device.available);
 			if (!devices || devices.length < 2) return;
 
 			const visible = new Signal(false);
@@ -337,7 +337,7 @@ export default class HangPublish extends HTMLElement {
 					transform: "translateX(-50%)",
 				},
 			});
-			effect.event(select, "change", () => audio.device.set(select.value));
+			effect.event(select, "change", () => audio.device.preferred.set(select.value));
 
 			for (const device of devices) {
 				const option = DOM.create("option", { value: device.deviceId }, device.label);
@@ -345,8 +345,8 @@ export default class HangPublish extends HTMLElement {
 			}
 
 			effect.effect((effect) => {
-				const selected = effect.get(audio.device);
-				select.value = selected ?? "";
+				const selected = effect.get(audio.device.selected);
+				select.value = selected?.deviceId ?? "";
 			});
 
 			const caret = DOM.create("span", { style: { fontSize: "0.75em", cursor: "pointer" } }, "▼");
@@ -407,7 +407,7 @@ export default class HangPublish extends HTMLElement {
 			const video = effect.get(this.#video);
 			if (!(video instanceof Source.Camera)) return;
 
-			const devices = effect.get(video.devices);
+			const devices = effect.get(video.device.available);
 			if (!devices || devices.length < 2) return;
 
 			const visible = new Signal(false);
@@ -419,7 +419,7 @@ export default class HangPublish extends HTMLElement {
 					transform: "translateX(-50%)",
 				},
 			});
-			effect.event(select, "change", () => video.device.set(select.value));
+			effect.event(select, "change", () => video.device.preferred.set(select.value));
 
 			for (const device of devices) {
 				const option = DOM.create("option", { value: device.deviceId }, device.label);
@@ -427,8 +427,8 @@ export default class HangPublish extends HTMLElement {
 			}
 
 			effect.effect((effect) => {
-				const selected = effect.get(video.device);
-				select.value = selected ?? "";
+				const selected = effect.get(video.device.selected);
+				select.value = selected?.deviceId ?? "";
 			});
 
 			const caret = DOM.create("span", { style: { fontSize: "0.75em", cursor: "pointer" } }, "▼");
