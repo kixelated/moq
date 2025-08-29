@@ -2,13 +2,13 @@ import type * as Moq from "@kixelated/moq";
 import { Effect, type Getter, Signal } from "@kixelated/signals";
 import type * as Catalog from "../../catalog";
 import * as Frame from "../../frame";
-import { loadAudioWorklet } from "../../util/hacks";
 import * as Hex from "../../util/hex";
-import { Captions, type CaptionsProps } from "./captions";
 import type * as Render from "./render";
-import { Speaking, type SpeakingProps } from "./speaking";
 
 export * from "./emitter";
+
+import { Captions, type CaptionsProps } from "./captions";
+import { Speaking, type SpeakingProps } from "./speaking";
 
 export type AudioProps = {
 	// Enable to download the audio track.
@@ -23,6 +23,9 @@ export type AudioProps = {
 	// Enable to download the speaking track. (boolean)
 	speaking?: SpeakingProps;
 };
+
+// Unfortunately, we need to use a Vite-exclusive import for now.
+import RenderWorklet from "./render-worklet?worker&url";
 
 // Downloads audio from a track and emits it to an AudioContext.
 // The user is responsible for hooking up audio to speakers, an analyzer, etc.
@@ -91,14 +94,13 @@ export class Audio {
 
 		effect.spawn(async () => {
 			// Register the AudioWorklet processor
-			await context.audioWorklet.addModule(
-				await loadAudioWorklet(() =>
-					navigator.serviceWorker.register(new URL("./render-worklet", import.meta.url)),
-				),
-			);
+			await context.audioWorklet.addModule(RenderWorklet);
 
 			// Create the worklet node
-			const worklet = new AudioWorkletNode(context, "render");
+			const worklet = new AudioWorkletNode(context, "render", {
+				channelCount,
+				channelCountMode: "explicit",
+			});
 			effect.cleanup(() => worklet.disconnect());
 
 			// Listen for buffer status updates (optional, for monitoring)

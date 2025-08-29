@@ -27,9 +27,6 @@ importers:
       knip:
         specifier: ^5.63.0
         version: 5.63.0(@types/node@24.3.0)(typescript@5.9.2)
-      prettier:
-        specifier: ^3.6.2
-        version: 3.6.2
       rimraf:
         specifier: ^6.0.1
         version: 6.0.1
@@ -46,10 +43,10 @@ importers:
         specifier: ^3.7.2
         version: 3.7.2
       '@kixelated/moq':
-        specifier: link:../moq
+        specifier: workspace:^
         version: link:../moq
       '@kixelated/signals':
-        specifier: link:../signals
+        specifier: workspace:^
         version: link:../signals
       async-mutex:
         specifier: ^0.5.0
@@ -1575,11 +1572,6 @@ packages:
     resolution: {integrity: sha512-3Ybi1tAuwAP9s0r1UQ2J4n5Y0G05bJkpUIO0/bI9MhwmD70S5aTWbXGBwxHrelT+XM1k6dM0pk+SwNkpTRN7Pg==}
     engines: {node: ^10 || ^12 || >=14}
 
-  prettier@3.6.2:
-    resolution: {integrity: sha512-I7AIg5boAr5R0FFtJ6rCfD+LFsWHp81dolrFD8S79U9tb8Az2nGrJncnMSnys+bpQJfRUzqs9hnA81OAA3hCuQ==}
-    engines: {node: '>=14'}
-    hasBin: true
-
   protobufjs@7.5.4:
     resolution: {integrity: sha512-CvexbZtbov6jW2eXAvLukXjXUW1TzFaivC46BpWc/3BpcCysb5Vffu+B3XHMm8lVEuy2Mm4XGex8hBSg1yapPg==}
     engines: {node: '>=12.0.0'}
@@ -3068,8 +3060,6 @@ snapshots:
       nanoid: 3.3.11
       picocolors: 1.1.1
       source-map-js: 1.2.1
-
-  prettier@3.6.2: {}
 
   protobufjs@7.5.4:
     dependencies:
