@@ -39,8 +39,8 @@ export class Device<Kind extends "audio" | "video"> {
 
 	async #runDevices(effect: Effect, cancel: Promise<void>) {
 		// Ignore permission errors for now.
-		let devices = await Promise.race([navigator.mediaDevices.enumerateDevices().catch(() => []), cancel]);
-		if (!devices) return;
+		let devices = await Promise.race([navigator.mediaDevices.enumerateDevices().catch(() => undefined), cancel]);
+		if (devices === undefined) return;
 
 		devices = devices.filter((d) => d.kind === `${this.kind}input`);
 		if (!devices.length) {

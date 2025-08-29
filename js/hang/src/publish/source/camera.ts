@@ -46,12 +46,15 @@ export class Camera {
 			const media = navigator.mediaDevices.getUserMedia({ video: finalConstraints }).catch(() => undefined);
 
 			// If the effect is cancelled for any reason (ex. cancel), stop any media that we got.
-			effect.cleanup(() => media.then((media) => media?.getTracks().forEach((track) => { track.stop(); })));
+			effect.cleanup(() =>
+				media.then((media) =>
+					media?.getTracks().forEach((track) => {
+						track.stop();
+					}),
+				),
+			);
 
-			const stream = await Promise.race([
-				media,
-				cancel,
-			]);
+			const stream = await Promise.race([media, cancel]);
 			if (!stream) return;
 
 			const track = stream.getVideoTracks()[0] as VideoStreamTrack | undefined;

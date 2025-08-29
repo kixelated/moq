@@ -108,7 +108,9 @@ export class Audio {
 					this.#buffered = (1000 * available) / sampleRate;
 				}
 			};
-			effect.cleanup(() => { worklet.port.onmessage = null; });
+			effect.cleanup(() => {
+				worklet.port.onmessage = null;
+			});
 
 			worklet.port.postMessage({
 				type: "init",
