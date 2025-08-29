@@ -32,7 +32,7 @@ export class Camera {
 		this.signals.effect(this.#runStream.bind(this));
 
 		this.signals.effect((effect) => {
-			effect.event(navigator.mediaDevices, "devicechange", effect.reload);
+			effect.event(navigator.mediaDevices, "devicechange", effect.reload.bind(effect));
 			effect.spawn(this.#runDevices.bind(this, effect));
 		});
 

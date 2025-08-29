@@ -27,7 +27,7 @@ export class Microphone {
 		this.constraints = Signal.from(props?.constraints);
 
 		this.signals.effect((effect) => {
-			effect.event(navigator.mediaDevices, "devicechange", effect.reload);
+			effect.event(navigator.mediaDevices, "devicechange", effect.reload.bind(effect));
 			effect.spawn(this.#runDevices.bind(this, effect));
 		});
 

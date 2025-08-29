@@ -19,8 +19,8 @@ export default class HangPublish extends HTMLElement {
 	broadcast: Broadcast;
 
 	#source = new Signal<SourceType | undefined>(undefined);
-	#video?: Source.Camera | Source.Screen;
-	#audio?: Source.Microphone | Source.Screen;
+	#video = new Signal<Source.Camera | Source.Screen | undefined>(undefined);
+	#audio = new Signal<Source.Microphone | Source.Screen | undefined>(undefined);
 
 	#signals = new Effect();
 
@@ -111,8 +111,8 @@ export default class HangPublish extends HTMLElement {
 	set source(source: SourceType | undefined) {
 		if (source === this.#source.peek()) return;
 
-		this.#video?.close();
-		this.#audio?.close();
+		this.#audio.peek()?.close();
+		this.#video.peek()?.close();
 
 		if (source === "camera") {
 			const video = new Source.Camera({ enabled: this.broadcast.video.enabled });
@@ -127,8 +127,8 @@ export default class HangPublish extends HTMLElement {
 				effect.set(this.broadcast.audio.source, stream);
 			});
 
-			this.#video = video;
-			this.#audio = audio;
+			this.#video.set(video);
+			this.#audio.set(audio);
 		} else if (source === "screen") {
 			const screen = new Source.Screen();
 
@@ -146,11 +146,11 @@ export default class HangPublish extends HTMLElement {
 				effect.set(screen.enabled, audio || video, false);
 			});
 
-			this.#audio = screen;
-			this.#video = screen;
+			this.#video.set(screen);
+			this.#audio.set(screen);
 		} else {
-			this.#video = undefined;
-			this.#audio = undefined;
+			this.#video.set(undefined);
+			this.#audio.set(undefined);
 		}
 
 		this.#source.set(source);
@@ -162,13 +162,6 @@ export default class HangPublish extends HTMLElement {
 
 	set audio(audio: boolean) {
 		this.broadcast.audio.enabled.set(audio);
-
-		if (this.#audio instanceof Source.Screen) {
-			// Enable the screenshare capture if either audio or video are enabled.
-			this.#audio.enabled.set(audio || !!this.#video?.enabled.peek());
-		} else {
-			this.#audio?.enabled.set(audio);
-		}
 	}
 
 	get video(): boolean {
@@ -177,13 +170,6 @@ export default class HangPublish extends HTMLElement {
 
 	set video(video: boolean) {
 		this.broadcast.video.enabled.set(video);
-
-		if (this.#video instanceof Source.Screen) {
-			// Only disable the screenshare capture if both audio and video are disabled.
-			this.#video.enabled.set(video || !!this.#audio?.enabled.peek());
-		} else {
-			this.#video?.enabled.set(video);
-		}
 	}
 
 	get controls(): boolean {
@@ -288,36 +274,223 @@ export default class HangPublish extends HTMLElement {
 			"Device:",
 		);
 
-		const createButton = (source: SourceType | undefined, title: string, emoji: string) => {
-			const button = DOM.create(
-				"button",
-				{
-					type: "button",
-					title,
-					style: { cursor: "pointer" },
-				},
-				emoji,
-			);
-
-			button.addEventListener("click", () => {
-				this.source = source;
-			});
-
-			effect.effect((effect) => {
-				const selected = effect.get(this.#source);
-				button.style.opacity = selected === source ? "1" : "0.5";
-			});
-
-			container.appendChild(button);
-			effect.cleanup(() => container.removeChild(button));
-		};
-
-		createButton("camera", "Camera", "📷");
-		createButton("screen", "Screen", "🖥️");
-		createButton(undefined, "Nothing", "🚫");
+		this.#renderMicrophone(container, effect);
+		this.#renderCamera(container, effect);
+		this.#renderScreen(container, effect);
+		this.#renderNothing(container, effect);
 
 		parent.appendChild(container);
 		effect.cleanup(() => parent.removeChild(container));
+	}
+
+	#renderMicrophone(parent: HTMLDivElement, effect: Effect) {
+		const container = DOM.create("div", {
+			style: {
+				display: "flex",
+				position: "relative",
+				alignItems: "center",
+			},
+		});
+
+		const microphone = DOM.create(
+			"button",
+			{
+				type: "button",
+				title: "Microphone",
+				style: { cursor: "pointer" },
+			},
+			"🎤",
+		);
+
+		DOM.render(effect, container, microphone);
+
+		effect.event(microphone, "click", () => {
+			if (this.source === "camera") {
+				// Camera already selected, toggle audio.
+				this.audio = !this.audio;
+			} else {
+				this.source = "camera";
+				this.audio = true;
+			}
+		});
+
+		effect.effect((effect) => {
+			const selected = effect.get(this.#source);
+			const audio = effect.get(this.broadcast.audio.enabled);
+			microphone.style.opacity = selected === "camera" && audio ? "1" : "0.5";
+		});
+
+		// List of the available audio devices and show a drop down if there are multiple.
+		effect.effect((effect) => {
+			const audio = effect.get(this.#audio);
+			if (!(audio instanceof Source.Microphone)) return;
+
+			const devices = effect.get(audio.devices);
+			if (!devices || devices.length < 2) return;
+
+			const visible = new Signal(false);
+
+			const select = DOM.create("select", {
+				style: {
+					position: "absolute",
+					top: "100%",
+					transform: "translateX(-50%)",
+				},
+			});
+			effect.event(select, "change", () => audio.device.set(select.value));
+
+			for (const device of devices) {
+				const option = DOM.create("option", { value: device.deviceId }, device.label);
+				DOM.render(effect, select, option);
+			}
+
+			effect.effect((effect) => {
+				const selected = effect.get(audio.device);
+				select.value = selected ?? "";
+			});
+
+			const caret = DOM.create("span", { style: { fontSize: "0.75em", cursor: "pointer" } }, "▼");
+			effect.event(caret, "click", () => visible.set((v) => !v));
+
+			effect.effect((effect) => {
+				const v = effect.get(visible);
+				caret.innerText = v ? "▼" : "▲";
+				select.style.display = v ? "block" : "none";
+			});
+
+			DOM.render(effect, container, caret);
+			DOM.render(effect, container, select);
+		});
+
+		DOM.render(effect, parent, container);
+	}
+
+	#renderCamera(parent: HTMLDivElement, effect: Effect) {
+		const container = DOM.create("div", {
+			style: {
+				display: "flex",
+				position: "relative",
+				alignItems: "center",
+			},
+		});
+
+		const camera = DOM.create(
+			"button",
+			{
+				type: "button",
+				title: "Camera",
+				style: { cursor: "pointer" },
+			},
+			"📷",
+		);
+
+		DOM.render(effect, container, camera);
+
+		effect.event(camera, "click", () => {
+			if (this.source === "camera") {
+				// Camera already selected, toggle video.
+				this.video = !this.video;
+			} else {
+				this.source = "camera";
+				this.video = true;
+			}
+		});
+
+		effect.effect((effect) => {
+			const selected = effect.get(this.#source);
+			const video = effect.get(this.broadcast.video.enabled);
+			camera.style.opacity = selected === "camera" && video ? "1" : "0.5";
+		});
+
+		// List of the available audio devices and show a drop down if there are multiple.
+		effect.effect((effect) => {
+			const video = effect.get(this.#video);
+			if (!(video instanceof Source.Camera)) return;
+
+			const devices = effect.get(video.devices);
+			if (!devices || devices.length < 2) return;
+
+			const visible = new Signal(false);
+
+			const select = DOM.create("select", {
+				style: {
+					position: "absolute",
+					top: "100%",
+					transform: "translateX(-50%)",
+				},
+			});
+			effect.event(select, "change", () => video.device.set(select.value));
+
+			for (const device of devices) {
+				const option = DOM.create("option", { value: device.deviceId }, device.label);
+				DOM.render(effect, select, option);
+			}
+
+			effect.effect((effect) => {
+				const selected = effect.get(video.device);
+				select.value = selected ?? "";
+			});
+
+			const caret = DOM.create("span", { style: { fontSize: "0.75em", cursor: "pointer" } }, "▼");
+			effect.event(caret, "click", () => visible.set((v) => !v));
+
+			effect.effect((effect) => {
+				const v = effect.get(visible);
+				caret.innerText = v ? "▼" : "▲";
+				select.style.display = v ? "block" : "none";
+			});
+
+			DOM.render(effect, container, caret);
+			DOM.render(effect, container, select);
+		});
+
+		DOM.render(effect, parent, container);
+	}
+
+	#renderScreen(parent: HTMLDivElement, effect: Effect) {
+		const screen = DOM.create(
+			"button",
+			{
+				type: "button",
+				title: "Screen",
+				style: { cursor: "pointer" },
+			},
+			"🖥️",
+		);
+
+		effect.event(screen, "click", () => {
+			this.source = "screen";
+		});
+
+		effect.effect((effect) => {
+			const selected = effect.get(this.#source);
+			screen.style.opacity = selected === "screen" ? "1" : "0.5";
+		});
+
+		DOM.render(effect, parent, screen);
+	}
+
+	#renderNothing(parent: HTMLDivElement, effect: Effect) {
+		const nothing = DOM.create(
+			"button",
+			{
+				type: "button",
+				title: "Nothing",
+				style: { cursor: "pointer" },
+			},
+			"🚫",
+		);
+
+		effect.event(nothing, "click", () => {
+			this.source = undefined;
+		});
+
+		effect.effect((effect) => {
+			const selected = effect.get(this.#source);
+			nothing.style.opacity = selected === undefined ? "1" : "0.5";
+		});
+
+		DOM.render(effect, parent, nothing);
 	}
 
 	#renderStatus(parent: HTMLDivElement, effect: Effect) {

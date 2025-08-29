@@ -1,10 +1,5 @@
 import type { Effect } from ".";
 
-type EventMap = HTMLElementEventMap;
-type EventListeners = {
-	[K in keyof EventMap]?: (event: EventMap[K]) => void;
-};
-
 export type CreateOptions<T extends HTMLElement> = {
 	style?: Partial<CSSStyleDeclaration>;
 	className?: string;
@@ -12,7 +7,6 @@ export type CreateOptions<T extends HTMLElement> = {
 	id?: string;
 	dataset?: Record<string, string>;
 	attributes?: Record<string, string>;
-	events?: EventListeners;
 } & Partial<Omit<T, "style" | "dataset">>;
 
 export function create<K extends keyof HTMLElementTagNameMap>(
@@ -24,7 +18,7 @@ export function create<K extends keyof HTMLElementTagNameMap>(
 
 	if (!options) return element;
 
-	const { style, classList, dataset, attributes, events, ...props } = options;
+	const { style, classList, dataset, attributes, ...props } = options;
 
 	// Apply styles
 	if (style) {
@@ -47,13 +41,6 @@ export function create<K extends keyof HTMLElementTagNameMap>(
 	if (attributes) {
 		Object.entries(attributes).forEach(([key, value]) => {
 			element.setAttribute(key, value);
-		});
-	}
-
-	// Add event listeners
-	if (events) {
-		Object.entries(events).forEach(([event, handler]) => {
-			element.addEventListener(event, handler as EventListener);
 		});
 	}
 

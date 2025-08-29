@@ -101,11 +101,9 @@ export class Audio {
 
 	#runSource(effect: Effect): void {
 		const enabled = effect.get(this.enabled);
-		console.log("running audio source", enabled);
 		if (!enabled) return;
 
 		const source = effect.get(this.source);
-		console.log("running audio source", source);
 		if (!source) return;
 
 		// Insert the track into the broadcast.
