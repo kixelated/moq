@@ -105,6 +105,18 @@ export class Device<Kind extends "audio" | "video"> {
 		this.#selected.set(defaultDevice);
 	}
 
+	// Manually request permission for the device, ignore the result.
+	request() {
+		navigator.mediaDevices
+			.getUserMedia({ [this.kind]: true })
+			.catch(() => undefined)
+			.then((stream) => {
+				stream?.getTracks().forEach((track) => {
+					track.stop();
+				});
+			});
+	}
+
 	close() {
 		this.signals.close();
 	}

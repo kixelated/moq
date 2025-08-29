@@ -28,7 +28,7 @@ export interface AudioStreamTrack extends MediaStreamTrack {
 }
 
 // MediaTrackSettings can represent both audio and video, which means a LOT of possibly undefined properties.
-// This is a fork of the MediaTrackSettings interface with properties required for audio or vidfeo.
+// This is a fork of the MediaTrackSettings interface with properties required for audio or video.
 export interface AudioTrackSettings {
 	deviceId: string;
 	groupId: string;
@@ -105,10 +105,6 @@ export class Audio {
 
 		const source = effect.get(this.source);
 		if (!source) return;
-
-		// Insert the track into the broadcast.
-		this.broadcast.insertTrack(this.#track.consume());
-		effect.cleanup(() => this.broadcast.removeTrack(this.#track.name));
 
 		const settings = source.getSettings();
 
@@ -256,6 +252,10 @@ export class Audio {
 		const config = effect.get(this.#config);
 		if (!config) return;
 
+		// Insert the track into the broadcast before returning the catalog referencing it.
+		this.broadcast.insertTrack(this.#track.consume());
+		effect.cleanup(() => this.broadcast.removeTrack(this.#track.name));
+
 		const captions = effect.get(this.captions.catalog);
 		const speaking = effect.get(this.speaking.catalog);
 
@@ -275,6 +275,7 @@ export class Audio {
 	close() {
 		this.#signals.close();
 		this.captions.close();
+		this.speaking.close();
 		this.#track.close();
 	}
 }

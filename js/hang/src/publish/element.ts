@@ -518,7 +518,7 @@ export default class HangPublish extends HTMLElement {
 			} else if (status === "connecting") {
 				container.textContent = "🟡\u00A0Connecting...";
 			} else if (!audio && !video) {
-				container.textContent = "🟡\u00A0Select Device";
+				container.textContent = "🟡\u00A0Select Source";
 			} else if (!audio && video) {
 				container.textContent = "🟡\u00A0Video Only";
 			} else if (audio && !video) {
