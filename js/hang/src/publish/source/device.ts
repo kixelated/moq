@@ -93,7 +93,7 @@ export class Device<Kind extends "audio" | "video"> {
 			// Use the preferred deviceId if available.
 			const device = available.find((d) => d.deviceId === preferred);
 			if (device) {
-				this.#selected.set(device);
+				effect.set(this.#selected, device);
 				return;
 			}
 
@@ -102,7 +102,7 @@ export class Device<Kind extends "audio" | "video"> {
 
 		// NOTE: The default device might change, and with no (valid) preference, we should switch to it.
 		const defaultDevice = effect.get(this.default);
-		this.#selected.set(defaultDevice);
+		effect.set(this.#selected, defaultDevice);
 	}
 
 	// Manually request permission for the device, ignore the result.
