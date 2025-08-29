@@ -13,6 +13,8 @@ export * from "./captions";
 const GAIN_MIN = 0.001;
 const FADE_TIME = 0.2;
 
+export type Source = AudioStreamTrack;
+
 export type AudioConstraints = Omit<
 	MediaTrackConstraints,
 	"aspectRatio" | "backgroundBlur" | "displaySurface" | "facingMode" | "frameRate" | "height" | "width"
@@ -41,12 +43,11 @@ export interface AudioTrackSettings {
 
 // The initial values for our signals.
 export type AudioProps = {
-	enabled?: boolean;
-	source?: AudioStreamTrack;
-	constraints?: AudioConstraints;
+	enabled?: boolean | Signal<boolean>;
+	source?: Source | Signal<Source | undefined>;
 
-	muted?: boolean;
-	volume?: number;
+	muted?: boolean | Signal<boolean>;
+	volume?: number | Signal<number>;
 	captions?: CaptionsProps;
 	speaking?: SpeakingProps;
 
@@ -65,7 +66,7 @@ export class Audio {
 	speaking: Speaking;
 	maxLatency: DOMHighResTimeStamp;
 
-	source: Signal<AudioStreamTrack | undefined>;
+	source: Signal<Source | undefined>;
 
 	#catalog = new Signal<Catalog.Audio | undefined>(undefined);
 	readonly catalog: Getter<Catalog.Audio | undefined> = this.#catalog;
@@ -84,12 +85,12 @@ export class Audio {
 
 	constructor(broadcast: Moq.BroadcastProducer, props?: AudioProps) {
 		this.broadcast = broadcast;
-		this.source = new Signal(props?.source);
-		this.enabled = new Signal(props?.enabled ?? false);
+		this.source = Signal.from(props?.source);
+		this.enabled = Signal.from(props?.enabled ?? false);
 		this.speaking = new Speaking(this, props?.speaking);
 		this.captions = new Captions(this, props?.captions);
-		this.muted = new Signal(props?.muted ?? false);
-		this.volume = new Signal(props?.volume ?? 1);
+		this.muted = Signal.from(props?.muted ?? false);
+		this.volume = Signal.from(props?.volume ?? 1);
 		this.maxLatency = props?.maxLatency ?? 100; // Default is a group every 100ms
 
 		this.#signals.effect(this.#runSource.bind(this));
@@ -100,18 +101,16 @@ export class Audio {
 
 	#runSource(effect: Effect): void {
 		const enabled = effect.get(this.enabled);
-		console.log("enabled", enabled);
 		if (!enabled) return;
 
-		const media = effect.get(this.source);
-		console.log("media", media);
-		if (!media) return;
+		const source = effect.get(this.source);
+		if (!source) return;
 
 		// Insert the track into the broadcast.
 		this.broadcast.insertTrack(this.#track.consume());
 		effect.cleanup(() => this.broadcast.removeTrack(this.#track.name));
 
-		const settings = media.getSettings();
+		const settings = source.getSettings();
 
 		const context = new AudioContext({
 			latencyHint: "interactive",
@@ -120,7 +119,7 @@ export class Audio {
 		effect.cleanup(() => context.close());
 
 		const root = new MediaStreamAudioSourceNode(context, {
-			mediaStream: new MediaStream([media]),
+			mediaStream: new MediaStream([source]),
 		});
 		effect.cleanup(() => root.disconnect());
 
@@ -172,13 +171,13 @@ export class Audio {
 	#runEncoder(effect: Effect): void {
 		if (!effect.get(this.enabled)) return;
 
-		const media = effect.get(this.source);
-		if (!media) return;
+		const source = effect.get(this.source);
+		if (!source) return;
 
 		const worklet = effect.get(this.#worklet);
 		if (!worklet) return;
 
-		const settings = media.getSettings() as AudioTrackSettings;
+		const settings = source.getSettings() as AudioTrackSettings;
 
 		const config = {
 			// TODO get codec and description from decoderConfig

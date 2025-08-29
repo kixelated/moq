@@ -38,10 +38,11 @@ export class Captions {
 	}
 
 	#run(effect: Effect): void {
-		if (!effect.get(this.enabled)) return;
+		const enabled = effect.get(this.enabled);
+		if (!enabled) return;
 
-		const media = effect.get(this.audio.source);
-		if (!media) return;
+		const source = effect.get(this.audio.source);
+		if (!source) return;
 
 		this.audio.broadcast.insertTrack(this.#track.consume());
 		effect.cleanup(() => this.audio.broadcast.removeTrack(this.#track.name));
@@ -88,7 +89,7 @@ export class Captions {
 
 		// Create the source node.
 		const root = new MediaStreamAudioSourceNode(ctx, {
-			mediaStream: new MediaStream([media]),
+			mediaStream: new MediaStream([source]),
 		});
 		effect.cleanup(() => root.disconnect());
 

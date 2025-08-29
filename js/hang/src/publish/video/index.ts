@@ -10,6 +10,8 @@ import { VideoTrackProcessor } from "./polyfill";
 
 export * from "./detection";
 
+export type Source = VideoStreamTrack;
+
 // Create a group every 2 seconds
 const GOP_DURATION_US = 2 * 1000 * 1000;
 
@@ -41,10 +43,10 @@ export type VideoConstraints = Omit<
 };
 
 export type VideoProps = {
-	enabled?: boolean;
-	source?: VideoStreamTrack;
+	enabled?: boolean | Signal<boolean>;
+	source?: Source | Signal<Source | undefined>;
+	flip?: boolean | Signal<boolean>;
 	detection?: DetectionProps;
-	flip?: boolean;
 };
 
 export class Video {
@@ -53,7 +55,7 @@ export class Video {
 
 	enabled: Signal<boolean>;
 	flip: Signal<boolean>;
-	source: Signal<VideoStreamTrack | undefined>;
+	source: Signal<Source | undefined>;
 
 	#catalog = new Signal<Catalog.Video | undefined>(undefined);
 	readonly catalog: Getter<Catalog.Video | undefined> = this.#catalog;
@@ -75,9 +77,9 @@ export class Video {
 		this.broadcast = broadcast;
 		this.detection = new Detection(this, props?.detection);
 
-		this.source = new Signal(props?.source);
-		this.enabled = new Signal(props?.enabled ?? false);
-		this.flip = new Signal(props?.flip ?? false);
+		this.source = Signal.from(props?.source);
+		this.enabled = Signal.from(props?.enabled ?? false);
+		this.flip = Signal.from(props?.flip ?? false);
 
 		this.#signals.effect(this.#runEncoder.bind(this));
 		this.#signals.effect(this.#runCatalog.bind(this));
@@ -87,15 +89,15 @@ export class Video {
 		const enabled = effect.get(this.enabled);
 		if (!enabled) return;
 
-		const media = effect.get(this.source);
-		if (!media) return;
+		const source = effect.get(this.source);
+		if (!source) return;
 
 		// Insert the track into the broadcast.
 		this.broadcast.insertTrack(this.#track.consume());
 		effect.cleanup(() => this.broadcast.removeTrack(this.#track.name));
 
-		const settings = media.getSettings() as VideoTrackSettings;
-		const processor = VideoTrackProcessor(media);
+		const settings = source.getSettings() as VideoTrackSettings;
+		const processor = VideoTrackProcessor(source);
 		const reader = processor.getReader();
 		effect.cleanup(() => reader.cancel());
 

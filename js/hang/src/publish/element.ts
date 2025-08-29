@@ -61,7 +61,9 @@ export default class HangPublish extends HTMLElement {
 		this.#renderCaptions();
 	}
 
-	attributeChangedCallback(name: Observed, _oldValue: string | null, newValue: string | null) {
+	attributeChangedCallback(name: Observed, oldValue: string | null, newValue: string | null) {
+		if (oldValue === newValue) return;
+
 		if (name === "url") {
 			this.url = newValue ? new URL(newValue) : undefined;
 		} else if (name === "name") {
@@ -107,23 +109,40 @@ export default class HangPublish extends HTMLElement {
 	}
 
 	set source(source: SourceType | undefined) {
+		if (source === this.#source.peek()) return;
+
 		this.#video?.close();
 		this.#audio?.close();
 
 		if (source === "camera") {
-			this.#video = new Source.Camera({ enabled: this.broadcast.video.enabled.peek() });
-			this.#video.signals.proxy(this.#video.stream, this.broadcast.video.source);
+			const video = new Source.Camera({ enabled: this.broadcast.video.enabled });
+			video.signals.effect((effect) => {
+				const stream = effect.get(video.stream);
+				effect.set(this.broadcast.video.source, stream);
+			});
 
-			this.#audio = new Source.Microphone({ enabled: this.broadcast.audio.enabled.peek() });
-			this.#audio.signals.proxy(this.#audio.stream, this.broadcast.audio.source);
+			const audio = new Source.Microphone({ enabled: this.broadcast.audio.enabled });
+			audio.signals.effect((effect) => {
+				const stream = effect.get(audio.stream);
+				effect.set(this.broadcast.audio.source, stream);
+			});
+
+			this.#video = video;
 		} else if (source === "screen") {
-			const screen = new Source.Screen({ enabled: this.broadcast.video.enabled.peek() || this.broadcast.audio.enabled.peek() });
+			const screen = new Source.Screen();
+
 			screen.signals.effect((effect) => {
 				const stream = effect.get(screen.stream);
 				if (!stream) return;
 
 				effect.set(this.broadcast.video.source, stream.video);
 				effect.set(this.broadcast.audio.source, stream.audio);
+			});
+
+			screen.signals.effect((effect) => {
+				const audio = effect.get(this.broadcast.audio.enabled);
+				const video = effect.get(this.broadcast.video.enabled);
+				effect.set(screen.enabled, audio || video, false);
 			});
 
 			this.#audio = screen;
@@ -160,7 +179,7 @@ export default class HangPublish extends HTMLElement {
 
 		if (this.#video instanceof Source.Screen) {
 			// Only disable the screenshare capture if both audio and video are disabled.
-			this.#video.enabled.set(video || (!!this.#audio?.enabled.peek()));
+			this.#video.enabled.set(video || !!this.#audio?.enabled.peek());
 		} else {
 			this.#video?.enabled.set(video);
 		}

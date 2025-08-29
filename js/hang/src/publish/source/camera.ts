@@ -1,44 +1,58 @@
 import { Effect, type Getter, Signal } from "@kixelated/signals";
 import type { VideoConstraints, VideoStreamTrack } from "../video";
-import { Device } from "./device";
 
 export interface CameraProps {
-	enabled?: boolean;
-	device?: string;
-	constraints?: VideoConstraints;
+	enabled?: boolean | Signal<boolean>;
+	device?: string | Signal<string | undefined>;
+	constraints?: VideoConstraints | Signal<VideoConstraints | undefined>;
 	flip?: boolean;
 }
 
 export class Camera {
 	enabled: Signal<boolean>;
+	device: Signal<string | undefined>;
 
-	device = new Device("video");
+	#devices = new Signal<MediaDeviceInfo[] | undefined>(undefined);
+	readonly devices: Getter<MediaDeviceInfo[] | undefined> = this.#devices;
+
+	#default = new Signal<MediaDeviceInfo | undefined>(undefined);
+
 	constraints: Signal<VideoConstraints | undefined>;
 	flip: Signal<boolean>;
 
-	#stream = new Signal<VideoStreamTrack | undefined>(undefined);
-	readonly stream: Getter<VideoStreamTrack | undefined> = this.#stream;
-
+	stream = new Signal<VideoStreamTrack | undefined>(undefined);
 	signals = new Effect();
 
 	constructor(props?: CameraProps) {
-		this.enabled = new Signal(props?.enabled ?? false);
-		this.constraints = new Signal(props?.constraints);
-		this.flip = new Signal(props?.flip ?? false);
+		this.device = Signal.from(props?.device);
+		this.enabled = Signal.from(props?.enabled ?? false);
+		this.constraints = Signal.from(props?.constraints);
+		this.flip = Signal.from(props?.flip ?? false);
 
-		this.signals.effect(this.#run.bind(this));
+		this.signals.effect(this.#runStream.bind(this));
+
+		this.signals.effect((effect) => {
+			effect.event(navigator.mediaDevices, "devicechange", effect.reload);
+			effect.spawn(this.#runDevices.bind(this, effect));
+		});
+
+		this.signals.effect(this.#runDevice.bind(this));
 	}
 
-	#run(effect: Effect): void {
+	#runStream(effect: Effect): void {
 		const enabled = effect.get(this.enabled);
 		if (!enabled) return;
 
-		const device = effect.get(this.device.selected);
+		const device = effect.get(this.device);
+		if (!device) return;
+
+		console.log("requesting camera", device);
+
 		const constraints = effect.get(this.constraints) ?? {};
 
 		// Build final constraints with device selection
 		const finalConstraints: MediaTrackConstraints = {
-			deviceId: device ? { ideal: device } : undefined,
+			deviceId: { exact: device },
 			...constraints,
 		};
 
@@ -53,38 +67,90 @@ export class Camera {
 			if (!track) return;
 
 			effect.cleanup(() => track.stop());
-			effect.set(this.#stream, track, undefined);
+			effect.set(this.stream, track, undefined);
+		});
+	}
 
-			const settings = track.getSettings();
+	async #runDevices(effect: Effect, cancel: Promise<void>) {
+		const enabled = effect.get(this.enabled);
+		if (!enabled) return;
 
-			// If we got the device we asked for, we're done.
-			if (device === settings.deviceId) return;
+		// Ignore permission errors for now.
+		let devices = await Promise.race([navigator.mediaDevices.enumerateDevices().catch(() => []), cancel]);
+		if (devices === undefined) return;
 
-			if (device) {
-				console.warn("couldn't get requested device, using default", device);
+		if (!devices.length) {
+			console.debug("requesting permissions");
+
+			// Request permissions and try again.
+			const stream = await Promise.race([navigator.mediaDevices.getUserMedia({ video: true }), cancel]);
+			if (!stream) return; // no stream means no permissions
+
+			for (const track of stream.getTracks()) {
+				track.stop();
 			}
 
-			// Otherwise, we want to select what we consider the default device.
+			devices = await Promise.race([navigator.mediaDevices.enumerateDevices(), cancel]);
+			if (!devices) return;
+		}
 
-			effect.effect((nested) => {
-				const available = nested.get(this.device.available);
-				if (!available) return;
+		devices = devices.filter((d) => d.kind === "videoinput");
+		if (!devices.length) {
+			console.warn("no devices found");
+			return;
+		}
 
-				// Explicitly select the default device if we found one.
-				// Otherwise use the device the browser selected (might be the same).
-				// NOTE: This will cause getUserMedia to be called again, but it's fine?
-				const defaultDevice = nested.get(this.device.default);
-				if (defaultDevice && defaultDevice.deviceId !== settings.deviceId) {
-					console.debug("overriding default device", defaultDevice.label);
-				}
+		// Chrome seems to have a "default" deviceId that we also need to filter out, but can be used to help us find the default device.
+		const alias = devices.find((d) => d.deviceId === "default");
 
-				this.device.selected.set(defaultDevice?.deviceId ?? settings.deviceId);
+		// Remove the default device from the list.
+		devices = devices.filter((d) => d.deviceId !== "default");
+
+		let defaultDevice: MediaDeviceInfo | undefined;
+		if (alias) {
+			// Find the device with the same groupId as the default alias.
+			defaultDevice = devices.find((d) => d.groupId === alias.groupId);
+		}
+
+		// If we couldn't find a default alias, time to scan labels.
+		if (!defaultDevice) {
+			// On mobile, prefer front-facing camera
+			defaultDevice = devices.find((d) => {
+				const label = d.label.toLowerCase();
+				return label.includes("front") || label.includes("external") || label.includes("usb");
 			});
-		});
+		}
+
+		if (!defaultDevice) {
+			console.debug("no default device found, using first device");
+			defaultDevice = devices.at(0);
+		}
+
+		effect.set(this.#devices, devices, []);
+		effect.set(this.#default, defaultDevice, undefined);
+	}
+
+	#runDevice(effect: Effect) {
+		const available = effect.get(this.#devices);
+		if (!available) return;
+
+		const defaultDevice = effect.get(this.#default);
+		if (!defaultDevice) return;
+
+		let selected = effect.get(this.device);
+		if (selected) {
+			// Make sure the selected device is available.
+			if (available.some((d) => d.deviceId === selected)) return;
+
+			console.warn("selected device not available");
+			selected = undefined;
+		}
+
+		console.debug("using default device", defaultDevice.label);
+		this.device.set(defaultDevice.deviceId);
 	}
 
 	close() {
 		this.signals.close();
-		this.device.close();
 	}
 }

@@ -39,7 +39,8 @@ export class Detection {
 	}
 
 	#run(effect: Effect): void {
-		if (!effect.get(this.enabled)) return;
+		const enabled = effect.get(this.enabled);
+		if (!enabled) return;
 
 		this.video.broadcast.insertTrack(this.#track.consume());
 		effect.cleanup(() => this.video.broadcast.removeTrack(this.#track.name));

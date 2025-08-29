@@ -24,6 +24,13 @@ export class Signal<T> implements Getter<T>, Setter<T> {
 		this.#value = value;
 	}
 
+	static from<T>(value: T | Signal<T>): Signal<T> {
+		if (value instanceof Signal) {
+			return value;
+		}
+		return new Signal(value);
+	}
+
 	// TODO rename to get once we've ported everything
 	peek(): T {
 		return this.#value;
@@ -414,12 +421,6 @@ export class Effect {
 		}
 
 		this.#dispose.push(fn);
-	}
-
-	proxy<T>(src: Getter<T>, dst: Setter<T>) {
-		this.effect((effect) => {
-			dst.set(effect.get(src));
-		});
 	}
 
 	close(): void {
