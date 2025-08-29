@@ -5,13 +5,13 @@ import { u8 } from "../catalog/integers";
 
 export type LocationProps = {
 	// If true, then we'll publish our position to the broadcast.
-	enabled?: boolean;
+	enabled?: boolean | Signal<boolean>;
 
 	// Our initial position.
-	current?: Catalog.Position;
+	current?: Catalog.Position | Signal<Catalog.Position | undefined>;
 
 	// If set, then this broadcaster allows other peers to request position updates via this handle.
-	handle?: string;
+	handle?: string | Signal<string | undefined>;
 };
 
 export class Location {
@@ -33,9 +33,9 @@ export class Location {
 	constructor(broadcast: Moq.BroadcastProducer, props?: LocationProps) {
 		this.broadcast = broadcast;
 
-		this.enabled = new Signal(props?.enabled ?? false);
-		this.current = new Signal(props?.current ?? undefined);
-		this.handle = new Signal(props?.handle ?? undefined);
+		this.enabled = Signal.from(props?.enabled ?? false);
+		this.current = Signal.from(props?.current ?? undefined);
+		this.handle = Signal.from(props?.handle ?? undefined);
 
 		this.#signals.effect((effect) => {
 			const enabled = effect.get(this.enabled);
@@ -89,7 +89,7 @@ export class LocationPeer {
 		catalog: Signal<Record<string, Catalog.Track> | undefined>,
 		handle?: string,
 	) {
-		this.handle = new Signal(handle);
+		this.handle = Signal.from(handle);
 		this.catalog = catalog;
 		this.broadcast = broadcast;
 

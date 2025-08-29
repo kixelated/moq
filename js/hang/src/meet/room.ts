@@ -5,7 +5,7 @@ import { type Connection, Moq, type Publish, Watch } from "..";
 export type Broadcast = Watch.Broadcast | Publish.Broadcast;
 
 export type RoomProps = {
-	name?: Path.Valid;
+	name?: Path.Valid | Signal<Path.Valid>;
 };
 
 export class Room {
@@ -36,7 +36,7 @@ export class Room {
 
 	constructor(connection: Connection, props?: RoomProps) {
 		this.connection = connection;
-		this.name = new Signal(props?.name ?? Moq.Path.empty());
+		this.name = Signal.from(props?.name ?? Moq.Path.empty());
 
 		this.#signals.effect(this.#init.bind(this));
 	}

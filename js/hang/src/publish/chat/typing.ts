@@ -4,7 +4,7 @@ import type * as Catalog from "../../catalog";
 import { u8 } from "../../catalog/integers";
 
 export type TypingProps = {
-	enabled?: boolean;
+	enabled?: boolean | Signal<boolean>;
 };
 
 export class Typing {
@@ -23,7 +23,7 @@ export class Typing {
 
 	constructor(broadcast: Moq.BroadcastProducer, props?: TypingProps) {
 		this.broadcast = broadcast;
-		this.enabled = new Signal(props?.enabled ?? false);
+		this.enabled = Signal.from(props?.enabled ?? false);
 		this.active = new Signal<boolean>(false);
 
 		this.#signals.effect((effect) => {

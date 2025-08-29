@@ -2,8 +2,8 @@ import { Effect, Signal } from "@kixelated/signals";
 import type { Video } from ".";
 
 export type VideoRendererProps = {
-	canvas?: HTMLCanvasElement;
-	paused?: boolean;
+	canvas?: HTMLCanvasElement | Signal<HTMLCanvasElement | undefined>;
+	paused?: boolean | Signal<boolean>;
 };
 
 // An component to render a video to a canvas.
@@ -24,8 +24,8 @@ export class VideoRenderer {
 
 	constructor(source: Video, props?: VideoRendererProps) {
 		this.source = source;
-		this.canvas = new Signal(props?.canvas);
-		this.paused = new Signal(props?.paused ?? false);
+		this.canvas = Signal.from(props?.canvas);
+		this.paused = Signal.from(props?.paused ?? false);
 
 		this.#signals.effect((effect) => {
 			const canvas = effect.get(this.canvas);

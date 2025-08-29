@@ -7,7 +7,7 @@ import type { Audio } from ".";
 import type { Request, Result } from "./speaking-worker";
 
 export type SpeakingProps = {
-	enabled?: boolean;
+	enabled?: boolean | Signal<boolean>;
 };
 
 // Detects when the user is speaking.
@@ -24,7 +24,7 @@ export class Speaking {
 
 	constructor(audio: Audio, props?: SpeakingProps) {
 		this.audio = audio;
-		this.enabled = new Signal(props?.enabled ?? false);
+		this.enabled = Signal.from(props?.enabled ?? false);
 		this.signals.effect(this.#run.bind(this));
 	}
 

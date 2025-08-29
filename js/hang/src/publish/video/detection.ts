@@ -6,7 +6,7 @@ import type { Video } from ".";
 import type { DetectionWorker } from "./detection-worker";
 
 export type DetectionProps = {
-	enabled?: boolean;
+	enabled?: boolean | Signal<boolean>;
 	interval?: number;
 	threshold?: number;
 };
@@ -28,7 +28,7 @@ export class Detection {
 
 	constructor(video: Video, props?: DetectionProps) {
 		this.video = video;
-		this.enabled = new Signal(props?.enabled ?? false);
+		this.enabled = Signal.from(props?.enabled ?? false);
 		this.#interval = props?.interval ?? 1000;
 		this.#threshold = props?.threshold ?? 0.5;
 

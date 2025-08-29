@@ -58,7 +58,7 @@ export class Camera {
 
 		effect.spawn(async (cancel) => {
 			const stream = await Promise.race([
-				navigator.mediaDevices.getUserMedia({ video: finalConstraints }),
+				navigator.mediaDevices.getUserMedia({ video: finalConstraints }).catch(() => undefined),
 				cancel,
 			]);
 			if (!stream) return;
@@ -83,7 +83,10 @@ export class Camera {
 			console.debug("requesting permissions");
 
 			// Request permissions and try again.
-			const stream = await Promise.race([navigator.mediaDevices.getUserMedia({ video: true }), cancel]);
+			const stream = await Promise.race([
+				navigator.mediaDevices.getUserMedia({ video: true }).catch(() => undefined),
+				cancel,
+			]);
 			if (!stream) return; // no stream means no permissions
 
 			for (const track of stream.getTracks()) {

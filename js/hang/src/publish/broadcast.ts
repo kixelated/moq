@@ -9,12 +9,12 @@ import { Preview, type PreviewProps } from "./preview";
 import { Video, type VideoProps } from "./video";
 
 export type BroadcastProps = {
-	enabled?: boolean;
-	name?: Moq.Path.Valid;
+	enabled?: boolean | Signal<boolean>;
+	name?: Moq.Path.Valid | Signal<Moq.Path.Valid | undefined>;
 	audio?: AudioProps;
 	video?: VideoProps;
 	location?: LocationProps;
-	user?: Catalog.User;
+	user?: Catalog.User | Signal<Catalog.User | undefined>;
 	chat?: ChatProps;
 	preview?: PreviewProps;
 
@@ -48,15 +48,15 @@ export class Broadcast {
 
 	constructor(connection: Connection, props?: BroadcastProps) {
 		this.connection = connection;
-		this.enabled = new Signal(props?.enabled ?? false);
-		this.name = new Signal(props?.name);
+		this.enabled = Signal.from(props?.enabled ?? false);
+		this.name = Signal.from(props?.name);
 
 		this.audio = new Audio(this.#broadcast, props?.audio);
 		this.video = new Video(this.#broadcast, props?.video);
 		this.location = new Location(this.#broadcast, props?.location);
 		this.chat = new Chat(this.#broadcast, props?.chat);
 		this.preview = new Preview(this.#broadcast, props?.preview);
-		this.user = new Signal(props?.user);
+		this.user = Signal.from(props?.user);
 
 		this.#broadcast.insertTrack(this.#catalog.consume());
 

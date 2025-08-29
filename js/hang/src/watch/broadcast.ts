@@ -12,13 +12,13 @@ import { Detection, type DetectionProps } from "./video/detection";
 export interface BroadcastProps {
 	// Whether to start downloading the broadcast.
 	// Defaults to false so you can make sure everything is ready before starting.
-	enabled?: boolean;
+	enabled?: boolean | Signal<boolean>;
 
 	// The broadcast name.
-	name?: Moq.Path.Valid;
+	name?: Moq.Path.Valid | Signal<Moq.Path.Valid | undefined>;
 
 	// You can disable reloading if you don't want to wait for an announcement.
-	reload?: boolean;
+	reload?: boolean | Signal<boolean>;
 
 	video?: VideoProps;
 	audio?: AudioProps;
@@ -59,9 +59,9 @@ export class Broadcast {
 
 	constructor(connection: Connection, props?: BroadcastProps) {
 		this.connection = connection;
-		this.name = new Signal(props?.name);
-		this.enabled = new Signal(props?.enabled ?? false);
-		this.reload = new Signal(props?.reload ?? true);
+		this.name = Signal.from(props?.name);
+		this.enabled = Signal.from(props?.enabled ?? false);
+		this.reload = Signal.from(props?.reload ?? true);
 		this.audio = new Audio(this.#broadcast, this.#catalog, props?.audio);
 		this.video = new Video(this.#broadcast, this.#catalog, props?.video);
 		this.location = new Location(this.#broadcast, this.#catalog, props?.location);

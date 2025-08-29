@@ -128,6 +128,7 @@ export default class HangPublish extends HTMLElement {
 			});
 
 			this.#video = video;
+			this.#audio = audio;
 		} else if (source === "screen") {
 			const screen = new Source.Screen();
 

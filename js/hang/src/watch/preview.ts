@@ -5,7 +5,7 @@ import type * as Catalog from "../catalog";
 import { type Info, InfoSchema } from "../preview";
 
 export interface PreviewProps {
-	enabled?: boolean;
+	enabled?: boolean | Signal<boolean>;
 }
 
 export class Preview {
@@ -21,7 +21,7 @@ export class Preview {
 		props?: PreviewProps,
 	) {
 		this.broadcast = broadcast;
-		this.enabled = new Signal(props?.enabled ?? false);
+		this.enabled = Signal.from(props?.enabled ?? false);
 
 		this.#signals.effect((effect) => {
 			if (!effect.get(this.enabled)) return;

@@ -9,7 +9,7 @@ export * from "./detection";
 export * from "./renderer";
 
 export type VideoProps = {
-	enabled?: boolean;
+	enabled?: boolean | Signal<boolean>;
 	detection?: DetectionProps;
 };
 
@@ -43,7 +43,7 @@ export class Video {
 	) {
 		this.broadcast = broadcast;
 		this.catalog = catalog;
-		this.enabled = new Signal(props?.enabled ?? false);
+		this.enabled = Signal.from(props?.enabled ?? false);
 		this.detection = new Detection(this.broadcast, this.catalog, props?.detection);
 
 		// TODO use isConfigSupported

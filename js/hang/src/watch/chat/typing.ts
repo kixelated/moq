@@ -5,7 +5,7 @@ import type * as Catalog from "../../catalog";
 export interface TypingProps {
 	// Whether to start downloading the chat.
 	// Defaults to false so you can make sure everything is ready before starting.
-	enabled?: boolean;
+	enabled?: boolean | Signal<boolean>;
 }
 
 export class Typing {
@@ -25,7 +25,7 @@ export class Typing {
 	) {
 		this.broadcast = broadcast;
 		this.active = new Signal<boolean | undefined>(undefined);
-		this.enabled = new Signal(props?.enabled ?? false);
+		this.enabled = Signal.from(props?.enabled ?? false);
 
 		// Grab the chat section from the catalog (if it's changed).
 		this.#signals.effect((effect) => {

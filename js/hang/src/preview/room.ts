@@ -5,8 +5,8 @@ import type { Connection } from "../connection";
 import { Member } from "./member";
 
 export type RoomProps = {
-	name?: Path.Valid;
-	enabled?: boolean;
+	name?: Path.Valid | Signal<Path.Valid | undefined>;
+	enabled?: boolean | Signal<boolean>;
 };
 
 export class Room {
@@ -21,8 +21,8 @@ export class Room {
 
 	constructor(connection: Connection, props?: RoomProps) {
 		this.connection = connection;
-		this.name = new Signal(props?.name);
-		this.enabled = new Signal(props?.enabled ?? false);
+		this.name = Signal.from(props?.name);
+		this.enabled = Signal.from(props?.enabled ?? false);
 
 		this.#signals.effect(this.#init.bind(this));
 	}

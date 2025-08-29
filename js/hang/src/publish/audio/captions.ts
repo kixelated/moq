@@ -7,7 +7,7 @@ import type { Audio } from ".";
 import type { Request, Result } from "./captions-worker";
 
 export type CaptionsProps = {
-	enabled?: boolean;
+	enabled?: boolean | Signal<boolean>;
 	transcribe?: boolean;
 
 	// Captions are cleared after this many milliseconds. (10s default)
@@ -32,7 +32,7 @@ export class Captions {
 	constructor(audio: Audio, props?: CaptionsProps) {
 		this.audio = audio;
 		this.#ttl = props?.ttl ?? 10000;
-		this.enabled = new Signal(props?.enabled ?? false);
+		this.enabled = Signal.from(props?.enabled ?? false);
 
 		this.signals.effect(this.#run.bind(this));
 	}

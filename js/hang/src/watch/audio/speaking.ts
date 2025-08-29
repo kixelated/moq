@@ -3,7 +3,7 @@ import { Effect, type Getter, Signal } from "@kixelated/signals";
 import type * as Catalog from "../../catalog";
 
 export type SpeakingProps = {
-	enabled?: boolean;
+	enabled?: boolean | Signal<boolean>;
 };
 
 export class Speaking {
@@ -25,7 +25,7 @@ export class Speaking {
 		this.broadcast = broadcast;
 		this.info = info;
 
-		this.enabled = new Signal(props?.enabled ?? false);
+		this.enabled = Signal.from(props?.enabled ?? false);
 		this.#signals.effect(this.#run.bind(this));
 	}
 

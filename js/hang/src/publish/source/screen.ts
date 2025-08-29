@@ -44,20 +44,21 @@ export class Screen {
 
 		effect.spawn(async (cancel) => {
 			const media = await Promise.race([
-				navigator.mediaDevices.getDisplayMedia({
-					video,
-					audio,
-					// @ts-expect-error Chrome only
-					controller,
-					preferCurrentTab: false,
-					selfBrowserSurface: "exclude",
-					surfaceSwitching: "include",
-					// TODO We should try to get system audio, but need to be careful about feedback.
-					// systemAudio: "exclude",
-				}),
+				navigator.mediaDevices
+					.getDisplayMedia({
+						video,
+						audio,
+						// @ts-expect-error Chrome only
+						controller,
+						preferCurrentTab: false,
+						selfBrowserSurface: "exclude",
+						surfaceSwitching: "include",
+						// TODO We should try to get system audio, but need to be careful about feedback.
+						// systemAudio: "exclude",
+					})
+					.catch(() => undefined),
 				cancel,
 			]);
-
 			if (!media) return;
 
 			const v = media.getVideoTracks().at(0) as VideoStreamTrack | undefined;

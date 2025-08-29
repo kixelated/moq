@@ -5,9 +5,9 @@ const MIN_GAIN = 0.001;
 const FADE_TIME = 0.2;
 
 export type AudioEmitterProps = {
-	volume?: number;
-	muted?: boolean;
-	paused?: boolean;
+	volume?: number | Signal<number>;
+	muted?: boolean | Signal<boolean>;
+	paused?: boolean | Signal<boolean>;
 };
 
 // A helper that emits audio directly to the speakers.
@@ -30,9 +30,9 @@ export class AudioEmitter {
 
 	constructor(source: Audio, props?: AudioEmitterProps) {
 		this.source = source;
-		this.volume = new Signal(props?.volume ?? 0.5);
-		this.muted = new Signal(props?.muted ?? false);
-		this.paused = new Signal(props?.paused ?? props?.muted ?? false);
+		this.volume = Signal.from(props?.volume ?? 0.5);
+		this.muted = Signal.from(props?.muted ?? false);
+		this.paused = Signal.from(props?.paused ?? props?.muted ?? false);
 
 		// Set the volume to 0 when muted.
 		this.#signals.effect((effect) => {

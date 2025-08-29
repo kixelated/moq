@@ -51,7 +51,7 @@ export class Microphone {
 
 		effect.spawn(async (cancel) => {
 			const stream = await Promise.race([
-				navigator.mediaDevices.getUserMedia({ audio: finalConstraints }),
+				navigator.mediaDevices.getUserMedia({ audio: finalConstraints }).catch(() => undefined),
 				cancel,
 			]);
 			if (!stream) return;
@@ -74,7 +74,10 @@ export class Microphone {
 
 		if (!devices.length) {
 			// Request permissions and try again.
-			const stream = await Promise.race([navigator.mediaDevices.getUserMedia({ audio: true }), cancel]);
+			const stream = await Promise.race([
+				navigator.mediaDevices.getUserMedia({ audio: true }).catch(() => undefined),
+				cancel,
+			]);
 			if (!stream) return; // no stream means no permissions
 
 			for (const track of stream.getTracks()) {

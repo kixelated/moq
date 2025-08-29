@@ -4,7 +4,7 @@ import { Effect, type Getter, Signal } from "@kixelated/signals";
 import * as Catalog from "../catalog";
 
 export interface LocationProps {
-	enabled?: boolean;
+	enabled?: boolean | Signal<boolean>;
 }
 
 export class Location {
@@ -26,7 +26,7 @@ export class Location {
 		catalog: Signal<Catalog.Root | undefined>,
 		props?: LocationProps,
 	) {
-		this.enabled = new Signal(props?.enabled ?? false);
+		this.enabled = Signal.from(props?.enabled ?? false);
 		this.broadcast = broadcast;
 
 		// Grab the location section from the catalog (if it's changed).
@@ -117,7 +117,7 @@ export class LocationPeer {
 		catalog: Getter<Catalog.Location | undefined>,
 		handle?: string,
 	) {
-		this.handle = new Signal(handle);
+		this.handle = Signal.from(handle);
 		this.location = new Signal<Catalog.Position | undefined>(undefined);
 		this.broadcast = broadcast;
 

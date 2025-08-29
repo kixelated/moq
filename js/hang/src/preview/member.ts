@@ -4,7 +4,7 @@ import { Effect, Signal } from "@kixelated/signals";
 import * as Preview from "./info";
 
 export type MemberProps = {
-	enabled?: boolean;
+	enabled?: boolean | Signal<boolean>;
 };
 
 export class Member {
@@ -16,7 +16,7 @@ export class Member {
 
 	constructor(broadcast: Moq.BroadcastConsumer, props?: MemberProps) {
 		this.broadcast = broadcast;
-		this.enabled = new Signal(props?.enabled ?? false);
+		this.enabled = Signal.from(props?.enabled ?? false);
 		this.info = new Signal<Preview.Info | undefined>(undefined);
 
 		this.signals.effect((effect) => {

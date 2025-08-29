@@ -6,7 +6,7 @@ import * as Catalog from "../../catalog";
 export interface DetectionProps {
 	// Whether to start downloading the detection data.
 	// Defaults to false so you can make sure everything is ready before starting.
-	enabled?: boolean;
+	enabled?: boolean | Signal<boolean>;
 }
 
 export class Detection {
@@ -25,7 +25,7 @@ export class Detection {
 		props?: DetectionProps,
 	) {
 		this.broadcast = broadcast;
-		this.enabled = new Signal(props?.enabled ?? false);
+		this.enabled = Signal.from(props?.enabled ?? false);
 
 		// Grab the detection section from the catalog (if it's changed).
 		this.#signals.effect((effect) => {

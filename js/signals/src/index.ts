@@ -228,7 +228,9 @@ export class Effect {
 	// Spawn an async effect that blocks the effect being rerun until it completes.
 	// The cancel promise is resolved when the effect should cleanup: on close or rerun.
 	spawn(fn: (cancel: Promise<void>) => Promise<void>) {
-		const promise = fn(this.#stopped);
+		const promise = fn(this.#stopped).catch((error) => {
+			console.error("spawn error", error);
+		});
 
 		if (this.#dispose === undefined) {
 			if (DEV) {
