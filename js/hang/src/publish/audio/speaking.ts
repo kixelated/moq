@@ -67,6 +67,7 @@ export class Speaking {
 		};
 
 		effect.cleanup(() => {
+			worker.onmessage = null;
 			this.active.set(false);
 		});
 

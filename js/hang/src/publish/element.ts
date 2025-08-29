@@ -5,7 +5,8 @@ import { Connection } from "../connection";
 import { Broadcast } from "./broadcast";
 import * as Source from "./source";
 
-const OBSERVED = ["url", "name", "device", "audio", "video", "controls", "captions"] as const;
+// TODO: remove device; it's a backwards compatible alias for source.
+const OBSERVED = ["url", "name", "device", "audio", "video", "controls", "captions", "source"] as const;
 type Observed = (typeof OBSERVED)[number];
 
 type SourceType = "camera" | "screen";
@@ -68,7 +69,7 @@ export default class HangPublish extends HTMLElement {
 			this.url = newValue ? new URL(newValue) : undefined;
 		} else if (name === "name") {
 			this.name = newValue ?? undefined;
-		} else if (name === "device") {
+		} else if (name === "device" || name === "source") {
 			if (newValue === "camera" || newValue === "screen" || newValue === null) {
 				this.source = newValue ?? undefined;
 			} else {
@@ -102,6 +103,14 @@ export default class HangPublish extends HTMLElement {
 
 	set name(name: string | undefined) {
 		this.broadcast.name.set(name ? Moq.Path.from(name) : undefined);
+	}
+
+	get device(): SourceType | undefined {
+		return this.source;
+	}
+
+	set device(device: SourceType | undefined) {
+		this.source = device;
 	}
 
 	get source(): SourceType | undefined {
@@ -271,7 +280,7 @@ export default class HangPublish extends HTMLElement {
 					gap: "16px",
 				},
 			},
-			"Device:",
+			"Source:",
 		);
 
 		this.#renderMicrophone(container, effect);
@@ -516,8 +525,6 @@ export default class HangPublish extends HTMLElement {
 				container.textContent = "🟡\u00A0Audio Only";
 			} else if (audio && video) {
 				container.textContent = "🟢\u00A0Live";
-			} else if (status === "connected") {
-				container.textContent = "🟢\u00A0Connected";
 			}
 		});
 

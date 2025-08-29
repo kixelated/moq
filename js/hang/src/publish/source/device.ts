@@ -100,7 +100,7 @@ export class Device<Kind extends "audio" | "video"> {
 			console.warn("preferred device not available, using default");
 		}
 
-		// NOTE: The default device might change, and with no (valid) preferrence, we should switch to it.
+		// NOTE: The default device might change, and with no (valid) preference, we should switch to it.
 		const defaultDevice = effect.get(this.default);
 		this.#selected.set(defaultDevice);
 	}

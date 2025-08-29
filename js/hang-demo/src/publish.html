@@ -69,10 +69,10 @@
 	<p>
 		You can create a broadcaster via the provided <code class="language-html">&lt;hang-publish&gt;</code> <a
 			href="https://developer.mozilla.org/en-US/docs/Web/API/Web_components">Web Component</a>.
-		Either modify HTML attributes like <code class="language-html">&lt;hang-publish device="camera" /&gt;</code>
+		Either modify HTML attributes like <code class="language-html">&lt;hang-publish source="camera" audio /&gt;</code>
 		or access the element's Javascript API:
 	<pre><code class="language-typescript">const publish = document.getElementById("publish");
-publish.lib.device = "camera";</code></pre>
+publish.broadcast.audio.enabled.set(true);</code></pre>
 
 	And of course you can use the Javascript API directly instead of the Web Component.
 	It's a bit more complicated and subject to change, but it gives you more control.

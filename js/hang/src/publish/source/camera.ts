@@ -6,7 +6,6 @@ export interface CameraProps {
 	enabled?: boolean | Signal<boolean>;
 	device?: DeviceProps;
 	constraints?: VideoConstraints | Signal<VideoConstraints | undefined>;
-	flip?: boolean;
 }
 
 export class Camera {
@@ -14,7 +13,6 @@ export class Camera {
 	device: Device<"video">;
 
 	constraints: Signal<VideoConstraints | undefined>;
-	flip: Signal<boolean>;
 
 	stream = new Signal<VideoStreamTrack | undefined>(undefined);
 	signals = new Effect();
@@ -23,7 +21,6 @@ export class Camera {
 		this.device = new Device("video", props?.device);
 		this.enabled = Signal.from(props?.enabled ?? false);
 		this.constraints = Signal.from(props?.constraints);
-		this.flip = Signal.from(props?.flip ?? false);
 
 		this.signals.effect(this.#run.bind(this));
 	}
@@ -41,13 +38,18 @@ export class Camera {
 
 		// Build final constraints with device selection
 		const finalConstraints: MediaTrackConstraints = {
-			deviceId: { exact: device.deviceId },
 			...constraints,
+			deviceId: { exact: device.deviceId },
 		};
 
 		effect.spawn(async (cancel) => {
+			const media = navigator.mediaDevices.getUserMedia({ video: finalConstraints }).catch(() => undefined);
+
+			// If the effect is cancelled for any reason (ex. cancel), stop any media that we got.
+			effect.cleanup(() => media.then((media) => media?.getTracks().forEach((track) => { track.stop(); })));
+
 			const stream = await Promise.race([
-				navigator.mediaDevices.getUserMedia({ video: finalConstraints }).catch(() => undefined),
+				media,
 				cancel,
 			]);
 			if (!stream) return;
@@ -55,7 +57,6 @@ export class Camera {
 			const track = stream.getVideoTracks()[0] as VideoStreamTrack | undefined;
 			if (!track) return;
 
-			effect.cleanup(() => track.stop());
 			effect.set(this.stream, track, undefined);
 		});
 	}

@@ -78,6 +78,7 @@ export class Captions {
 		};
 
 		effect.cleanup(() => {
+			worker.onmessage = null;
 			this.text.set(undefined);
 		});
 

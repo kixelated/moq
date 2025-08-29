@@ -247,6 +247,7 @@ export class Audio {
 			encoder.encode(frame);
 			frame.close();
 		};
+		effect.cleanup(() => { worklet.port.onmessage = null; });
 	}
 
 	#runCatalog(effect: Effect): void {

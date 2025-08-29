@@ -36,13 +36,18 @@ export class Microphone {
 
 		const constraints = effect.get(this.constraints) ?? {};
 		const finalConstraints: MediaTrackConstraints = {
-			deviceId: { exact: device.deviceId },
 			...constraints,
+			deviceId: { exact: device.deviceId },
 		};
 
 		effect.spawn(async (cancel) => {
+			const media = navigator.mediaDevices.getUserMedia({ audio: finalConstraints }).catch(() => undefined);
+
+			// If the effect is cancelled for any reason (ex. cancel), stop any media that we got.
+			effect.cleanup(() => media.then((media) => media?.getTracks().forEach((track) => { track.stop(); })));
+
 			const stream = await Promise.race([
-				navigator.mediaDevices.getUserMedia({ audio: finalConstraints }).catch(() => undefined),
+				media,
 				cancel,
 			]);
 			if (!stream) return;
@@ -50,7 +55,6 @@ export class Microphone {
 			const track = stream.getAudioTracks()[0] as AudioStreamTrack | undefined;
 			if (!track) return;
 
-			effect.cleanup(() => track.stop());
 			effect.set(this.stream, track, undefined);
 		});
 	}
