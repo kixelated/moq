@@ -1,5 +1,6 @@
 use clap::Parser;
 use serde::{Deserialize, Serialize};
+use std::{net, path::PathBuf};
 
 use crate::{AuthConfig, ClusterConfig};
 
@@ -30,6 +31,16 @@ pub struct Config {
 	#[serde(default)]
 	pub auth: AuthConfig,
 
+	/// HTTP server configuration.
+	#[command(flatten)]
+	#[serde(default)]
+	pub http: HttpConfig,
+
+	/// HTTPS server configuration.
+	#[command(flatten)]
+	#[serde(default)]
+	pub https: HttpsConfig,
+
 	/// If provided, load the configuration from this file.
 	#[serde(default)]
 	pub file: Option<String>,
@@ -51,4 +62,28 @@ impl Config {
 
 		Ok(config)
 	}
+}
+
+#[derive(Parser, Clone, Debug, Default, Deserialize, Serialize)]
+#[serde(deny_unknown_fields, default)]
+pub struct HttpConfig {
+	/// HTTP server bind address. If not provided, HTTP server is disabled.
+	#[arg(long = "http-bind", env = "MOQ_HTTP_BIND")]
+	pub bind: Option<net::SocketAddr>,
+}
+
+#[derive(Parser, Clone, Debug, Default, Deserialize, Serialize)]
+#[serde(deny_unknown_fields, default)]
+pub struct HttpsConfig {
+	/// HTTPS server bind address. If not provided, HTTPS server is disabled.
+	#[arg(long = "https-bind", env = "MOQ_HTTPS_BIND")]
+	pub bind: Option<net::SocketAddr>,
+
+	/// Path to certificate chain file for HTTPS (PEM format)
+	#[arg(long = "https-cert", env = "MOQ_HTTPS_CERT", requires = "bind")]
+	pub cert: Option<PathBuf>,
+
+	/// Path to private key file for HTTPS (PEM format)
+	#[arg(long = "https-key", env = "MOQ_HTTPS_KEY", requires = "bind")]
+	pub key: Option<PathBuf>,
 }

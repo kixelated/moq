@@ -1,9 +1,13 @@
 use std::{
-	net,
+	fs,
+	io::{self, Cursor, Read},
+	path::PathBuf,
 	pin::Pin,
+	sync::Arc,
 	task::{ready, Context, Poll},
 };
 
+use anyhow::Context as _;
 use axum::{
 	body::Body,
 	extract::Path,
@@ -14,26 +18,38 @@ use axum::{
 };
 use bytes::Bytes;
 use hyper_serve::accept::DefaultAcceptor;
+use rustls::pki_types::CertificateDer;
 use std::future::Future;
 use tower_http::cors::{Any, CorsLayer};
 
-use crate::Cluster;
+use crate::{Cluster, HttpConfig, HttpsConfig};
 
 pub struct WebConfig {
-	pub bind: net::SocketAddr,
+	pub http: HttpConfig,
+	pub https: HttpsConfig,
 	pub fingerprints: Vec<String>,
 	pub cluster: Cluster,
 }
 
-// Run a HTTP server using Axum
-// TODO remove this when Chrome adds support for self-signed certificates using WebTransport
+// Run a HTTP/HTTPS server using Axum
+// TODO remove HTTP when Chrome adds support for self-signed certificates using WebTransport
 pub struct Web {
 	app: Router,
-	server: hyper_serve::Server<DefaultAcceptor>,
+	server: Option<hyper_serve::Server<DefaultAcceptor>>,
+	server_https: Option<hyper_serve::Server<hyper_serve::tls_rustls::RustlsAcceptor>>,
 }
 
 impl Web {
-	pub fn new(config: WebConfig) -> Self {
+	pub fn new(config: WebConfig) -> anyhow::Result<Self> {
+		// Check if we have at least one server configured
+		if config.http.bind.is_none() && config.https.bind.is_none() {
+			return Ok(Self {
+				app: Router::new(),
+				server: None,
+				server_https: None,
+			});
+		}
+
 		// Get the first certificate's fingerprint.
 		// TODO serve all of them so we can support multiple signature algorithms.
 		let fingerprint = config.fingerprints.first().expect("missing certificate").clone();
@@ -63,14 +79,84 @@ impl Web {
 			)
 			.layer(CorsLayer::new().allow_origin(Any).allow_methods([Method::GET]));
 
-		let server = hyper_serve::bind(config.bind);
+		// Set up HTTP server if configured
+		let server = config.http.bind.map(|bind| hyper_serve::bind(bind));
 
-		Self { app, server }
+		// Set up HTTPS server if configured
+		let server_https = match (config.https.bind, config.https.cert, config.https.key) {
+			(Some(bind), Some(cert_path), Some(key_path)) => {
+				let tls_config = Self::load_tls_config(&cert_path, &key_path)?;
+				let rustls_config = hyper_serve::tls_rustls::RustlsConfig::from_config(tls_config);
+				Some(hyper_serve::bind_rustls(bind, rustls_config))
+			}
+			(Some(_), _, _) => {
+				anyhow::bail!("HTTPS bind address provided but missing cert or key")
+			}
+			_ => None,
+		};
+
+		Ok(Self { app, server, server_https })
 	}
 
 	pub async fn run(self) -> anyhow::Result<()> {
-		self.server.serve(self.app.into_make_service()).await?;
+		// If no servers are configured, return immediately
+		if self.server.is_none() && self.server_https.is_none() {
+			tracing::info!("No HTTP or HTTPS server configured, skipping web server");
+			return Ok(());
+		}
+
+		let app = self.app.into_make_service();
+
+		match (self.server, self.server_https) {
+			(Some(http), Some(https)) => {
+				tracing::info!("Starting HTTP and HTTPS servers");
+				// Run both HTTP and HTTPS servers concurrently
+				tokio::select! {
+					res = http.serve(app.clone()) => res?,
+					res = https.serve(app) => res?,
+				}
+			}
+			(Some(http), None) => {
+				tracing::info!("Starting HTTP server");
+				// Run only HTTP server
+				http.serve(app).await?;
+			}
+			(None, Some(https)) => {
+				tracing::info!("Starting HTTPS server");
+				// Run only HTTPS server
+				https.serve(app).await?;
+			}
+			(None, None) => unreachable!("already checked above"),
+		}
+
 		Ok(())
+	}
+
+	fn load_tls_config(cert_path: &PathBuf, key_path: &PathBuf) -> anyhow::Result<Arc<rustls::ServerConfig>> {
+		// Load certificate chain
+		let cert_file = fs::File::open(cert_path).context("failed to open certificate file")?;
+		let mut cert_reader = io::BufReader::new(cert_file);
+		let certs: Vec<CertificateDer> = rustls_pemfile::certs(&mut cert_reader)
+			.collect::<Result<_, _>>()
+			.context("failed to read certificates")?;
+		anyhow::ensure!(!certs.is_empty(), "no certificates found in file");
+
+		// Load private key
+		let mut key_file = fs::File::open(key_path).context("failed to open key file")?;
+		let mut key_bytes = Vec::new();
+		key_file.read_to_end(&mut key_bytes)?;
+		let key = rustls_pemfile::private_key(&mut Cursor::new(&key_bytes))?
+			.context("missing private key")?;
+
+		// Build TLS config
+		let provider = Arc::new(rustls::crypto::aws_lc_rs::default_provider());
+		let config = rustls::ServerConfig::builder_with_provider(provider)
+			.with_protocol_versions(&[&rustls::version::TLS13, &rustls::version::TLS12])?
+			.with_no_client_auth()
+			.with_single_cert(certs, key)
+			.context("failed to create TLS config")?;
+
+		Ok(Arc::new(config))
 	}
 }
 

@@ -24,18 +24,26 @@ async fn main() -> anyhow::Result<()> {
 	let cloned = cluster.clone();
 	tokio::spawn(async move { cloned.run().await.expect("cluster failed") });
 
-	// Create a web server too.
+	// Create a web server if configured
+	if let Some(http_bind) = config.http.bind {
+		tracing::info!(%http_bind, "HTTP server listening");
+	}
+	if let Some(https_bind) = config.https.bind {
+		tracing::info!(%https_bind, "HTTPS server listening");
+	}
+	
 	let web = Web::new(WebConfig {
-		bind: addr,
+		http: config.http,
+		https: config.https,
 		fingerprints,
 		cluster: cluster.clone(),
-	});
+	})?;
 
 	tokio::spawn(async move {
 		web.run().await.expect("failed to run web server");
 	});
 
-	tracing::info!(%addr, "listening");
+	tracing::info!(%addr, "QUIC server listening");
 
 	let mut conn_id = 0;
 

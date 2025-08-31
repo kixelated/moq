@@ -1390,6 +1390,8 @@ dependencies = [
  "moq-lite",
  "moq-native",
  "moq-token",
+ "rustls",
+ "rustls-pemfile",
  "serde",
  "serde_with",
  "tempfile",
