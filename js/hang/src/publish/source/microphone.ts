@@ -36,7 +36,7 @@ export class Microphone {
 		const constraints = effect.get(this.constraints) ?? {};
 		const finalConstraints: MediaTrackConstraints = {
 			...constraints,
-			deviceId: device ? { exact: device } : undefined,
+			deviceId: device !== undefined ? { exact: device } : undefined,
 		};
 
 		effect.spawn(async (cancel) => {
@@ -61,6 +61,11 @@ export class Microphone {
 			if (!track) return;
 
 			const settings = track.getSettings();
+
+			if (device === undefined) {
+				// Save the device that the user selected during the dialog prompt.
+				this.device.preferred.set(settings.deviceId);
+			}
 
 			effect.set(this.device.active, settings.deviceId);
 			effect.set(this.stream, track);

@@ -123,10 +123,19 @@ export class Device<Kind extends "audio" | "video"> {
 
 	// Manually request permission for the device, ignoring the result.
 	requestPermission() {
+		if (this.permission.peek()) return;
+
 		navigator.mediaDevices
 			.getUserMedia({ [this.kind]: true })
 			.then((stream) => {
 				this.permission.set(true);
+
+				// If the user selected a device during the dialog prompt, save it as the preferred device.
+				const deviceId = stream.getTracks().at(0)?.getSettings().deviceId;
+				if (deviceId) {
+					this.preferred.set(deviceId);
+				}
+
 				stream.getTracks().forEach((track) => {
 					track.stop();
 				});
