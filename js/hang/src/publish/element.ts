@@ -338,7 +338,6 @@ export default class HangPublish extends HTMLElement {
 			if (!enabled) return;
 
 			const devices = effect.get(audio.device.available);
-			console.log("rendering devices", devices);
 			if (!devices || devices.length < 2) return;
 
 			const visible = new Signal(false);

@@ -122,7 +122,7 @@ export class Device<Kind extends "audio" | "video"> {
 	}
 
 	// Manually request permission for the device, ignoring the result.
-	enumerate() {
+	requestPermission() {
 		navigator.mediaDevices
 			.getUserMedia({ [this.kind]: true })
 			.then((stream) => {
