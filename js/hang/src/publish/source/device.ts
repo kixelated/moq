@@ -12,15 +12,21 @@ export class Device<Kind extends "audio" | "video"> {
 	readonly available: Getter<MediaDeviceInfo[] | undefined> = this.#devices;
 
 	// The default device based on heuristics.
-	#default = new Signal<MediaDeviceInfo | undefined>(undefined);
-	readonly default: Getter<MediaDeviceInfo | undefined> = this.#default;
+	#default = new Signal<string | undefined>(undefined);
+	readonly default: Getter<string | undefined> = this.#default;
 
-	// Use the preferred deviceId if available.
+	// The deviceId that we want to use, otherwise use the default device.
 	preferred: Signal<string | undefined>;
 
-	// The device that is currently selected.
-	#selected = new Signal<MediaDeviceInfo | undefined>(undefined);
-	readonly selected: Getter<MediaDeviceInfo | undefined> = this.#selected;
+	// The device that we are actually using.
+	active = new Signal<string | undefined>(undefined);
+
+	// Whether we have permission to enumerate devices.
+	permission = new Signal<boolean>(false);
+
+	// The device we want to use next. (preferred ?? default)
+	#requested = new Signal<string | undefined>(undefined);
+	requested: Getter<string | undefined> = this.#requested;
 
 	signals = new Effect();
 
@@ -29,23 +35,38 @@ export class Device<Kind extends "audio" | "video"> {
 		this.preferred = Signal.from(props?.preferred);
 
 		this.signals.effect((effect) => {
-			// Reload the devices when they change.
-			effect.event(navigator.mediaDevices, "devicechange", effect.reload.bind(effect));
-			effect.spawn(this.#runDevices.bind(this, effect));
+			effect.spawn(this.#run.bind(this, effect));
+			effect.event(navigator.mediaDevices, "devicechange", () => effect.reload());
 		});
 
-		this.signals.effect(this.#runSelected.bind(this));
+		this.signals.effect(this.#runRequested.bind(this));
 	}
 
-	async #runDevices(effect: Effect, cancel: Promise<void>) {
+	async #run(effect: Effect, cancel: Promise<void>) {
+		// Force a reload of the devices list if we don't have permission.
+		// We still try anyway.
+		effect.get(this.permission);
+
 		// Ignore permission errors for now.
 		let devices = await Promise.race([navigator.mediaDevices.enumerateDevices().catch(() => undefined), cancel]);
-		if (devices === undefined) return;
+		if (!devices) return; // cancelled, keep stale values
 
 		devices = devices.filter((d) => d.kind === `${this.kind}input`);
+
+		// An empty deviceId means no permissions, or at the very least, no useful information.
+		if (devices.some((d) => d.deviceId === "")) {
+			console.warn(`no ${this.kind} permission`);
+			this.#devices.set(undefined);
+			this.#default.set(undefined);
+			return;
+		}
+
+		// Assume we have permission now.
+		this.permission.set(true);
+
+		// No devices found, but we have permission I think?
 		if (!devices.length) {
 			console.warn(`no ${this.kind} devices found`);
-			return;
 		}
 
 		// Chrome seems to have a "default" deviceId that we also need to filter out, but can be used to help us find the default device.
@@ -77,44 +98,40 @@ export class Device<Kind extends "audio" | "video"> {
 			}
 		}
 
-		console.debug("all devices", devices);
-		console.debug("default device", defaultDevice);
-
-		effect.set(this.#devices, devices, []);
-		effect.set(this.#default, defaultDevice, undefined);
-	}
-
-	#runSelected(effect: Effect) {
-		const available = effect.get(this.available);
-		if (!available) return;
-
-		const preferred = effect.get(this.preferred);
-		if (preferred) {
-			// Use the preferred deviceId if available.
-			const device = available.find((d) => d.deviceId === preferred);
-			if (device) {
-				effect.set(this.#selected, device);
-				return;
-			}
-
-			console.warn("preferred device not available, using default");
+		if (!defaultDevice) {
+			// Still nothing, then use the top one.
+			defaultDevice = devices.at(0);
 		}
 
-		// NOTE: The default device might change, and with no (valid) preference, we should switch to it.
-		const defaultDevice = effect.get(this.default);
-		effect.set(this.#selected, defaultDevice);
+		console.debug(`all ${this.kind} devices`, devices);
+		console.debug(`default ${this.kind} device`, defaultDevice);
+
+		this.#devices.set(devices);
+		this.#default.set(defaultDevice?.deviceId);
 	}
 
-	// Manually request permission for the device, ignore the result.
-	request() {
+	#runRequested(effect: Effect) {
+		const preferred = effect.get(this.preferred);
+		if (preferred && effect.get(this.#devices)?.some((d) => d.deviceId === preferred)) {
+			// Use the preferred device if it's in our devices list.
+			this.#requested.set(preferred);
+		} else {
+			// Otherwise use the default device.
+			this.#requested.set(effect.get(this.default));
+		}
+	}
+
+	// Manually request permission for the device, ignoring the result.
+	enumerate() {
 		navigator.mediaDevices
 			.getUserMedia({ [this.kind]: true })
-			.catch(() => undefined)
 			.then((stream) => {
-				stream?.getTracks().forEach((track) => {
+				this.permission.set(true);
+				stream.getTracks().forEach((track) => {
 					track.stop();
 				});
-			});
+			})
+			.catch(() => undefined);
 	}
 
 	close() {

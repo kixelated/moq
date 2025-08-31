@@ -334,7 +334,11 @@ export default class HangPublish extends HTMLElement {
 			const audio = effect.get(this.#audio);
 			if (!(audio instanceof Source.Microphone)) return;
 
+			const enabled = effect.get(this.broadcast.audio.enabled);
+			if (!enabled) return;
+
 			const devices = effect.get(audio.device.available);
+			console.log("rendering devices", devices);
 			if (!devices || devices.length < 2) return;
 
 			const visible = new Signal(false);
@@ -346,7 +350,9 @@ export default class HangPublish extends HTMLElement {
 					transform: "translateX(-50%)",
 				},
 			});
-			effect.event(select, "change", () => audio.device.preferred.set(select.value));
+			effect.event(select, "change", () => {
+				audio.device.preferred.set(select.value);
+			});
 
 			for (const device of devices) {
 				const option = DOM.create("option", { value: device.deviceId }, device.label);
@@ -354,8 +360,8 @@ export default class HangPublish extends HTMLElement {
 			}
 
 			effect.effect((effect) => {
-				const selected = effect.get(audio.device.selected);
-				select.value = selected?.deviceId ?? "";
+				const active = effect.get(audio.device.requested);
+				select.value = active ?? "";
 			});
 
 			const caret = DOM.create("span", { style: { fontSize: "0.75em", cursor: "pointer" } }, "▼");
@@ -416,6 +422,9 @@ export default class HangPublish extends HTMLElement {
 			const video = effect.get(this.#video);
 			if (!(video instanceof Source.Camera)) return;
 
+			const enabled = effect.get(this.broadcast.video.enabled);
+			if (!enabled) return;
+
 			const devices = effect.get(video.device.available);
 			if (!devices || devices.length < 2) return;
 
@@ -428,7 +437,9 @@ export default class HangPublish extends HTMLElement {
 					transform: "translateX(-50%)",
 				},
 			});
-			effect.event(select, "change", () => video.device.preferred.set(select.value));
+			effect.event(select, "change", () => {
+				video.device.preferred.set(select.value);
+			});
 
 			for (const device of devices) {
 				const option = DOM.create("option", { value: device.deviceId }, device.label);
@@ -436,8 +447,8 @@ export default class HangPublish extends HTMLElement {
 			}
 
 			effect.effect((effect) => {
-				const selected = effect.get(video.device.selected);
-				select.value = selected?.deviceId ?? "";
+				const requested = effect.get(video.device.requested);
+				select.value = requested ?? "";
 			});
 
 			const caret = DOM.create("span", { style: { fontSize: "0.75em", cursor: "pointer" } }, "▼");
@@ -520,9 +531,9 @@ export default class HangPublish extends HTMLElement {
 			} else if (!audio && !video) {
 				container.textContent = "🟡\u00A0Select Source";
 			} else if (!audio && video) {
-				container.textContent = "🟡\u00A0Video Only";
+				container.textContent = "🟢\u00A0Video Only";
 			} else if (audio && !video) {
-				container.textContent = "🟡\u00A0Audio Only";
+				container.textContent = "🟢\u00A0Audio Only";
 			} else if (audio && video) {
 				container.textContent = "🟢\u00A0Live";
 			}

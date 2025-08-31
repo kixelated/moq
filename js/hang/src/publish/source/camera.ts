@@ -29,17 +29,13 @@ export class Camera {
 		const enabled = effect.get(this.enabled);
 		if (!enabled) return;
 
-		const device = effect.get(this.device.selected);
-		if (!device) return;
-
-		console.log("requesting camera", device);
-
+		const device = effect.get(this.device.requested);
 		const constraints = effect.get(this.constraints) ?? {};
 
 		// Build final constraints with device selection
 		const finalConstraints: MediaTrackConstraints = {
 			...constraints,
-			deviceId: { exact: device.deviceId },
+			deviceId: device ? { exact: device } : undefined,
 		};
 
 		effect.spawn(async (cancel) => {
@@ -57,9 +53,14 @@ export class Camera {
 			const stream = await Promise.race([media, cancel]);
 			if (!stream) return;
 
+			this.device.permission.set(true);
+
 			const track = stream.getVideoTracks()[0] as VideoStreamTrack | undefined;
 			if (!track) return;
 
+			const settings = track.getSettings();
+
+			effect.set(this.device.active, settings.deviceId);
 			effect.set(this.stream, track, undefined);
 		});
 	}

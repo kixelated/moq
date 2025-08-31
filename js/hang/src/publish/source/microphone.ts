@@ -31,13 +31,12 @@ export class Microphone {
 		const enabled = effect.get(this.enabled);
 		if (!enabled) return;
 
-		const device = effect.get(this.device.selected);
-		if (!device) return;
+		const device = effect.get(this.device.requested);
 
 		const constraints = effect.get(this.constraints) ?? {};
 		const finalConstraints: MediaTrackConstraints = {
 			...constraints,
-			deviceId: { exact: device.deviceId },
+			deviceId: device ? { exact: device } : undefined,
 		};
 
 		effect.spawn(async (cancel) => {
@@ -55,10 +54,16 @@ export class Microphone {
 			const stream = await Promise.race([media, cancel]);
 			if (!stream) return;
 
+			// Success, we can enumerate devices now.
+			this.device.permission.set(true);
+
 			const track = stream.getAudioTracks()[0] as AudioStreamTrack | undefined;
 			if (!track) return;
 
-			effect.set(this.stream, track, undefined);
+			const settings = track.getSettings();
+
+			effect.set(this.device.active, settings.deviceId);
+			effect.set(this.stream, track);
 		});
 	}
 
