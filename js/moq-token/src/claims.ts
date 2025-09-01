@@ -26,3 +26,6 @@ export function validateClaims(claims: Claims): void {
 		throw new Error("no put or get paths specified; token is useless");
 	}
 }
+
+// Export with lowercase for backward compatibility
+export const claimsSchema = ClaimsSchema;
