@@ -5,20 +5,20 @@ export class AudioRingBuffer {
 	#writeIndex = 0;
 	#readIndex = 0;
 
-	readonly sampleRate: number;
+	readonly rate: number;
 	readonly channels: number;
 	#refill = true;
 
-	constructor(props: { sampleRate: number; channelCount: number; latency: Time.Micro }) {
-		if (props.channelCount === 0) throw new Error("invalid channels");
-		if (props.sampleRate === 0) throw new Error("invalid sample rate");
+	constructor(props: { rate: number; channels: number; latency: Time.Milli }) {
+		if (props.channels === 0) throw new Error("invalid channels");
+		if (props.rate === 0) throw new Error("invalid sample rate");
 		if (props.latency === 0) throw new Error("invalid latency");
 
-		const samples = Math.ceil(props.sampleRate * Time.Second.fromMicro(props.latency));
+		const samples = Math.ceil(props.rate * Time.Second.fromMilli(props.latency));
 		if (samples === 0) throw new Error("empty buffer");
 
-		this.sampleRate = props.sampleRate;
-		this.channels = props.channelCount;
+		this.rate = props.rate;
+		this.channels = props.channels;
 
 		this.#buffer = [];
 		for (let i = 0; i < this.channels; i++) {
@@ -41,7 +41,7 @@ export class AudioRingBuffer {
 	write(timestamp: Time.Micro, data: Float32Array[]): void {
 		if (data.length !== this.channels) throw new Error("wrong number of channels");
 
-		let start = Math.round(Time.Second.fromMicro(timestamp) * this.sampleRate);
+		let start = Math.round(Time.Second.fromMicro(timestamp) * this.rate);
 		let samples = data[0].length;
 
 		// Ignore samples that are too old (before the read index)

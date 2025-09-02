@@ -10,7 +10,7 @@ export interface Data {
 
 export interface Init {
 	type: "init";
-	sampleRate: number;
-	channelCount: number;
-	latency: Time.Micro;
+	rate: number;
+	channels: number;
+	latency: Time.Milli;
 }

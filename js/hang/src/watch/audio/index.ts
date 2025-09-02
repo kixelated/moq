@@ -2,7 +2,7 @@ import type * as Moq from "@kixelated/moq";
 import { Effect, type Getter, Signal } from "@kixelated/signals";
 import type * as Catalog from "../../catalog";
 import * as Frame from "../../frame";
-import * as Time from "../../time";
+import type * as Time from "../../time";
 import * as Hex from "../../util/hex";
 import type * as Render from "./render";
 
@@ -118,9 +118,9 @@ export class Audio {
 
 			const init: Render.Init = {
 				type: "init",
-				sampleRate,
-				channelCount,
-				latency: Time.Micro.fromMilli(this.latency),
+				rate: sampleRate,
+				channels: channelCount,
+				latency: this.latency,
 			};
 			worklet.port.postMessage(init);
 
