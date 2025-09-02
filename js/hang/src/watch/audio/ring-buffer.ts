@@ -1,11 +1,30 @@
-import type { Status } from "./render";
+import * as Time from "../../time";
 
 export class AudioRingBuffer {
-	#buffer: Float32Array[] = [];
+	#buffer: Float32Array[];
 	#writeIndex = 0;
 	#readIndex = 0;
-	#sampleRate = 0;
+
+	readonly sampleRate: number;
+	readonly channels: number;
 	#refill = true;
+
+	constructor(props: { sampleRate: number; channelCount: number; latency: Time.Micro }) {
+		if (props.channelCount === 0) throw new Error("invalid channels");
+		if (props.sampleRate === 0) throw new Error("invalid sample rate");
+		if (props.latency === 0) throw new Error("invalid latency");
+
+		const samples = Math.ceil(props.sampleRate * Time.Second.fromMicro(props.latency));
+		if (samples === 0) throw new Error("empty buffer");
+
+		this.sampleRate = props.sampleRate;
+		this.channels = props.channelCount;
+
+		this.#buffer = [];
+		for (let i = 0; i < this.channels; i++) {
+			this.#buffer[i] = new Float32Array(samples);
+		}
+	}
 
 	get refilling(): boolean {
 		return this.#refill;
@@ -16,33 +35,13 @@ export class AudioRingBuffer {
 	}
 
 	get capacity(): number {
-		return this.#buffer[0]?.length ?? 0;
+		return this.#buffer[0]?.length;
 	}
 
-	get utilization(): number {
-		if (this.capacity === 0) return 0;
-		return this.length / this.capacity;
-	}
+	write(timestamp: Time.Micro, data: Float32Array[]): void {
+		if (data.length !== this.channels) throw new Error("wrong number of channels");
 
-	initialize(props: { sampleRate: number; channelCount: number; latency: number }): void {
-		if (props.channelCount === 0) throw new Error("invalid channels");
-		if (props.sampleRate === 0) throw new Error("invalid sample rate");
-		if (props.latency === 0) throw new Error("invalid latency");
-		if (this.#buffer.length > 0) throw new Error("already initialized");
-
-		const samples = Math.ceil((props.sampleRate * props.latency) / 1000);
-		this.#sampleRate = props.sampleRate;
-
-		this.#buffer = [];
-		for (let i = 0; i < props.channelCount; i++) {
-			this.#buffer[i] = new Float32Array(samples);
-		}
-	}
-
-	write(timestamp: number, data: Float32Array[]): void {
-		if (this.#buffer.length === 0) throw new Error("not initialized");
-
-		let start = Math.round(timestamp * this.#sampleRate);
+		let start = Math.round(Time.Second.fromMicro(timestamp) * this.sampleRate);
 		let samples = data[0].length;
 
 		// Ignore samples that are too old (before the read index)
@@ -71,8 +70,12 @@ export class AudioRingBuffer {
 
 		// Fill gaps with zeros if there's a discontinuity
 		if (start > this.#writeIndex) {
-			const gapSize = start - this.#writeIndex;
-			for (let channel = 0; channel < this.#buffer.length; channel++) {
+			const gapSize = Math.min(start - this.#writeIndex, this.#buffer[0].length);
+			if (gapSize === 1) {
+				console.warn("floating point inaccuracy detected");
+			}
+
+			for (let channel = 0; channel < this.channels; channel++) {
 				const dst = this.#buffer[channel];
 				for (let i = 0; i < gapSize; i++) {
 					const writePos = (this.#writeIndex + i) % dst.length;
@@ -82,22 +85,13 @@ export class AudioRingBuffer {
 		}
 
 		// Write the actual samples
-		for (let channel = 0; channel < Math.min(this.#buffer.length, data.length); channel++) {
+		for (let channel = 0; channel < this.channels; channel++) {
 			const src = data[channel];
 			const dst = this.#buffer[channel];
 
 			for (let i = 0; i < samples; i++) {
 				const writePos = (start + i) % dst.length;
 				dst[writePos] = src[offset + i];
-			}
-		}
-
-		// Handle missing channels (e.g., mono data in stereo buffer)
-		for (let channel = data.length; channel < this.#buffer.length; channel++) {
-			const dst = this.#buffer[channel];
-			for (let i = 0; i < samples; i++) {
-				const writePos = (start + i) % dst.length;
-				dst[writePos] = 0;
 			}
 		}
 
@@ -108,13 +102,13 @@ export class AudioRingBuffer {
 	}
 
 	read(output: Float32Array[]): number {
-		if (this.#buffer.length === 0 || output.length === 0) return 0;
+		if (output.length !== this.channels) throw new Error("wrong number of channels");
 		if (this.#refill) return 0;
 
 		const samples = Math.min(this.#writeIndex - this.#readIndex, output[0].length);
 		if (samples === 0) return 0;
 
-		for (let channel = 0; channel < output.length; channel++) {
+		for (let channel = 0; channel < this.channels; channel++) {
 			const dst = output[channel];
 			const src = this.#buffer[channel];
 
@@ -126,13 +120,5 @@ export class AudioRingBuffer {
 
 		this.#readIndex += samples;
 		return samples;
-	}
-
-	status(): Status {
-		return {
-			type: "status",
-			available: this.length,
-			utilization: this.utilization,
-		};
 	}
 }

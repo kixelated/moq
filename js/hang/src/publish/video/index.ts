@@ -3,6 +3,7 @@ import { Effect, type Getter, Signal } from "@kixelated/signals";
 import type * as Catalog from "../../catalog";
 import { u8, u53 } from "../../catalog/integers";
 import * as Frame from "../../frame";
+import * as Time from "../../time";
 import { isFirefox } from "../../util/hacks";
 import * as Hex from "../../util/hex";
 import { Detection, type DetectionProps } from "./detection";
@@ -13,7 +14,7 @@ export * from "./detection";
 export type Source = VideoStreamTrack;
 
 // Create a group every 2 seconds
-const GOP_DURATION_US = 2 * 1000 * 1000;
+const GOP_DURATION = Time.Micro.fromSecond(2 as Time.Second);
 
 // Stronger typing for the MediaStreamTrack interface.
 export interface VideoStreamTrack extends MediaStreamTrack {
@@ -104,7 +105,7 @@ export class Video {
 		let group: Moq.GroupProducer | undefined;
 		effect.cleanup(() => group?.close());
 
-		let groupTimestamp = 0;
+		let groupTimestamp = 0 as Time.Micro;
 
 		const encoder = new VideoEncoder({
 			output: (frame: EncodedVideoChunk, metadata?: EncodedVideoChunkMetadata) => {
@@ -113,14 +114,14 @@ export class Video {
 				}
 
 				if (frame.type === "key") {
-					groupTimestamp = frame.timestamp;
+					groupTimestamp = frame.timestamp as Time.Micro;
 					group?.close();
 					group = this.#track.appendGroup();
 				} else if (!group) {
 					throw new Error("no keyframe");
 				}
 
-				const buffer = Frame.encode(frame, frame.timestamp);
+				const buffer = Frame.encode(frame, frame.timestamp as Time.Micro);
 				group?.writeFrame(buffer);
 			},
 			error: (err: Error) => {
@@ -147,9 +148,9 @@ export class Video {
 
 			while (frame) {
 				// Force a keyframe if this is the first frame (no group yet), or GOP elapsed.
-				const keyFrame = !group || groupTimestamp + GOP_DURATION_US <= frame.timestamp;
+				const keyFrame = !group || groupTimestamp + GOP_DURATION <= frame.timestamp;
 				if (keyFrame) {
-					groupTimestamp = frame.timestamp;
+					groupTimestamp = frame.timestamp as Time.Micro;
 				}
 
 				this.frame.set((prev) => {

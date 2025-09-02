@@ -1,12 +1,24 @@
 import type * as Moq from "@kixelated/moq";
+import { Effect } from "@kixelated/signals";
+import * as Time from "./time";
 
 export interface Source {
 	byteLength: number;
 	copyTo(buffer: Uint8Array): void;
 }
 
-export function encode(source: Uint8Array | Source, timestamp: number): Uint8Array {
+export interface Frame {
+	data: Uint8Array;
+	timestamp: Time.Micro;
+	keyframe: boolean;
+	group: number;
+}
+
+export function encode(source: Uint8Array | Source, timestamp: Time.Micro): Uint8Array {
+	// TODO switch over to u64 for simplicity. The varint uses 8 bytes anyway after 18 minutes lul.
+	// TODO Don't encode into one buffer. Write the header/payload separately to avoid reallocating.
 	const data = new Uint8Array(8 + (source instanceof Uint8Array ? source.byteLength : source.byteLength));
+
 	const size = setVint53(data, timestamp).byteLength;
 	if (source instanceof Uint8Array) {
 		data.set(source, size);
@@ -17,8 +29,9 @@ export function encode(source: Uint8Array | Source, timestamp: number): Uint8Arr
 }
 
 // NOTE: A keyframe is always the first frame in a group, so it's not encoded on the wire.
-export function decode(buffer: Uint8Array): { data: Uint8Array; timestamp: number } {
-	const [timestamp, data] = getVint53(buffer);
+export function decode(buffer: Uint8Array): { data: Uint8Array; timestamp: Time.Micro } {
+	const [us, data] = getVint53(buffer);
+	const timestamp = us as Time.Micro;
 	return { timestamp, data };
 }
 
@@ -30,7 +43,7 @@ export class Producer {
 		this.#track = track;
 	}
 
-	encode(data: Uint8Array | Source, timestamp: number, keyframe: boolean) {
+	encode(data: Uint8Array | Source, timestamp: Time.Micro, keyframe: boolean) {
 		if (keyframe) {
 			this.#group?.close();
 			this.#group = this.#track.appendGroup();
@@ -51,19 +64,199 @@ export class Producer {
 	}
 }
 
+export interface ConsumerProps {
+	// Target latency in milliseconds (default: 0)
+	latency?: Time.Milli;
+}
+
 export class Consumer {
 	#track: Moq.TrackConsumer;
+	#latency: Time.Micro;
+	#groups: Moq.GroupConsumer[] = [];
+	#active = 0; // the active group sequence number
+	#frames: Frame[] = [];
+	#prev?: Time.Micro;
 
-	constructor(track: Moq.TrackConsumer) {
+	// Wake up the consumer when a new frame is available.
+	#notify?: () => void;
+
+	#signals = new Effect();
+
+	constructor(track: Moq.TrackConsumer, props?: ConsumerProps) {
 		this.#track = track;
+		this.#latency = Time.Micro.fromMilli(props?.latency ?? Time.Milli.zero);
+		this.#signals.spawn(this.#run.bind(this));
 	}
 
-	async decode(): Promise<{ data: Uint8Array; timestamp: number; keyframe: boolean } | undefined> {
-		const next = await this.#track.nextFrame();
-		if (!next) return undefined;
+	async #run(cancel: Promise<void>) {
+		// Start fetching groups in the background
+		for (;;) {
+			const group = await Promise.race([this.#track.nextGroup(), cancel]);
+			if (!group) break;
 
-		const { timestamp, data } = decode(next.data);
-		return { data, timestamp, keyframe: next.frame === 0 };
+			if (group.sequence < this.#active) {
+				console.warn(`skipping old group: ${group.sequence} < ${this.#active}`);
+				// Skip old groups.
+				group.close();
+				continue;
+			}
+
+			// Insert into #groups based on the group sequence number (ascending).
+			// This is used to cancel old groups.
+			this.#groups.push(group.clone());
+			this.#groups.sort((a, b) => a.sequence - b.sequence);
+
+			// Start buffering frames from this group
+			this.#signals.spawn(this.#runGroup.bind(this, group));
+		}
+	}
+
+	async #runGroup(group: Moq.GroupConsumer, cancel: Promise<void>) {
+		try {
+			let keyframe = true;
+
+			for (;;) {
+				const next = await Promise.race([group.readFrame(), cancel]);
+				if (!next) break;
+
+				const { data, timestamp } = decode(next);
+				const frame = {
+					data,
+					timestamp,
+					keyframe,
+					group: group.sequence,
+				};
+
+				keyframe = false;
+
+				// Store frames in buffer in order.
+				if (this.#frames.length === 0 || frame.timestamp >= this.#frames[this.#frames.length - 1].timestamp) {
+					// Already sorted; most of the time we just append to the end.
+					this.#frames.push(frame);
+				} else {
+					console.warn(
+						`frame out of order: ${frame.timestamp} < ${this.#frames[this.#frames.length - 1].timestamp}`,
+					);
+					this.#frames.push(frame);
+					this.#frames.sort((a, b) => a.timestamp - b.timestamp);
+				}
+
+				if (this.#frames.at(0)?.group === this.#active) {
+					if (this.#notify) {
+						this.#notify();
+						this.#notify = undefined;
+					}
+				} else {
+					// Check for latency violations
+					this.#checkLatency();
+				}
+			}
+
+			group.close();
+		} finally {
+			if (group.sequence === this.#active) {
+				this.#active += 1;
+				if (this.#notify && this.#frames.at(0)?.group === this.#active) {
+					this.#notify();
+					this.#notify = undefined;
+				}
+			}
+		}
+	}
+
+	#checkLatency() {
+		if (this.#frames.length < 2) return;
+
+		// Check if we have at least #latency frames in the queue.
+		const first = this.#frames[0];
+		const last = this.#frames[this.#frames.length - 1];
+
+		const latency = last.timestamp - first.timestamp;
+		if (latency < this.#latency) return;
+
+		// Skip to the next group
+		const nextFrame = this.#frames.find((f) => f.group > this.#active);
+		if (!nextFrame) return; // Within the same group, ignore for now
+
+		if (this.#prev) {
+			console.warn(`latency violation: ${Math.round(latency / 1000)}ms buffered`);
+			console.warn(`skipping ahead: ${Math.round(nextFrame.timestamp - this.#prev / 1000)}ms`);
+		}
+
+		this.#skipTo(nextFrame.group);
+	}
+
+	#skipTo(groupId: number) {
+		this.#active = groupId;
+
+		// Skip old groups.
+		while (this.#groups.length > 0 && this.#groups[0].sequence < this.#active) {
+			this.#groups.shift()?.close();
+		}
+
+		// Skip old frames.
+		let dropped = 0;
+		while (this.#frames.length > 0 && this.#frames[0].group < this.#active) {
+			dropped++;
+			this.#frames.shift();
+		}
+
+		if (dropped > 0) {
+			console.warn(`dropped ${dropped} frames while skipping`);
+		}
+
+		if (this.#notify && this.#frames.at(0)?.group === this.#active) {
+			this.#notify();
+			this.#notify = undefined;
+		}
+	}
+
+	async decode(): Promise<Frame | undefined> {
+		for (;;) {
+			// Check if we have frames from the active group
+			if (this.#frames.length > 0) {
+				if (this.#frames[0].group === this.#active) {
+					const next = this.#frames.shift();
+					this.#prev = next?.timestamp;
+					return next;
+				}
+
+				// We have frames but not from the active group
+				// Check if we should move to the next group
+				const nextGroupFrames = this.#frames.filter((f) => f.group > this.#active);
+				if (nextGroupFrames.length > 0) {
+					// Move to the next group
+					const nextGroup = Math.min(...nextGroupFrames.map((f) => f.group));
+					this.#skipTo(nextGroup);
+					continue;
+				}
+			}
+
+			if (this.#notify) {
+				throw new Error("multiple calls to decode not supported");
+			}
+
+			const wait = new Promise<void>((resolve) => {
+				this.#notify = resolve;
+			}).then(() => true);
+
+			if (!(await Promise.race([wait, this.#signals.closed()]))) {
+				this.#notify = undefined;
+				// Consumer was closed while waiting for a new frame.
+				return undefined;
+			}
+		}
+	}
+
+	close(): void {
+		this.#signals.close();
+
+		for (const group of this.#groups) {
+			group.close();
+		}
+
+		this.#groups = [];
+		this.#frames = [];
 	}
 }
 

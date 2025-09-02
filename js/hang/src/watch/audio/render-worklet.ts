@@ -1,8 +1,9 @@
-import type { Message, Status } from "./render";
+import type { Message } from "./render";
 import { AudioRingBuffer } from "./ring-buffer";
 
 class Render extends AudioWorkletProcessor {
-	#buffer = new AudioRingBuffer();
+	#buffer?: AudioRingBuffer;
+	#underflow = 0;
 
 	constructor() {
 		super();
@@ -11,8 +12,11 @@ class Render extends AudioWorkletProcessor {
 		this.port.onmessage = (event: MessageEvent<Message>) => {
 			const { type } = event.data;
 			if (type === "init") {
-				this.#buffer.initialize(event.data);
+				console.debug(`init: ${event.data.latency}`);
+				this.#buffer = new AudioRingBuffer(event.data);
+				this.#underflow = 0;
 			} else if (type === "data") {
+				if (!this.#buffer) throw new Error("buffer not initialized");
 				this.#buffer.write(event.data.timestamp, event.data.data);
 			} else {
 				const exhaustive: never = type;
@@ -23,18 +27,16 @@ class Render extends AudioWorkletProcessor {
 
 	process(_inputs: Float32Array[][], outputs: Float32Array[][], _parameters: Record<string, Float32Array>) {
 		const output = outputs[0];
-		const samplesRead = this.#buffer.read(output);
+		const samplesRead = this.#buffer?.read(output) ?? 0;
 
-		// Send buffer status back to main thread for monitoring
-		if (samplesRead > 0) {
-			this.post(this.#buffer.status());
+		if (samplesRead < output[0].length) {
+			this.#underflow += output[0].length - samplesRead;
+		} else if (this.#underflow > 0 && this.#buffer) {
+			console.warn(`audio underflow: ${Math.round((1000 * this.#underflow) / this.#buffer.sampleRate)}ms`);
+			this.#underflow = 0;
 		}
 
 		return true;
-	}
-
-	private post(status: Status) {
-		this.port.postMessage(status);
 	}
 }
 

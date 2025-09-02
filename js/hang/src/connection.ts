@@ -1,5 +1,6 @@
 import * as Moq from "@kixelated/moq";
 import { Effect, Signal } from "@kixelated/signals";
+import type * as Time from "./time";
 
 export type ConnectionProps = {
 	// The URL of the relay server.
@@ -11,11 +12,11 @@ export type ConnectionProps = {
 
 	// The delay in milliseconds before reconnecting.
 	// default: 1000
-	delay?: DOMHighResTimeStamp;
+	delay?: Time.Milli;
 
 	// The maximum delay in milliseconds.
 	// default: 30000
-	maxDelay?: number;
+	maxDelay?: Time.Milli;
 };
 
 export type ConnectionStatus = "connecting" | "connected" | "disconnected" | "unsupported";
@@ -26,11 +27,11 @@ export class Connection {
 	established = new Signal<Moq.Connection | undefined>(undefined);
 
 	readonly reload: boolean;
-	readonly delay: number;
-	readonly maxDelay: number;
+	readonly delay: Time.Milli;
+	readonly maxDelay: Time.Milli;
 
 	signals = new Effect();
-	#delay: number;
+	#delay: Time.Milli;
 
 	// Increased by 1 each time to trigger a reload.
 	#tick = new Signal(0);
@@ -38,8 +39,8 @@ export class Connection {
 	constructor(props?: ConnectionProps) {
 		this.url = Signal.from(props?.url);
 		this.reload = props?.reload ?? true;
-		this.delay = props?.delay ?? 1000;
-		this.maxDelay = props?.maxDelay ?? 30000;
+		this.delay = props?.delay ?? (1000 as Time.Milli);
+		this.maxDelay = props?.maxDelay ?? (30000 as Time.Milli);
 
 		this.#delay = this.delay;
 
@@ -91,7 +92,7 @@ export class Connection {
 					effect.timer(() => this.#tick.set((prev) => Math.max(prev, tick)), this.#delay);
 
 					// Exponential backoff.
-					this.#delay = Math.min(this.#delay * 2, this.maxDelay);
+					this.#delay = Math.min(this.#delay * 2, this.maxDelay) as Time.Milli;
 				}
 			}
 		});

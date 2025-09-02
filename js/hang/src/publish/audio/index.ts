@@ -3,6 +3,7 @@ import { Effect, type Getter, Signal } from "@kixelated/signals";
 import type * as Catalog from "../../catalog";
 import { u8, u53 } from "../../catalog/integers";
 import * as Frame from "../../frame";
+import * as Time from "../../time";
 import { Captions, type CaptionsProps } from "./captions";
 import type * as Capture from "./capture";
 
@@ -55,7 +56,7 @@ export type AudioProps = {
 
 	// The size of each group. Larger groups mean fewer drops but the viewer can fall further behind.
 	// NOTE: Each frame is always flushed to the network immediately.
-	maxLatency?: DOMHighResTimeStamp;
+	maxLatency?: Time.Milli;
 };
 
 export class Audio {
@@ -66,7 +67,7 @@ export class Audio {
 	volume: Signal<number>;
 	captions: Captions;
 	speaking: Speaking;
-	maxLatency: DOMHighResTimeStamp;
+	maxLatency: Time.Milli;
 
 	source: Signal<Source | undefined>;
 
@@ -93,7 +94,7 @@ export class Audio {
 		this.captions = new Captions(this, props?.captions);
 		this.muted = Signal.from(props?.muted ?? false);
 		this.volume = Signal.from(props?.volume ?? 1);
-		this.maxLatency = props?.maxLatency ?? 100; // Default is a group every 100ms
+		this.maxLatency = props?.maxLatency ?? (100 as Time.Milli); // Default is a group every 100ms
 
 		this.#signals.effect(this.#runSource.bind(this));
 		this.#signals.effect(this.#runGain.bind(this));
@@ -180,12 +181,13 @@ export class Audio {
 			numberOfChannels: u53(settings.channelCount),
 			// TODO configurable
 			bitrate: u53(settings.channelCount * 32_000),
+			// TODO there's a bunch of advanced Opus settings that we should use.
 		};
 
 		let group: Moq.GroupProducer = this.#track.appendGroup();
 		effect.cleanup(() => group.close());
 
-		let groupTimestamp = 0;
+		let groupTimestamp = 0 as Time.Micro;
 
 		const encoder = new AudioEncoder({
 			output: (frame) => {
@@ -193,13 +195,13 @@ export class Audio {
 					throw new Error("only key frames are supported");
 				}
 
-				if (frame.timestamp - groupTimestamp >= 1000 * this.maxLatency) {
+				if (frame.timestamp - groupTimestamp >= Time.Micro.fromMilli(this.maxLatency)) {
 					group.close();
 					group = this.#track.appendGroup();
-					groupTimestamp = frame.timestamp;
+					groupTimestamp = frame.timestamp as Time.Micro;
 				}
 
-				const buffer = Frame.encode(frame, frame.timestamp);
+				const buffer = Frame.encode(frame, frame.timestamp as Time.Micro);
 				group.writeFrame(buffer);
 			},
 			error: (err) => {
@@ -232,7 +234,7 @@ export class Audio {
 				sampleRate: worklet.context.sampleRate,
 				numberOfFrames: channels[0].length,
 				numberOfChannels: channels.length,
-				timestamp: (1_000_000 * data.timestamp) / worklet.context.sampleRate,
+				timestamp: data.timestamp,
 				data: joined,
 				transfer: [joined.buffer],
 			});

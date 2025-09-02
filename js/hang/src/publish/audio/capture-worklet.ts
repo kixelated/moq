@@ -1,3 +1,4 @@
+import type * as Time from "../../time";
 import type { AudioFrame } from "./capture";
 
 class Capture extends AudioWorkletProcessor {
@@ -9,8 +10,11 @@ class Capture extends AudioWorkletProcessor {
 		const channels = input[0];
 		if (channels.length === 0) return true; // TODO: No input hooked up?
 
+		// Convert sample count to milliseconds
+		const timestampMs = ((1000 * this.#sampleCount) / sampleRate) as Time.Milli;
+
 		const msg: AudioFrame = {
-			timestamp: this.#sampleCount,
+			timestamp: timestampMs,
 			channels,
 		};
 

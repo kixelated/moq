@@ -77,7 +77,7 @@ export class GroupProducer {
  */
 export class GroupConsumer {
 	/** The unique identifier for this reader */
-	readonly id: number;
+	readonly sequence: number;
 
 	#frames: WatchConsumer<Uint8Array[]>;
 	#index = 0;
@@ -90,7 +90,7 @@ export class GroupConsumer {
 	 * @internal
 	 */
 	constructor(frames: WatchConsumer<Uint8Array[]>, id: number) {
-		this.id = id;
+		this.sequence = id;
 		this.#frames = frames;
 	}
 
@@ -138,7 +138,7 @@ export class GroupConsumer {
 	 * @returns A new GroupConsumer instance
 	 */
 	clone(): GroupConsumer {
-		return new GroupConsumer(this.#frames.clone(), this.id);
+		return new GroupConsumer(this.#frames.clone(), this.sequence);
 	}
 
 	get index() {

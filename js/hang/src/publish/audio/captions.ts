@@ -2,6 +2,7 @@ import * as Moq from "@kixelated/moq";
 import { Effect, Signal } from "@kixelated/signals";
 import type * as Catalog from "../../catalog";
 import { u8 } from "../../catalog";
+import type * as Time from "../../time";
 import type { Audio } from ".";
 import type { Request, Result } from "./captions-worker";
 import CaptureWorklet from "./capture-worklet?worker&url";
@@ -11,7 +12,7 @@ export type CaptionsProps = {
 	transcribe?: boolean;
 
 	// Captions are cleared after this many milliseconds. (10s default)
-	ttl?: DOMHighResTimeStamp;
+	ttl?: Time.Milli;
 };
 
 export class Captions {
@@ -25,13 +26,13 @@ export class Captions {
 
 	signals = new Effect();
 
-	#ttl: DOMHighResTimeStamp;
+	#ttl: Time.Milli;
 
 	#track = new Moq.TrackProducer("captions.txt", 1);
 
 	constructor(audio: Audio, props?: CaptionsProps) {
 		this.audio = audio;
-		this.#ttl = props?.ttl ?? 10000;
+		this.#ttl = props?.ttl ?? (10000 as Time.Milli);
 		this.enabled = Signal.from(props?.enabled ?? false);
 
 		this.signals.effect(this.#run.bind(this));

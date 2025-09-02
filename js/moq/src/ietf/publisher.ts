@@ -151,7 +151,7 @@ export class Publisher {
 			const header = new Group(
 				subscribeId,
 				trackAlias,
-				group.id,
+				group.sequence,
 				0, // publisherPriority
 			);
 			await header.encode(stream);

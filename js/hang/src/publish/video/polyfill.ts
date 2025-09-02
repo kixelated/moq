@@ -1,3 +1,4 @@
+import * as Time from "../../time";
 import type { VideoStreamTrack } from ".";
 
 // Firefox doesn't support MediaStreamTrackProcessor so we need to use a polyfill.
@@ -20,7 +21,7 @@ export function VideoTrackProcessor(track: VideoStreamTrack): ReadableStream<Vid
 	let video: HTMLVideoElement;
 	let canvas: HTMLCanvasElement;
 	let ctx: CanvasRenderingContext2D;
-	let last: DOMHighResTimeStamp;
+	let last: Time.Milli;
 
 	const frameRate = settings.frameRate ?? 30;
 
@@ -44,11 +45,11 @@ export function VideoTrackProcessor(track: VideoStreamTrack): ReadableStream<Vid
 				throw new Error("failed to create canvas context");
 			}
 			ctx = c;
-			last = performance.now();
+			last = performance.now() as Time.Milli;
 		},
 		async pull(controller) {
 			while (true) {
-				const now = performance.now();
+				const now = performance.now() as Time.Milli;
 				if (now - last < 1000 / frameRate) {
 					await new Promise((r) => requestAnimationFrame(r));
 					continue;
@@ -56,7 +57,7 @@ export function VideoTrackProcessor(track: VideoStreamTrack): ReadableStream<Vid
 
 				last = now;
 				ctx.drawImage(video, 0, 0);
-				controller.enqueue(new VideoFrame(canvas, { timestamp: last * 1000 }));
+				controller.enqueue(new VideoFrame(canvas, { timestamp: Time.Micro.fromMilli(last) }));
 			}
 		},
 	});

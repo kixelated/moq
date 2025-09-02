@@ -154,7 +154,10 @@ export class Subscriber {
 	async runGroup(group: Group, stream: Reader) {
 		const subscribe = this.#subscribes.get(group.subscribe);
 		if (!subscribe) {
-			console.warn(`unknown subscription: id=${group.subscribe}`);
+			if (group.subscribe >= this.#subscribeNext) {
+				throw new Error(`unknown subscription: id=${group.subscribe}`);
+			}
+
 			return;
 		}
 
