@@ -150,7 +150,7 @@ export class Consumer {
 
 			group.close();
 		} finally {
-			if (group.sequence !== this.#active) {
+			if (group.sequence === this.#active) {
 				// Advance to the next group.
 				// We don't use #skipTo because we don't want to drop the last frames.
 				this.#active += 1;
