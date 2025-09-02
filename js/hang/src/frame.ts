@@ -54,10 +54,6 @@ export class Producer {
 		this.#group?.writeFrame(encode(data, timestamp));
 	}
 
-	consume(): Consumer {
-		return new Consumer(this.#track.consume());
-	}
-
 	close() {
 		this.#track.close();
 		this.#group?.close();

@@ -61,11 +61,10 @@ export class AudioRingBuffer {
 
 		// Check if we need to discard old samples to prevent overflow
 		const overflow = end - this.#readIndex - this.#buffer[0].length;
-		if (overflow > 0) {
-			// Exit refill mode when we have enough data
+		if (overflow >= 0) {
+			// Discard old samples and exit refill mode
 			this.#refill = false;
-			// Discard old samples
-			this.#readIndex = end - this.#buffer[0].length;
+			this.#readIndex += overflow;
 		}
 
 		// Fill gaps with zeros if there's a discontinuity
