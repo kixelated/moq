@@ -1,4 +1,5 @@
-import type { Reader, Writer } from "../stream";
+import { Mutex } from "async-mutex";
+import type { Reader, Stream as StreamInner } from "../stream";
 import { Announce, AnnounceCancel, AnnounceError, AnnounceOk, Unannounce } from "./announce";
 import { Fetch, FetchCancel, FetchError, FetchOk } from "./fetch";
 import { GoAway } from "./goaway";
@@ -48,33 +49,52 @@ export type MessageType = (typeof Messages)[keyof typeof Messages];
 // Type for control message instances (not constructors)
 export type Message = InstanceType<MessageType>;
 
-/**
- * Writes a control message to the control stream with proper framing.
- * Format: Message Type (varint) + Message Length (varint) + Message Payload
- */
-export async function write<T extends Message>(writer: Writer, message: T): Promise<void> {
-	console.debug("control message write", message);
+export class Stream {
+	stream: StreamInner;
 
-	// Write message type
-	await writer.u53((message.constructor as MessageType).id);
+	#writeLock = new Mutex();
+	#readLock = new Mutex();
 
-	// Write message payload
-	await writer.message(message.encodeMessage.bind(message));
-}
-
-/**
- * Reads a control message from the control stream.
- * Returns the message type and a reader for the payload.
- */
-export async function read(reader: Reader): Promise<Message> {
-	// Read message type
-	const messageType = await reader.u53();
-	if (!(messageType in Messages)) {
-		throw new Error(`Unknown control message type: ${messageType}`);
+	constructor(stream: StreamInner) {
+		this.stream = stream;
 	}
 
-	const f: (r: Reader) => Promise<Message> = Messages[messageType].decodeMessage;
-	const msg = await reader.message(f);
-	console.debug("control message read", msg);
-	return msg;
+	/**
+	 * Writes a control message to the control stream with proper framing.
+	 * Format: Message Type (varint) + Message Length (varint) + Message Payload
+	 */
+	async write<T extends Message>(message: T): Promise<void> {
+		console.debug("message write", message);
+
+		await this.#writeLock.runExclusive(async () => {
+			// Write message type
+			await this.stream.writer.u53((message.constructor as MessageType).id);
+
+			// Write message payload
+			await this.stream.writer.message(message.encodeMessage.bind(message));
+		});
+	}
+
+	/**
+	 * Reads a control message from the control stream.
+	 * Returns the message type and a reader for the payload.
+	 */
+	async read(): Promise<Message> {
+		return await this.#readLock.runExclusive(async () => {
+			const messageType = await this.stream.reader.u53();
+			if (!(messageType in Messages)) {
+				throw new Error(`Unknown control message type: ${messageType}`);
+			}
+
+			try {
+				const f: (r: Reader) => Promise<Message> = Messages[messageType].decodeMessage;
+				const msg = await this.stream.reader.message(f);
+				console.debug("message read", msg);
+				return msg;
+			} catch (err) {
+				console.error("failed to decode message", messageType, err);
+				throw err;
+			}
+		});
+	}
 }

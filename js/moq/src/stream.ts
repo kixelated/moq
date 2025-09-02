@@ -133,9 +133,9 @@ export class Reader {
 	// Reads a message with a varint size prefix.
 	async message<T>(f: (r: Reader) => Promise<T>): Promise<T> {
 		const size = await this.u53();
-		const messageData = await this.read(size);
+		const data = await this.read(size);
 
-		const limit = new Reader(undefined, messageData);
+		const limit = new Reader(undefined, data);
 		const msg = await f(limit);
 
 		// Check that we consumed exactly the right number of bytes

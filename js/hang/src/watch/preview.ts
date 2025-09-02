@@ -1,19 +1,17 @@
 import type * as Moq from "@kixelated/moq";
+import * as Zod from "@kixelated/moq/zod";
 import { Effect, Signal } from "@kixelated/signals";
-import { Container } from "..";
 import type * as Catalog from "../catalog";
-import * as Preview from "../preview";
+import { type Info, InfoSchema } from "../preview";
 
 export interface PreviewProps {
-	enabled?: boolean;
+	enabled?: boolean | Signal<boolean>;
 }
 
-export class PreviewWatch {
+export class Preview {
 	broadcast: Signal<Moq.BroadcastConsumer | undefined>;
 	enabled: Signal<boolean>;
-
-	track = new Signal<Container.FrameConsumer | undefined>(undefined);
-	preview = new Signal<Preview.Info | undefined>(undefined);
+	preview = new Signal<Info | undefined>(undefined);
 
 	#signals = new Effect();
 
@@ -23,7 +21,7 @@ export class PreviewWatch {
 		props?: PreviewProps,
 	) {
 		this.broadcast = broadcast;
-		this.enabled = new Signal(props?.enabled ?? false);
+		this.enabled = Signal.from(props?.enabled ?? false);
 
 		this.#signals.effect((effect) => {
 			if (!effect.get(this.enabled)) return;
@@ -33,33 +31,20 @@ export class PreviewWatch {
 
 			// Subscribe to the preview.json track directly
 			const track = broadcast.subscribe("preview.json", 0);
-			const consumer = new Container.FrameConsumer(track);
-
 			effect.cleanup(() => track.close());
-			effect.set(this.track, consumer);
-		});
 
-		this.#signals.effect((effect) => {
-			const track = effect.get(this.track);
-			if (!track) {
-				return;
-			}
-
-			effect.cleanup(() => this.preview.set(undefined));
-
-			effect.spawn(async () => {
+			effect.spawn(async (cancel) => {
 				try {
-					const frame = await track.decode();
-					if (!frame) return;
+					const info = await Promise.race([Zod.read(track, InfoSchema), cancel]);
+					if (!info) return;
 
-					const decoder = new TextDecoder();
-					const json = decoder.decode(frame.data);
-					const parsed = JSON.parse(json);
-					this.preview.set(Preview.PreviewSchema.parse(parsed));
+					this.preview.set(info);
 				} catch (error) {
 					console.warn("Failed to parse preview JSON:", error);
 				}
 			});
+
+			effect.cleanup(() => this.preview.set(undefined));
 		});
 	}
 

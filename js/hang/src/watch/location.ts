@@ -1,10 +1,10 @@
 import type * as Moq from "@kixelated/moq";
+import * as Zod from "@kixelated/moq/zod";
 import { Effect, type Getter, Signal } from "@kixelated/signals";
-import type * as Catalog from "../catalog";
-import * as Container from "../container";
+import * as Catalog from "../catalog";
 
 export interface LocationProps {
-	enabled?: boolean;
+	enabled?: boolean | Signal<boolean>;
 }
 
 export class Location {
@@ -26,7 +26,7 @@ export class Location {
 		catalog: Signal<Catalog.Root | undefined>,
 		props?: LocationProps,
 	) {
-		this.enabled = new Signal(props?.enabled ?? false);
+		this.enabled = Signal.from(props?.enabled ?? false);
 		this.broadcast = broadcast;
 
 		// Grab the location section from the catalog (if it's changed).
@@ -69,10 +69,7 @@ export class Location {
 			const track = broadcast.subscribe(updates.name, updates.priority);
 			effect.cleanup(() => track.close());
 
-			const consumer = new Container.PositionConsumer(track);
-			effect.cleanup(() => consumer.close());
-
-			effect.spawn(runConsumer.bind(this, consumer, this.#current));
+			effect.spawn(runConsumer.bind(this, track, this.#current));
 		});
 	}
 
@@ -87,13 +84,13 @@ export class Location {
 }
 
 async function runConsumer(
-	consumer: Container.PositionConsumer,
+	consumer: Moq.TrackConsumer,
 	location: Signal<Catalog.Position | undefined>,
 	cancel: Promise<void>,
 ) {
 	try {
 		for (;;) {
-			const position = await Promise.race([consumer.next(), cancel]);
+			const position = await Promise.race([Zod.read(consumer, Catalog.PositionSchema), cancel]);
 			if (!position) break;
 
 			location.set(position);
@@ -120,7 +117,7 @@ export class LocationPeer {
 		catalog: Getter<Catalog.Location | undefined>,
 		handle?: string,
 	) {
-		this.handle = new Signal(handle);
+		this.handle = Signal.from(handle);
 		this.location = new Signal<Catalog.Position | undefined>(undefined);
 		this.broadcast = broadcast;
 
@@ -152,8 +149,7 @@ export class LocationPeer {
 		const sub = broadcast.subscribe(track.name, track.priority);
 		effect.cleanup(() => sub.close());
 
-		const consumer = new Container.PositionConsumer(sub);
-		effect.spawn(runConsumer.bind(this, consumer, this.location));
+		effect.spawn(runConsumer.bind(this, sub, this.location));
 	}
 
 	close() {

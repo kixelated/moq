@@ -1,9 +1,9 @@
-import type { VideoTrack } from ".";
+import type { VideoStreamTrack } from ".";
 
 // Firefox doesn't support MediaStreamTrackProcessor so we need to use a polyfill.
 // Based on: https://jan-ivar.github.io/polyfills/mediastreamtrackprocessor.js
 // Thanks Jan-Ivar
-export function VideoTrackProcessor(track: VideoTrack): ReadableStream<VideoFrame> {
+export function VideoTrackProcessor(track: VideoStreamTrack): ReadableStream<VideoFrame> {
 	// @ts-expect-error No typescript types yet.
 	if (self.MediaStreamTrackProcessor) {
 		// @ts-expect-error No typescript types yet.

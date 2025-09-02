@@ -3,7 +3,7 @@ import { Effect, Signal } from "@kixelated/signals";
 
 export type ConnectionProps = {
 	// The URL of the relay server.
-	url?: URL;
+	url?: URL | Signal<URL | undefined>;
 
 	// Reload the connection when it disconnects.
 	// default: true
@@ -36,7 +36,7 @@ export class Connection {
 	#tick = new Signal(0);
 
 	constructor(props?: ConnectionProps) {
-		this.url = new Signal(props?.url);
+		this.url = Signal.from(props?.url);
 		this.reload = props?.reload ?? true;
 		this.delay = props?.delay ?? 1000;
 		this.maxDelay = props?.maxDelay ?? 30000;

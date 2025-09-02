@@ -302,7 +302,7 @@ export default class HangSupport extends HTMLElement {
 			if (mode !== "publish") {
 				addRow("Rendering", "Audio", binary(support.audio.render));
 				addRow("", "Video", binary(support.video.render));
-				addRow("Decoding", "Audio", binary(support.audio.decoding?.opus));
+				addRow("Decoding", "Opus", binary(support.audio.decoding?.opus));
 				addRow("", "AAC", binary(support.audio.decoding?.aac));
 				addRow("", "AV1", hardware(support.video.decoding?.av1));
 				addRow("", "H.265", hardware(support.video.decoding?.h265));

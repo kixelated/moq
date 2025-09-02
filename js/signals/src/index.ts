@@ -4,9 +4,8 @@ export type Dispose = () => void;
 
 type Subscriber<T> = (value: T) => void;
 
-// eslint-disable-next-line @typescript-eslint/ban-ts-comment
-// @ts-ignore depends on the bundler.
-const dev = import.meta.env?.MODE !== "production";
+// @ts-ignore - Some environments don't recognize import.meta.env
+const DEV = typeof import.meta.env !== "undefined" && import.meta.env?.MODE !== "production";
 
 export interface Getter<T> {
 	peek(): T;
@@ -23,6 +22,13 @@ export class Signal<T> implements Getter<T>, Setter<T> {
 
 	constructor(value: T) {
 		this.#value = value;
+	}
+
+	static from<T>(value: T | Signal<T>): Signal<T> {
+		if (value instanceof Signal) {
+			return value;
+		}
+		return new Signal(value);
 	}
 
 	// TODO rename to get once we've ported everything
@@ -80,10 +86,6 @@ type SetterType<S> = S extends Setter<infer T> ? T : never;
 
 // TODO Make this a single instance of an Effect, so close() can work correctly from async code.
 export class Effect {
-	// eslint-disable-next-line @typescript-eslint/ban-ts-comment
-	// @ts-ignore depends on the bundler.
-	static dev = import.meta.env?.MODE !== "production";
-
 	// Sanity check to make sure roots are being disposed on dev.
 	static #finalizer = new FinalizationRegistry<string>((debugInfo) => {
 		console.warn(`Signals was garbage collected without being closed:\n${debugInfo}`);
@@ -102,14 +104,14 @@ export class Effect {
 
 	// If a function is provided, it will be run with the effect as an argument.
 	constructor(fn?: (effect: Effect) => void) {
-		if (Effect.dev) {
+		if (DEV) {
 			const debug = new Error("created here:").stack ?? "No stack";
 			Effect.#finalizer.register(this, debug, this);
 		}
 
 		this.#fn = fn;
 
-		if (Effect.dev) {
+		if (DEV) {
 			this.#stack = new Error().stack;
 		}
 
@@ -147,7 +149,7 @@ export class Effect {
 			let warn: ReturnType<typeof setTimeout> | undefined;
 			const timeout = new Promise<void>((resolve) => {
 				warn = setTimeout(() => {
-					if (Effect.dev) {
+					if (DEV) {
 						console.warn("spawn is still running after 1s; continuing anyway", this.#stack);
 					}
 
@@ -187,7 +189,7 @@ export class Effect {
 	// Get the current value of a signal, monitoring it for changes (via ===) and rerunning on change.
 	get<T>(signal: Getter<T>): T {
 		if (this.#dispose === undefined) {
-			if (Effect.dev) {
+			if (DEV) {
 				console.warn("Effect.get called when closed, returning current value");
 			}
 			return signal.peek();
@@ -209,7 +211,7 @@ export class Effect {
 		...args: undefined extends SetterType<S> ? [cleanup?: SetterType<S>] : [cleanup: SetterType<S>]
 	): void {
 		if (this.#dispose === undefined) {
-			if (Effect.dev) {
+			if (DEV) {
 				console.warn("Effect.set called when closed, ignoring");
 			}
 			return;
@@ -226,10 +228,12 @@ export class Effect {
 	// Spawn an async effect that blocks the effect being rerun until it completes.
 	// The cancel promise is resolved when the effect should cleanup: on close or rerun.
 	spawn(fn: (cancel: Promise<void>) => Promise<void>) {
-		const promise = fn(this.#stopped);
+		const promise = fn(this.#stopped).catch((error) => {
+			console.error("spawn error", error);
+		});
 
 		if (this.#dispose === undefined) {
-			if (Effect.dev) {
+			if (DEV) {
 				console.warn("Effect.spawn called when closed");
 			}
 
@@ -242,7 +246,7 @@ export class Effect {
 	// Run the function after the given delay in milliseconds UNLESS the effect is cleaned up first.
 	timer(fn: () => void, ms: DOMHighResTimeStamp) {
 		if (this.#dispose === undefined) {
-			if (Effect.dev) {
+			if (DEV) {
 				console.warn("Effect.timer called when closed, ignoring");
 			}
 			return;
@@ -256,9 +260,34 @@ export class Effect {
 		this.cleanup(() => timeout && clearTimeout(timeout));
 	}
 
+	// Run the function, and clean up the nested effect after the given delay.
+	timeout(fn: (effect: Effect) => void, ms: DOMHighResTimeStamp) {
+		if (this.#dispose === undefined) {
+			if (DEV) {
+				console.warn("Effect.timeout called when closed, ignoring");
+			}
+			return;
+		}
+
+		const effect = new Effect(fn);
+		let timeout: ReturnType<typeof setTimeout> | undefined;
+
+		timeout = setTimeout(() => {
+			effect.close();
+			timeout = undefined;
+		}, ms);
+
+		this.#dispose.push(() => {
+			if (timeout) {
+				clearTimeout(timeout);
+				effect.close();
+			}
+		});
+	}
+
 	interval(fn: () => void, ms: DOMHighResTimeStamp) {
 		if (this.#dispose === undefined) {
-			if (Effect.dev) {
+			if (DEV) {
 				console.warn("Effect.interval called when closed, ignoring");
 			}
 			return;
@@ -273,7 +302,7 @@ export class Effect {
 	// Create a nested effect that can be rerun independently.
 	effect(fn: (effect: Effect) => void) {
 		if (this.#dispose === undefined) {
-			if (Effect.dev) {
+			if (DEV) {
 				console.warn("Effect.nested called when closed, ignoring");
 			}
 			return;
@@ -286,7 +315,7 @@ export class Effect {
 	// A helper to call a function when a signal changes.
 	subscribe<T>(signal: Getter<T>, fn: (value: T) => void) {
 		if (this.#dispose === undefined) {
-			if (dev) {
+			if (DEV) {
 				console.warn("Effect.subscribe called when closed, running once");
 			}
 			fn(signal.peek());
@@ -300,74 +329,74 @@ export class Effect {
 	}
 
 	// Add an event listener that automatically removes on cleanup.
-	eventListener<K extends keyof HTMLElementEventMap>(
+	event<K extends keyof HTMLElementEventMap>(
 		target: HTMLElement,
 		type: K,
 		listener: (this: HTMLElement, ev: HTMLElementEventMap[K]) => void,
 		options?: boolean | AddEventListenerOptions,
 	): void;
-	eventListener<K extends keyof SVGElementEventMap>(
+	event<K extends keyof SVGElementEventMap>(
 		target: SVGElement,
 		type: K,
 		listener: (this: SVGElement, ev: SVGElementEventMap[K]) => void,
 		options?: boolean | AddEventListenerOptions,
 	): void;
-	eventListener<K extends keyof DocumentEventMap>(
+	event<K extends keyof DocumentEventMap>(
 		target: Document,
 		type: K,
 		listener: (this: Document, ev: DocumentEventMap[K]) => void,
 		options?: boolean | AddEventListenerOptions,
 	): void;
-	eventListener<K extends keyof WindowEventMap>(
+	event<K extends keyof WindowEventMap>(
 		target: Window,
 		type: K,
 		listener: (this: Window, ev: WindowEventMap[K]) => void,
 		options?: boolean | AddEventListenerOptions,
 	): void;
-	eventListener<K extends keyof WebSocketEventMap>(
+	event<K extends keyof WebSocketEventMap>(
 		target: WebSocket,
 		type: K,
 		listener: (this: WebSocket, ev: WebSocketEventMap[K]) => void,
 		options?: boolean | AddEventListenerOptions,
 	): void;
-	eventListener<K extends keyof XMLHttpRequestEventMap>(
+	event<K extends keyof XMLHttpRequestEventMap>(
 		target: XMLHttpRequest,
 		type: K,
 		listener: (this: XMLHttpRequest, ev: XMLHttpRequestEventMap[K]) => void,
 		options?: boolean | AddEventListenerOptions,
 	): void;
-	eventListener<K extends keyof MediaQueryListEventMap>(
+	event<K extends keyof MediaQueryListEventMap>(
 		target: MediaQueryList,
 		type: K,
 		listener: (this: MediaQueryList, ev: MediaQueryListEventMap[K]) => void,
 		options?: boolean | AddEventListenerOptions,
 	): void;
-	eventListener<K extends keyof AnimationEventMap>(
+	event<K extends keyof AnimationEventMap>(
 		target: Animation,
 		type: K,
 		listener: (this: Animation, ev: AnimationEventMap[K]) => void,
 		options?: boolean | AddEventListenerOptions,
 	): void;
-	eventListener<K extends keyof EventSourceEventMap>(
+	event<K extends keyof EventSourceEventMap>(
 		target: EventSource,
 		type: K,
 		listener: (this: EventSource, ev: EventSourceEventMap[K]) => void,
 		options?: boolean | AddEventListenerOptions,
 	): void;
-	eventListener(
+	event(
 		target: EventTarget,
 		type: string,
 		listener: EventListenerOrEventListenerObject,
 		options?: boolean | AddEventListenerOptions,
 	): void;
-	eventListener(
+	event(
 		target: EventTarget,
 		type: string,
 		listener: EventListenerOrEventListenerObject,
 		options?: boolean | AddEventListenerOptions,
 	): void {
 		if (this.#dispose === undefined) {
-			if (Effect.dev) {
+			if (DEV) {
 				console.warn("Effect.eventListener called when closed, ignoring");
 			}
 			return;
@@ -377,10 +406,15 @@ export class Effect {
 		this.cleanup(() => target.removeEventListener(type, listener, options));
 	}
 
+	// Reschedule the effect to run again.
+	reload() {
+		this.#schedule();
+	}
+
 	// Register a cleanup function.
 	cleanup(fn: Dispose): void {
 		if (this.#dispose === undefined) {
-			if (Effect.dev) {
+			if (DEV) {
 				console.warn("Effect.cleanup called when closed, running immediately");
 			}
 
@@ -406,7 +440,7 @@ export class Effect {
 
 		this.#async.length = 0;
 
-		if (Effect.dev) {
+		if (DEV) {
 			Effect.#finalizer.unregister(this);
 		}
 	}

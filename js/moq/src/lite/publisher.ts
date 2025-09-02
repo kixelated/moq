@@ -209,7 +209,7 @@ export class Publisher {
 
 			try {
 				for (;;) {
-					const frame = await Promise.race([group.nextFrame(), stream.closed()]);
+					const frame = await Promise.race([group.readFrame(), stream.closed()]);
 					if (!frame) break;
 
 					await stream.u53(frame.byteLength);

@@ -1,26 +1,31 @@
 import type * as Moq from "@kixelated/moq";
 import { Effect, type Getter, Signal } from "@kixelated/signals";
 import type * as Catalog from "../../catalog";
-import * as Container from "../../container";
+import * as Frame from "../../frame";
 import * as Hex from "../../util/hex";
 import type * as Render from "./render";
 
 export * from "./emitter";
 
 import { Captions, type CaptionsProps } from "./captions";
-// Unfortunately, we need to use a Vite-exclusive import for now.
-import RenderWorklet from "./render-worklet?worker&url";
+import { Speaking, type SpeakingProps } from "./speaking";
 
 export type AudioProps = {
 	// Enable to download the audio track.
-	enabled?: boolean;
+	enabled?: boolean | Signal<boolean>;
 
 	// The latency hint to use for the AudioContext.
 	latency?: DOMHighResTimeStamp;
 
 	// Enable to download the captions track.
 	captions?: CaptionsProps;
+
+	// Enable to download the speaking track. (boolean)
+	speaking?: SpeakingProps;
 };
+
+// Unfortunately, we need to use a Vite-exclusive import for now.
+import RenderWorklet from "./render-worklet?worker&url";
 
 // Downloads audio from a track and emits it to an AudioContext.
 // The user is responsible for hooking up audio to speakers, an analyzer, etc.
@@ -28,7 +33,7 @@ export class Audio {
 	broadcast: Getter<Moq.BroadcastConsumer | undefined>;
 	catalog: Getter<Catalog.Root | undefined>;
 	enabled: Signal<boolean>;
-	selected = new Signal<Catalog.Audio | undefined>(undefined);
+	info = new Signal<Catalog.Audio | undefined>(undefined);
 
 	// The root of the audio graph, which can be used for custom visualizations.
 	// You can access the audio context via `root.context`.
@@ -40,6 +45,7 @@ export class Audio {
 	readonly sampleRate: Getter<number | undefined> = this.#sampleRate;
 
 	captions: Captions;
+	speaking: Speaking;
 
 	// Not a signal because it updates constantly.
 	#buffered: DOMHighResTimeStamp = 0;
@@ -56,12 +62,13 @@ export class Audio {
 	) {
 		this.broadcast = broadcast;
 		this.catalog = catalog;
-		this.enabled = new Signal(props?.enabled ?? false);
+		this.enabled = Signal.from(props?.enabled ?? false);
 		this.latency = props?.latency ?? 100; // TODO Reduce this once fMP4 stuttering is fixed.
-		this.captions = new Captions(broadcast, this.selected, props?.captions);
+		this.captions = new Captions(broadcast, this.info, props?.captions);
+		this.speaking = new Speaking(broadcast, this.info, props?.speaking);
 
 		this.#signals.effect((effect) => {
-			this.selected.set(effect.get(this.catalog)?.audio?.[0]);
+			this.info.set(effect.get(this.catalog)?.audio?.[0]);
 		});
 
 		this.#signals.effect(this.#runWorklet.bind(this));
@@ -70,11 +77,11 @@ export class Audio {
 
 	#runWorklet(effect: Effect): void {
 		const enabled = effect.get(this.enabled);
-		const selected = effect.get(this.selected);
-		if (!enabled || !selected) return;
+		const info = effect.get(this.info);
+		if (!enabled || !info) return;
 
-		const sampleRate = selected.config.sampleRate;
-		const channelCount = selected.config.numberOfChannels;
+		const sampleRate = info.config.sampleRate;
+		const channelCount = info.config.numberOfChannels;
 
 		// NOTE: We still create an AudioContext even when muted.
 		// This way we can process the audio for visualizations.
@@ -90,7 +97,10 @@ export class Audio {
 			await context.audioWorklet.addModule(RenderWorklet);
 
 			// Create the worklet node
-			const worklet = new AudioWorkletNode(context, "render");
+			const worklet = new AudioWorkletNode(context, "render", {
+				channelCount,
+				channelCountMode: "explicit",
+			});
 			effect.cleanup(() => worklet.disconnect());
 
 			// Listen for buffer status updates (optional, for monitoring)
@@ -100,6 +110,9 @@ export class Audio {
 					this.#buffered = (1000 * available) / sampleRate;
 				}
 			};
+			effect.cleanup(() => {
+				worklet.port.onmessage = null;
+			});
 
 			worklet.port.postMessage({
 				type: "init",
@@ -116,13 +129,13 @@ export class Audio {
 		const enabled = effect.get(this.enabled);
 		if (!enabled) return;
 
-		const selected = effect.get(this.selected);
-		if (!selected) return;
+		const info = effect.get(this.info);
+		if (!info) return;
 
 		const broadcast = effect.get(this.broadcast);
 		if (!broadcast) return;
 
-		const sub = broadcast.subscribe(selected.track.name, selected.track.priority);
+		const sub = broadcast.subscribe(info.track.name, info.track.priority);
 		effect.cleanup(() => sub.close());
 
 		const decoder = new AudioDecoder({
@@ -131,7 +144,7 @@ export class Audio {
 		});
 		effect.cleanup(() => decoder.close());
 
-		const config = selected.config;
+		const config = info.config;
 		const description = config.description ? Hex.toBytes(config.description) : undefined;
 
 		decoder.configure({
@@ -142,10 +155,10 @@ export class Audio {
 		effect.spawn(async (cancel) => {
 			try {
 				for (;;) {
-					const frame = await Promise.race([sub.nextFrame(), cancel]);
+					const frame = await Promise.race([sub.readFrame(), cancel]);
 					if (!frame) break;
 
-					const decoded = Container.decodeFrame(frame.data);
+					const decoded = Frame.decode(frame);
 
 					const chunk = new EncodedAudioChunk({
 						type: "key",
@@ -195,6 +208,7 @@ export class Audio {
 	close() {
 		this.#signals.close();
 		this.captions.close();
+		this.speaking.close();
 	}
 
 	get buffered() {

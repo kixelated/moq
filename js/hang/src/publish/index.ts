@@ -3,6 +3,7 @@ export * from "./broadcast";
 export * from "./chat";
 export * from "./location";
 export * from "./preview";
+export * as Source from "./source";
 export * from "./video";
 
 // NOTE: element is not exported from this module

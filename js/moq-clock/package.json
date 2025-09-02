@@ -19,7 +19,6 @@
 		"@kixelated/moq": "workspace:*"
 	},
 	"devDependencies": {
-		"@types/deno": "^2.3.0",
-		"typescript": "^5.8.3"
+		"@types/deno": "^2.3.0"
 	}
 }

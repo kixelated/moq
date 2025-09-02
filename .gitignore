@@ -4,8 +4,6 @@
 *.log*
 
 # IDE
-.vscode/*
-!.vscode/extensions.json
 .idea
 
 # Build stuff.

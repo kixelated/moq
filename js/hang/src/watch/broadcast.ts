@@ -5,20 +5,20 @@ import type { Connection } from "../connection";
 import { Audio, type AudioProps } from "./audio";
 import { Chat, type ChatProps } from "./chat";
 import { Location, type LocationProps } from "./location";
-import { type PreviewProps, PreviewWatch } from "./preview";
+import { Preview, type PreviewProps } from "./preview";
 import { Video, type VideoProps } from "./video";
 import { Detection, type DetectionProps } from "./video/detection";
 
 export interface BroadcastProps {
 	// Whether to start downloading the broadcast.
 	// Defaults to false so you can make sure everything is ready before starting.
-	enabled?: boolean;
+	enabled?: boolean | Signal<boolean>;
 
 	// The broadcast name.
-	name?: Moq.Path.Valid;
+	name?: Moq.Path.Valid | Signal<Moq.Path.Valid | undefined>;
 
-	// You can disable reloading if you want to save a round trip when you know the broadcast is already live.
-	reload?: boolean;
+	// You can disable reloading if you don't want to wait for an announcement.
+	reload?: boolean | Signal<boolean>;
 
 	video?: VideoProps;
 	audio?: AudioProps;
@@ -37,13 +37,14 @@ export class Broadcast {
 	name: Signal<Moq.Path.Valid | undefined>;
 	status = new Signal<"offline" | "loading" | "live">("offline");
 	user = new Signal<Catalog.User | undefined>(undefined);
+	reload: Signal<boolean>;
 
 	audio: Audio;
 	video: Video;
 	location: Location;
 	chat: Chat;
 	detection: Detection;
-	preview: PreviewWatch;
+	preview: Preview;
 
 	#broadcast = new Signal<Moq.BroadcastConsumer | undefined>(undefined);
 
@@ -54,34 +55,36 @@ export class Broadcast {
 	#active = new Signal(false);
 	readonly active: Getter<boolean> = this.#active;
 
-	#reload: boolean;
 	signals = new Effect();
 
 	constructor(connection: Connection, props?: BroadcastProps) {
 		this.connection = connection;
-		this.name = new Signal(props?.name);
-		this.enabled = new Signal(props?.enabled ?? false);
+		this.name = Signal.from(props?.name);
+		this.enabled = Signal.from(props?.enabled ?? false);
+		this.reload = Signal.from(props?.reload ?? true);
 		this.audio = new Audio(this.#broadcast, this.#catalog, props?.audio);
 		this.video = new Video(this.#broadcast, this.#catalog, props?.video);
 		this.location = new Location(this.#broadcast, this.#catalog, props?.location);
 		this.chat = new Chat(this.#broadcast, this.#catalog, props?.chat);
 		this.detection = new Detection(this.#broadcast, this.#catalog, props?.detection);
-		this.preview = new PreviewWatch(this.#broadcast, this.#catalog, props?.preview);
-		this.#reload = props?.reload ?? true;
+		this.preview = new Preview(this.#broadcast, this.#catalog, props?.preview);
 
 		this.signals.effect((effect) => {
 			this.user.set(effect.get(this.#catalog)?.user);
 		});
 
-		this.signals.effect(this.#runActive.bind(this));
+		this.signals.effect(this.#runReload.bind(this));
 		this.signals.effect(this.#runBroadcast.bind(this));
 		this.signals.effect(this.#runCatalog.bind(this));
 	}
 
-	#runActive(effect: Effect): void {
-		if (!effect.get(this.enabled)) return;
+	#runReload(effect: Effect): void {
+		const enabled = effect.get(this.enabled);
+		if (!enabled) return;
 
-		if (!this.#reload) {
+		const reload = effect.get(this.reload);
+		if (!reload) {
+			// Mark as active without waiting for an announcement.
 			effect.set(this.#active, true, false);
 			return;
 		}
@@ -96,23 +99,19 @@ export class Broadcast {
 		effect.cleanup(() => announced.close());
 
 		effect.spawn(async (cancel) => {
-			try {
-				for (;;) {
-					const update = await Promise.race([announced.next(), cancel]);
+			for (;;) {
+				const update = await Promise.race([announced.next(), cancel]);
 
-					// We're donezo.
-					if (!update) break;
+				// We're donezo.
+				if (!update) break;
 
-					// Require full equality
-					if (update.name !== "") {
-						console.warn("ignoring suffix", update.name);
-						continue;
-					}
-
-					this.#active.set(update.active);
+				// Require full equality
+				if (update.name !== "") {
+					console.warn("ignoring suffix", update.name);
+					continue;
 				}
-			} finally {
-				this.#active.set(false);
+
+				effect.set(this.#active, update.active, false);
 			}
 		});
 	}

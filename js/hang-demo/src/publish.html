@@ -22,7 +22,7 @@
 		Feel free to hard-code it if you have public access configured, like `url="https://relay.moq.dev/anon"`
 		NOTE: `http` performs an insecure certificate check. You must use `https` in production.
 	-->
-	<hang-publish url="%VITE_RELAY_URL%" name="me" audio video controls captions>
+	<hang-publish url="%VITE_RELAY_URL%" name="me" controls>
 		<!-- It's optional to provide a video element to preview the outgoing media. -->
 		<video style="max-width: 100%; height: auto; border-radius: 4px; margin: 0 auto;" muted autoplay></video>
 	</hang-publish>
@@ -47,10 +47,9 @@
 	</p>
 	<hr/>
 	<p>
-		If you pay close enough attention, you'll notice that captions are being automatically generated.
+		Use <code class="language-html">&lt;hang-publish captions&gt;</code> to enable captions generation.
 		This uses a VAD model to detect when you're speaking which is when the 🗣 emoji appears.
 		At the end of a sentence, we run another model to generate the caption which is available over the network.
-		The `captions` attribute controls whether captions are displayed.
 	</p>
 	<p>
 		The AI models are executed using <a href="https://huggingface.co/docs/transformers.js/en/index">Transformers.js</a>.
@@ -69,10 +68,10 @@
 	<p>
 		You can create a broadcaster via the provided <code class="language-html">&lt;hang-publish&gt;</code> <a
 			href="https://developer.mozilla.org/en-US/docs/Web/API/Web_components">Web Component</a>.
-		Either modify HTML attributes like <code class="language-html">&lt;hang-publish device="camera" /&gt;</code>
+		Either modify HTML attributes like <code class="language-html">&lt;hang-publish source="camera" audio /&gt;</code>
 		or access the element's Javascript API:
 	<pre><code class="language-typescript">const publish = document.getElementById("publish");
-publish.lib.device = "camera";</code></pre>
+publish.broadcast.audio.enabled.set(true);</code></pre>
 
 	And of course you can use the Javascript API directly instead of the Web Component.
 	It's a bit more complicated and subject to change, but it gives you more control.

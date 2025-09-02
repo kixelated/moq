@@ -18,9 +18,8 @@ export class Deferred<T> {
 	}
 }
 
-// eslint-disable-next-line @typescript-eslint/ban-ts-comment
-// @ts-ignore depends on the bundler
-const dev = import.meta.env?.MODE !== "production";
+// @ts-ignore - Some environments don't recognize import.meta.env
+const DEV = typeof import.meta.env !== "undefined" && import.meta.env?.MODE !== "production";
 
 export class WatchProducer<T> {
 	#current: T;
@@ -39,7 +38,7 @@ export class WatchProducer<T> {
 		this.#current = init;
 		this.#unused.resolve(undefined);
 
-		if (dev) {
+		if (DEV) {
 			const debugInfo = new Error("Created here").stack ?? "No stack";
 			WatchProducer.finalizer.register(this, debugInfo, this);
 		}
@@ -73,19 +72,25 @@ export class WatchProducer<T> {
 	}
 
 	close() {
+		if (!this.#closed.pending) {
+			return; // Already closed, make idempotent
+		}
 		this.#closed.resolve(undefined);
 		this.#unused.resolve(undefined);
 
-		if (dev) {
+		if (DEV) {
 			WatchProducer.finalizer.unregister(this);
 		}
 	}
 
 	abort(reason: Error) {
+		if (!this.#closed.pending) {
+			return; // Already closed, make idempotent
+		}
 		this.#closed.reject(reason);
 		this.#unused.reject(reason);
 
-		if (dev) {
+		if (DEV) {
 			WatchProducer.finalizer.unregister(this);
 		}
 	}
@@ -141,7 +146,7 @@ export class WatchConsumer<T> {
 	constructor(watch: WatchProducer<T>) {
 		this.#watch = watch;
 
-		if (dev) {
+		if (DEV) {
 			const debugInfo = new Error("Created here").stack ?? "No stack";
 			WatchConsumer.finalizer.register(this, debugInfo, this);
 		}
@@ -210,9 +215,12 @@ export class WatchConsumer<T> {
 	}
 
 	close() {
+		if (!this.#closed.pending) {
+			return; // Already closed, make idempotent
+		}
 		this.#closed.resolve(undefined);
 		this.#watch.unsubscribe();
-		if (dev) {
+		if (DEV) {
 			WatchConsumer.finalizer.unregister(this);
 		}
 	}

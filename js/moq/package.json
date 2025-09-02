@@ -1,7 +1,7 @@
 {
 	"name": "@kixelated/moq",
 	"type": "module",
-	"version": "0.7.4",
+	"version": "0.8.0",
 	"description": "Media over QUIC library",
 	"license": "(MIT OR Apache-2.0)",
 	"repository": "github:kixelated/moq",
@@ -10,7 +10,8 @@
 		"README.md"
 	],
 	"exports": {
-		".": "./src/index.ts"
+		".": "./src/index.ts",
+		"./zod": "./src/zod.ts"
 	},
 	"scripts": {
 		"build": "rimraf dist && tsc -b && tsx ../scripts/package.ts",
@@ -19,12 +20,14 @@
 		"release": "tsx ../scripts/release.ts"
 	},
 	"dependencies": {
-		"@kixelated/web-transport-polyfill": "file:../../../web-transport-rs/web-transport-polyfill"
+		"async-mutex": "^0.5.0",
+		"@kixelated/web-transport-ws": "link:../../../web-transport-rs/web-transport-ws"
+	},
+	"peerDependencies": {
+		"zod": "^4.0.0"
 	},
 	"devDependencies": {
 		"@typescript/lib-dom": "npm:@types/web@^0.0.241",
-		"tsx": "^4.20.1",
-		"typescript": "^5.8.3",
 		"vite": "^6.3.5",
 		"vite-plugin-html": "^3.2.2",
 		"@types/deno": "^2.3.0"

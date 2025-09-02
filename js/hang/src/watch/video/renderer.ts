@@ -2,8 +2,8 @@ import { Effect, Signal } from "@kixelated/signals";
 import type { Video } from ".";
 
 export type VideoRendererProps = {
-	canvas?: HTMLCanvasElement;
-	paused?: boolean;
+	canvas?: HTMLCanvasElement | Signal<HTMLCanvasElement | undefined>;
+	paused?: boolean | Signal<boolean>;
 };
 
 // An component to render a video to a canvas.
@@ -24,16 +24,36 @@ export class VideoRenderer {
 
 	constructor(source: Video, props?: VideoRendererProps) {
 		this.source = source;
-		this.canvas = new Signal(props?.canvas);
-		this.paused = new Signal(props?.paused ?? false);
+		this.canvas = Signal.from(props?.canvas);
+		this.paused = Signal.from(props?.paused ?? false);
 
 		this.#signals.effect((effect) => {
 			const canvas = effect.get(this.canvas);
-			this.#ctx.set(canvas?.getContext("2d", { desynchronized: true }) ?? undefined);
+			this.#ctx.set(canvas?.getContext("2d") ?? undefined);
 		});
 
 		this.#signals.effect(this.#schedule.bind(this));
 		this.#signals.effect(this.#runEnabled.bind(this));
+
+		this.#signals.effect((effect) => {
+			const canvas = effect.get(this.canvas);
+			if (!canvas) return;
+
+			const info = effect.get(this.source.info);
+			if (info) {
+				// Initialize the canvas to the correct size.
+				// NOTE: each frame will resize the canvas, so this is mostly to avoid pop-in.
+				canvas.width = info.config.displayAspectWidth ?? info.config.codedWidth ?? 1;
+				canvas.height = info.config.displayAspectHeight ?? info.config.codedHeight ?? 1;
+			} else {
+				// Hide the canvas when no broadcast is selected.
+				const display = canvas.style.display;
+				canvas.style.display = "none";
+				effect.cleanup(() => {
+					canvas.style.display = display;
+				});
+			}
+		});
 	}
 
 	// Detect when video should be downloaded.
@@ -92,15 +112,33 @@ export class VideoRenderer {
 			throw new Error("scheduled without a canvas");
 		}
 
-		ctx.save();
-		ctx.fillStyle = "#000";
-		ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
-
 		const frame = this.source.frame.peek();
 		if (frame) {
-			ctx.canvas.width = frame.displayWidth;
-			ctx.canvas.height = frame.displayHeight;
+			const w = frame.displayWidth;
+			const h = frame.displayHeight;
+			if (ctx.canvas.width !== w || ctx.canvas.height !== h) {
+				ctx.canvas.width = w;
+				ctx.canvas.height = h;
+			}
+
+			// Prepare background and transformations for this draw
+			ctx.save();
+			ctx.fillStyle = "#000";
+			ctx.fillRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+
+			// Apply horizontal flip if specified in the video config
+			const flip = this.source.flip.peek();
+			if (flip) {
+				ctx.scale(-1, 1);
+				ctx.translate(-ctx.canvas.width, 0);
+			}
+
 			ctx.drawImage(frame, 0, 0, ctx.canvas.width, ctx.canvas.height);
+			ctx.restore();
+		} else {
+			// Clear canvas when no frame
+			ctx.fillStyle = "#000";
+			ctx.fillRect(0, 0, ctx.canvas.width, ctx.canvas.height);
 		}
 
 		// Draw a loading icon when the lag 2+ seconds
@@ -126,8 +164,6 @@ export class VideoRenderer {
 			ctx.restore();
 		}
 		*/
-
-		ctx.restore();
 	}
 
 	// Close the track and all associated resources.

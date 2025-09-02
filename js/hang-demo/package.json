@@ -14,12 +14,12 @@
 		"@kixelated/hang": "workspace:^"
 	},
 	"devDependencies": {
-		"@tailwindcss/postcss": "^4.1.10",
+		"@tailwindcss/postcss": "^4.1.12",
 		"@tailwindcss/typography": "^0.5.16",
-		"@tailwindcss/vite": "^4.1.10",
+		"@tailwindcss/vite": "^4.1.12",
 		"highlight.js": "^11.11.1",
-		"tailwindcss": "^4.1.10",
-		"typescript": "^5.8.3",
+		"tailwindcss": "^4.1.12",
+		"typescript": "^5.9.2",
 		"vite": "^6.3.5",
 		"vite-plugin-html": "^3.2.2"
 	}

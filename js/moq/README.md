@@ -47,12 +47,12 @@ const broadcast = new Moq.BroadcastProducer();
 const track = broadcast.createTrack("chat");
 
 // Send data in groups (e.g., keyframe boundaries)
-const group = track.createGroup();
-await group.writeFrame(new TextEncoder().encode("Hello, MoQ!"));
-await group.close();
+const group = track.appendGroup();
+group.writeString("Hello, MoQ!");
+group.close();
 
 // Publish the broadcast to the connection
-connection.publish("my-broadcast", broadcast);
+connection.publish("my-broadcast", broadcast.consume());
 console.log("Published data to my-broadcast");
 ```
 
@@ -71,15 +71,14 @@ const track = await broadcast.subscribe("chat");
 
 // Read data as it arrives
 for (;;) {
-	const group = await track.next();
+	const group = await track.nextGroup();
 	if (!group) break;
 
 	for (;;) {
-		const frame = await group.next();
+		const frame = await group.readString();
 		if (!frame) break;
 
-        const text = new TextDecoder().decode(frame.data);
-        console.log("Received:", text);
+        console.log("Received:", frame);
     }
 }
 ```
@@ -94,12 +93,15 @@ const connection = await Moq.connect("https://relay.moq.dev/anon");
 // Discover streams with an optional prefix
 const announced = connection.announced("");
 
-for await (const announcement of announced) {
+let announcement = await announced.next();
+while (announcement) {
     console.log("New stream available:", announcement.name);
 
     // Subscribe to new streams
     const broadcast = connection.consume(announcement.name);
     // ... handle the broadcast
+
+    announcement = await announced.next();
 }
 ```
 

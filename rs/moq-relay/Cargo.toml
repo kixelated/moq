@@ -5,14 +5,14 @@ authors = ["Luke Curley"]
 repository = "https://github.com/kixelated/moq"
 license = "MIT OR Apache-2.0"
 
-version = "0.8.8"
+version = "0.8.9"
 edition = "2021"
 
 keywords = ["quic", "http3", "webtransport", "media", "live"]
 categories = ["multimedia", "network-programming", "web-programming"]
 
 [dependencies]
-web-transport-polyfill = { version = "0.1", path = "../../../web-transport-rs/web-transport-polyfill" }
+web-transport-ws = { workspace = true }
 
 anyhow = { version = "1", features = ["backtrace"] }
 axum = { version = "0.8", features = ["tokio", "ws"] }

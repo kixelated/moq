@@ -1,7 +1,8 @@
 import { z } from "zod";
+import { u53Schema } from "../integers";
+import { TrackSchema } from "../track";
 import { CaptionsSchema } from "./captions";
-import { u53Schema } from "./integers";
-import { TrackSchema } from "./track";
+import { SpeakingSchema } from "./speaking";
 
 // Mirrors AudioDecoderConfig
 // https://w3c.github.io/webcodecs/#audio-decoder-config
@@ -34,6 +35,9 @@ export const AudioSchema = z.object({
 
 	// An optional captions track
 	captions: CaptionsSchema.optional(),
+
+	// An optional speaking track
+	speaking: SpeakingSchema.optional(),
 });
 
 export type Audio = z.infer<typeof AudioSchema>;

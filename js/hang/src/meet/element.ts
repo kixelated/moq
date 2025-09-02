@@ -109,7 +109,7 @@ export default class HangMeet extends HTMLElement {
 			autoplay: true,
 		});
 
-		const cleanup = broadcast.video.media.subscribe((media) => {
+		const cleanup = broadcast.video.source.subscribe((media) => {
 			video.srcObject = media ? new MediaStream([media]) : null;
 		});
 

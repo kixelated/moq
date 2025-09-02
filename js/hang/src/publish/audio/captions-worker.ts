@@ -1,27 +1,20 @@
-import {
-	AutoModel,
-	type AutomaticSpeechRecognitionPipeline,
-	type PreTrainedModel,
-	pipeline,
-	Tensor,
-} from "@huggingface/transformers";
+import { type AutomaticSpeechRecognitionPipeline, pipeline } from "@huggingface/transformers";
+import type { AudioFrame } from "./capture";
 
-export type Request = Init;
+export type Request = Init | Speaking;
 
 export interface Init {
 	type: "init";
-
-	// Receive "speaking" audio directly from the VAD worker.
-	// TODO strongly type this, receives Speaking and NotSpeaking.
+	// Captured audio from the worklet.
 	worklet: MessagePort;
 }
-
-export type Result = Speaking | Text | Error;
 
 export interface Speaking {
 	type: "speaking";
 	speaking: boolean;
 }
+
+export type Result = Text | Error;
 
 export interface Text {
 	type: "text";
@@ -35,118 +28,6 @@ export interface Error {
 
 const SAMPLE_RATE = 16000;
 
-const VAD_CHUNK_SIZE = 512; // This VAD model expects 512 samples at a time, or 31ms
-const VAD_SILENCE_PADDING = 4;
-
-class Vad {
-	whisper: Whisper;
-
-	// Simple circular buffer, primarily so we keep the previous buffer around once speaking is detected.
-	#next = new Float32Array(new ArrayBuffer(Float32Array.BYTES_PER_ELEMENT * VAD_CHUNK_SIZE), 0, 0); // queued
-	#current = new Float32Array(new ArrayBuffer(Float32Array.BYTES_PER_ELEMENT * VAD_CHUNK_SIZE), 0, 0); // being processed
-	#prev = new Float32Array(new ArrayBuffer(Float32Array.BYTES_PER_ELEMENT * VAD_CHUNK_SIZE), 0, 0); // already processed
-
-	#processing = false;
-
-	// Initial state for VAD
-	#sr = new Tensor("int64", [SAMPLE_RATE], []);
-	#state = new Tensor("float32", new Float32Array(2 * 1 * 128), [2, 1, 128]);
-	#speaking = false;
-
-	// Count the number of silence results, if we get 3 in a row then we're done.
-	#silence = 0;
-
-	#model: Promise<PreTrainedModel>;
-
-	constructor(whisper: Whisper) {
-		this.whisper = whisper;
-
-		this.#model = AutoModel.from_pretrained("onnx-community/silero-vad", {
-			// @ts-expect-error Not sure why this is needed.
-			config: { model_type: "custom" },
-			dtype: "fp32", // Full-precision
-		});
-	}
-
-	write(samples: Float32Array) {
-		if (this.#next.byteLength >= this.#next.buffer.byteLength) {
-			if (!this.flush()) {
-				// Drop the sample if VAD is still processing.
-				return;
-			}
-		}
-
-		this.#next = new Float32Array(this.#next.buffer, 0, this.#next.length + samples.length);
-		this.#next.set(samples, this.#next.length - samples.length);
-
-		if (this.#next.byteLength === this.#next.buffer.byteLength) {
-			this.flush(); // don't care if it fails
-		}
-	}
-
-	flush(): boolean {
-		if (this.#processing) {
-			return false;
-		}
-
-		this.#processing = true;
-
-		this.#current = this.#next;
-		this.#next = new Float32Array(this.#prev.buffer, 0, 0);
-		this.#prev = this.#current;
-
-		this.#flush().finally(() => {
-			this.#processing = false;
-		});
-
-		return true;
-	}
-
-	async #flush() {
-		const model = await this.#model;
-
-		const input = new Tensor("float32", this.#current, [1, this.#current.length]);
-		const result = await model({ input, sr: this.#sr, state: this.#state });
-		this.#state = result.stateN;
-
-		const wasSpeaking = this.#speaking;
-
-		const isSpeech = result.output.data[0];
-		if (this.#speaking && isSpeech < 0.3) {
-			this.#silence++;
-
-			if (this.#silence > VAD_SILENCE_PADDING) {
-				this.#speaking = false;
-
-				postResult({
-					type: "speaking",
-					speaking: false,
-				});
-			}
-		} else if (!this.#speaking && isSpeech >= 0.1) {
-			this.#speaking = true;
-			this.#silence = 0;
-
-			postResult({
-				type: "speaking",
-				speaking: true,
-			});
-		}
-
-		if (!wasSpeaking && this.#speaking) {
-			this.whisper.write(this.#prev);
-		}
-
-		if (wasSpeaking || this.#speaking) {
-			this.whisper.write(this.#current);
-		}
-
-		if (wasSpeaking && !this.#speaking) {
-			this.whisper.flush();
-		}
-	}
-}
-
 const MAX_WHISPER_BUFFER = 15 * SAMPLE_RATE; // 15 seconds
 
 class Whisper {
@@ -155,6 +36,7 @@ class Whisper {
 
 	#processing = false;
 
+	#speaking = false;
 	#model: Promise<AutomaticSpeechRecognitionPipeline>;
 
 	constructor() {
@@ -185,7 +67,12 @@ class Whisper {
 			}
 		}
 
-		this.#queued = new Float32Array(this.#queued.buffer, 0, this.#queued.length + samples.length);
+		// Determine how many samples to keep.
+		// If we're not speaking, only keep the previous chunk.
+		// TODO add a constant to keep more.
+		const keep = this.#speaking ? this.#queued.length : 0;
+
+		this.#queued = new Float32Array(this.#queued.buffer, 0, keep + samples.length);
 		this.#queued.set(samples, this.#queued.length - samples.length);
 	}
 
@@ -224,16 +111,30 @@ class Whisper {
 			text,
 		});
 	}
+
+	set speaking(speaking: boolean) {
+		if (this.#speaking === speaking) return;
+
+		this.#speaking = speaking;
+
+		if (!speaking) {
+			this.flush();
+		}
+	}
 }
+
+const whisper = new Whisper();
 
 self.addEventListener("message", async (event: MessageEvent<Request>) => {
 	const message = event.data;
-	const whisper = new Whisper();
-	const vad = new Vad(whisper);
 
-	message.worklet.onmessage = ({ data: samples }: MessageEvent<Float32Array>) => {
-		vad.write(samples);
-	};
+	if (message.type === "init") {
+		message.worklet.onmessage = ({ data: { channels } }: MessageEvent<AudioFrame>) => {
+			whisper.write(channels[0]);
+		};
+	} else if (message.type === "speaking") {
+		whisper.speaking = message.speaking;
+	}
 });
 
 function postResult(msg: Result) {

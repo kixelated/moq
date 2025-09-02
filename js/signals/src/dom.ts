@@ -1,10 +1,5 @@
 import type { Effect } from ".";
 
-type EventMap = HTMLElementEventMap;
-type EventListeners = {
-	[K in keyof EventMap]?: (event: EventMap[K]) => void;
-};
-
 export type CreateOptions<T extends HTMLElement> = {
 	style?: Partial<CSSStyleDeclaration>;
 	className?: string;
@@ -12,7 +7,6 @@ export type CreateOptions<T extends HTMLElement> = {
 	id?: string;
 	dataset?: Record<string, string>;
 	attributes?: Record<string, string>;
-	events?: EventListeners;
 } & Partial<Omit<T, "style" | "dataset">>;
 
 export function create<K extends keyof HTMLElementTagNameMap>(
@@ -24,7 +18,7 @@ export function create<K extends keyof HTMLElementTagNameMap>(
 
 	if (!options) return element;
 
-	const { style, classList, dataset, attributes, events, ...props } = options;
+	const { style, classList, dataset, attributes, ...props } = options;
 
 	// Apply styles
 	if (style) {
@@ -50,13 +44,6 @@ export function create<K extends keyof HTMLElementTagNameMap>(
 		});
 	}
 
-	// Add event listeners
-	if (events) {
-		Object.entries(events).forEach(([event, handler]) => {
-			element.addEventListener(event, handler as EventListener);
-		});
-	}
-
 	// Append children
 	if (children) {
 		children.forEach((child) => {
@@ -74,17 +61,48 @@ export function create<K extends keyof HTMLElementTagNameMap>(
 	return element;
 }
 
-export type Render = HTMLElement[] | HTMLElement | ((effect: Effect) => HTMLElement[] | HTMLElement | undefined);
+// Matches solid.js's JSX.Element type.
+export type Element = Node | ArrayElement | (string & {}) | number | boolean | null | undefined;
+interface ArrayElement extends Array<Element> {}
 
-export function render(parent: HTMLElement, effect: Effect, render: Render) {
-	const element = typeof render === "function" ? render(effect) : render;
-	if (element instanceof HTMLElement) {
-		parent.appendChild(element);
-		effect.cleanup(() => element.remove());
-	} else if (Array.isArray(element)) {
-		element.forEach((child) => parent.appendChild(child));
-		effect.cleanup(() => {
-			element.forEach((child) => child.remove());
-		});
+export function render(effect: Effect, parent: Node, element: Element | ((effect: Effect) => Element)) {
+	const e = typeof element === "function" ? element(effect) : element;
+	if (e === undefined || e === null) return;
+
+	let node: Node;
+	if (e instanceof Node) {
+		node = e;
+	} else if (Array.isArray(e)) {
+		node = document.createDocumentFragment();
+		for (const child of e) {
+			render(effect, node, child);
+		}
+	} else if (typeof e === "number" || typeof e === "boolean" || typeof e === "string") {
+		node = document.createTextNode(e.toString());
+	} else {
+		const exhaustive: never = e;
+		throw new Error(`Invalid element type: ${exhaustive}`);
 	}
+
+	parent.appendChild(node);
+	effect.cleanup(() => {
+		try {
+			parent.removeChild(node);
+		} catch (e) {
+			console.log("cleanup failed", parent, node);
+			throw e;
+		}
+	});
+}
+
+export function setClass(effect: Effect, element: HTMLElement, ...classNames: string[]) {
+	for (const className of classNames) {
+		element.classList.add(className);
+	}
+
+	effect.cleanup(() => {
+		for (const className of classNames) {
+			element.classList.remove(className);
+		}
+	});
 }

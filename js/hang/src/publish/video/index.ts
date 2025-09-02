@@ -2,7 +2,7 @@ import * as Moq from "@kixelated/moq";
 import { Effect, type Getter, Signal } from "@kixelated/signals";
 import type * as Catalog from "../../catalog";
 import { u8, u53 } from "../../catalog/integers";
-import * as Container from "../../container";
+import * as Frame from "../../frame";
 import { isFirefox } from "../../util/hacks";
 import * as Hex from "../../util/hex";
 import { Detection, type DetectionProps } from "./detection";
@@ -10,13 +10,16 @@ import { VideoTrackProcessor } from "./polyfill";
 
 export * from "./detection";
 
+export type Source = VideoStreamTrack;
+
 // Create a group every 2 seconds
 const GOP_DURATION_US = 2 * 1000 * 1000;
 
 // Stronger typing for the MediaStreamTrack interface.
-export interface VideoTrack extends MediaStreamTrack {
+export interface VideoStreamTrack extends MediaStreamTrack {
 	kind: "video";
-	clone(): VideoTrack;
+	clone(): VideoStreamTrack;
+	getSettings(): VideoTrackSettings;
 }
 
 export interface VideoTrackSettings {
@@ -40,9 +43,9 @@ export type VideoConstraints = Omit<
 };
 
 export type VideoProps = {
-	enabled?: boolean;
-	media?: VideoTrack;
-	constraints?: VideoConstraints;
+	enabled?: boolean | Signal<boolean>;
+	source?: Source | Signal<Source | undefined>;
+	flip?: boolean | Signal<boolean>;
 	detection?: DetectionProps;
 };
 
@@ -51,14 +54,13 @@ export class Video {
 	detection: Detection;
 
 	enabled: Signal<boolean>;
-
-	readonly media: Signal<VideoTrack | undefined>;
-	readonly constraints: Signal<VideoConstraints | undefined>;
+	flip: Signal<boolean>;
+	source: Signal<Source | undefined>;
 
 	#catalog = new Signal<Catalog.Video | undefined>(undefined);
 	readonly catalog: Getter<Catalog.Video | undefined> = this.#catalog;
 
-	#track = new Signal<Moq.TrackProducer | undefined>(undefined);
+	#track = new Moq.TrackProducer("video", 1);
 
 	#active = new Signal(false);
 	readonly active: Getter<boolean> = this.#active;
@@ -66,11 +68,7 @@ export class Video {
 	#encoderConfig = new Signal<VideoEncoderConfig | undefined>(undefined);
 	#decoderConfig = new Signal<VideoDecoderConfig | undefined>(undefined);
 
-	#group?: Moq.GroupProducer;
-	#groupTimestamp = 0;
-
 	#signals = new Effect();
-	#id = 0;
 
 	// Store the latest VideoFrame
 	frame = new Signal<VideoFrame | undefined>(undefined);
@@ -79,94 +77,79 @@ export class Video {
 		this.broadcast = broadcast;
 		this.detection = new Detection(this, props?.detection);
 
-		this.media = new Signal(props?.media);
-		this.enabled = new Signal(props?.enabled ?? false);
-		this.constraints = new Signal(props?.constraints);
+		this.source = Signal.from(props?.source);
+		this.enabled = Signal.from(props?.enabled ?? false);
+		this.flip = Signal.from(props?.flip ?? false);
 
-		this.#signals.effect(this.#runTrack.bind(this));
 		this.#signals.effect(this.#runEncoder.bind(this));
 		this.#signals.effect(this.#runCatalog.bind(this));
 	}
 
-	#runTrack(effect: Effect): void {
-		const enabled = effect.get(this.enabled);
-		const media = effect.get(this.media);
-		if (!enabled || !media) return;
-
-		const track = new Moq.TrackProducer(`video-${this.#id++}`, 1);
-		effect.cleanup(() => track.close());
-
-		this.broadcast.insertTrack(track.consume());
-		effect.cleanup(() => this.broadcast.removeTrack(track.name));
-
-		effect.set(this.#track, track);
-	}
-
 	#runEncoder(effect: Effect): void {
-		if (!effect.get(this.enabled)) return;
+		const enabled = effect.get(this.enabled);
+		if (!enabled) return;
 
-		const media = effect.get(this.media);
-		if (!media) return;
+		const source = effect.get(this.source);
+		if (!source) return;
 
-		const track = effect.get(this.#track);
-		if (!track) return;
+		// Insert the track into the broadcast.
+		this.broadcast.insertTrack(this.#track.consume());
+		effect.cleanup(() => this.broadcast.removeTrack(this.#track.name));
 
-		const settings = media.getSettings() as VideoTrackSettings;
-		const processor = VideoTrackProcessor(media);
+		const settings = source.getSettings() as VideoTrackSettings;
+		const processor = VideoTrackProcessor(source);
 		const reader = processor.getReader();
 		effect.cleanup(() => reader.cancel());
+
+		let group: Moq.GroupProducer | undefined;
+		effect.cleanup(() => group?.close());
+
+		let groupTimestamp = 0;
 
 		const encoder = new VideoEncoder({
 			output: (frame: EncodedVideoChunk, metadata?: EncodedVideoChunkMetadata) => {
 				if (metadata?.decoderConfig) {
-					this.#decoderConfig.set(metadata.decoderConfig);
+					effect.set(this.#decoderConfig, metadata.decoderConfig);
 				}
 
 				if (frame.type === "key") {
-					this.#groupTimestamp = frame.timestamp;
-					this.#group?.close();
-					this.#group = track.appendGroup();
-				} else if (!this.#group) {
+					groupTimestamp = frame.timestamp;
+					group?.close();
+					group = this.#track.appendGroup();
+				} else if (!group) {
 					throw new Error("no keyframe");
 				}
 
-				const buffer = Container.encodeFrame(frame, frame.timestamp);
-				this.#group.writeFrame(buffer);
+				const buffer = Frame.encode(frame, frame.timestamp);
+				group?.writeFrame(buffer);
 			},
 			error: (err: Error) => {
-				this.#group?.abort(err);
-				this.#group = undefined;
-
-				track.abort(err);
+				group?.abort(err);
+				this.#track.abort(err);
 			},
 		});
+		effect.cleanup(() => encoder.close());
 
-		this.#encoderConfig.set(undefined);
-		this.#decoderConfig.set(undefined);
+		effect.spawn(async (cancel) => {
+			let next = await Promise.race([reader.read(), cancel]);
+			if (!next || !next.value) return;
 
-		void this.#runFrames(encoder, reader, settings);
-	}
+			effect.set(this.#active, true, false);
 
-	async #runFrames(
-		encoder: VideoEncoder,
-		reader: ReadableStreamDefaultReader<VideoFrame>,
-		settings: VideoTrackSettings,
-	) {
-		try {
-			let { value: frame } = await reader.read();
-			if (!frame) return;
+			let frame = next.value;
 
-			this.#active.set(true);
+			const config = await Promise.race([Video.#bestEncoderConfig(settings, frame), cancel]);
+			if (!config) return; // cancelled
 
-			const config = await Video.#bestEncoderConfig(settings, frame);
 			encoder.configure(config);
 
-			this.#encoderConfig.set(config);
+			effect.set(this.#encoderConfig, config);
 
 			while (frame) {
-				const keyFrame = this.#groupTimestamp + GOP_DURATION_US < frame.timestamp;
+				// Force a keyframe if this is the first frame (no group yet), or GOP elapsed.
+				const keyFrame = !group || groupTimestamp + GOP_DURATION_US <= frame.timestamp;
 				if (keyFrame) {
-					this.#groupTimestamp = frame.timestamp;
+					groupTimestamp = frame.timestamp;
 				}
 
 				this.frame.set((prev) => {
@@ -176,15 +159,12 @@ export class Video {
 
 				encoder.encode(frame, { keyFrame });
 
-				({ value: frame } = await reader.read());
-			}
-		} finally {
-			encoder.close();
-			this.#active.set(false);
+				next = await reader.read();
+				if (!next || !next.value) return;
 
-			this.#group?.close();
-			this.#group = undefined;
-		}
+				frame = next.value;
+			}
+		});
 	}
 
 	// Try to determine the best config for the given settings.
@@ -358,8 +338,7 @@ export class Video {
 		const decoderConfig = effect.get(this.#decoderConfig);
 		if (!decoderConfig) return;
 
-		const track = effect.get(this.#track);
-		if (!track) return;
+		const flip = effect.get(this.flip);
 
 		const description = decoderConfig.description
 			? Hex.fromBytes(decoderConfig.description as Uint8Array)
@@ -367,8 +346,8 @@ export class Video {
 
 		const catalog: Catalog.Video = {
 			track: {
-				name: track.name,
-				priority: u8(track.priority),
+				name: this.#track.name,
+				priority: u8(this.#track.priority),
 			},
 			config: {
 				// The order is important here.
@@ -376,14 +355,13 @@ export class Video {
 				description,
 				codedWidth: decoderConfig.codedWidth ? u53(decoderConfig.codedWidth) : undefined,
 				codedHeight: decoderConfig.codedHeight ? u53(decoderConfig.codedHeight) : undefined,
-				displayRatioWidth: encoderConfig.displayWidth ? u53(encoderConfig.displayWidth) : undefined,
-				displayRatioHeight: encoderConfig.displayHeight ? u53(encoderConfig.displayHeight) : undefined,
+				displayAspectWidth: encoderConfig.displayWidth ? u53(encoderConfig.displayWidth) : undefined,
+				displayAspectHeight: encoderConfig.displayHeight ? u53(encoderConfig.displayHeight) : undefined,
 				framerate: encoderConfig.framerate,
 				bitrate: encoderConfig.bitrate ? u53(encoderConfig.bitrate) : undefined,
 				optimizeForLatency: decoderConfig.optimizeForLatency,
-				// rotation and flip are not standard VideoEncoderConfig properties
+				flip,
 				rotation: undefined,
-				flip: undefined,
 			},
 		};
 
@@ -398,5 +376,6 @@ export class Video {
 
 		this.#signals.close();
 		this.detection.close();
+		this.#track.close();
 	}
 }

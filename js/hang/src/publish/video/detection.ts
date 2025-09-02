@@ -8,7 +8,7 @@ import type { DetectionWorker } from "./detection-worker";
 import WorkerUrl from "./detection-worker?worker&url";
 
 export type DetectionProps = {
-	enabled?: boolean;
+	enabled?: boolean | Signal<boolean>;
 	interval?: number;
 	threshold?: number;
 };
@@ -30,7 +30,7 @@ export class Detection {
 
 	constructor(video: Video, props?: DetectionProps) {
 		this.video = video;
-		this.enabled = new Signal(props?.enabled ?? false);
+		this.enabled = Signal.from(props?.enabled ?? false);
 		this.#interval = props?.interval ?? 1000;
 		this.#threshold = props?.threshold ?? 0.5;
 
@@ -41,8 +41,8 @@ export class Detection {
 	}
 
 	#run(effect: Effect): void {
-		if (!effect.get(this.enabled)) return;
-		if (!effect.get(this.video.enabled)) return;
+		const enabled = effect.get(this.enabled);
+		if (!enabled) return;
 
 		this.video.broadcast.insertTrack(this.#track.consume());
 		effect.cleanup(() => this.video.broadcast.removeTrack(this.#track.name));
@@ -76,7 +76,7 @@ export class Detection {
 			const result = await api.detect(Comlink.transfer(cloned, [cloned]), this.#threshold);
 
 			this.objects.set(result);
-			this.#track.appendFrame(new TextEncoder().encode(JSON.stringify(result)));
+			this.#track.writeJson(result);
 
 			// Schedule the next detection only after this one is complete.
 			// Otherwise, we're in trouble if it takes >= interval to complete.

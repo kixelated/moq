@@ -76,18 +76,26 @@ export class AnnounceCancel {
 	static id = 0x0c;
 
 	trackNamespace: Path.Valid;
+	errorCode: number;
+	reasonPhrase: string;
 
-	constructor(trackNamespace: Path.Valid) {
+	constructor(trackNamespace: Path.Valid, errorCode: number = 0, reasonPhrase: string = "") {
 		this.trackNamespace = trackNamespace;
+		this.errorCode = errorCode;
+		this.reasonPhrase = reasonPhrase;
 	}
 
 	async encodeMessage(w: Writer): Promise<void> {
 		await Namespace.encode(w, this.trackNamespace);
+		await w.u53(this.errorCode);
+		await w.string(this.reasonPhrase);
 	}
 
 	static async decodeMessage(r: Reader): Promise<AnnounceCancel> {
 		const trackNamespace = await Namespace.decode(r);
-		return new AnnounceCancel(trackNamespace);
+		const errorCode = await r.u53();
+		const reasonPhrase = await r.string();
+		return new AnnounceCancel(trackNamespace, errorCode, reasonPhrase);
 	}
 }
 

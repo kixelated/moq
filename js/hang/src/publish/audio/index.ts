@@ -2,7 +2,7 @@ import * as Moq from "@kixelated/moq";
 import { Effect, type Getter, Signal } from "@kixelated/signals";
 import type * as Catalog from "../../catalog";
 import { u8, u53 } from "../../catalog/integers";
-import * as Container from "../../container";
+import * as Frame from "../../frame";
 import { Captions, type CaptionsProps } from "./captions";
 import type * as Capture from "./capture";
 
@@ -11,8 +11,11 @@ export * from "./captions";
 const GAIN_MIN = 0.001;
 const FADE_TIME = 0.2;
 
+export type Source = AudioStreamTrack;
+
 // Unfortunately, we need to use a Vite-exclusive import for now.
 import CaptureWorklet from "./capture-worklet?worker&url";
+import { Speaking, type SpeakingProps } from "./speaking";
 
 export type AudioConstraints = Omit<
 	MediaTrackConstraints,
@@ -20,13 +23,14 @@ export type AudioConstraints = Omit<
 >;
 
 // Stronger typing for the MediaStreamTrack interface.
-export interface AudioTrack extends MediaStreamTrack {
+export interface AudioStreamTrack extends MediaStreamTrack {
 	kind: "audio";
-	clone(): AudioTrack;
+	clone(): AudioStreamTrack;
+	getSettings(): AudioTrackSettings;
 }
 
 // MediaTrackSettings can represent both audio and video, which means a LOT of possibly undefined properties.
-// This is a fork of the MediaTrackSettings interface with properties required for audio or vidfeo.
+// This is a fork of the MediaTrackSettings interface with properties required for audio or video.
 export interface AudioTrackSettings {
 	deviceId: string;
 	groupId: string;
@@ -41,13 +45,13 @@ export interface AudioTrackSettings {
 
 // The initial values for our signals.
 export type AudioProps = {
-	enabled?: boolean;
-	media?: AudioTrack;
-	constraints?: AudioConstraints;
+	enabled?: boolean | Signal<boolean>;
+	source?: Source | Signal<Source | undefined>;
 
-	muted?: boolean;
-	volume?: number;
+	muted?: boolean | Signal<boolean>;
+	volume?: number | Signal<number>;
 	captions?: CaptionsProps;
+	speaking?: SpeakingProps;
 
 	// The size of each group. Larger groups mean fewer drops but the viewer can fall further behind.
 	// NOTE: Each frame is always flushed to the network immediately.
@@ -61,57 +65,59 @@ export class Audio {
 	muted: Signal<boolean>;
 	volume: Signal<number>;
 	captions: Captions;
+	speaking: Speaking;
 	maxLatency: DOMHighResTimeStamp;
 
-	media: Signal<AudioTrack | undefined>;
-	constraints: Signal<AudioConstraints | undefined>;
+	source: Signal<Source | undefined>;
 
 	#catalog = new Signal<Catalog.Audio | undefined>(undefined);
 	readonly catalog: Getter<Catalog.Audio | undefined> = this.#catalog;
+
+	#config = new Signal<Catalog.AudioConfig | undefined>(undefined);
+	readonly config: Getter<Catalog.AudioConfig | undefined> = this.#config;
 
 	#worklet = new Signal<AudioWorkletNode | undefined>(undefined);
 
 	#gain = new Signal<GainNode | undefined>(undefined);
 	readonly root: Getter<AudioNode | undefined> = this.#gain;
 
-	#group?: Moq.GroupProducer;
-	#groupTimestamp = 0;
+	#track = new Moq.TrackProducer("audio", 1);
 
-	#id = 0;
 	#signals = new Effect();
 
 	constructor(broadcast: Moq.BroadcastProducer, props?: AudioProps) {
 		this.broadcast = broadcast;
-		this.media = new Signal(props?.media);
-		this.enabled = new Signal(props?.enabled ?? false);
+		this.source = Signal.from(props?.source);
+		this.enabled = Signal.from(props?.enabled ?? false);
+		this.speaking = new Speaking(this, props?.speaking);
 		this.captions = new Captions(this, props?.captions);
-		this.constraints = new Signal(props?.constraints);
-		this.muted = new Signal(props?.muted ?? false);
-		this.volume = new Signal(props?.volume ?? 1);
+		this.muted = Signal.from(props?.muted ?? false);
+		this.volume = Signal.from(props?.volume ?? 1);
 		this.maxLatency = props?.maxLatency ?? 100; // Default is a group every 100ms
 
 		this.#signals.effect(this.#runSource.bind(this));
 		this.#signals.effect(this.#runGain.bind(this));
 		this.#signals.effect(this.#runEncoder.bind(this));
+		this.#signals.effect(this.#runCatalog.bind(this));
 	}
 
 	#runSource(effect: Effect): void {
 		const enabled = effect.get(this.enabled);
-		const media = effect.get(this.media);
-		if (!enabled || !media) return;
+		if (!enabled) return;
 
-		const settings = media.getSettings();
-		if (!settings) {
-			throw new Error("track has no settings");
-		}
+		const source = effect.get(this.source);
+		if (!source) return;
+
+		const settings = source.getSettings();
 
 		const context = new AudioContext({
+			latencyHint: "interactive",
 			sampleRate: settings.sampleRate,
 		});
 		effect.cleanup(() => context.close());
 
 		const root = new MediaStreamAudioSourceNode(context, {
-			mediaStream: new MediaStream([media]),
+			mediaStream: new MediaStream([source]),
 		});
 		effect.cleanup(() => root.disconnect());
 
@@ -158,41 +164,28 @@ export class Audio {
 	#runEncoder(effect: Effect): void {
 		if (!effect.get(this.enabled)) return;
 
-		const media = effect.get(this.media);
-		if (!media) return;
+		const source = effect.get(this.source);
+		if (!source) return;
 
 		const worklet = effect.get(this.#worklet);
 		if (!worklet) return;
 
-		const track = new Moq.TrackProducer(`audio-${this.#id++}`, 1);
-		effect.cleanup(() => track.close());
+		const settings = source.getSettings() as AudioTrackSettings;
 
-		this.broadcast.insertTrack(track.consume());
-		effect.cleanup(() => this.broadcast.removeTrack(track.name));
-
-		const settings = media.getSettings() as AudioTrackSettings;
-
-		// TODO don't reininalize the encoder just because the captions track changed.
-		const captions = effect.get(this.captions.catalog);
-
-		const catalog: Catalog.Audio = {
-			track: {
-				name: track.name,
-				priority: u8(track.priority),
-			},
-			config: {
-				// TODO get codec and description from decoderConfig
-				codec: "opus",
-				// Firefox doesn't provide the sampleRate in the settings.
-				sampleRate: u53(settings.sampleRate ?? worklet?.context.sampleRate),
-				numberOfChannels: u53(settings.channelCount),
-				// TODO configurable
-				bitrate: u53(settings.channelCount * 32_000),
-			},
-			captions,
+		const config = {
+			// TODO get codec and description from decoderConfig
+			codec: "opus",
+			// Firefox doesn't provide the sampleRate in the settings.
+			sampleRate: u53(settings.sampleRate ?? worklet?.context.sampleRate),
+			numberOfChannels: u53(settings.channelCount),
+			// TODO configurable
+			bitrate: u53(settings.channelCount * 32_000),
 		};
 
-		effect.set(this.#catalog, catalog);
+		let group: Moq.GroupProducer = this.#track.appendGroup();
+		effect.cleanup(() => group.close());
+
+		let groupTimestamp = 0;
 
 		const encoder = new AudioEncoder({
 			output: (frame) => {
@@ -200,25 +193,20 @@ export class Audio {
 					throw new Error("only key frames are supported");
 				}
 
-				if (!this.#group || frame.timestamp - this.#groupTimestamp >= 1000 * this.maxLatency) {
-					this.#group?.close();
-					this.#group = track.appendGroup();
-					this.#groupTimestamp = frame.timestamp;
+				if (frame.timestamp - groupTimestamp >= 1000 * this.maxLatency) {
+					group.close();
+					group = this.#track.appendGroup();
+					groupTimestamp = frame.timestamp;
 				}
 
-				const buffer = Container.encodeFrame(frame, frame.timestamp);
-				this.#group.writeFrame(buffer);
+				const buffer = Frame.encode(frame, frame.timestamp);
+				group.writeFrame(buffer);
 			},
 			error: (err) => {
-				this.#group?.abort(err);
-				this.#group = undefined;
-
-				track.abort(err);
+				group.abort(err);
 			},
 		});
 		effect.cleanup(() => encoder.close());
-
-		const config = catalog.config;
 
 		encoder.configure({
 			codec: config.codec,
@@ -226,6 +214,8 @@ export class Audio {
 			sampleRate: config.sampleRate,
 			bitrate: config.bitrate,
 		});
+
+		effect.set(this.#config, config);
 
 		worklet.port.onmessage = ({ data }: { data: Capture.AudioFrame }) => {
 			const channels = data.channels.slice(0, settings.channelCount);
@@ -250,10 +240,39 @@ export class Audio {
 			encoder.encode(frame);
 			frame.close();
 		};
+		effect.cleanup(() => {
+			worklet.port.onmessage = null;
+		});
+	}
+
+	#runCatalog(effect: Effect): void {
+		const config = effect.get(this.#config);
+		if (!config) return;
+
+		// Insert the track into the broadcast before returning the catalog referencing it.
+		this.broadcast.insertTrack(this.#track.consume());
+		effect.cleanup(() => this.broadcast.removeTrack(this.#track.name));
+
+		const captions = effect.get(this.captions.catalog);
+		const speaking = effect.get(this.speaking.catalog);
+
+		const catalog: Catalog.Audio = {
+			track: {
+				name: this.#track.name,
+				priority: u8(this.#track.priority),
+			},
+			config,
+			captions,
+			speaking,
+		};
+
+		effect.set(this.#catalog, catalog);
 	}
 
 	close() {
 		this.#signals.close();
 		this.captions.close();
+		this.speaking.close();
+		this.#track.close();
 	}
 }

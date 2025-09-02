@@ -6,10 +6,10 @@ import type * as Path from "./path";
 import { Stream } from "./stream";
 import * as Hex from "./util/hex";
 
-// Check if we need to load the polyfill.
-let polyfill: Promise<typeof import("@kixelated/web-transport-polyfill")>;
+// Check if we need to load the WebSocket polyfill.
+let polyfill: Promise<typeof import("@kixelated/web-transport-ws")>;
 if (typeof globalThis !== "undefined" && !("WebTransport" in globalThis)) {
-	polyfill = import("@kixelated/web-transport-polyfill");
+	polyfill = import("@kixelated/web-transport-ws");
 }
 
 export interface Connection {
@@ -61,6 +61,7 @@ export async function connect(url: URL): Promise<Connection> {
 
 	let quic: WebTransport;
 	if (polyfill) {
+		console.warn("using web-transport-ws polyfill");
 		const WebTransportSession = (await polyfill).default;
 		quic = new WebTransportSession(adjustedUrl, options);
 	} else {
@@ -69,8 +70,11 @@ export async function connect(url: URL): Promise<Connection> {
 
 	await quic.ready;
 
-	const msg = new Lite.SessionClient([Lite.CURRENT_VERSION, Ietf.CURRENT_VERSION]);
+	// moq-rs currently requires the ROLE extension to be set.
+	const extensions = new Lite.Extensions();
+	extensions.set(0x0n, new Uint8Array([0x03]));
 
+	const msg = new Lite.SessionClient([Lite.CURRENT_VERSION, Ietf.CURRENT_VERSION], extensions);
 	const stream = await Stream.open(quic);
 
 	// We're encoding 0x40 so it's backwards compatible with moq-transport
@@ -85,8 +89,10 @@ export async function connect(url: URL): Promise<Connection> {
 
 	const server = await Lite.SessionServer.decode(stream.reader);
 	if (server.version === Lite.CURRENT_VERSION) {
+		console.debug("moq-lite session established");
 		return new Lite.Connection(adjustedUrl, quic, stream);
 	} else if (server.version === Ietf.CURRENT_VERSION) {
+		console.debug("moq-ietf session established");
 		return new Ietf.Connection(adjustedUrl, quic, stream);
 	} else {
 		throw new Error(`unsupported server version: ${server.version.toString()}`);

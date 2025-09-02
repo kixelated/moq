@@ -4,12 +4,6 @@
 
 import { execSync } from "node:child_process";
 
-console.log("🔍 Installing dependencies...");
-execSync("pnpm install", {
-	stdio: "inherit",
-	cwd: "dist",
-});
-
 console.log("📦 Building package...");
 execSync("pnpm build", { stdio: "inherit" });
 

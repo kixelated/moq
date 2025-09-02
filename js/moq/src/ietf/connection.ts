@@ -34,7 +34,7 @@ export class Connection implements ConnectionInterface {
 	#quic: WebTransport;
 
 	// The single bidirectional control stream for control messages
-	#controlStream: Stream;
+	#control: Control.Stream;
 
 	// Module for contributing tracks.
 	#publisher: Publisher;
@@ -50,16 +50,16 @@ export class Connection implements ConnectionInterface {
 	 *
 	 * @internal
 	 */
-	constructor(url: URL, quic: WebTransport, controlStream: Stream) {
+	constructor(url: URL, quic: WebTransport, control: Stream) {
 		this.url = url;
 		this.#quic = quic;
-		this.#controlStream = controlStream;
+		this.#control = new Control.Stream(control);
 
 		// The root path of the connection, to emulate moq-lite.
 		const root = Path.from(url.pathname);
 
-		this.#publisher = new Publisher(this.#quic, this.#controlStream.writer, root);
-		this.#subscriber = new Subscriber(this.#controlStream.writer, root);
+		this.#publisher = new Publisher(this.#quic, this.#control, root);
+		this.#subscriber = new Subscriber(this.#control, root);
 
 		this.#run();
 	}
@@ -125,7 +125,7 @@ export class Connection implements ConnectionInterface {
 	async #runControlStream() {
 		for (;;) {
 			try {
-				const msg = await Control.read(this.#controlStream.reader);
+				const msg = await this.#control.read();
 
 				// Route control messages to appropriate handlers based on type
 				// Messages sent by Subscriber, received by Publisher:

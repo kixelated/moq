@@ -8,7 +8,7 @@ use std::{
 	},
 	task::{ready, Context, Poll},
 };
-use web_transport_polyfill::tungstenite;
+use web_transport_ws::tungstenite;
 
 use axum::{
 	body::Body,
@@ -135,7 +135,7 @@ where
 	tracing::info!("session accepted");
 
 	// Wrap the WebSocket in a WebTransport compatibility layer.
-	let ws = web_transport_polyfill::Session::new(socket, true);
+	let ws = web_transport_ws::Session::new(socket, true);
 
 	tracing::info!("connecting session");
 	let session = moq_lite::Session::accept(ws, subscribe, publish).await?;

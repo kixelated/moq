@@ -3,8 +3,8 @@ import { Effect, Signal } from "@kixelated/signals";
 import type { Info } from "../preview";
 
 export type PreviewProps = {
-	enabled?: boolean;
-	info?: Info;
+	enabled?: boolean | Signal<boolean>;
+	info?: Info | Signal<Info | undefined>;
 };
 
 export class Preview {
@@ -13,16 +13,12 @@ export class Preview {
 	info: Signal<Info | undefined>;
 
 	#track = new Moq.TrackProducer("preview.json", 0);
-
 	#signals = new Effect();
 
 	constructor(broadcast: Moq.BroadcastProducer, props?: PreviewProps) {
 		this.broadcast = broadcast;
-		this.enabled = new Signal(props?.enabled ?? false);
-		this.info = new Signal(props?.info);
-
-		// Create an empty group to start with.
-		this.#track.appendGroup().close();
+		this.enabled = Signal.from(props?.enabled ?? false);
+		this.info = Signal.from(props?.info);
 
 		this.#signals.effect((effect) => {
 			const enabled = effect.get(this.enabled);
@@ -36,23 +32,14 @@ export class Preview {
 			if (!effect.get(this.enabled)) return;
 
 			const info = effect.get(this.info);
+			if (!info) return;
+
 			this.#publish(info);
 		});
 	}
 
-	#publish(preview?: Info) {
-		const encoder = new TextEncoder();
-		const group = this.#track.appendGroup();
-
-		// Write an empty group if there is no info.
-		// TODO or empty frame?
-		if (preview) {
-			const json = JSON.stringify(preview);
-			const buffer = encoder.encode(json);
-			group.writeFrame(buffer);
-		}
-
-		group.close();
+	#publish(preview: Info) {
+		this.#track.writeJson(preview);
 	}
 
 	close() {

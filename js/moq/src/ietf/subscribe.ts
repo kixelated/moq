@@ -49,9 +49,12 @@ export class Subscribe {
 		const trackName = await r.string();
 		const subscriberPriority = await r.u8();
 
-		await r.u53(); // Don't care about group order
+		const groupOrder = await r.u8();
+		if (groupOrder !== 0 && groupOrder !== GROUP_ORDER) {
+			throw new Error(`unsupported group order: ${groupOrder}`);
+		}
 
-		const filterType = await r.u53();
+		const filterType = await r.u8();
 		if (filterType !== FILTER_TYPE) {
 			throw new Error(`unsupported filter type: ${filterType}`);
 		}
@@ -100,10 +103,10 @@ export class SubscribeOk {
 			throw new Error(`unsupported expires: ${expires}`);
 		}
 
-		await r.u53(); // Don't care about group order
+		await r.u8(); // Don't care about group order
 
 		let largest: [bigint, bigint] | undefined;
-		const contentExists = await r.u53();
+		const contentExists = await r.u8();
 		if (contentExists === 1) {
 			largest = [await r.u62(), await r.u62()];
 		}

@@ -1,11 +1,12 @@
 import type * as Moq from "@kixelated/moq";
+import * as Zod from "@kixelated/moq/zod";
 import { Effect, Signal } from "@kixelated/signals";
 import * as Catalog from "../../catalog";
 
 export interface DetectionProps {
 	// Whether to start downloading the detection data.
 	// Defaults to false so you can make sure everything is ready before starting.
-	enabled?: boolean;
+	enabled?: boolean | Signal<boolean>;
 }
 
 export class Detection {
@@ -24,7 +25,7 @@ export class Detection {
 		props?: DetectionProps,
 	) {
 		this.broadcast = broadcast;
-		this.enabled = new Signal(props?.enabled ?? false);
+		this.enabled = Signal.from(props?.enabled ?? false);
 
 		// Grab the detection section from the catalog (if it's changed).
 		this.#signals.effect((effect) => {
@@ -44,15 +45,11 @@ export class Detection {
 
 			effect.spawn(async (cancel) => {
 				for (;;) {
-					const frame = await Promise.race([track.nextFrame(), cancel]);
+					const frame = await Promise.race([Zod.read(track, Catalog.DetectionObjectsSchema), cancel]);
 					if (!frame) break;
 
-					const decoder = new TextDecoder();
-					const text = decoder.decode(frame.data);
-
-					const objects = Catalog.DetectionObjectsSchema.parse(JSON.parse(text));
 					// Use a function to avoid the dequal check.
-					this.objects.set(() => objects);
+					this.objects.set(() => frame);
 				}
 			});
 
