@@ -10,9 +10,9 @@ export class AudioRingBuffer {
 	#refill = true;
 
 	constructor(props: { rate: number; channels: number; latency: Time.Milli }) {
-		if (props.channels === 0) throw new Error("invalid channels");
-		if (props.rate === 0) throw new Error("invalid sample rate");
-		if (props.latency === 0) throw new Error("invalid latency");
+		if (props.channels <= 0) throw new Error("invalid channels");
+		if (props.rate <= 0) throw new Error("invalid sample rate");
+		if (props.latency <= 0) throw new Error("invalid latency");
 
 		const samples = Math.ceil(props.rate * Time.Second.fromMilli(props.latency));
 		if (samples === 0) throw new Error("empty buffer");
@@ -87,6 +87,7 @@ export class AudioRingBuffer {
 		for (let channel = 0; channel < this.channels; channel++) {
 			const src = data[channel];
 			const dst = this.#buffer[channel];
+			if (src.length !== samples) throw new Error("mismatching number of samples");
 
 			for (let i = 0; i < samples; i++) {
 				const writePos = (start + i) % dst.length;
@@ -110,6 +111,8 @@ export class AudioRingBuffer {
 		for (let channel = 0; channel < this.channels; channel++) {
 			const dst = output[channel];
 			const src = this.#buffer[channel];
+
+			if (dst.length !== output[0].length) throw new Error("mismatching number of samples");
 
 			for (let i = 0; i < samples; i++) {
 				const readPos = (this.#readIndex + i) % src.length;

@@ -150,8 +150,11 @@ export class Consumer {
 
 			group.close();
 		} finally {
-			if (group.sequence === this.#active) {
+			if (group.sequence !== this.#active) {
+				// Advance to the next group.
+				// We don't use #skipTo because we don't want to drop the last frames.
 				this.#active += 1;
+
 				if (this.#notify && this.#frames.at(0)?.group === this.#active) {
 					this.#notify();
 					this.#notify = undefined;
@@ -176,7 +179,7 @@ export class Consumer {
 
 		if (this.#prev) {
 			console.warn(`latency violation: ${Math.round(latency / 1000)}ms buffered`);
-			console.warn(`skipping ahead: ${Math.round(nextFrame.timestamp - this.#prev / 1000)}ms`);
+			console.warn(`skipping ahead: ${Math.round((nextFrame.timestamp - this.#prev) / 1000)}ms`);
 		}
 
 		this.#skipTo(nextFrame.group);

@@ -40,11 +40,14 @@ export class AudioEmitter {
 			if (muted) {
 				this.#unmuteVolume = this.volume.peek() || 0.5;
 				this.volume.set(0);
-				this.source.enabled.set(false);
 			} else {
 				this.volume.set(this.#unmuteVolume);
-				this.source.enabled.set(true);
 			}
+		});
+
+		this.#signals.effect((effect) => {
+			const enabled = !effect.get(this.paused) && !effect.get(this.muted);
+			this.source.enabled.set(enabled);
 		});
 
 		// Set unmute when the volume is non-zero.
@@ -87,10 +90,6 @@ export class AudioEmitter {
 			} else {
 				gain.gain.exponentialRampToValueAtTime(volume, gain.context.currentTime + FADE_TIME);
 			}
-		});
-
-		this.#signals.effect((effect) => {
-			this.source.enabled.set(!effect.get(this.paused));
 		});
 	}
 
