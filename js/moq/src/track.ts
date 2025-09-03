@@ -49,12 +49,12 @@ export class TrackProducer {
 	 * @param group - The group to insert
 	 */
 	insertGroup(group: GroupConsumer) {
-		if (group.id < (this.#next ?? 0)) {
+		if (group.sequence < (this.#next ?? 0)) {
 			group.close();
 			return;
 		}
 
-		this.#next = group.id + 1;
+		this.#next = group.sequence + 1;
 		this.#latest.update((latest) => {
 			latest?.close();
 			return group;
@@ -210,12 +210,12 @@ export class TrackConsumer {
 				this.#nextFrame = this.#currentGroup?.readFrame();
 
 				// Return the frame and increment the frame index.
-				return { group: this.#currentGroup?.id, frame: this.#currentFrame++, data: next.frame };
+				return { group: this.#currentGroup?.sequence, frame: this.#currentFrame++, data: next.frame };
 			}
 
 			this.#nextGroup = this.#groups.next((group) => !!group).then((group) => group?.clone());
 
-			if (this.#currentGroup && this.#currentGroup.id >= next.group.id) {
+			if (this.#currentGroup && this.#currentGroup.sequence >= next.group.sequence) {
 				// Skip this old group.
 				next.group.close();
 				continue;

@@ -102,6 +102,9 @@ export class Effect {
 	#stop!: () => void;
 	#stopped: Promise<void>;
 
+	#close!: () => void;
+	#closed: Promise<void>;
+
 	// If a function is provided, it will be run with the effect as an argument.
 	constructor(fn?: (effect: Effect) => void) {
 		if (DEV) {
@@ -117,6 +120,10 @@ export class Effect {
 
 		this.#stopped = new Promise((resolve) => {
 			this.#stop = resolve;
+		});
+
+		this.#closed = new Promise((resolve) => {
+			this.#close = resolve;
 		});
 
 		if (fn) {
@@ -430,6 +437,7 @@ export class Effect {
 			return;
 		}
 
+		this.#close();
 		this.#stop();
 
 		for (const fn of this.#dispose) fn();
@@ -443,5 +451,9 @@ export class Effect {
 		if (DEV) {
 			Effect.#finalizer.unregister(this);
 		}
+	}
+
+	async closed() {
+		await this.#closed;
 	}
 }

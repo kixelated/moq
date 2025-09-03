@@ -1,13 +1,9 @@
-import type { Data, Init, Message, Status } from "./render";
+import type { Message } from "./render";
+import { AudioRingBuffer } from "./ring-buffer";
 
 class Render extends AudioWorkletProcessor {
-	#buffer: Float32Array[] = [];
-
-	#writeIndex = 0;
-	#readIndex = 0;
-
-	// Wait for the buffer to be refilled before outputting.
-	#refill = true;
+	#buffer?: AudioRingBuffer;
+	#underflow = 0;
 
 	constructor() {
 		super();
@@ -16,9 +12,12 @@ class Render extends AudioWorkletProcessor {
 		this.port.onmessage = (event: MessageEvent<Message>) => {
 			const { type } = event.data;
 			if (type === "init") {
-				this.#handleInit(event.data);
+				console.debug(`init: ${event.data.latency}`);
+				this.#buffer = new AudioRingBuffer(event.data);
+				this.#underflow = 0;
 			} else if (type === "data") {
-				this.#handleData(event.data);
+				if (!this.#buffer) throw new Error("buffer not initialized");
+				this.#buffer.write(event.data.timestamp, event.data.data);
 			} else {
 				const exhaustive: never = type;
 				throw new Error(`unknown message type: ${exhaustive}`);
@@ -26,93 +25,18 @@ class Render extends AudioWorkletProcessor {
 		};
 	}
 
-	#handleInit(init: Init) {
-		// Sanity checks
-		if (init.channelCount === 0) throw new Error("invalid channels");
-		if (init.sampleRate === 0) throw new Error("invalid sample rate");
-		if (init.latency === 0) throw new Error("invalid latency");
-
-		if (this.#buffer.length > 0) return; // Already initialized
-
-		const samples = Math.ceil((init.sampleRate * init.latency) / 1000);
-
-		// Initialize circular buffer for each channel
-		this.#buffer = [];
-		for (let i = 0; i < init.channelCount; i++) {
-			this.#buffer[i] = new Float32Array(samples);
-		}
-	}
-
-	#handleData(sample: Data) {
-		if (this.#buffer.length === 0) throw new Error("not initialized");
-
-		const samples = sample.data[0].length;
-
-		// Discard old samples from the front to prevent an overflow.
-		const discard = this.#writeIndex - this.#readIndex + samples - this.#buffer[0].length;
-		if (discard >= 0) {
-			this.#refill = false;
-			this.#readIndex += discard;
-		}
-
-		// Write new samples to buffer
-		for (let channel = 0; channel < Math.min(this.#buffer.length, sample.data.length); channel++) {
-			const src = sample.data[channel];
-			const dst = this.#buffer[channel];
-
-			for (let i = 0; i < samples; i++) {
-				const writePos = (this.#writeIndex + i) % dst.length;
-				dst[writePos] = src[i];
-			}
-		}
-
-		this.#writeIndex += samples;
-	}
-
-	#advance(samples: number) {
-		this.#readIndex += samples;
-
-		if (this.#readIndex >= this.#buffer[0].length) {
-			this.#readIndex -= this.#buffer[0].length;
-			this.#writeIndex -= this.#buffer[0].length;
-		}
-	}
-
 	process(_inputs: Float32Array[][], outputs: Float32Array[][], _parameters: Record<string, Float32Array>) {
 		const output = outputs[0];
+		const samplesRead = this.#buffer?.read(output) ?? 0;
 
-		// Not initialized yet, output silence
-		if (this.#buffer.length === 0 || output.length === 0) return true;
-		if (this.#refill) return true;
-
-		// No data available, output silence
-		const samples = Math.min(this.#writeIndex - this.#readIndex, output[0].length);
-		if (samples === 0) return true;
-
-		for (let channel = 0; channel < output.length; channel++) {
-			const dst = output[channel];
-			const src = this.#buffer[channel];
-
-			for (let i = 0; i < samples; i++) {
-				const readPos = (this.#readIndex + i) % src.length;
-				dst[i] = src[readPos];
-			}
+		if (samplesRead < output[0].length) {
+			this.#underflow += output[0].length - samplesRead;
+		} else if (this.#underflow > 0 && this.#buffer) {
+			console.warn(`audio underflow: ${Math.round((1000 * this.#underflow) / this.#buffer.rate)}ms`);
+			this.#underflow = 0;
 		}
 
-		this.#advance(samples);
-
-		// Send buffer status back to main thread for monitoring
-		this.post({
-			type: "status",
-			available: this.#writeIndex - this.#readIndex,
-			utilization: (this.#writeIndex - this.#readIndex) / this.#buffer[0].length,
-		});
-
 		return true;
-	}
-
-	private post(status: Status) {
-		this.port.postMessage(status);
 	}
 }
 

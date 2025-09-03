@@ -2,6 +2,7 @@ import type * as Moq from "@kixelated/moq";
 import { Effect, type Getter, Signal } from "@kixelated/signals";
 import type * as Catalog from "../../catalog";
 import * as Frame from "../../frame";
+import type * as Time from "../../time";
 import * as Hex from "../../util/hex";
 import type * as Render from "./render";
 
@@ -10,12 +11,17 @@ export * from "./emitter";
 import { Captions, type CaptionsProps } from "./captions";
 import { Speaking, type SpeakingProps } from "./speaking";
 
+// We want some extra overhead to avoid starving the render worklet.
+// The default Opus frame duration is 20ms.
+// TODO: Put it in the catalog so we don't have to guess.
+const JITTER_UNDERHEAD = 25 as Time.Milli;
+
 export type AudioProps = {
 	// Enable to download the audio track.
 	enabled?: boolean | Signal<boolean>;
 
 	// The latency hint to use for the AudioContext.
-	latency?: DOMHighResTimeStamp;
+	latency?: Time.Milli;
 
 	// Enable to download the captions track.
 	captions?: CaptionsProps;
@@ -35,10 +41,12 @@ export class Audio {
 	enabled: Signal<boolean>;
 	info = new Signal<Catalog.Audio | undefined>(undefined);
 
+	#context = new Signal<AudioContext | undefined>(undefined);
+	readonly context: Getter<AudioContext | undefined> = this.#context;
+
 	// The root of the audio graph, which can be used for custom visualizations.
-	// You can access the audio context via `root.context`.
 	#worklet = new Signal<AudioWorkletNode | undefined>(undefined);
-	// Downcast to AudioNode so it matches Publish.
+	// Downcast to AudioNode so it matches Publish.Audio
 	readonly root = this.#worklet as Getter<AudioNode | undefined>;
 
 	#sampleRate = new Signal<number | undefined>(undefined);
@@ -47,11 +55,8 @@ export class Audio {
 	captions: Captions;
 	speaking: Speaking;
 
-	// Not a signal because it updates constantly.
-	#buffered: DOMHighResTimeStamp = 0;
-
 	// Not a signal because I'm lazy.
-	readonly latency: DOMHighResTimeStamp;
+	readonly latency: Time.Milli;
 
 	#signals = new Effect();
 
@@ -63,7 +68,7 @@ export class Audio {
 		this.broadcast = broadcast;
 		this.catalog = catalog;
 		this.enabled = Signal.from(props?.enabled ?? false);
-		this.latency = props?.latency ?? 100; // TODO Reduce this once fMP4 stuttering is fixed.
+		this.latency = props?.latency ?? (100 as Time.Milli); // TODO Reduce this once fMP4 stuttering is fixed.
 		this.captions = new Captions(broadcast, this.info, props?.captions);
 		this.speaking = new Speaking(broadcast, this.info, props?.speaking);
 
@@ -72,13 +77,19 @@ export class Audio {
 		});
 
 		this.#signals.effect(this.#runWorklet.bind(this));
+		this.#signals.effect(this.#runEnabled.bind(this));
 		this.#signals.effect(this.#runDecoder.bind(this));
 	}
 
 	#runWorklet(effect: Effect): void {
-		const enabled = effect.get(this.enabled);
+		// It takes a second or so to initialize the AudioContext/AudioWorklet, so do it even if disabled.
+		// This is less efficient for video-only playback but makes muting/unmuting instant.
+
+		//const enabled = effect.get(this.enabled);
+		//if (!enabled) return;
+
 		const info = effect.get(this.info);
-		if (!enabled || !info) return;
+		if (!info) return;
 
 		const sampleRate = info.config.sampleRate;
 		const channelCount = info.config.numberOfChannels;
@@ -87,9 +98,11 @@ export class Audio {
 		// This way we can process the audio for visualizations.
 
 		const context = new AudioContext({
-			latencyHint: "interactive",
+			latencyHint: "interactive", // We don't use real-time because of the jitter buffer.
 			sampleRate,
 		});
+		effect.set(this.#context, context);
+
 		effect.cleanup(() => context.close());
 
 		effect.spawn(async () => {
@@ -103,26 +116,28 @@ export class Audio {
 			});
 			effect.cleanup(() => worklet.disconnect());
 
-			// Listen for buffer status updates (optional, for monitoring)
-			worklet.port.onmessage = (event: MessageEvent<Render.Status>) => {
-				const { type, available } = event.data;
-				if (type === "status") {
-					this.#buffered = (1000 * available) / sampleRate;
-				}
-			};
-			effect.cleanup(() => {
-				worklet.port.onmessage = null;
-			});
-
-			worklet.port.postMessage({
+			const init: Render.Init = {
 				type: "init",
-				sampleRate,
-				channelCount,
+				rate: sampleRate,
+				channels: channelCount,
 				latency: this.latency,
-			});
+			};
+			worklet.port.postMessage(init);
 
 			effect.set(this.#worklet, worklet);
 		});
+	}
+
+	#runEnabled(effect: Effect): void {
+		const enabled = effect.get(this.enabled);
+		if (!enabled) return;
+
+		const context = effect.get(this.#context);
+		if (!context) return;
+
+		context.resume();
+
+		// NOTE: You should disconnect/reconnect the worklet to save power when disabled.
 	}
 
 	#runDecoder(effect: Effect): void {
@@ -152,29 +167,31 @@ export class Audio {
 			description,
 		});
 
+		// Create consumer with slightly less latency than the render worklet to avoid underflowing.
+		const consumer = new Frame.Consumer(sub, {
+			latency: Math.max(this.latency - JITTER_UNDERHEAD, 0) as Time.Milli,
+		});
+		effect.cleanup(() => consumer.close());
+
 		effect.spawn(async (cancel) => {
-			try {
-				for (;;) {
-					const frame = await Promise.race([sub.readFrame(), cancel]);
-					if (!frame) break;
+			for (;;) {
+				const frame = await Promise.race([consumer.decode(), cancel]);
+				if (!frame) break;
 
-					const decoded = Frame.decode(frame);
+				const chunk = new EncodedAudioChunk({
+					type: frame.keyframe ? "key" : "delta",
+					data: frame.data,
+					timestamp: frame.timestamp,
+				});
 
-					const chunk = new EncodedAudioChunk({
-						type: "key",
-						data: decoded.data,
-						timestamp: decoded.timestamp,
-					});
-
-					decoder.decode(chunk);
-				}
-			} catch (error) {
-				console.warn("audio subscription error", error);
+				decoder.decode(chunk);
 			}
 		});
 	}
 
 	#emit(sample: AudioData) {
+		const timestamp = sample.timestamp as Time.Micro;
+
 		const worklet = this.#worklet.peek();
 		if (!worklet) {
 			// We're probably in the process of closing.
@@ -192,7 +209,7 @@ export class Audio {
 		const msg: Render.Data = {
 			type: "data",
 			data: channelData,
-			timestamp: sample.timestamp,
+			timestamp,
 		};
 
 		// Send audio data to worklet via postMessage
@@ -209,9 +226,5 @@ export class Audio {
 		this.#signals.close();
 		this.captions.close();
 		this.speaking.close();
-	}
-
-	get buffered() {
-		return this.#buffered;
 	}
 }

@@ -201,7 +201,7 @@ export class Publisher {
 	 * @internal
 	 */
 	async #runGroup(sub: bigint, group: GroupConsumer) {
-		const msg = new Group(sub, group.id);
+		const msg = new Group(sub, group.sequence);
 		try {
 			const stream = await Writer.open(this.#quic);
 			await stream.u8(0);
