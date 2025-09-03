@@ -1,0 +1,30 @@
+# An example of a production configuration.
+# Here's a real one: https://github.com/kixelated/moq.dev/blob/b4da7dd8f09879cefb593d5e35f99f064caa3943/infra/relay.yml.tpl#L56
+
+[server]
+# Listen for QUIC connections on UDP:443
+# This is the default port for WebTransport
+listen = "[::]:443"
+
+[server.tls]
+# You'll need to provide a real certificate and key in production.
+# You can get this via a service like Let's Encrypt.
+cert = "cert.pem"
+key = "key.pem"
+
+#[web.http]
+# Optionally listen for HTTP and WebSocket connections on port 80.
+# listen = "[::]:80"
+
+[web.https]
+# Optionally listen for TCP/HTTPS/WSS connections on port 443.
+listen = "[::]:443"
+
+# You'll need to provide a real certificate and key in production.
+# This can be the exact same certificate and key as the QUIC endpoint.
+cert = "cert.pem"
+key = "key.pem"
+
+# See docs/auth.md for more information.
+[auth]
+key = "root.jwk"

@@ -15,9 +15,10 @@ listen = "[::]:4443"
 # This is used for local development, in conjunction with a fingerprint, or with TLS verification disabled.
 tls.generate = ["localhost"]
 
-[web]
-# Listen for HTTP and WebSocket (TCP) connections on the given address.
-# Defaults to disabled if not provided.
+[web.http]
+# Listen for HTTP and WebSocket connections on the given TCP address.
+# This is unfortunately required to serve certificate.sha256 for local development.
+# However, as a bonus, we can serve tracks via both HTTP and WebSocket fallbacks.
 listen = "[::]:4443"
 
 # See root.toml and leaf.toml for auth and clustering examples.

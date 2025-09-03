@@ -25,13 +25,15 @@ async fn main() -> anyhow::Result<()> {
 	tokio::spawn(async move { cloned.run().await.expect("cluster failed") });
 
 	// Create a web server too.
-	let web = Web::new(WebState {
-		auth: auth.clone(),
-		cluster: cluster.clone(),
-		fingerprints,
-		config: config.web,
-		conn_id: Default::default(),
-	});
+	let web = Web::new(
+		WebState {
+			auth: auth.clone(),
+			cluster: cluster.clone(),
+			fingerprints,
+			conn_id: Default::default(),
+		},
+		config.web,
+	);
 
 	tokio::spawn(async move {
 		web.run().await.expect("failed to run web server");

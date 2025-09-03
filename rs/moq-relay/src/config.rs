@@ -30,7 +30,7 @@ pub struct Config {
 	#[serde(default)]
 	pub auth: AuthConfig,
 
-	/// Optionally run a HTTP and WebSocket server.
+	/// Optionally run a TCP HTTP/WebSocket server.
 	#[command(flatten)]
 	#[serde(default)]
 	pub web: WebConfig,

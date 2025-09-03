@@ -1,6 +1,7 @@
 use futures::{SinkExt, StreamExt};
 use std::{
 	net,
+	path::PathBuf,
 	pin::Pin,
 	sync::{
 		atomic::{AtomicU64, Ordering},
@@ -20,7 +21,6 @@ use axum::{
 };
 use bytes::Bytes;
 use clap::Parser;
-use hyper_serve::accept::DefaultAcceptor;
 use moq_lite::{OriginConsumer, OriginProducer};
 use serde::{Deserialize, Serialize};
 use std::future::Future;
@@ -33,53 +33,108 @@ struct Params {
 	jwt: Option<String>,
 }
 
-#[derive(Parser, Clone, Default, Debug, Deserialize, Serialize)]
-#[serde(deny_unknown_fields)]
+#[derive(Parser, Clone, Debug, Deserialize, Serialize, Default)]
+#[serde(deny_unknown_fields, default)]
 pub struct WebConfig {
-	/// Listen for HTTP and WebSocket connections on the given address.
-	/// Defaults to disabled if not provided.
-	#[arg(long = "web-listen", id = "web-listen", env = "MOQ_WEB_LISTEN")]
+	#[command(flatten)]
+	#[serde(default)]
+	pub http: HttpConfig,
+
+	#[command(flatten)]
+	#[serde(default)]
+	pub https: HttpsConfig,
+
+	// If true (default), expose a WebTransport compatible WebSocket polyfill.
+	#[arg(long = "web-ws", env = "MOQ_WEB_WS", default_value = "true")]
+	#[serde(default = "default_true")]
+	pub ws: bool,
+}
+
+#[derive(clap::Args, Clone, Debug, Default, serde::Serialize, serde::Deserialize)]
+#[serde(deny_unknown_fields, default)]
+pub struct HttpConfig {
+	#[arg(long = "web-http-listen", id = "http-listen", env = "MOQ_WEB_HTTP_LISTEN")]
 	pub listen: Option<net::SocketAddr>,
+}
+
+#[derive(clap::Args, Clone, Debug, Default, serde::Serialize, serde::Deserialize)]
+#[serde(deny_unknown_fields, default)]
+pub struct HttpsConfig {
+	#[arg(long = "web-https-listen", id = "web-https-listen", env = "MOQ_WEB_HTTPS_LISTEN", requires_all = ["web-https-cert", "web-https-key"])]
+	pub listen: Option<net::SocketAddr>,
+
+	/// Load the given certificate from disk.
+	#[arg(long = "web-https-cert", id = "web-https-cert", env = "MOQ_WEB_HTTPS_CERT")]
+	pub cert: Option<PathBuf>,
+
+	/// Load the given key from disk.
+	#[arg(long = "web-https-key", id = "web-https-key", env = "MOQ_WEB_HTTPS_KEY")]
+	pub key: Option<PathBuf>,
 }
 
 pub struct WebState {
 	pub auth: Auth,
 	pub cluster: Cluster,
 	pub fingerprints: Vec<String>,
-	pub config: WebConfig,
 	pub conn_id: AtomicU64,
 }
 
 // Run a HTTP server using Axum
 pub struct Web {
-	app: Router,
-	server: Option<hyper_serve::Server<DefaultAcceptor>>,
+	state: WebState,
+	config: WebConfig,
 }
 
 impl Web {
-	pub fn new(state: WebState) -> Self {
+	pub fn new(state: WebState, config: WebConfig) -> Self {
+		Self { state, config }
+	}
+
+	pub async fn run(self) -> anyhow::Result<()> {
 		// Get the first certificate's fingerprint.
 		// TODO serve all of them so we can support multiple signature algorithms.
-		let fingerprint = state.fingerprints.first().expect("missing certificate").clone();
-		let listen = state.config.listen;
+		let fingerprint = self.state.fingerprints.first().expect("missing certificate").clone();
 
 		let app = Router::new()
 			.route("/certificate.sha256", get(fingerprint))
 			.route("/announced", get(serve_announced))
 			.route("/announced/{*prefix}", get(serve_announced))
-			.route("/fetch/{*path}", get(serve_fetch))
-			.route("/{*path}", any(serve_ws))
-			.layer(CorsLayer::new().allow_origin(Any).allow_methods([Method::GET]))
-			.with_state(Arc::new(state));
+			.route("/fetch/{*path}", get(serve_fetch));
 
-		let server = listen.map(hyper_serve::bind);
-		Self { app, server }
-	}
-
-	pub async fn run(self) -> anyhow::Result<()> {
-		if let Some(server) = self.server {
-			server.serve(self.app.into_make_service()).await?;
+		// If WebSocket is enabled, add the WebSocket route.
+		let app = match self.config.ws {
+			true => app.route("/{*path}", any(serve_ws)),
+			false => app,
 		}
+		.layer(CorsLayer::new().allow_origin(Any).allow_methods([Method::GET]))
+		.with_state(Arc::new(self.state))
+		.into_make_service();
+
+		let http = if let Some(listen) = self.config.http.listen {
+			let server = hyper_serve::bind(listen);
+			Some(server.serve(app.clone()))
+		} else {
+			None
+		};
+
+		let https = if let Some(listen) = self.config.https.listen {
+			let cert = self.config.https.cert.as_ref().expect("missing certificate");
+			let key = self.config.https.key.as_ref().expect("missing key");
+
+			let config = hyper_serve::tls_rustls::RustlsConfig::from_pem_file(cert, key).await?;
+
+			let server = hyper_serve::bind_rustls(listen, config);
+			Some(server.serve(app))
+		} else {
+			None
+		};
+
+		tokio::select! {
+			Some(res) = async move { Some(http?.await) } => res?,
+			Some(res) = async move { Some(https?.await) } => res?,
+			else => {},
+		};
+
 		Ok(())
 	}
 }
@@ -318,4 +373,8 @@ fn tungstenite_to_axum(
 			}
 		})
 	})
+}
+
+fn default_true() -> bool {
+	true
 }

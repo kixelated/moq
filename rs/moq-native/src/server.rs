@@ -35,14 +35,24 @@ impl ServerTlsCert {
 #[derive(clap::Args, Clone, Default, Debug, serde::Serialize, serde::Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct ServerTlsConfig {
-	/// Load the given certificate and keys from disk.
-	#[arg(long = "tls-cert", value_parser = ServerTlsCert::parse, value_delimiter = ',', env = "MOQ_SERVER_TLS_CERT")]
+	/// Load the given certificate from disk.
+	#[arg(long = "tls-cert", id = "tls-cert", env = "MOQ_SERVER_TLS_CERT")]
 	#[serde(default, skip_serializing_if = "Vec::is_empty")]
-	pub cert: Vec<ServerTlsCert>,
+	pub cert: Vec<PathBuf>,
+
+	/// Load the given key from disk.
+	#[arg(long = "tls-key", id = "tls-key", env = "MOQ_SERVER_TLS_KEY")]
+	#[serde(default, skip_serializing_if = "Vec::is_empty")]
+	pub key: Vec<PathBuf>,
 
 	/// Or generate a new certificate and key with the given hostnames.
 	/// This won't be valid unless the client uses the fingerprint or disables verification.
-	#[arg(long = "tls-generate", value_delimiter = ',', env = "MOQ_SERVER_TLS_GENERATE")]
+	#[arg(
+		long = "tls-generate",
+		id = "tls-generate",
+		value_delimiter = ',',
+		env = "MOQ_SERVER_TLS_GENERATE"
+	)]
 	#[serde(default, skip_serializing_if = "Vec::is_empty")]
 	pub generate: Vec<String>,
 }
@@ -87,8 +97,13 @@ impl Server {
 		let mut serve = ServeCerts::default();
 
 		// Load the certificate and key files based on their index.
-		for cert in &config.tls.cert {
-			serve.load(&cert.chain, &cert.key)?;
+		anyhow::ensure!(
+			config.tls.cert.len() == config.tls.key.len(),
+			"must provide both cert and key"
+		);
+
+		for (cert, key) in config.tls.cert.iter().zip(config.tls.key.iter()) {
+			serve.load(cert, key)?;
 		}
 
 		if !config.tls.generate.is_empty() {
