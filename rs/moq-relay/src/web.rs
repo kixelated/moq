@@ -278,6 +278,7 @@ impl IntoResponse for ServeGroupError {
 
 // https://github.com/tokio-rs/axum/discussions/848#discussioncomment-11443587
 
+#[allow(clippy::result_large_err)]
 fn axum_to_tungstenite(
 	message: Result<axum::extract::ws::Message, axum::Error>,
 ) -> Result<tungstenite::Message, tungstenite::Error> {
@@ -298,6 +299,7 @@ fn axum_to_tungstenite(
 	}
 }
 
+#[allow(clippy::result_large_err)]
 fn tungstenite_to_axum(
 	message: tungstenite::Message,
 ) -> Pin<Box<dyn Future<Output = Result<axum::extract::ws::Message, tungstenite::Error>> + Send + Sync>> {

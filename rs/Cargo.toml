@@ -20,6 +20,6 @@ moq-token = { version = "0.5", path = "moq-token" }
 serde = { version = "1", features = ["derive"] }
 tokio = "1.45"
 web-async = { version = "0.1.1", features = ["tracing"] }
-web-transport-quinn = { path = "../../web-transport-rs/web-transport-quinn" }
-web-transport-trait = { path = "../../web-transport-rs/web-transport-trait" }
-web-transport-ws = { path = "../../web-transport-rs/web-transport-ws" }
+web-transport-quinn = { version = "0.8" }
+web-transport-trait = { version = "0.1" }
+web-transport-ws = { version = "0.1" }

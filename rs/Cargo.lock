@@ -3096,7 +3096,9 @@ dependencies = [
 
 [[package]]
 name = "web-transport-proto"
-version = "0.2.6"
+version = "0.2.7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "fb650c577c46254d16041c7fe0dc9901d9a42df3f46e77e9d05d1b3c17294b19"
 dependencies = [
  "bytes",
  "http",
@@ -3106,7 +3108,9 @@ dependencies = [
 
 [[package]]
 name = "web-transport-quinn"
-version = "0.7.3"
+version = "0.8.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "aad296f2c132240811fa6783fbece2d90aada7b6b2081c22aeff533a4e695bd6"
 dependencies = [
  "aws-lc-rs",
  "bytes",
@@ -3126,7 +3130,9 @@ dependencies = [
 
 [[package]]
 name = "web-transport-trait"
-version = "0.1.0"
+version = "0.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4850148841799c83f033f4dddccb219f1f097aff6db1bda5b0d3be69fefb32bd"
 dependencies = [
  "bytes",
 ]
@@ -3134,6 +3140,8 @@ dependencies = [
 [[package]]
 name = "web-transport-ws"
 version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5f7606375ad1582a0c60d3fe8f18e460a8e0cb6a31f37606a19b905c85b1329a"
 dependencies = [
  "bytes",
  "futures",

@@ -18,7 +18,7 @@ export type ConnectionProps = {
 	maxDelay?: number;
 };
 
-export type ConnectionStatus = "connecting" | "connected" | "disconnected" | "unsupported";
+export type ConnectionStatus = "connecting" | "connected" | "disconnected";
 
 export class Connection {
 	url: Signal<URL | undefined>;
@@ -42,12 +42,6 @@ export class Connection {
 		this.maxDelay = props?.maxDelay ?? 30000;
 
 		this.#delay = this.delay;
-
-		if (typeof WebTransport === "undefined") {
-			console.warn("WebTransport is not supported");
-			this.status.set("unsupported");
-			return;
-		}
 
 		// Create a reactive root so cleanup is easier.
 		this.signals.effect(this.#connect.bind(this));

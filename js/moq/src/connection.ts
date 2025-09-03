@@ -34,38 +34,41 @@ export async function connect(url: URL): Promise<Connection> {
 		congestionControl: "low-latency",
 	};
 
-	let adjustedUrl = url;
-
-	// Only perform certificate fetch and URL rewrite when polyfill is not needed
-	// This is needed because WebTransport is a butt to work with in local development.
-	if (!polyfill && url.protocol === "http:") {
-		const fingerprintUrl = new URL(url);
-		fingerprintUrl.pathname = "/certificate.sha256";
-		fingerprintUrl.search = "";
-		console.warn(fingerprintUrl.toString(), "performing an insecure fingerprint fetch; use https:// in production");
-
-		// Fetch the fingerprint from the server.
-		const fingerprint = await fetch(fingerprintUrl);
-		const fingerprintText = await fingerprint.text();
-
-		options.serverCertificateHashes = [
-			{
-				algorithm: "sha-256",
-				value: Hex.toBytes(fingerprintText),
-			},
-		];
-
-		adjustedUrl = new URL(url);
-		adjustedUrl.protocol = "https:";
-	}
+	let finalUrl = url;
 
 	let quic: WebTransport;
 	if (polyfill) {
 		console.warn("Using web-transport-ws polyfill; user experience may suffer during congestion.");
 		const WebTransportWs = (await polyfill).default;
-		quic = new WebTransportWs(adjustedUrl, options);
+		quic = new WebTransportWs(finalUrl, options);
 	} else {
-		quic = new WebTransport(adjustedUrl, options);
+		// Only perform certificate fetch and URL rewrite when polyfill is not needed
+		// This is needed because WebTransport is a butt to work with in local development.
+		if (url.protocol === "http:") {
+			const fingerprintUrl = new URL(url);
+			fingerprintUrl.pathname = "/certificate.sha256";
+			fingerprintUrl.search = "";
+			console.warn(
+				fingerprintUrl.toString(),
+				"performing an insecure fingerprint fetch; use https:// in production",
+			);
+
+			// Fetch the fingerprint from the server.
+			const fingerprint = await fetch(fingerprintUrl);
+			const fingerprintText = await fingerprint.text();
+
+			options.serverCertificateHashes = [
+				{
+					algorithm: "sha-256",
+					value: Hex.toBytes(fingerprintText),
+				},
+			];
+
+			finalUrl = new URL(url);
+			finalUrl.protocol = "https:";
+		}
+
+		quic = new WebTransport(finalUrl, options);
 	}
 
 	await quic.ready;
@@ -90,10 +93,10 @@ export async function connect(url: URL): Promise<Connection> {
 	const server = await Lite.SessionServer.decode(stream.reader);
 	if (server.version === Lite.CURRENT_VERSION) {
 		console.debug("moq-lite session established");
-		return new Lite.Connection(adjustedUrl, quic, stream);
+		return new Lite.Connection(finalUrl, quic, stream);
 	} else if (server.version === Ietf.CURRENT_VERSION) {
 		console.debug("moq-ietf session established");
-		return new Ietf.Connection(adjustedUrl, quic, stream);
+		return new Ietf.Connection(finalUrl, quic, stream);
 	} else {
 		throw new Error(`unsupported server version: ${server.version.toString()}`);
 	}

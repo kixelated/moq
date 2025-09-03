@@ -285,7 +285,7 @@ export default class HangSupport extends HTMLElement {
 			container.appendChild(col3Div);
 		};
 
-		addRow("WebTransport", "", binary(support.webtransport));
+		addRow("WebTransport", "", partial(support.webtransport));
 
 		if (mode !== "core") {
 			if (mode !== "watch") {

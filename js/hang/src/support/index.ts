@@ -22,7 +22,7 @@ export type Video = {
 };
 
 export type Full = {
-	webtransport: boolean;
+	webtransport: Partial;
 	audio: {
 		capture: boolean;
 		encoding: Audio | undefined;
@@ -115,7 +115,7 @@ async function videoEncoderSupported(codec: keyof typeof CODECS) {
 
 export async function isSupported(): Promise<Full> {
 	return {
-		webtransport: typeof WebTransport !== "undefined",
+		webtransport: typeof WebTransport !== "undefined" ? "full" : "partial",
 		audio: {
 			capture: typeof AudioWorkletNode !== "undefined",
 			encoding:
