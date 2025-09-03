@@ -4,12 +4,12 @@ use bytes::{Buf, Bytes, BytesMut};
 
 use crate::{coding::*, Error};
 
-pub struct Reader<S: web_transport_generic::RecvStream> {
+pub struct Reader<S: web_transport_trait::RecvStream> {
 	stream: S,
 	buffer: BytesMut,
 }
 
-impl<S: web_transport_generic::RecvStream> Reader<S> {
+impl<S: web_transport_trait::RecvStream> Reader<S> {
 	pub fn new(stream: S) -> Self {
 		Self {
 			stream,
@@ -70,7 +70,10 @@ impl<S: web_transport_generic::RecvStream> Reader<S> {
 			return Ok(Some(data));
 		}
 
-		self.stream.read().await.map_err(|e| Error::Transport(e.into()))
+		self.stream
+			.read_chunk(max)
+			.await
+			.map_err(|e| Error::Transport(e.into()))
 	}
 
 	/// Wait until the stream is closed, erroring if there are any additional bytes.

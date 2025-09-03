@@ -66,9 +66,17 @@ export class Reader {
 
 	// Adds more data to the buffer, returning true if more data was added.
 	async #fill(): Promise<boolean> {
-		const result = await this.#reader?.read();
-		if (!result || result.done) {
+		if (!this.#reader) {
 			return false;
+		}
+
+		const result = await this.#reader.read();
+		if (result.done) {
+			return false;
+		}
+
+		if (result.value.byteLength === 0) {
+			throw new Error("unexpected empty chunk");
 		}
 
 		const buffer = new Uint8Array(result.value);

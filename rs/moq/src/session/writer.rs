@@ -1,12 +1,12 @@
 use crate::{coding::*, Error};
 
 // A wrapper around a SendStream that will reset on Drop
-pub(super) struct Writer<S: web_transport_generic::SendStream> {
+pub(super) struct Writer<S: web_transport_trait::SendStream> {
 	stream: S,
 	buffer: bytes::BytesMut,
 }
 
-impl<S: web_transport_generic::SendStream> Writer<S> {
+impl<S: web_transport_trait::SendStream> Writer<S> {
 	pub fn new(stream: S) -> Self {
 		Self {
 			stream,
@@ -63,7 +63,7 @@ impl<S: web_transport_generic::SendStream> Writer<S> {
 	}
 }
 
-impl<S: web_transport_generic::SendStream> Drop for Writer<S> {
+impl<S: web_transport_trait::SendStream> Drop for Writer<S> {
 	fn drop(&mut self) {
 		// Unlike the Quinn default, we abort the stream on drop.
 		self.stream.reset(Error::Cancel.to_code());

@@ -1410,7 +1410,7 @@ dependencies = [
  "tokio",
  "tracing",
  "web-async",
- "web-transport-generic",
+ "web-transport-trait",
 ]
 
 [[package]]
@@ -3095,13 +3095,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "web-transport-generic"
-version = "0.1.0"
-dependencies = [
- "bytes",
-]
-
-[[package]]
 name = "web-transport-proto"
 version = "0.2.6"
 dependencies = [
@@ -3127,8 +3120,15 @@ dependencies = [
  "thiserror 2.0.16",
  "tokio",
  "url",
- "web-transport-generic",
  "web-transport-proto",
+ "web-transport-trait",
+]
+
+[[package]]
+name = "web-transport-trait"
+version = "0.1.0"
+dependencies = [
+ "bytes",
 ]
 
 [[package]]
@@ -3140,8 +3140,8 @@ dependencies = [
  "thiserror 2.0.16",
  "tokio",
  "tokio-tungstenite 0.24.0",
- "web-transport-generic",
  "web-transport-proto",
+ "web-transport-trait",
 ]
 
 [[package]]

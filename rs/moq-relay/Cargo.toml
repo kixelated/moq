@@ -12,18 +12,17 @@ keywords = ["quic", "http3", "webtransport", "media", "live"]
 categories = ["multimedia", "network-programming", "web-programming"]
 
 [dependencies]
-web-transport-ws = { workspace = true }
 
 anyhow = { version = "1", features = ["backtrace"] }
 axum = { version = "0.8", features = ["tokio", "ws"] }
 bytes = "1"
 clap = { version = "4", features = ["derive"] }
+futures = "0.3"
 http-body = "1"
 hyper-serve = { version = "0.6", features = [
 	"tls-rustls",
 ] } # fork of axum-server
 moq-lite = { workspace = true, features = ["serde"] }
-futures = "0.3"
 moq-native = { workspace = true }
 moq-token = { workspace = true }
 serde = { version = "1", features = ["derive"] }
@@ -34,6 +33,7 @@ toml = "0.8"
 tower-http = { version = "0.6", features = ["cors"] }
 tracing = "0.1"
 url = { version = "2", features = ["serde"] }
+web-transport-ws = { workspace = true }
 
 [dev-dependencies]
 tempfile = "3"

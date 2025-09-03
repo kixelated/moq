@@ -14,7 +14,7 @@ use web_async::Lock;
 use super::{Reader, Stream};
 
 #[derive(Clone)]
-pub(super) struct Subscriber<S: web_transport_generic::Session> {
+pub(super) struct Subscriber<S: web_transport_trait::Session> {
 	session: S,
 
 	origin: Option<OriginProducer>,
@@ -23,7 +23,7 @@ pub(super) struct Subscriber<S: web_transport_generic::Session> {
 	next_id: Arc<atomic::AtomicU64>,
 }
 
-impl<S: web_transport_generic::Session> Subscriber<S> {
+impl<S: web_transport_trait::Session> Subscriber<S> {
 	pub fn new(session: S, origin: Option<OriginProducer>) -> Self {
 		Self {
 			session,
@@ -286,11 +286,15 @@ impl<S: web_transport_generic::Session> Subscriber<S> {
 	async fn run_frame(&mut self, stream: &mut Reader<S::RecvStream>, mut frame: FrameProducer) -> Result<(), Error> {
 		let mut remain = frame.info.size;
 
+		tracing::trace!(size = %frame.info.size, "reading frame");
+
 		while remain > 0 {
 			let chunk = stream.read(remain as usize).await?.ok_or(Error::WrongSize)?;
 			remain = remain.checked_sub(chunk.len() as u64).ok_or(Error::WrongSize)?;
 			frame.write_chunk(chunk);
 		}
+
+		tracing::trace!(size = %frame.info.size, "read frame");
 
 		frame.close();
 

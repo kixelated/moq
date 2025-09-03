@@ -68,7 +68,7 @@ impl Web {
 			.route("/announced", get(serve_announced))
 			.route("/announced/{*prefix}", get(serve_announced))
 			.route("/fetch/{*path}", get(serve_fetch))
-			.route("/ws/{*path}", any(serve_ws))
+			.route("/{*path}", any(serve_ws))
 			.layer(CorsLayer::new().allow_origin(Any).allow_methods([Method::GET]))
 			.with_state(Arc::new(state));
 

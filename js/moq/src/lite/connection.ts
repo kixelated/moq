@@ -112,14 +112,16 @@ export class Connection implements ConnectionInterface {
 	}
 
 	async #runSession() {
-		// Receive messages until the connection is closed.
-		for (;;) {
-			const msg = await SessionInfo.decodeMaybe(this.#session.reader);
-			if (!msg) break;
-			// TODO use the session info
+		try {
+			// Receive messages until the connection is closed.
+			for (;;) {
+				const msg = await SessionInfo.decodeMaybe(this.#session.reader);
+				if (!msg) break;
+				// TODO use the session info
+			}
+		} finally {
+			console.warn("session stream closed");
 		}
-
-		console.warn("session stream closed");
 	}
 
 	async #runBidis() {

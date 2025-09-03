@@ -1,5 +1,5 @@
 use web_async::FuturesExt;
-use web_transport_generic::SendStream;
+use web_transport_trait::SendStream;
 
 use crate::{
 	message, model::GroupConsumer, AsPath, BroadcastConsumer, Error, Origin, OriginConsumer, Track, TrackConsumer,
@@ -7,12 +7,12 @@ use crate::{
 
 use super::{Stream, Writer};
 
-pub(super) struct Publisher<S: web_transport_generic::Session> {
+pub(super) struct Publisher<S: web_transport_trait::Session> {
 	session: S,
 	origin: OriginConsumer,
 }
 
-impl<S: web_transport_generic::Session> Publisher<S> {
+impl<S: web_transport_trait::Session> Publisher<S> {
 	pub fn new(session: S, origin: Option<OriginConsumer>) -> Self {
 		// Default to a dummy origin that is immediately closed.
 		let origin = origin.unwrap_or_else(|| Origin::produce().consumer);
@@ -258,6 +258,8 @@ impl<S: web_transport_generic::Session> Publisher<S> {
 				old_group.take(); // Drop the future to cancel it.
 			}
 
+			assert!(old_group.is_none());
+
 			if sequence >= *latest {
 				old_group = new_group;
 				old_sequence = new_sequence;
@@ -297,6 +299,8 @@ impl<S: web_transport_generic::Session> Publisher<S> {
 				None => break,
 			};
 
+			tracing::trace!(size = %frame.info.size, "writing frame");
+
 			stream.encode(&frame.info.size).await?;
 
 			loop {
@@ -311,9 +315,13 @@ impl<S: web_transport_generic::Session> Publisher<S> {
 					None => break,
 				}
 			}
+
+			tracing::trace!(size = %frame.info.size, "wrote frame");
 		}
 
 		stream.finish().await?;
+
+		tracing::debug!(sequence = %msg.sequence, "finished group");
 
 		Ok(())
 	}

@@ -29,4 +29,4 @@ tokio = { workspace = true, features = [
 ] }
 tracing = "0.1"
 web-async = { workspace = true }
-web-transport-generic = { workspace = true }
+web-transport-trait = { workspace = true }

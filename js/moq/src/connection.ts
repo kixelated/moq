@@ -39,31 +39,31 @@ export async function connect(url: URL): Promise<Connection> {
 	// Only perform certificate fetch and URL rewrite when polyfill is not needed
 	// This is needed because WebTransport is a butt to work with in local development.
 	if (!polyfill && url.protocol === "http:") {
-			const fingerprintUrl = new URL(url);
-			fingerprintUrl.pathname = "/certificate.sha256";
-			fingerprintUrl.search = "";
-			console.warn(fingerprintUrl.toString(), "performing an insecure fingerprint fetch; use https:// in production");
+		const fingerprintUrl = new URL(url);
+		fingerprintUrl.pathname = "/certificate.sha256";
+		fingerprintUrl.search = "";
+		console.warn(fingerprintUrl.toString(), "performing an insecure fingerprint fetch; use https:// in production");
 
-			// Fetch the fingerprint from the server.
-			const fingerprint = await fetch(fingerprintUrl);
-			const fingerprintText = await fingerprint.text();
+		// Fetch the fingerprint from the server.
+		const fingerprint = await fetch(fingerprintUrl);
+		const fingerprintText = await fingerprint.text();
 
-			options.serverCertificateHashes = [
-				{
-					algorithm: "sha-256",
-					value: Hex.toBytes(fingerprintText),
-				},
-			];
+		options.serverCertificateHashes = [
+			{
+				algorithm: "sha-256",
+				value: Hex.toBytes(fingerprintText),
+			},
+		];
 
-			adjustedUrl = new URL(url);
-			adjustedUrl.protocol = "https:";
+		adjustedUrl = new URL(url);
+		adjustedUrl.protocol = "https:";
 	}
 
 	let quic: WebTransport;
 	if (polyfill) {
-		console.warn("using web-transport-ws polyfill");
-		const WebTransportSession = (await polyfill).default;
-		quic = new WebTransportSession(adjustedUrl, options);
+		console.warn("Using web-transport-ws polyfill; user experience may suffer during congestion.");
+		const WebTransportWs = (await polyfill).default;
+		quic = new WebTransportWs(adjustedUrl, options);
 	} else {
 		quic = new WebTransport(adjustedUrl, options);
 	}
