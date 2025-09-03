@@ -16,7 +16,7 @@
 	"scripts": {
 		"build": "rimraf dist && tsc -b && tsx ../scripts/package.ts",
 		"check": "tsc --noEmit",
-		"test": "tsx --test",
+		"test": "tsx --test 'src/**/*.test.ts'",
 		"release": "tsx ../scripts/release.ts"
 	},
 	"dependencies": {
