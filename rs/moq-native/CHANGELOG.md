@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.8.2](https://github.com/kixelated/moq/compare/moq-native-v0.8.1...moq-native-v0.8.2) - 2025-09-04
+
+### Other
+
+- Support aws_lc_rs or ring in moq-native ([#574](https://github.com/kixelated/moq/pull/574))
+
 ## [0.8.0](https://github.com/kixelated/moq/compare/moq-native-v0.7.7...moq-native-v0.8.0) - 2025-09-04
 
 ### Other
