@@ -4,22 +4,17 @@ use std::sync::Arc;
 pub type Provider = Arc<rustls::crypto::CryptoProvider>;
 
 pub fn provider() -> Provider {
-	rustls::crypto::CryptoProvider::get_default()
-		.cloned()
-		.unwrap_or_else(|| {
-			#[cfg(all(feature = "aws-lc-rs", not(feature = "ring")))]
-			{
-				Arc::new(rustls::crypto::aws_lc_rs::default_provider())
-			}
-			#[cfg(all(feature = "ring", not(feature = "aws-lc-rs")))]
-			{
-				Arc::new(rustls::crypto::ring::default_provider())
-			}
-			#[cfg(all(feature = "aws-lc-rs", feature = "ring"))]
-			panic!("no rustls CryptoProvider available, and both aws-lc-rs and ring features are enabled");
-			#[cfg(not(any(feature = "aws-lc-rs", feature = "ring")))]
-			panic!("no rustls CryptoProvider available, and no aws-lc-rs or ring feature is enabled");
-		})
+	if let Some(provider) = rustls::crypto::CryptoProvider::get_default().cloned() {
+		return provider;
+	}
+	#[cfg(all(feature = "aws-lc-rs", not(feature = "ring")))]
+	return Arc::new(rustls::crypto::aws_lc_rs::default_provider());
+	#[cfg(all(feature = "ring", not(feature = "aws-lc-rs")))]
+	return Arc::new(rustls::crypto::ring::default_provider());
+	#[allow(unreachable_code)]
+	{
+		panic!("no CryptoProvider available; install_default() or enable either the aws-lc-rs or ring feature");
+	}
 }
 
 /// Helper function to compute SHA256 hash using the crypto provider

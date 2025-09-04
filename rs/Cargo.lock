@@ -3150,17 +3150,15 @@ dependencies = [
 
 [[package]]
 name = "web-transport-quinn"
-version = "0.8.0"
+version = "0.8.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "aad296f2c132240811fa6783fbece2d90aada7b6b2081c22aeff533a4e695bd6"
+checksum = "ccba8a1ab2aae70119c9ada57e4a2324ebe1820a18814ca47a818f01dcd00f46"
 dependencies = [
- "aws-lc-rs",
  "bytes",
  "futures",
  "http",
  "log",
  "quinn",
- "quinn-proto",
  "rustls",
  "rustls-native-certs",
  "thiserror 2.0.16",
