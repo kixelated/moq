@@ -18,13 +18,25 @@ export interface Connection {
 	closed(): Promise<void>;
 }
 
+export interface WebSocketOptions {
+	// If true (default), enable the WebSocket fallback.
+	enabled?: boolean;
+
+	// Optional: Use a different URL than WebTransport.
+	// By default, `https` => `wss` and `http` => `ws`.
+	url?: URL;
+
+	// The delay in milliseconds before attempting the WebSocket fallback. (default: 200)
+	// If WebSocket won the previous race for a given URL, this will be 0.
+	delay?: DOMHighResTimeStamp;
+}
+
 export interface ConnectionProps {
 	// WebTransport options.
 	webtransport?: WebTransportOptions;
 
-	// If true (default), enable the WebSocket fallback.
-	// Currently this uses the same host/port as WebTransport, but a different protocol (TCP/WS)
-	websocket?: boolean;
+	// WebSocket (fallback) options.
+	websocket?: WebSocketOptions;
 }
 
 // Save if WebSocket won the last race, so we won't give QUIC a head start next time.
@@ -47,14 +59,19 @@ export async function connect(url: URL, props?: ConnectionProps): Promise<Connec
 
 	// Give QUIC a 200ms head start to connect before trying WebSocket, unless WebSocket has won in the past.
 	// NOTE that QUIC should be faster because it involves 1/2 fewer RTTs.
-	const headstart = !webtransport || websocketWon.get(url) ? 0 : 200;
+	const headstart = !webtransport || websocketWon.get(url) ? 0 : (props?.websocket?.delay ?? 200);
+
 	const websocket =
-		props?.websocket !== false
+		props?.websocket?.enabled !== false
 			? new Promise<WebTransport>((resolve) => setTimeout(resolve, headstart)).then(() => {
+					const websocketUrl = props?.websocket?.url ?? url;
 					if (headstart) {
-						console.debug(url.toString(), "no WebTransport after 200ms, attempting WebSocket fallback");
+						console.debug(
+							websocketUrl.toString(),
+							"no WebTransport after 200ms, attempting WebSocket fallback",
+						);
 					}
-					return connectWebSocket(url, cancel);
+					return connectWebSocket(websocketUrl, cancel);
 				})
 			: undefined;
 
