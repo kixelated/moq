@@ -48,21 +48,24 @@ export async function connect(url: URL, props?: ConnectionProps): Promise<Connec
 	// Give QUIC a 200ms head start to connect before trying WebSocket, unless WebSocket has won in the past.
 	// NOTE that QUIC should be faster because it involves 1/2 fewer RTTs.
 	const headstart = !webtransport || websocketWon.get(url) ? 0 : 200;
-	const websocket = props?.websocket !== false
-		? new Promise<WebTransport>((resolve) => setTimeout(resolve, headstart)).then(() => {
-				if (headstart) {
-					console.debug(url.toString(), "no WebTransport after 200ms, attempting WebSocket fallback");
-				}
-				return connectWebSocket(url, cancel);
+	const websocket =
+		props?.websocket !== false
+			? new Promise<WebTransport>((resolve) => setTimeout(resolve, headstart)).then(() => {
+					if (headstart) {
+						console.debug(url.toString(), "no WebTransport after 200ms, attempting WebSocket fallback");
+					}
+					return connectWebSocket(url, cancel);
 				})
-		: undefined;
+			: undefined;
 
 	if (!websocket && !webtransport) {
 		throw new Error("no transport available; WebTransport not supported and WebSocket is disabled");
 	}
 
 	// Race them, using `.any` to ignore if one participant has a error.
-	const quic = await Promise.any(webtransport ? (websocket ? [websocket, webtransport] : [webtransport]) : [websocket]);
+	const quic = await Promise.any(
+		webtransport ? (websocket ? [websocket, webtransport] : [webtransport]) : [websocket],
+	);
 	if (done) done();
 
 	if (!quic) throw new Error("no transport available");

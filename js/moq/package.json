@@ -21,7 +21,7 @@
 	},
 	"dependencies": {
 		"async-mutex": "^0.5.0",
-		"@kixelated/web-transport-ws": "^0.1.1"
+		"@kixelated/web-transport-ws": "^0.1.2"
 	},
 	"peerDependencies": {
 		"zod": "^4.0.0"
