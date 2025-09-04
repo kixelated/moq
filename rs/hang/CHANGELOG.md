@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.4](https://github.com/kixelated/moq/compare/hang-v0.5.3...hang-v0.5.4) - 2025-09-04
+
+### Other
+
+- update Cargo.toml dependencies
+
 ## [0.5.3](https://github.com/kixelated/moq/compare/hang-v0.5.2...hang-v0.5.3) - 2025-08-12
 
 ### Other
