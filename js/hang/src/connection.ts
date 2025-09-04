@@ -17,6 +17,10 @@ export type ConnectionProps = {
 	// The maximum delay in milliseconds.
 	// default: 30000
 	maxDelay?: Time.Milli;
+
+	// If true (default), attempt the WebSocket fallback.
+	// Currently this uses the same host/port as WebTransport, but a different protocol (TCP/WS)
+	websocket?: boolean;
 };
 
 export type ConnectionStatus = "connecting" | "connected" | "disconnected";
@@ -29,6 +33,7 @@ export class Connection {
 	readonly reload: boolean;
 	readonly delay: Time.Milli;
 	readonly maxDelay: Time.Milli;
+	readonly websocket: boolean;
 
 	signals = new Effect();
 	#delay: Time.Milli;
@@ -41,6 +46,7 @@ export class Connection {
 		this.reload = props?.reload ?? true;
 		this.delay = props?.delay ?? (1000 as Time.Milli);
 		this.maxDelay = props?.maxDelay ?? (30000 as Time.Milli);
+		this.websocket = props?.websocket ?? true;
 
 		this.#delay = this.delay;
 
@@ -59,7 +65,7 @@ export class Connection {
 
 		effect.spawn(async (cancel) => {
 			try {
-				const pending = Moq.connect(url);
+				const pending = Moq.connect(url, { websocket: this.websocket });
 
 				const connection = await Promise.race([cancel, pending]);
 				if (!connection) {

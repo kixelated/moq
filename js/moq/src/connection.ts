@@ -1,3 +1,4 @@
+import WebTransportWs from "@kixelated/web-transport-ws";
 import type { AnnouncedConsumer } from "./announced";
 import type { BroadcastConsumer } from "./broadcast";
 import * as Ietf from "./ietf";
@@ -6,12 +7,7 @@ import type * as Path from "./path";
 import { Stream } from "./stream";
 import * as Hex from "./util/hex";
 
-// Check if we need to load the WebSocket polyfill.
-let polyfill: Promise<typeof import("@kixelated/web-transport-ws")> | undefined;
-if (typeof globalThis !== "undefined" && !("WebTransport" in globalThis)) {
-	polyfill = import("@kixelated/web-transport-ws");
-}
-
+// Both moq-lite and moq-ietf implement this.
 export interface Connection {
 	readonly url: URL;
 
@@ -22,56 +18,60 @@ export interface Connection {
 	closed(): Promise<void>;
 }
 
+export interface ConnectionProps {
+	// WebTransport options.
+	webtransport?: WebTransportOptions;
+
+	// If true (default), enable the WebSocket fallback.
+	// Currently this uses the same host/port as WebTransport, but a different protocol (TCP/WS)
+	websocket?: boolean;
+}
+
+// Save if WebSocket won the last race, so we won't give QUIC a head start next time.
+const websocketWon = new Map<URL, boolean>();
+
 /**
  * Establishes a connection to a MOQ server.
  *
  * @param url - The URL of the server to connect to
  * @returns A promise that resolves to a Connection instance
  */
-export async function connect(url: URL): Promise<Connection> {
-	const options: WebTransportOptions = {
-		allowPooling: false,
-		congestionControl: "low-latency",
-	};
+export async function connect(url: URL, props?: ConnectionProps): Promise<Connection> {
+	// Create a cancel promise to kill whichever is still connecting.
+	let done: (() => void) | undefined;
+	const cancel = new Promise<void>((resolve) => {
+		done = resolve;
+	});
 
-	let finalUrl = url;
+	const webtransport = globalThis.WebTransport ? connectWebTransport(url, cancel, props?.webtransport) : undefined;
 
-	let quic: WebTransport;
-	if (polyfill) {
-		console.warn("Using web-transport-ws polyfill; user experience may suffer during congestion.");
-		const WebTransportWs = (await polyfill).default;
-		quic = new WebTransportWs(finalUrl, options);
-	} else {
-		// Only perform certificate fetch and URL rewrite when polyfill is not needed
-		// This is needed because WebTransport is a butt to work with in local development.
-		if (url.protocol === "http:") {
-			const fingerprintUrl = new URL(url);
-			fingerprintUrl.pathname = "/certificate.sha256";
-			fingerprintUrl.search = "";
-			console.warn(
-				fingerprintUrl.toString(),
-				"performing an insecure fingerprint fetch; use https:// in production",
-			);
+	// Give QUIC a 200ms head start to connect before trying WebSocket, unless WebSocket has won in the past.
+	// NOTE that QUIC should be faster because it involves 1/2 fewer RTTs.
+	const headstart = !webtransport || websocketWon.get(url) ? 0 : 200;
+	const websocket = props?.websocket !== false
+		? new Promise<WebTransport>((resolve) => setTimeout(resolve, headstart)).then(() => {
+				if (headstart) {
+					console.debug(url.toString(), "no WebTransport after 200ms, attempting WebSocket fallback");
+				}
+				return connectWebSocket(url, cancel);
+				})
+		: undefined;
 
-			// Fetch the fingerprint from the server.
-			const fingerprint = await fetch(fingerprintUrl);
-			const fingerprintText = await fingerprint.text();
-
-			options.serverCertificateHashes = [
-				{
-					algorithm: "sha-256",
-					value: Hex.toBytes(fingerprintText),
-				},
-			];
-
-			finalUrl = new URL(url);
-			finalUrl.protocol = "https:";
-		}
-
-		quic = new WebTransport(finalUrl, options);
+	if (!websocket && !webtransport) {
+		throw new Error("no transport available; WebTransport not supported and WebSocket is disabled");
 	}
 
-	await quic.ready;
+	// Race them, using `.any` to ignore if one participant has a error.
+	const quic = await Promise.any(webtransport ? (websocket ? [websocket, webtransport] : [webtransport]) : [websocket]);
+	if (done) done();
+
+	if (!quic) throw new Error("no transport available");
+
+	// Save if WebSocket won the last race, so we won't give QUIC a head start next time.
+	if (quic instanceof WebTransportWs) {
+		console.warn(url.toString(), "using WebSocket fallback; the user experience may be degraded");
+		websocketWon.set(url, true);
+	}
 
 	// moq-rs currently requires the ROLE extension to be set.
 	const extensions = new Lite.Extensions();
@@ -92,12 +92,79 @@ export async function connect(url: URL): Promise<Connection> {
 
 	const server = await Lite.SessionServer.decode(stream.reader);
 	if (server.version === Lite.CURRENT_VERSION) {
-		console.debug("moq-lite session established");
-		return new Lite.Connection(finalUrl, quic, stream);
+		console.debug(url.toString(), "moq-lite session established");
+		return new Lite.Connection(url, quic, stream);
 	} else if (server.version === Ietf.CURRENT_VERSION) {
-		console.debug("moq-ietf session established");
-		return new Ietf.Connection(finalUrl, quic, stream);
+		console.debug(url.toString(), "moq-ietf session established");
+		return new Ietf.Connection(url, quic, stream);
 	} else {
 		throw new Error(`unsupported server version: ${server.version.toString()}`);
 	}
+}
+
+async function connectWebTransport(
+	url: URL,
+	cancel: Promise<void>,
+	options?: WebTransportOptions,
+): Promise<WebTransport | undefined> {
+	let finalUrl = url;
+
+	const finalOptions: WebTransportOptions = {
+		allowPooling: false,
+		congestionControl: "low-latency",
+		...options,
+	};
+
+	// Only perform certificate fetch and URL rewrite when polyfill is not needed
+	// This is needed because WebTransport is a butt to work with in local development.
+	if (url.protocol === "http:") {
+		const fingerprintUrl = new URL(url);
+		fingerprintUrl.pathname = "/certificate.sha256";
+		fingerprintUrl.search = "";
+		console.warn(fingerprintUrl.toString(), "performing an insecure fingerprint fetch; use https:// in production");
+
+		// Fetch the fingerprint from the server.
+		const fingerprint = await Promise.race([fetch(fingerprintUrl), cancel]);
+		if (!fingerprint) return undefined;
+
+		const fingerprintText = await Promise.race([fingerprint.text(), cancel]);
+		if (fingerprintText === undefined) return undefined;
+
+		finalOptions.serverCertificateHashes = (finalOptions.serverCertificateHashes || []).concat([
+			{
+				algorithm: "sha-256",
+				value: Hex.toBytes(fingerprintText),
+			},
+		]);
+
+		finalUrl = new URL(url);
+		finalUrl.protocol = "https:";
+	}
+
+	const quic = new WebTransport(finalUrl, finalOptions);
+
+	// Wait for the WebTransport to connect, or for the cancel promise to resolve.
+	// Close the connection if we lost the race.
+	const loaded = await Promise.race([quic.ready.then(() => true), cancel]);
+	if (!loaded) {
+		quic.close();
+		return undefined;
+	}
+
+	return quic;
+}
+
+// TODO accept arguments to control the port/path used.
+async function connectWebSocket(url: URL, cancel: Promise<void>): Promise<WebTransport | undefined> {
+	const quic = new WebTransportWs(url);
+
+	// Wait for the WebSocket to connect, or for the cancel promise to resolve.
+	// Close the connection if we lost the race.
+	const loaded = await Promise.race([quic.ready.then(() => true), cancel]);
+	if (!loaded) {
+		quic.close();
+		return undefined;
+	}
+
+	return quic;
 }

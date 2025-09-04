@@ -12,7 +12,6 @@ class Render extends AudioWorkletProcessor {
 		this.port.onmessage = (event: MessageEvent<Message>) => {
 			const { type } = event.data;
 			if (type === "init") {
-				console.debug(`init: ${event.data.latency}`);
 				this.#buffer = new AudioRingBuffer(event.data);
 				this.#underflow = 0;
 			} else if (type === "data") {

@@ -110,12 +110,11 @@ impl Client {
 
 		let socket = std::net::UdpSocket::bind(config.bind).context("failed to bind UDP socket")?;
 
-		// Enable BBR congestion control
-		// TODO validate the implementation
+		// TODO Validate the BBR implementation before enabling it
 		let mut transport = quinn::TransportConfig::default();
 		transport.max_idle_timeout(Some(time::Duration::from_secs(10).try_into().unwrap()));
 		transport.keep_alive_interval(Some(time::Duration::from_secs(4)));
-		transport.congestion_controller_factory(Arc::new(quinn::congestion::BbrConfig::default()));
+		//transport.congestion_controller_factory(Arc::new(quinn::congestion::BbrConfig::default()));
 		transport.mtu_discovery_config(None); // Disable MTU discovery
 		let transport = Arc::new(transport);
 

@@ -111,8 +111,8 @@ importers:
   moq:
     dependencies:
       '@kixelated/web-transport-ws':
-        specifier: ^0.1
-        version: 0.1.0
+        specifier: ^0.1.1
+        version: 0.1.1
       async-mutex:
         specifier: ^0.5.0
         version: 0.5.0
@@ -561,8 +561,8 @@ packages:
   '@jridgewell/trace-mapping@0.3.30':
     resolution: {integrity: sha512-GQ7Nw5G2lTu/BtHTKfXhKHok2WGetd4XYcVKGx00SjAk8GMwgJM3zr6zORiPGuOE+/vkc90KtTosSSvaCjKb2Q==}
 
-  '@kixelated/web-transport-ws@0.1.0':
-    resolution: {integrity: sha512-HKxvAKSX/XSc8hyY7hAIpUCZ+QwsPHyWt0wpPIItLn5Wa4xwz/GPXHmTTGzFAf42xu+PfOsJOHLfRRJaXTUDLA==}
+  '@kixelated/web-transport-ws@0.1.1':
+    resolution: {integrity: sha512-iJcZe2EbnZoFy+t1mtFZz5NVlEPE3sAhktyYGfry49QNpLWS+U+Ll6tGE0Ai1MNklRuo+ifv3ER/7KNsNS7B7w==}
 
   '@libav.js/types@6.8.8':
     resolution: {integrity: sha512-Lbik/0Q3x2R8cI7mOtRgt+nUWLqGXh7UinMndmpdXSDY4YEjYyVUDsq6fxkuriL78+LCYx8frZIN1r+oDsvYCQ==}
@@ -2324,7 +2324,7 @@ snapshots:
       '@jridgewell/resolve-uri': 3.1.2
       '@jridgewell/sourcemap-codec': 1.5.5
 
-  '@kixelated/web-transport-ws@0.1.0': {}
+  '@kixelated/web-transport-ws@0.1.1': {}
 
   '@libav.js/types@6.8.8': {}
 
