@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.7.0](https://github.com/kixelated/moq/compare/moq-lite-v0.6.3...moq-lite-v0.7.0) - 2025-09-04
+
+### Other
+
+- Add WebSocket fallback support ([#570](https://github.com/kixelated/moq/pull/570))
+
 ## [0.6.3](https://github.com/kixelated/moq/compare/moq-lite-v0.6.2...moq-lite-v0.6.3) - 2025-08-21
 
 ### Other

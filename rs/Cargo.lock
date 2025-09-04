@@ -823,7 +823,7 @@ dependencies = [
 
 [[package]]
 name = "hang"
-version = "0.5.3"
+version = "0.5.4"
 dependencies = [
  "bytes",
  "derive_more",
@@ -843,7 +843,7 @@ dependencies = [
 
 [[package]]
 name = "hang-cli"
-version = "0.2.6"
+version = "0.2.7"
 dependencies = [
  "anyhow",
  "axum",
@@ -1416,7 +1416,7 @@ dependencies = [
 
 [[package]]
 name = "moq-clock"
-version = "0.7.6"
+version = "0.7.7"
 dependencies = [
  "anyhow",
  "chrono",
@@ -1430,7 +1430,7 @@ dependencies = [
 
 [[package]]
 name = "moq-lite"
-version = "0.6.3"
+version = "0.7.0"
 dependencies = [
  "async-channel",
  "bytes",
@@ -1446,7 +1446,7 @@ dependencies = [
 
 [[package]]
 name = "moq-native"
-version = "0.7.7"
+version = "0.8.0"
 dependencies = [
  "anyhow",
  "clap",
@@ -1473,7 +1473,7 @@ dependencies = [
 
 [[package]]
 name = "moq-relay"
-version = "0.8.9"
+version = "0.8.10"
 dependencies = [
  "anyhow",
  "axum",
@@ -1512,7 +1512,7 @@ dependencies = [
 
 [[package]]
 name = "moq-token-cli"
-version = "0.2.6"
+version = "0.2.7"
 dependencies = [
  "anyhow",
  "clap",
