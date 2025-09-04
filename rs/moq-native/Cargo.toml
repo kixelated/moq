@@ -20,7 +20,7 @@ hex = "0.4"
 
 moq-lite = { workspace = true }
 quinn = "0.11"
-rcgen = "0.13"
+rcgen = "0.14"
 reqwest = { version = "0.12", default-features = false }
 ring = "0.17"
 rustls = "0.23"

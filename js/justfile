@@ -12,37 +12,25 @@ web url='http://localhost:4443/anon':
 	VITE_RELAY_URL="{{url}}" pnpm -r run dev
 
 # Run the CI checks
-check flags="--frozen-lockfile":
-	pnpm install {{flags}}
-
-	# Make sure Typescript compiles
+check:
+	pnpm install --frozen-lockfile
 	pnpm -r run check
-
-	# Run the JS tests via node.
 	pnpm -r test
-
-	# Format/lint the JS packages
 	pnpm exec biome check
-
-	# TODO: Check for unused imports (fix the false positives)
 	# pnpm exec knip --no-exit-code
 
 # Automatically fix some issues.
-fix flags="--frozen-lockfile":
-	# Fix the JS packages
-	pnpm install {{flags}}
-
-	# Format and lint
+fix:
+	pnpm install
 	pnpm exec biome check --fix
 
 # Upgrade any tooling
 upgrade:
-	# Update the NPM dependencies
 	pnpm self-update
 	pnpm -r update
 	pnpm -r outdated
 
 # Build the packages
-build flags="--frozen-lockfile":
-	pnpm install {{flags}}
+build:
+	pnpm install --frozen-lockfile
 	pnpm -r run build
