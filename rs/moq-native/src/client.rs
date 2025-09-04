@@ -1,5 +1,5 @@
+use crate::crypto;
 use anyhow::Context;
-use ring::digest::{digest, SHA256};
 use rustls::pki_types::{CertificateDer, ServerName, UnixTime};
 use rustls::RootCertStore;
 use std::path::PathBuf;
@@ -62,7 +62,7 @@ pub struct Client {
 
 impl Client {
 	pub fn new(config: ClientConfig) -> anyhow::Result<Self> {
-		let provider = Arc::new(rustls::crypto::aws_lc_rs::default_provider());
+		let provider = crypto::provider();
 
 		// Create a list of acceptable root certificates.
 		let mut roots = RootCertStore::empty();
@@ -196,7 +196,7 @@ impl Client {
 }
 
 #[derive(Debug)]
-struct NoCertificateVerification(Arc<rustls::crypto::CryptoProvider>);
+struct NoCertificateVerification(crypto::Provider);
 
 impl rustls::client::danger::ServerCertVerifier for NoCertificateVerification {
 	fn verify_server_cert(
@@ -236,12 +236,12 @@ impl rustls::client::danger::ServerCertVerifier for NoCertificateVerification {
 // Verify the certificate matches a provided fingerprint.
 #[derive(Debug)]
 struct FingerprintVerifier {
-	provider: Arc<rustls::crypto::CryptoProvider>,
+	provider: crypto::Provider,
 	fingerprint: Vec<u8>,
 }
 
 impl FingerprintVerifier {
-	pub fn new(provider: Arc<rustls::crypto::CryptoProvider>, fingerprint: Vec<u8>) -> Self {
+	pub fn new(provider: crypto::Provider, fingerprint: Vec<u8>) -> Self {
 		Self { provider, fingerprint }
 	}
 }
@@ -255,7 +255,7 @@ impl rustls::client::danger::ServerCertVerifier for FingerprintVerifier {
 		_ocsp: &[u8],
 		_now: UnixTime,
 	) -> Result<rustls::client::danger::ServerCertVerified, rustls::Error> {
-		let fingerprint = digest(&SHA256, end_entity);
+		let fingerprint = crypto::sha256(&self.provider, end_entity);
 		if fingerprint.as_ref() == self.fingerprint.as_slice() {
 			Ok(rustls::client::danger::ServerCertVerified::assertion())
 		} else {

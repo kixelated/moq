@@ -1456,10 +1456,10 @@ dependencies = [
  "quinn",
  "rcgen",
  "reqwest",
- "ring",
  "rustls",
  "rustls-native-certs",
  "rustls-pemfile",
+ "rustls-webpki",
  "serde",
  "serde_with",
  "time",
@@ -1468,7 +1468,6 @@ dependencies = [
  "tracing-subscriber",
  "url",
  "web-transport-quinn",
- "webpki",
 ]
 
 [[package]]
@@ -1955,7 +1954,7 @@ version = "0.14.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0068c5b3cab1d4e271e0bb6539c87563c43411cad90b057b15c79958fbeb41f7"
 dependencies = [
- "pem",
+ "aws-lc-rs",
  "ring",
  "rustls-pki-types",
  "time",
@@ -3193,16 +3192,6 @@ dependencies = [
  "tokio-tungstenite 0.24.0",
  "web-transport-proto",
  "web-transport-trait",
-]
-
-[[package]]
-name = "webpki"
-version = "0.22.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ed63aea5ce73d0ff405984102c42de94fc55a6b75765d621c65262469b3c9b53"
-dependencies = [
- "ring",
- "untrusted 0.9.0",
 ]
 
 [[package]]

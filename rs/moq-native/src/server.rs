@@ -1,9 +1,8 @@
 use std::path::PathBuf;
 use std::{net, sync::Arc, time::Duration};
 
+use crate::crypto;
 use anyhow::Context;
-use ring::digest::{digest, SHA256};
-use rustls::crypto::ring::sign::any_supported_type;
 use rustls::pki_types::{CertificateDer, PrivatePkcs8KeyDer};
 use rustls::server::{ClientHello, ResolvesServerCert};
 use rustls::sign::CertifiedKey;
@@ -93,8 +92,9 @@ impl Server {
 		transport.mtu_discovery_config(None); // Disable MTU discovery
 		let transport = Arc::new(transport);
 
-		let provider = Arc::new(rustls::crypto::aws_lc_rs::default_provider());
-		let mut serve = ServeCerts::default();
+		let provider = crypto::provider();
+
+		let mut serve = ServeCerts::new(provider.clone());
 
 		// Load the certificate and key files based on their index.
 		anyhow::ensure!(
@@ -219,12 +219,20 @@ impl Server {
 	}
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug)]
 struct ServeCerts {
 	certs: Vec<Arc<CertifiedKey>>,
+	provider: crypto::Provider,
 }
 
 impl ServeCerts {
+	pub fn new(provider: crypto::Provider) -> Self {
+		Self {
+			certs: Vec::new(),
+			provider,
+		}
+	}
+
 	// Load a certificate and corresponding key from a file
 	pub fn load(&mut self, chain: &PathBuf, key: &PathBuf) -> anyhow::Result<()> {
 		let chain = fs::File::open(chain).context("failed to open cert file")?;
@@ -244,7 +252,7 @@ impl ServeCerts {
 		keys.read_to_end(&mut buf)?;
 
 		let key = rustls_pemfile::private_key(&mut Cursor::new(&buf))?.context("missing private key")?;
-		let key = rustls::crypto::ring::sign::any_supported_type(&key)?;
+		let key = self.provider.key_provider.load_private_key(key)?;
 
 		self.certs.push(Arc::new(CertifiedKey::new(chain, key)));
 
@@ -265,8 +273,9 @@ impl ServeCerts {
 		let cert = params.self_signed(&key_pair)?;
 
 		// Convert the rcgen type to the rustls type.
-		let key = PrivatePkcs8KeyDer::from(key_pair.serialized_der());
-		let key = any_supported_type(&key.into())?;
+		let key_der = key_pair.serialized_der().to_vec();
+		let key_der = PrivatePkcs8KeyDer::from(key_der);
+		let key = self.provider.key_provider.load_private_key(key_der.into())?;
 
 		// Create a rustls::sign::CertifiedKey
 		self.certs.push(Arc::new(CertifiedKey::new(vec![cert.into()], key)));
@@ -279,9 +288,8 @@ impl ServeCerts {
 		self.certs
 			.iter()
 			.map(|ck| {
-				let fingerprint = digest(&SHA256, ck.cert[0].as_ref());
-				let fingerprint = hex::encode(fingerprint.as_ref());
-				fingerprint
+				let fingerprint = crate::crypto::sha256(&self.provider, ck.cert[0].as_ref());
+				hex::encode(fingerprint)
 			})
 			.collect()
 	}
@@ -289,15 +297,16 @@ impl ServeCerts {
 	// Return the best certificate for the given ClientHello.
 	fn best_certificate(&self, client_hello: &ClientHello<'_>) -> Option<Arc<CertifiedKey>> {
 		let server_name = client_hello.server_name()?;
-		let dns_name = webpki::DnsNameRef::try_from_ascii_str(server_name).ok()?;
+		let dns_name = rustls::pki_types::ServerName::try_from(server_name).ok()?;
 
 		for ck in &self.certs {
-			// TODO I gave up on caching the parsed result because of lifetime hell.
-			// I think some unsafe is needed?
-			let leaf = ck.end_entity_cert().expect("missing certificate");
-			let parsed = webpki::EndEntityCert::try_from(leaf.as_ref()).expect("failed to parse certificate");
+			let leaf: webpki::EndEntityCert = ck
+				.end_entity_cert()
+				.expect("missing certificate")
+				.try_into()
+				.expect("failed to parse certificate");
 
-			if parsed.verify_is_valid_for_dns_name(dns_name).is_ok() {
+			if leaf.verify_is_valid_for_subject_name(&dns_name).is_ok() {
 				return Some(ck.clone());
 			}
 		}

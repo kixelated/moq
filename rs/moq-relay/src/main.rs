@@ -12,6 +12,12 @@ pub use web::*;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
+	/*
+	moq_native::rustls::crypto::CryptoProvider::install_default(
+		moq_native::rustls::crypto::CryptoProvider::get_default(),
+	);
+	*/
+
 	let config = Config::load()?;
 
 	let addr = config.server.listen.unwrap_or("[::]:443".parse().unwrap());
