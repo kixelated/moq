@@ -5,7 +5,7 @@ export type Partial = "full" | "partial" | "none";
 
 export type Audio = {
 	aac: boolean;
-	opus: boolean;
+	opus: Partial;
 };
 
 export type Codec = {
@@ -122,14 +122,14 @@ export async function isSupported(): Promise<Full> {
 				typeof AudioEncoder !== "undefined"
 					? {
 							aac: await audioEncoderSupported("aac"),
-							opus: await audioEncoderSupported("opus"),
+							opus: (await audioEncoderSupported("opus")) ? "full" : "partial",
 						}
 					: undefined,
 			decoding:
 				typeof AudioDecoder !== "undefined"
 					? {
 							aac: await audioDecoderSupported("aac"),
-							opus: await audioDecoderSupported("opus"),
+							opus: (await audioDecoderSupported("opus")) ? "full" : "partial",
 						}
 					: undefined,
 			render: typeof AudioContext !== "undefined" && typeof AudioBufferSourceNode !== "undefined",

@@ -20,4 +20,7 @@ export default defineConfig({
 		// TODO: properly support HMR
 		hmr: false,
 	},
+	optimizeDeps: {
+		exclude: ["@libav.js/variant-opus"],
+	},
 });

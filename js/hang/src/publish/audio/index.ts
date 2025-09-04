@@ -4,6 +4,7 @@ import type * as Catalog from "../../catalog";
 import { u8, u53 } from "../../catalog/integers";
 import * as Frame from "../../frame";
 import * as Time from "../../time";
+import * as libav from "../../util/libav";
 import { Captions, type CaptionsProps } from "./captions";
 import type * as Capture from "./capture";
 
@@ -189,61 +190,67 @@ export class Audio {
 
 		let groupTimestamp = 0 as Time.Micro;
 
-		const encoder = new AudioEncoder({
-			output: (frame) => {
-				if (frame.type !== "key") {
-					throw new Error("only key frames are supported");
-				}
+		effect.spawn(async (cancel) => {
+			// We're using an async polyfill temporarily for Safari support.
+			const loaded = await Promise.race([libav.polyfill(), cancel]);
+			if (!loaded) return; // cancelled
 
-				if (frame.timestamp - groupTimestamp >= Time.Micro.fromMilli(this.maxLatency)) {
-					group.close();
-					group = this.#track.appendGroup();
-					groupTimestamp = frame.timestamp as Time.Micro;
-				}
+			const encoder = new AudioEncoder({
+				output: (frame) => {
+					if (frame.type !== "key") {
+						throw new Error("only key frames are supported");
+					}
 
-				const buffer = Frame.encode(frame, frame.timestamp as Time.Micro);
-				group.writeFrame(buffer);
-			},
-			error: (err) => {
-				group.abort(err);
-			},
-		});
-		effect.cleanup(() => encoder.close());
+					if (frame.timestamp - groupTimestamp >= Time.Micro.fromMilli(this.maxLatency)) {
+						group.close();
+						group = this.#track.appendGroup();
+						groupTimestamp = frame.timestamp as Time.Micro;
+					}
 
-		encoder.configure({
-			codec: config.codec,
-			numberOfChannels: config.numberOfChannels,
-			sampleRate: config.sampleRate,
-			bitrate: config.bitrate,
-		});
+					const buffer = Frame.encode(frame, frame.timestamp as Time.Micro);
+					group.writeFrame(buffer);
+				},
+				error: (err) => {
+					group.abort(err);
+				},
+			});
+			effect.cleanup(() => encoder.close());
 
-		effect.set(this.#config, config);
-
-		worklet.port.onmessage = ({ data }: { data: Capture.AudioFrame }) => {
-			const channels = data.channels.slice(0, settings.channelCount);
-			const joinedLength = channels.reduce((a, b) => a + b.length, 0);
-			const joined = new Float32Array(joinedLength);
-
-			channels.reduce((offset: number, channel: Float32Array): number => {
-				joined.set(channel, offset);
-				return offset + channel.length;
-			}, 0);
-
-			const frame = new AudioData({
-				format: "f32-planar",
-				sampleRate: worklet.context.sampleRate,
-				numberOfFrames: channels[0].length,
-				numberOfChannels: channels.length,
-				timestamp: data.timestamp,
-				data: joined,
-				transfer: [joined.buffer],
+			encoder.configure({
+				codec: config.codec,
+				numberOfChannels: config.numberOfChannels,
+				sampleRate: config.sampleRate,
+				bitrate: config.bitrate,
 			});
 
-			encoder.encode(frame);
-			frame.close();
-		};
-		effect.cleanup(() => {
-			worklet.port.onmessage = null;
+			effect.set(this.#config, config);
+
+			worklet.port.onmessage = ({ data }: { data: Capture.AudioFrame }) => {
+				const channels = data.channels.slice(0, settings.channelCount);
+				const joinedLength = channels.reduce((a, b) => a + b.length, 0);
+				const joined = new Float32Array(joinedLength);
+
+				channels.reduce((offset: number, channel: Float32Array): number => {
+					joined.set(channel, offset);
+					return offset + channel.length;
+				}, 0);
+
+				const frame = new AudioData({
+					format: "f32-planar",
+					sampleRate: worklet.context.sampleRate,
+					numberOfFrames: channels[0].length,
+					numberOfChannels: channels.length,
+					timestamp: data.timestamp,
+					data: joined,
+					transfer: [joined.buffer],
+				});
+
+				encoder.encode(frame);
+				frame.close();
+			};
+			effect.cleanup(() => {
+				worklet.port.onmessage = null;
+			});
 		});
 	}
 

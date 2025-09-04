@@ -48,12 +48,18 @@ importers:
       '@kixelated/signals':
         specifier: workspace:^
         version: link:../signals
+      '@libav.js/variant-opus':
+        specifier: ^6.8.8
+        version: 6.8.8
       async-mutex:
         specifier: ^0.5.0
         version: 0.5.0
       comlink:
         specifier: ^4.4.2
         version: 4.4.2
+      libavjs-webcodecs-polyfill:
+        specifier: ^0.5.3
+        version: 0.5.5
       zod:
         specifier: ^4.1.3
         version: 4.1.5
@@ -558,6 +564,12 @@ packages:
   '@kixelated/web-transport-ws@0.1.0':
     resolution: {integrity: sha512-HKxvAKSX/XSc8hyY7hAIpUCZ+QwsPHyWt0wpPIItLn5Wa4xwz/GPXHmTTGzFAf42xu+PfOsJOHLfRRJaXTUDLA==}
 
+  '@libav.js/types@6.8.8':
+    resolution: {integrity: sha512-Lbik/0Q3x2R8cI7mOtRgt+nUWLqGXh7UinMndmpdXSDY4YEjYyVUDsq6fxkuriL78+LCYx8frZIN1r+oDsvYCQ==}
+
+  '@libav.js/variant-opus@6.8.8':
+    resolution: {integrity: sha512-RMvPGOfqAkqfNbCsrA6u/NiErrLK5pwSzc3bVVDbmsb/Ig0asn5vQ5CxFjIJg/aSUfep1tvEf0/xfhLzy55PBw==}
+
   '@napi-rs/wasm-runtime@1.0.3':
     resolution: {integrity: sha512-rZxtMsLwjdXkMUGC3WwsPwLNVqVqnTJT6MNIB6e+5fhMcSCPP0AOsNWuMQ5mdCq6HNjs/ZeWAEchpqeprqBD2Q==}
 
@@ -931,6 +943,9 @@ packages:
 
   '@types/web@0.0.241':
     resolution: {integrity: sha512-aHz73musjS4z8Sm0wLaEj4lOaRxhKZRD4XerKL4rxNhhqmvthKkYzS0kHLEVsjOFRN2zo3gQAlyf0EKL1QYYQg==}
+
+  '@ungap/global-this@0.4.4':
+    resolution: {integrity: sha512-mHkm6FvepJECMNthFuIgpAEFmPOk71UyXuIxYfjytvFTnSDBIz7jmViO+LfHI/AjrazWije0PnSP3+/NlwzqtA==}
 
   '@vitest/expect@3.2.4':
     resolution: {integrity: sha512-Io0yyORnB6sikFlt8QW5K7slY4OjqNX9jmJQ02QDda8lyM6B5oNgVWoSoKPac8/kgnCUzuHQKrSLtu/uOqqrig==}
@@ -1428,6 +1443,9 @@ packages:
     peerDependencies:
       '@types/node': '>=18'
       typescript: '>=5.0.4'
+
+  libavjs-webcodecs-polyfill@0.5.5:
+    resolution: {integrity: sha512-1RhFwKgYg/dsn0Ej4kf0z35t6G3/JZnStKqPHArOqALlvwG654NZes0AFXaJGzRLBknwLXiKw9qlemct97YE7w==}
 
   lightningcss-darwin-arm64@1.30.1:
     resolution: {integrity: sha512-c8JK7hyE65X1MHMN+Viq9n11RRC7hgin3HhYKhrMyaXflk5GVplZ60IxyoVtzILeKr+xAJwg6zK6sjTBJ0FKYQ==}
@@ -2308,6 +2326,10 @@ snapshots:
 
   '@kixelated/web-transport-ws@0.1.0': {}
 
+  '@libav.js/types@6.8.8': {}
+
+  '@libav.js/variant-opus@6.8.8': {}
+
   '@napi-rs/wasm-runtime@1.0.3':
     dependencies:
       '@emnapi/core': 1.5.0
@@ -2590,6 +2612,8 @@ snapshots:
       csstype: 3.1.3
 
   '@types/web@0.0.241': {}
+
+  '@ungap/global-this@0.4.4': {}
 
   '@vitest/expect@3.2.4':
     dependencies:
@@ -3098,6 +3122,11 @@ snapshots:
       typescript: 5.9.2
       zod: 3.25.76
       zod-validation-error: 3.5.3(zod@3.25.76)
+
+  libavjs-webcodecs-polyfill@0.5.5:
+    dependencies:
+      '@libav.js/types': 6.8.8
+      '@ungap/global-this': 0.4.4
 
   lightningcss-darwin-arm64@1.30.1:
     optional: true

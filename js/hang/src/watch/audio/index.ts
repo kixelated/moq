@@ -4,6 +4,7 @@ import type * as Catalog from "../../catalog";
 import * as Frame from "../../frame";
 import type * as Time from "../../time";
 import * as Hex from "../../util/hex";
+import * as libav from "../../util/libav";
 import type * as Render from "./render";
 
 export * from "./emitter";
@@ -153,27 +154,30 @@ export class Audio {
 		const sub = broadcast.subscribe(info.track.name, info.track.priority);
 		effect.cleanup(() => sub.close());
 
-		const decoder = new AudioDecoder({
-			output: (data) => this.#emit(data),
-			error: (error) => console.error(error),
-		});
-		effect.cleanup(() => decoder.close());
-
-		const config = info.config;
-		const description = config.description ? Hex.toBytes(config.description) : undefined;
-
-		decoder.configure({
-			...config,
-			description,
-		});
-
-		// Create consumer with slightly less latency than the render worklet to avoid underflowing.
-		const consumer = new Frame.Consumer(sub, {
-			latency: Math.max(this.latency - JITTER_UNDERHEAD, 0) as Time.Milli,
-		});
-		effect.cleanup(() => consumer.close());
-
 		effect.spawn(async (cancel) => {
+			const loaded = await Promise.race([libav.polyfill(), cancel]);
+			if (!loaded) return; // cancelled
+
+			const decoder = new AudioDecoder({
+				output: (data) => this.#emit(data),
+				error: (error) => console.error(error),
+			});
+			effect.cleanup(() => decoder.close());
+
+			const config = info.config;
+			const description = config.description ? Hex.toBytes(config.description) : undefined;
+
+			decoder.configure({
+				...config,
+				description,
+			});
+
+			// Create consumer with slightly less latency than the render worklet to avoid underflowing.
+			const consumer = new Frame.Consumer(sub, {
+				latency: Math.max(this.latency - JITTER_UNDERHEAD, 0) as Time.Milli,
+			});
+			effect.cleanup(() => consumer.close());
+
 			for (;;) {
 				const frame = await Promise.race([consumer.decode(), cancel]);
 				if (!frame) break;
