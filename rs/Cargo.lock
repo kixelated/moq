@@ -843,7 +843,7 @@ dependencies = [
 
 [[package]]
 name = "hang-cli"
-version = "0.2.7"
+version = "0.2.8"
 dependencies = [
  "anyhow",
  "axum",
@@ -1446,7 +1446,7 @@ dependencies = [
 
 [[package]]
 name = "moq-native"
-version = "0.8.0"
+version = "0.8.1"
 dependencies = [
  "anyhow",
  "clap",
@@ -1473,7 +1473,7 @@ dependencies = [
 
 [[package]]
 name = "moq-relay"
-version = "0.9.0"
+version = "0.9.1"
 dependencies = [
  "anyhow",
  "axum",
