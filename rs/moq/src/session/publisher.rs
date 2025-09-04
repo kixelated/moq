@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use web_async::FuturesExt;
 use web_transport_trait::SendStream;
 
@@ -280,7 +282,10 @@ impl<S: web_transport_trait::Session> Publisher<S> {
 		mut group: GroupConsumer,
 	) -> Result<(), Error> {
 		// TODO add a way to open in priority order.
-		let mut stream = session.open_uni().await.map_err(|err| Error::Transport(err.into()))?;
+		let mut stream = session
+			.open_uni()
+			.await
+			.map_err(|err| Error::Transport(Arc::new(err)))?;
 		stream.set_priority(priority);
 
 		let mut stream = Writer::new(stream);
@@ -311,7 +316,7 @@ impl<S: web_transport_trait::Session> Publisher<S> {
 				};
 
 				match chunk? {
-					Some(chunk) => stream.write(&chunk).await?,
+					Some(mut chunk) => stream.write_all(&mut chunk).await?,
 					None => break,
 				}
 			}

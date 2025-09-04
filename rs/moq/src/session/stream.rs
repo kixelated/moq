@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use super::{Reader, Writer};
 use crate::{message, Error};
 
@@ -8,7 +10,7 @@ pub(super) struct Stream<S: web_transport_trait::Session> {
 
 impl<S: web_transport_trait::Session> Stream<S> {
 	pub async fn open(session: &S, typ: message::ControlType) -> Result<Self, Error> {
-		let (send, recv) = session.open_bi().await.map_err(|err| Error::Transport(err.into()))?;
+		let (send, recv) = session.open_bi().await.map_err(|err| Error::Transport(Arc::new(err)))?;
 
 		let mut writer = Writer::new(send);
 		let reader = Reader::new(recv);
@@ -18,7 +20,10 @@ impl<S: web_transport_trait::Session> Stream<S> {
 	}
 
 	pub async fn accept(session: &S) -> Result<Self, Error> {
-		let (send, recv) = session.accept_bi().await.map_err(|err| Error::Transport(err.into()))?;
+		let (send, recv) = session
+			.accept_bi()
+			.await
+			.map_err(|err| Error::Transport(Arc::new(err)))?;
 
 		let writer = Writer::new(send);
 		let reader = Reader::new(recv);

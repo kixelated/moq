@@ -1,4 +1,4 @@
-use std::{cmp, io};
+use std::{cmp, io, sync::Arc};
 
 use bytes::{Buf, Bytes, BytesMut};
 
@@ -17,16 +17,6 @@ impl<S: web_transport_trait::RecvStream> Reader<S> {
 		}
 	}
 
-	/*
-	pub async fn accept<S: transport::Session>(session: &S) -> Result<Self, Error>
-	where
-		S::RecvStream: T,
-	{
-		let stream = session.accept_uni().await?;
-		Ok(Self::new(stream))
-	}
-	*/
-
 	pub async fn decode<T: Decode>(&mut self) -> Result<T, Error> {
 		loop {
 			let mut cursor = io::Cursor::new(&self.buffer);
@@ -41,7 +31,7 @@ impl<S: web_transport_trait::RecvStream> Reader<S> {
 						.stream
 						.read_buf(&mut self.buffer)
 						.await
-						.map_err(|e| Error::Transport(e.into()))?
+						.map_err(|e| Error::Transport(Arc::new(e)))?
 						.is_none()
 					{
 						// Stream closed while we still need more data
@@ -73,7 +63,7 @@ impl<S: web_transport_trait::RecvStream> Reader<S> {
 		self.stream
 			.read_chunk(max)
 			.await
-			.map_err(|e| Error::Transport(e.into()))
+			.map_err(|e| Error::Transport(Arc::new(e)))
 	}
 
 	/// Wait until the stream is closed, erroring if there are any additional bytes.
@@ -83,7 +73,7 @@ impl<S: web_transport_trait::RecvStream> Reader<S> {
 				.stream
 				.read_buf(&mut self.buffer)
 				.await
-				.map_err(|e| Error::Transport(e.into()))?
+				.map_err(|e| Error::Transport(Arc::new(e)))?
 				.is_none()
 		{
 			return Ok(());

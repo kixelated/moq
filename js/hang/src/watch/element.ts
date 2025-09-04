@@ -128,7 +128,7 @@ export default class HangWatch extends HTMLElement {
 		}
 	}
 
-	// Make cooresponding properties for the element, more type-safe than using attributes.
+	// Make corresponding properties for the element, more type-safe than using attributes.
 	get url(): URL | undefined {
 		return this.connection.url.peek();
 	}

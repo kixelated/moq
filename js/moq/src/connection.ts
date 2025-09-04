@@ -7,7 +7,7 @@ import { Stream } from "./stream";
 import * as Hex from "./util/hex";
 
 // Check if we need to load the WebSocket polyfill.
-let polyfill: Promise<typeof import("@kixelated/web-transport-ws")>;
+let polyfill: Promise<typeof import("@kixelated/web-transport-ws")> | undefined;
 if (typeof globalThis !== "undefined" && !("WebTransport" in globalThis)) {
 	polyfill = import("@kixelated/web-transport-ws");
 }

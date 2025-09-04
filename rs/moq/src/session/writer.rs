@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use crate::{coding::*, Error};
 
 // A wrapper around a SendStream that will reset on Drop
@@ -14,20 +16,6 @@ impl<S: web_transport_trait::SendStream> Writer<S> {
 		}
 	}
 
-	/*
-	pub async fn open<S: transport::Session>(session: &S, typ: message::DataType) -> Result<Self, Error>
-	where
-		S::SendStream: T,
-	{
-		let send = session.open_uni().await?;
-
-		let mut writer = Self::new(send);
-		writer.encode(&typ).await?;
-
-		Ok(writer)
-	}
-	*/
-
 	pub async fn encode<T: Encode>(&mut self, msg: &T) -> Result<(), Error> {
 		self.buffer.clear();
 		msg.encode(&mut self.buffer);
@@ -36,20 +24,31 @@ impl<S: web_transport_trait::SendStream> Writer<S> {
 			self.stream
 				.write_buf(&mut self.buffer)
 				.await
-				.map_err(|e| Error::Transport(e.into()))?;
+				.map_err(|e| Error::Transport(Arc::new(e)))?;
 		}
 
 		Ok(())
 	}
 
-	pub async fn write(&mut self, buf: &[u8]) -> Result<(), Error> {
-		self.stream.write(buf).await.map_err(|e| Error::Transport(e.into()))?;
+	// Not public to avoid accidental partial writes.
+	async fn write<Buf: bytes::Buf + Send>(&mut self, buf: &mut Buf) -> Result<usize, Error> {
+		self.stream
+			.write_buf(buf)
+			.await
+			.map_err(|e| Error::Transport(Arc::new(e)))
+	}
+
+	// NOTE: We use Buf so we don't perform a copy when using Quinn.
+	pub async fn write_all<Buf: bytes::Buf + Send>(&mut self, buf: &mut Buf) -> Result<(), Error> {
+		while buf.has_remaining() {
+			self.write(buf).await?;
+		}
 		Ok(())
 	}
 
 	/// A clean termination of the stream, waiting for the peer to close.
 	pub async fn finish(&mut self) -> Result<(), Error> {
-		self.stream.finish().await.map_err(|e| Error::Transport(e.into()))?;
+		self.stream.finish().await.map_err(|e| Error::Transport(Arc::new(e)))?;
 		Ok(())
 	}
 
@@ -58,7 +57,7 @@ impl<S: web_transport_trait::SendStream> Writer<S> {
 	}
 
 	pub async fn closed(&mut self) -> Result<(), Error> {
-		self.stream.closed().await.map_err(|e| Error::Transport(e.into()))?;
+		self.stream.closed().await.map_err(|e| Error::Transport(Arc::new(e)))?;
 		Ok(())
 	}
 }

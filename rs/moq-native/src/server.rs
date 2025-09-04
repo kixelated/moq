@@ -225,7 +225,7 @@ struct ServeCerts {
 }
 
 impl ServeCerts {
-	// Load a certificate and cooresponding key from a file
+	// Load a certificate and corresponding key from a file
 	pub fn load(&mut self, chain: &PathBuf, key: &PathBuf) -> anyhow::Result<()> {
 		let chain = fs::File::open(chain).context("failed to open cert file")?;
 		let mut chain = io::BufReader::new(chain);

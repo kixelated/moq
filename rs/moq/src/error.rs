@@ -1,10 +1,12 @@
+use std::sync::Arc;
+
 use crate::{coding, message};
 
 /// A list of possible errors that can occur during the session.
-#[derive(thiserror::Error, Debug)]
+#[derive(thiserror::Error, Debug, Clone)]
 pub enum Error {
 	#[error("transport error: {0}")]
-	Transport(Box<dyn std::error::Error + Send + Sync>),
+	Transport(Arc<dyn std::error::Error + Send + Sync>),
 
 	#[error("decode error: {0}")]
 	Decode(#[from] coding::DecodeError),
@@ -78,28 +80,6 @@ impl Error {
 			Self::WrongSize => 14,
 			Self::ProtocolViolation => 15,
 			Self::App(app) => *app + 64,
-		}
-	}
-}
-
-impl Clone for Error {
-	fn clone(&self) -> Self {
-		match self {
-			Error::Transport(_) => Error::Transport(Box::new(std::io::Error::other("Transport error (cloned)"))),
-			Error::Decode(e) => Error::Decode(e.clone()),
-			Error::Version(v1, v2) => Error::Version(v1.clone(), v2.clone()),
-			Error::RequiredExtension(e) => Error::RequiredExtension(*e),
-			Error::UnexpectedStream(s) => Error::UnexpectedStream(*s),
-			Error::BoundsExceeded(b) => Error::BoundsExceeded(*b),
-			Error::Duplicate => Error::Duplicate,
-			Error::Cancel => Error::Cancel,
-			Error::Timeout => Error::Timeout,
-			Error::Old => Error::Old,
-			Error::App(code) => Error::App(*code),
-			Error::NotFound => Error::NotFound,
-			Error::WrongSize => Error::WrongSize,
-			Error::ProtocolViolation => Error::ProtocolViolation,
-			Error::Unauthorized => Error::Unauthorized,
 		}
 	}
 }

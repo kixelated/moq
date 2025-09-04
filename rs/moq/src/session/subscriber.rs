@@ -18,7 +18,6 @@ pub(super) struct Subscriber<S: web_transport_trait::Session> {
 	session: S,
 
 	origin: Option<OriginProducer>,
-	broadcasts: Lock<HashMap<PathOwned, BroadcastProducer>>,
 	subscribes: Lock<HashMap<u64, TrackProducer>>,
 	next_id: Arc<atomic::AtomicU64>,
 }
@@ -28,7 +27,6 @@ impl<S: web_transport_trait::Session> Subscriber<S> {
 		Self {
 			session,
 			origin,
-			broadcasts: Default::default(),
 			subscribes: Default::default(),
 			next_id: Default::default(),
 		}
@@ -48,13 +46,15 @@ impl<S: web_transport_trait::Session> Subscriber<S> {
 				.session
 				.accept_uni()
 				.await
-				.map_err(|err| Error::Transport(err.into()))?;
+				.map_err(|err| Error::Transport(Arc::new(err)))?;
 
 			let stream = Reader::new(stream);
 			let this = self.clone();
 
 			web_async::spawn(async move {
-				this.run_uni_stream(stream).await.ok();
+				if let Err(err) = this.run_uni_stream(stream).await {
+					tracing::debug!(%err, "error running uni stream");
+				}
 			});
 		}
 	}
@@ -166,9 +166,6 @@ impl<S: web_transport_trait::Session> Subscriber<S> {
 				this.subscribes.lock().remove(&id);
 			});
 		}
-
-		// Remove the broadcast from the lookup.
-		self.broadcasts.lock().remove(&path);
 	}
 
 	async fn run_subscribe(&mut self, id: u64, broadcast: Path<'_>, track: TrackProducer) {

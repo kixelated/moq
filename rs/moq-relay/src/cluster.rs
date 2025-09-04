@@ -77,7 +77,7 @@ impl Cluster {
 		};
 
 		// Scope the origin to our root.
-		let subscribe_origin = subscribe_origin.producer.with_root(&token.root).unwrap();
+		let subscribe_origin = subscribe_origin.producer.with_root(&token.root)?;
 		subscribe_origin.consume_only(&token.subscribe)
 	}
 
@@ -89,7 +89,7 @@ impl Cluster {
 			false => &self.primary,
 		};
 
-		let publish_origin = publish_origin.producer.with_root(&token.root).unwrap();
+		let publish_origin = publish_origin.producer.with_root(&token.root)?;
 		publish_origin.publish_only(&token.publish)
 	}
 

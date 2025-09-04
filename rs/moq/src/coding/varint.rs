@@ -203,11 +203,11 @@ impl Decode for VarInt {
 impl Encode for VarInt {
 	/// Encode a varint to the given writer.
 	fn encode<W: bytes::BufMut>(&self, w: &mut W) {
-		if self.0 < 2u64.pow(6) {
+		if self.0 < (1u64 << 6) {
 			w.put_u8(self.0 as u8);
-		} else if self.0 < 2u64.pow(14) {
+		} else if self.0 < (1u64 << 14) {
 			w.put_u16((0b01 << 14) | self.0 as u16);
-		} else if self.0 < 2u64.pow(30) {
+		} else if self.0 < (1u64 << 30) {
 			w.put_u32((0b10 << 30) | self.0 as u32);
 		} else {
 			w.put_u64((0b11 << 62) | self.0);

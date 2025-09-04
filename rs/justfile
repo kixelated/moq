@@ -135,9 +135,9 @@ clock action url="http://localhost:4443/anon":
 	cargo run --bin moq-clock -- "{{url}}" --name "clock" {{action}}
 
 # Run the CI checks
-check flags="":
-	cargo test --all-targets --all-features {{flags}}
-	cargo clippy --all-targets --all-features {{flags}} -- -D warnings
+check:
+	cargo test --all-targets --all-features
+	cargo clippy --all-targets --all-features -- -D warnings
 	cargo fmt --all --check
 
 	# requires: cargo install cargo-shear
@@ -147,9 +147,8 @@ check flags="":
 	cargo sort --workspace --check
 
 # Automatically fix some issues.
-fix flags="":
-	cargo fix --allow-staged --allow-dirty --all-targets --all-features {{flags}}
-	cargo clippy --fix --allow-staged --allow-dirty --all-targets --all-features {{flags}}
+fix:
+	cargo clippy --fix --allow-staged --allow-dirty --all-targets --all-features
 	cargo fmt --all
 
 	# requires: cargo install cargo-shear

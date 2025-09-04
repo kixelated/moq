@@ -276,7 +276,7 @@ function getVint53(buf: Uint8Array): [number, Uint8Array] {
 	if (size === 1) {
 		v = buf[0] & 0x3f;
 	} else if (size === 2) {
-		v = view.getInt16(0) & 0x3fff;
+		v = view.getUint16(0) & 0x3fff;
 	} else if (size === 4) {
 		v = view.getUint32(0) & 0x3fffffff;
 	} else if (size === 8) {

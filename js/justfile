@@ -12,7 +12,7 @@ web url='http://localhost:4443/anon':
 	VITE_RELAY_URL="{{url}}" pnpm -r run dev
 
 # Run the CI checks
-check flags="":
+check flags="--frozen-lockfile":
 	pnpm install {{flags}}
 
 	# Make sure Typescript compiles
@@ -28,7 +28,7 @@ check flags="":
 	# pnpm exec knip --no-exit-code
 
 # Automatically fix some issues.
-fix flags="":
+fix flags="--frozen-lockfile":
 	# Fix the JS packages
 	pnpm install {{flags}}
 
@@ -43,6 +43,6 @@ upgrade:
 	pnpm -r outdated
 
 # Build the packages
-build flags="":
+build flags="--frozen-lockfile":
 	pnpm install {{flags}}
 	pnpm -r run build

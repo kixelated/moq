@@ -159,7 +159,7 @@ async fn serve_ws(
 	Ok(ws.on_upgrade(async move |socket| {
 		let id = state.conn_id.fetch_add(1, Ordering::Relaxed);
 
-		// Unfortuantely, we need to convert from Axum to Tungstenite.
+		// Unfortunately, we need to convert from Axum to Tungstenite.
 		// Axum uses Tungstenite internally, but it's not exposed to avoid semvar issues.
 		let socket = socket
 			.map(axum_to_tungstenite)
@@ -187,24 +187,19 @@ where
 		+ Unpin
 		+ 'static,
 {
-	tracing::info!("session accepted");
-
 	// Wrap the WebSocket in a WebTransport compatibility layer.
 	let ws = web_transport_ws::Session::new(socket, true);
-
-	tracing::info!("connecting session");
 	let session = moq_lite::Session::accept(ws, subscribe, publish).await?;
-	tracing::info!("web session connected");
-
 	Err(session.closed().await.into())
 }
 
 /// Serve the announced broadcasts for a given prefix.
 async fn serve_announced(
-	Path(prefix): Path<String>,
+	Path(prefix): Path<Option<String>>,
 	Query(params): Query<Params>,
 	State(state): State<Arc<WebState>>,
 ) -> axum::response::Result<String> {
+	let prefix = prefix.unwrap_or_default();
 	let token = state.auth.verify(&prefix, params.jwt.as_deref())?;
 	let mut origin = match state.cluster.subscriber(&token) {
 		Some(origin) => origin,

@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use crate::{message, Error, OriginConsumer, OriginProducer};
 
 mod publisher;
@@ -18,7 +20,7 @@ use writer::*;
 /// This simplifies the state machine and immediately rejects any subscriptions that don't match the origin prefix.
 /// You probably want to use [Session] unless you're writing a relay.
 pub struct Session<S: web_transport_trait::Session> {
-	pub transport: S,
+	transport: S,
 }
 
 impl<S: web_transport_trait::Session + Sync> Session<S> {
@@ -152,6 +154,6 @@ impl<S: web_transport_trait::Session + Sync> Session<S> {
 
 	/// Block until the transport session is closed.
 	pub async fn closed(&self) -> Error {
-		Error::Transport(self.transport.closed().await.into())
+		Error::Transport(Arc::new(self.transport.closed().await))
 	}
 }

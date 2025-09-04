@@ -29,4 +29,4 @@ jobs:
           cache-on-failure: true
 
       # Run checks with cached dependencies
-      - run: nix develop --command just check --workspace
+      - run: nix develop --command just check

@@ -4,8 +4,8 @@
 level = "debug"
 
 [server]
-# Listen for QUIC connections on UDP:4443
-# Sometimes IPv6 causes issues; try 127.0.0.1:4443 instead.
+# Listen for QUIC connections on UDP:4444
+# Sometimes IPv6 causes issues; try 127.0.0.1:4444 instead.
 listen = "[::]:4444"
 
 # Generate a self-signed certificate for the server.

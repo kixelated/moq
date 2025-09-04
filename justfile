@@ -92,14 +92,14 @@ clock action:
 	just --justfile rs/justfile clock {{action}}
 
 # Run the CI checks
-check flags="":
-	just --justfile rs/justfile check {{flags}}
+check:
+	just --justfile rs/justfile check
 	just --justfile js/justfile check
 	#@if which nix > /dev/null; then nix fmt -- --fail-on-change; else echo "nix not found, skipping Nix formatting check"; fi
 
 # Automatically fix some issues.
-fix flags="":
-	just --justfile rs/justfile fix {{flags}}
+fix:
+	just --justfile rs/justfile fix
 	just --justfile js/justfile fix
 	#@if which nix > /dev/null; then nix fmt; else echo "nix not found, skipping Nix formatting"; fi
 

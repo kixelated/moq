@@ -188,7 +188,7 @@ export class Reader {
 			const slice = this.#slice(2);
 			const view = new DataView(slice.buffer, slice.byteOffset, slice.byteLength);
 
-			return BigInt(view.getInt16(0)) & 0x3fffn;
+			return BigInt(view.getUint16(0)) & 0x3fffn;
 		}
 		if (size === 2) {
 			await this.#fillTo(4);

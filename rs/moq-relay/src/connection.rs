@@ -25,12 +25,10 @@ impl Connection {
 		let token = match self.auth.verify(path, token.as_deref()) {
 			Ok(token) => token,
 			Err(err) => {
-				self.request.close(err.clone().into()).await?;
+				let _ = self.request.close(err.clone().into()).await;
 				return Err(err.into());
 			}
 		};
-
-		tracing::info!(token = ?token, "session accepted");
 
 		let publish = self.cluster.publisher(&token);
 		let subscribe = self.cluster.subscriber(&token);
