@@ -205,7 +205,17 @@ impl Server {
 		span.record("id", conn.stable_id()); // TODO can we get this earlier?
 		tracing::debug!(%host, ip = %conn.remote_address(), %alpn, "accepted");
 
-		Request::accept(conn, alpn.as_str()).await
+		match alpn.as_str() {
+			web_transport_quinn::ALPN => {
+				// Wait for the CONNECT request.
+				let request = web_transport_quinn::Request::accept(conn)
+					.await
+					.context("failed to receive WebTransport request")?;
+				Ok(Request::WebTransport(request))
+			}
+			moq_lite::ALPN => Ok(Request::Quic(QuicRequest::accept(conn))),
+			_ => anyhow::bail!("unsupported ALPN: {}", alpn),
+		}
 	}
 
 	pub fn local_addr(&self) -> anyhow::Result<net::SocketAddr> {
@@ -223,21 +233,6 @@ pub enum Request {
 }
 
 impl Request {
-	/// Accept a connection, returning a WebTransport or raw QUIC request depending on the provided ALPN.
-	pub async fn accept(conn: quinn::Connection, alpn: &str) -> anyhow::Result<Self> {
-		match alpn {
-			web_transport_quinn::ALPN => {
-				// Wait for the CONNECT request.
-				let request = web_transport_quinn::Request::accept(conn)
-					.await
-					.context("failed to receive WebTransport request")?;
-				Ok(Request::WebTransport(request))
-			}
-			moq_lite::ALPN => Ok(Request::Quic(QuicRequest::accept(conn))),
-			_ => anyhow::bail!("unsupported ALPN: {}", alpn),
-		}
-	}
-
 	/// Reject the session, returning your favorite HTTP status code.
 	pub async fn close(self, status: http::StatusCode) -> Result<(), quinn::WriteError> {
 		match self {
