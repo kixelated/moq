@@ -213,6 +213,7 @@ export class Audio {
 				error: (err) => {
 					console.error("encoder error", err);
 					group.abort(err);
+					worklet.port.onmessage = null;
 				},
 			});
 			effect.cleanup(() => encoder.close());

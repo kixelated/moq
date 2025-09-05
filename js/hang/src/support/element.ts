@@ -285,8 +285,8 @@ export default class HangSupport extends HTMLElement {
 			if (mode !== "watch") {
 				addRow("Capture", "Audio", binary(support.audio.capture));
 				addRow("", "Video", partial(support.video.capture));
-				addRow("Encoding", "Opus", partial(support.audio.encoding?.opus));
-				addRow("", "AAC", binary(support.audio.encoding?.aac));
+				addRow("Encoding", "Opus", partial(support.audio.encoding.opus));
+				addRow("", "AAC", binary(support.audio.encoding.aac));
 				addRow("", "AV1", hardware(support.video.encoding?.av1));
 				addRow("", "H.265", hardware(support.video.encoding?.h265));
 				addRow("", "H.264", hardware(support.video.encoding?.h264));
@@ -296,8 +296,8 @@ export default class HangSupport extends HTMLElement {
 			if (mode !== "publish") {
 				addRow("Rendering", "Audio", binary(support.audio.render));
 				addRow("", "Video", binary(support.video.render));
-				addRow("Decoding", "Opus", partial(support.audio.decoding?.opus));
-				addRow("", "AAC", binary(support.audio.decoding?.aac));
+				addRow("Decoding", "Opus", partial(support.audio.decoding.opus));
+				addRow("", "AAC", binary(support.audio.decoding.aac));
 				addRow("", "AV1", hardware(support.video.decoding?.av1));
 				addRow("", "H.265", hardware(support.video.decoding?.h265));
 				addRow("", "H.264", hardware(support.video.decoding?.h264));
