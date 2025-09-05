@@ -151,11 +151,14 @@ impl Server {
 		&self.fingerprints
 	}
 
-	/// Returns the next partially established WebTransport session.
+	/// Returns the next partially established QUIC or WebTransport session.
 	///
-	/// This returns a [web_transport_quinn::Request] instead of a [web_transport_quinn::Session]
-	/// so the connection can be rejected early on an invalid path.
-	/// Call [web_transport_quinn::Request::ok] or [web_transport_quinn::Request::close] to complete the WebTransport handshake.
+	/// This returns a [Request] instead of a [web_transport_quinn::Session]
+	/// so the connection can be rejected early on an invalid path or missing auth.
+	///
+	/// The [Request] is either a WebTransport or a raw QUIC request.
+	/// Call [Request::ok] or [Request::close] to complete the handshake in case this is
+	/// a WebTransport request.
 	pub async fn accept(&mut self) -> Option<Request> {
 		loop {
 			tokio::select! {
@@ -164,8 +167,9 @@ impl Server {
 					self.accept.push(Self::accept_session(conn).boxed());
 				}
 				Some(res) = self.accept.next() => {
-					if let Ok(session) = res {
-						return Some(session)
+					match res {
+						Ok(session) => return Some(session),
+						Err(err) => tracing::debug!(%err, "failed to accept session"),
 					}
 				}
 				_ = tokio::signal::ctrl_c() => {
@@ -234,7 +238,7 @@ impl Request {
 		}
 	}
 
-	/// Reject the session, returing your favorite HTTP status code.
+	/// Reject the session, returning your favorite HTTP status code.
 	pub async fn close(self, status: http::StatusCode) -> Result<(), quinn::WriteError> {
 		match self {
 			Self::WebTransport(request) => request.close(status).await,
@@ -242,7 +246,10 @@ impl Request {
 		}
 	}
 
-	/// Accept the session, returning a 200 OK if using WebTransport.
+	/// Accept the session.
+	///
+	/// For WebTransport, this completes the HTTP handshake (200 OK).
+	/// For raw QUIC, this constructs a raw session.
 	pub async fn ok(self) -> Result<web_transport_quinn::Session, quinn::WriteError> {
 		match self {
 			Request::WebTransport(request) => request.ok().await,
@@ -267,7 +274,9 @@ pub struct QuicRequest {
 impl QuicRequest {
 	/// Accept a new QUIC session from a client.
 	pub fn accept(connection: quinn::Connection) -> Self {
-		let url: Url = format!("moql://{}", connection.remote_address()).parse().unwrap();
+		let url: Url = format!("moql://{}", connection.remote_address())
+			.parse()
+			.expect("URL is valid");
 		Self { connection, url }
 	}
 

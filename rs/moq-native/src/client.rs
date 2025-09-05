@@ -188,7 +188,7 @@ impl Client {
 		let session = match alpn {
 			web_transport_quinn::ALPN => web_transport_quinn::Session::connect(connection, url).await?,
 			moq_lite::ALPN => web_transport_quinn::Session::raw(connection, url),
-			_ => unreachable!(),
+			_ => unreachable!("ALPN was checked above"),
 		};
 
 		Ok(session)
