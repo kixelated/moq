@@ -11,8 +11,8 @@ export async function polyfill(): Promise<boolean> {
 
 		// Load the polyfill and the libav variant we're using.
 		// TODO build with AAC support.
-		// NOTE: we use require here to avoid tsc errors with libavjs-webcodecs-polyfill.
-		loading = Promise.all([import("@libav.js/variant-opus"), import("libavjs-webcodecs-polyfill")]).then(
+		// I forked libavjs-webcodecs-polyfill to avoid Typescript errors; there's no changes otherwise.
+		loading = Promise.all([import("@libav.js/variant-opus"), import("@kixelated/libavjs-webcodecs-polyfill")]).then(
 			async ([opus, libav]) => {
 				await libav.load({
 					LibAV: opus,
