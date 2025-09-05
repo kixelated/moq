@@ -195,11 +195,15 @@ where
 
 /// Serve the announced broadcasts for a given prefix.
 async fn serve_announced(
-	Path(prefix): Path<Option<String>>,
+	path: Option<Path<String>>,
 	Query(params): Query<Params>,
 	State(state): State<Arc<WebState>>,
 ) -> axum::response::Result<String> {
-	let prefix = prefix.unwrap_or_default();
+	let prefix = match path {
+		Some(Path(prefix)) => prefix,
+		None => String::new(),
+	};
+
 	let token = state.auth.verify(&prefix, params.jwt.as_deref())?;
 	let mut origin = match state.cluster.subscriber(&token) {
 		Some(origin) => origin,
@@ -240,14 +244,15 @@ async fn serve_fetch(
 		None => return Err(StatusCode::UNAUTHORIZED.into()),
 	};
 
-	tracing::info!(%broadcast, %track, "subscribing to track");
+	tracing::info!(%broadcast, %track, "fetching track");
 
 	let track = moq_lite::Track {
 		name: track,
 		priority: 0,
 	};
 
-	let broadcast = origin.consume_broadcast(&broadcast).ok_or(StatusCode::NOT_FOUND)?;
+	// NOTE: The auth token is already scoped to the broadcast.
+	let broadcast = origin.consume_broadcast("").ok_or(StatusCode::NOT_FOUND)?;
 	let mut track = broadcast.subscribe_track(&track);
 
 	let group = match track.next_group().await {
