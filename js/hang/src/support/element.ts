@@ -117,8 +117,7 @@ export default class HangSupport extends HTMLElement {
 	}
 
 	#getSummary(support: Full, mode: SupportMode): "full" | "partial" | "none" {
-		const core = this.#getCoreSupport(support);
-
+		const core = support.webtransport;
 		if (core === "none" || mode === "core") return core;
 
 		if (mode === "watch") {
@@ -135,11 +134,6 @@ export default class HangSupport extends HTMLElement {
 		if (watch === "none" || publish === "none") return "none";
 		if (watch === "partial" && publish === "partial") return "partial";
 
-		return "full";
-	}
-
-	#getCoreSupport(support: Full): "full" | "none" {
-		if (!support.webtransport) return "none";
 		return "full";
 	}
 
@@ -246,7 +240,7 @@ export default class HangSupport extends HTMLElement {
 		const hardware = (codec: Codec | undefined) =>
 			codec?.hardware ? "🟢 Hardware" : codec?.software ? `🟡 Software${isFirefox ? "*" : ""}` : "🔴 No";
 		const partial = (value: Partial | undefined) =>
-			value === "full" ? "🟢 Full" : value === "partial" ? "🟡 Partial" : "🔴 None";
+			value === "full" ? "🟢 Full" : value === "partial" ? "🟡 Polyfill" : "🔴 None";
 
 		const addRow = (label: string, col2: string, col3: string) => {
 			const labelDiv = DOM.create(

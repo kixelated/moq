@@ -25,8 +25,8 @@ export type Full = {
 	webtransport: Partial;
 	audio: {
 		capture: boolean;
-		encoding: Audio | undefined;
-		decoding: Audio | undefined;
+		encoding: Audio;
+		decoding: Audio;
 		render: boolean;
 	};
 	video: {
@@ -49,7 +49,9 @@ const CODECS = {
 	vp8: "vp8",
 };
 
-async function audioDecoderSupported(codec: keyof typeof CODECS) {
+async function audioDecoderSupported(codec: keyof typeof CODECS): Promise<boolean> {
+	if (!globalThis.AudioDecoder) return false;
+
 	const res = await AudioDecoder.isConfigSupported({
 		codec: CODECS[codec],
 		numberOfChannels: 2,
@@ -59,7 +61,9 @@ async function audioDecoderSupported(codec: keyof typeof CODECS) {
 	return res.supported === true;
 }
 
-async function audioEncoderSupported(codec: keyof typeof CODECS) {
+async function audioEncoderSupported(codec: keyof typeof CODECS): Promise<boolean> {
+	if (!globalThis.AudioEncoder) return false;
+
 	const res = await AudioEncoder.isConfigSupported({
 		codec: CODECS[codec],
 		numberOfChannels: 2,
@@ -69,7 +73,7 @@ async function audioEncoderSupported(codec: keyof typeof CODECS) {
 	return res.supported === true;
 }
 
-async function videoDecoderSupported(codec: keyof typeof CODECS) {
+async function videoDecoderSupported(codec: keyof typeof CODECS): Promise<Codec> {
 	const software = await VideoDecoder.isConfigSupported({
 		codec: CODECS[codec],
 		hardwareAcceleration: "prefer-software",
@@ -89,7 +93,7 @@ async function videoDecoderSupported(codec: keyof typeof CODECS) {
 	};
 }
 
-async function videoEncoderSupported(codec: keyof typeof CODECS) {
+async function videoEncoderSupported(codec: keyof typeof CODECS): Promise<Codec> {
 	const software = await VideoEncoder.isConfigSupported({
 		codec: CODECS[codec],
 		width: 1280,
@@ -118,20 +122,14 @@ export async function isSupported(): Promise<Full> {
 		webtransport: typeof WebTransport !== "undefined" ? "full" : "partial",
 		audio: {
 			capture: typeof AudioWorkletNode !== "undefined",
-			encoding:
-				typeof AudioEncoder !== "undefined"
-					? {
-							aac: await audioEncoderSupported("aac"),
-							opus: (await audioEncoderSupported("opus")) ? "full" : "partial",
-						}
-					: undefined,
-			decoding:
-				typeof AudioDecoder !== "undefined"
-					? {
-							aac: await audioDecoderSupported("aac"),
-							opus: (await audioDecoderSupported("opus")) ? "full" : "partial",
-						}
-					: undefined,
+			encoding: {
+				aac: await audioEncoderSupported("aac"),
+				opus: (await audioEncoderSupported("opus")) ? "full" : "partial",
+			},
+			decoding: {
+				aac: await audioDecoderSupported("aac"),
+				opus: (await audioDecoderSupported("opus")) ? "full" : "partial",
+			},
 			render: typeof AudioContext !== "undefined" && typeof AudioBufferSourceNode !== "undefined",
 		},
 		video: {
