@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.8.3](https://github.com/kixelated/moq/compare/moq-native-v0.8.2...moq-native-v0.8.3) - 2025-09-05
+
+### Added
+
+- *(moq-native)* support raw QUIC sessions with `moql://` URLs ([#578](https://github.com/kixelated/moq/pull/578))
+
 ## [0.8.2](https://github.com/kixelated/moq/compare/moq-native-v0.8.1...moq-native-v0.8.2) - 2025-09-04
 
 ### Other

@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.9.3](https://github.com/kixelated/moq/compare/moq-relay-v0.9.2...moq-relay-v0.9.3) - 2025-09-05
+
+### Added
+
+- *(moq-native)* support raw QUIC sessions with `moql://` URLs ([#578](https://github.com/kixelated/moq/pull/578))
+
+### Other
+
+- Fix the web debug endpoints. ([#579](https://github.com/kixelated/moq/pull/579))
+
 ## [0.9.2](https://github.com/kixelated/moq/compare/moq-relay-v0.9.1...moq-relay-v0.9.2) - 2025-09-04
 
 ### Other
