@@ -37,12 +37,15 @@ export interface AudioTrackSettings {
 	deviceId: string;
 	groupId: string;
 
-	autoGainControl: boolean;
-	channelCount: number;
-	echoCancellation: boolean;
-	noiseSuppression: boolean;
+	// Seems to be available on all browsers.
 	sampleRate: number;
-	sampleSize: number;
+
+	// The rest is optional unfortunately.
+	autoGainControl?: boolean;
+	channelCount?: number; // ugh Safari why
+	echoCancellation?: boolean;
+	noiseSuppression?: boolean;
+	sampleSize?: number;
 }
 
 // The initial values for our signals.
@@ -135,7 +138,7 @@ export class Audio {
 			const worklet = new AudioWorkletNode(context, "capture", {
 				numberOfInputs: 1,
 				numberOfOutputs: 0,
-				channelCount: settings.channelCount,
+				channelCount: settings.channelCount ?? root.channelCount,
 			});
 
 			effect.set(this.#worklet, worklet);
@@ -172,16 +175,13 @@ export class Audio {
 		const worklet = effect.get(this.#worklet);
 		if (!worklet) return;
 
-		const settings = source.getSettings() as AudioTrackSettings;
-
 		const config = {
 			// TODO get codec and description from decoderConfig
 			codec: "opus",
-			// Firefox doesn't provide the sampleRate in the settings.
-			sampleRate: u53(settings.sampleRate ?? worklet?.context.sampleRate),
-			numberOfChannels: u53(settings.channelCount),
+			sampleRate: u53(worklet.context.sampleRate),
+			numberOfChannels: u53(worklet.channelCount),
 			// TODO configurable
-			bitrate: u53(settings.channelCount * 32_000),
+			bitrate: u53(worklet.channelCount * 32_000),
 			// TODO there's a bunch of advanced Opus settings that we should use.
 		};
 
@@ -211,22 +211,17 @@ export class Audio {
 					group.writeFrame(buffer);
 				},
 				error: (err) => {
+					console.error("encoder error", err);
 					group.abort(err);
 				},
 			});
 			effect.cleanup(() => encoder.close());
 
-			encoder.configure({
-				codec: config.codec,
-				numberOfChannels: config.numberOfChannels,
-				sampleRate: config.sampleRate,
-				bitrate: config.bitrate,
-			});
-
+			encoder.configure(config);
 			effect.set(this.#config, config);
 
 			worklet.port.onmessage = ({ data }: { data: Capture.AudioFrame }) => {
-				const channels = data.channels.slice(0, settings.channelCount);
+				const channels = data.channels.slice(0, worklet.channelCount);
 				const joinedLength = channels.reduce((a, b) => a + b.length, 0);
 				const joined = new Float32Array(joinedLength);
 

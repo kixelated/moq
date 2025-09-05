@@ -51,7 +51,7 @@ importers:
       '@kixelated/signals':
         specifier: workspace:^
         version: link:../signals
-      '@libav.js/variant-opus':
+      '@libav.js/variant-opus-af':
         specifier: ^6.8.8
         version: 6.8.8
       async-mutex:
@@ -570,8 +570,8 @@ packages:
   '@libav.js/types@6.8.8':
     resolution: {integrity: sha512-Lbik/0Q3x2R8cI7mOtRgt+nUWLqGXh7UinMndmpdXSDY4YEjYyVUDsq6fxkuriL78+LCYx8frZIN1r+oDsvYCQ==}
 
-  '@libav.js/variant-opus@6.8.8':
-    resolution: {integrity: sha512-RMvPGOfqAkqfNbCsrA6u/NiErrLK5pwSzc3bVVDbmsb/Ig0asn5vQ5CxFjIJg/aSUfep1tvEf0/xfhLzy55PBw==}
+  '@libav.js/variant-opus-af@6.8.8':
+    resolution: {integrity: sha512-8KBQyA8n5goN7lyctOaPxpcx7dapOgqKh8dWW/NAcl87AgM/WoUGSex3fFc46oCtTHYrUKEm1OmZUrtkt3Q56A==}
 
   '@napi-rs/wasm-runtime@1.0.3':
     resolution: {integrity: sha512-rZxtMsLwjdXkMUGC3WwsPwLNVqVqnTJT6MNIB6e+5fhMcSCPP0AOsNWuMQ5mdCq6HNjs/ZeWAEchpqeprqBD2Q==}
@@ -2373,7 +2373,7 @@ snapshots:
 
   '@libav.js/types@6.8.8': {}
 
-  '@libav.js/variant-opus@6.8.8': {}
+  '@libav.js/variant-opus-af@6.8.8': {}
 
   '@napi-rs/wasm-runtime@1.0.3':
     dependencies:

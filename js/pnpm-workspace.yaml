@@ -11,6 +11,7 @@ onlyBuiltDependencies:
   - core-js
   - esbuild
   - onnxruntime-node
+  - oxc-resolver
   - protobufjs
   - sharp
   - wasm-pack
