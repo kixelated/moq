@@ -4,7 +4,6 @@ use axum::http::StatusCode;
 use axum::response::IntoResponse;
 use axum::{http::Method, routing::get, Router};
 use hang::{cmaf, moq_lite};
-use moq_native::web_transport_quinn;
 use std::net::SocketAddr;
 use std::path::PathBuf;
 use tokio::io::AsyncRead;
@@ -66,11 +65,11 @@ async fn accept(
 #[tracing::instrument("session", skip_all, fields(id))]
 async fn run_session(
 	id: u64,
-	session: web_transport_quinn::Request,
+	session: moq_native::Request,
 	name: String,
 	consumer: moq_lite::BroadcastConsumer,
 ) -> anyhow::Result<()> {
-	// Blindly accept the WebTransport session, regardless of the URL.
+	// Blindly accept the session (WebTransport or QUIC), regardless of the URL.
 	let session = session.ok().await.context("failed to accept session")?;
 
 	// Create an origin producer to publish to the broadcast.

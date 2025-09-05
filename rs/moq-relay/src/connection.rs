@@ -1,10 +1,10 @@
 use crate::{Auth, Cluster};
 
-use moq_native::web_transport_quinn;
+use moq_native::Request;
 
 pub struct Connection {
 	pub id: u64,
-	pub request: web_transport_quinn::Request,
+	pub request: Request,
 	pub cluster: Cluster,
 	pub auth: Auth,
 }
@@ -12,15 +12,19 @@ pub struct Connection {
 impl Connection {
 	#[tracing::instrument("conn", skip_all, fields(id = self.id))]
 	pub async fn run(self) -> anyhow::Result<()> {
-		// Extract the path and token from the URL.
-		let path = self.request.url().path();
-		let token = self
-			.request
-			.url()
-			.query_pairs()
-			.find(|(k, _)| k == "jwt")
-			.map(|(_, v)| v.to_string());
-
+		let (path, token) = match &self.request {
+			Request::WebTransport(request) => {
+				// Extract the path and token from the URL.
+				let path = request.url().path();
+				let token = request
+					.url()
+					.query_pairs()
+					.find(|(k, _)| k == "jwt")
+					.map(|(_, v)| v.to_string());
+				(path, token)
+			}
+			Request::Quic(_conn) => ("", None),
+		};
 		// Verify the URL before accepting the connection.
 		let token = match self.auth.verify(path, token.as_deref()) {
 			Ok(token) => token,
