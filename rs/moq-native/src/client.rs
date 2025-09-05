@@ -185,8 +185,8 @@ impl Client {
 		let connection = self.quic.connect_with(config, ip, &host)?.await?;
 		tracing::Span::current().record("id", connection.stable_id());
 
-		let session = match url.scheme() {
-			"https" => web_transport_quinn::Session::connect(connection, url).await?,
+		let session = match alpn {
+			web_transport_quinn::ALPN => web_transport_quinn::Session::connect(connection, url).await?,
 			moq_lite::ALPN => web_transport_quinn::Session::raw(connection, url),
 			_ => unreachable!(),
 		};

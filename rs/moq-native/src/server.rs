@@ -8,6 +8,8 @@ use rustls::server::{ClientHello, ResolvesServerCert};
 use rustls::sign::CertifiedKey;
 use std::fs;
 use std::io::{self, Cursor, Read};
+use url::Url;
+use web_transport_quinn::http;
 
 use futures::future::BoxFuture;
 use futures::stream::{FuturesUnordered, StreamExt};
@@ -77,7 +79,7 @@ impl ServerConfig {
 
 pub struct Server {
 	quic: quinn::Endpoint,
-	accept: FuturesUnordered<BoxFuture<'static, anyhow::Result<web_transport_quinn::Request>>>,
+	accept: FuturesUnordered<BoxFuture<'static, anyhow::Result<Request>>>,
 	fingerprints: Vec<String>,
 }
 
@@ -154,7 +156,7 @@ impl Server {
 	/// This returns a [web_transport_quinn::Request] instead of a [web_transport_quinn::Session]
 	/// so the connection can be rejected early on an invalid path.
 	/// Call [web_transport_quinn::Request::ok] or [web_transport_quinn::Request::close] to complete the WebTransport handshake.
-	pub async fn accept(&mut self) -> Option<web_transport_quinn::Request> {
+	pub async fn accept(&mut self) -> Option<Request> {
 		loop {
 			tokio::select! {
 				res = self.quic.accept() => {
@@ -177,7 +179,7 @@ impl Server {
 		}
 	}
 
-	async fn accept_session(conn: quinn::Incoming) -> anyhow::Result<web_transport_quinn::Request> {
+	async fn accept_session(conn: quinn::Incoming) -> anyhow::Result<Request> {
 		let mut conn = conn.accept()?;
 
 		let handshake = conn
@@ -197,17 +199,9 @@ impl Server {
 
 		let span = tracing::Span::current();
 		span.record("id", conn.stable_id()); // TODO can we get this earlier?
+		tracing::debug!(%host, ip = %conn.remote_address(), %alpn, "accepted");
 
-		match alpn.as_str() {
-			web_transport_quinn::ALPN => {
-				// Wait for the CONNECT request.
-				web_transport_quinn::Request::accept(conn)
-					.await
-					.context("failed to receive WebTransport request")
-			}
-			// TODO hack in raw QUIC support again
-			_ => anyhow::bail!("unsupported ALPN: {}", alpn),
-		}
+		Request::accept(conn, alpn.as_str()).await
 	}
 
 	pub fn local_addr(&self) -> anyhow::Result<net::SocketAddr> {
@@ -216,6 +210,83 @@ impl Server {
 
 	pub fn close(&mut self) {
 		self.quic.close(quinn::VarInt::from_u32(0), b"server shutdown");
+	}
+}
+
+pub enum Request {
+	WebTransport(web_transport_quinn::Request),
+	Quic(QuicRequest),
+}
+
+impl Request {
+	/// Accept a connection, returning a WebTransport or raw QUIC request depending on the provided ALPN.
+	pub async fn accept(conn: quinn::Connection, alpn: &str) -> anyhow::Result<Self> {
+		match alpn {
+			web_transport_quinn::ALPN => {
+				// Wait for the CONNECT request.
+				let request = web_transport_quinn::Request::accept(conn)
+					.await
+					.context("failed to receive WebTransport request")?;
+				Ok(Request::WebTransport(request))
+			}
+			moq_lite::ALPN => Ok(Request::Quic(QuicRequest::accept(conn))),
+			_ => anyhow::bail!("unsupported ALPN: {}", alpn),
+		}
+	}
+
+	/// Reject the session, returing your favorite HTTP status code.
+	pub async fn close(self, status: http::StatusCode) -> Result<(), quinn::WriteError> {
+		match self {
+			Self::WebTransport(request) => request.close(status).await,
+			Self::Quic(request) => Ok(request.close(status)),
+		}
+	}
+
+	/// Accept the session, returning a 200 OK if using WebTransport.
+	pub async fn ok(self) -> Result<web_transport_quinn::Session, quinn::WriteError> {
+		match self {
+			Request::WebTransport(request) => request.ok().await,
+			Request::Quic(request) => Ok(request.ok()),
+		}
+	}
+
+	/// Returns the URL provided by the client.
+	pub fn url(&self) -> &Url {
+		match self {
+			Request::WebTransport(request) => request.url(),
+			Request::Quic(request) => request.url(),
+		}
+	}
+}
+
+pub struct QuicRequest {
+	connection: quinn::Connection,
+	url: Url,
+}
+
+impl QuicRequest {
+	/// Accept a new QUIC session from a client.
+	pub fn accept(connection: quinn::Connection) -> Self {
+		let url: Url = format!("moql://{}", connection.remote_address()).parse().unwrap();
+		Self { connection, url }
+	}
+
+	/// Accept the session, returning a 200 OK if using WebTransport.
+	pub fn ok(self) -> web_transport_quinn::Session {
+		web_transport_quinn::Session::raw(self.connection, self.url)
+	}
+
+	/// Returns the URL provided by the client.
+	pub fn url(&self) -> &Url {
+		&self.url
+	}
+
+	/// Reject the session with a status code.
+	///
+	/// The status code number will be used as the error code.
+	pub fn close(self, status: http::StatusCode) {
+		self.connection
+			.close(status.as_u16().into(), status.as_str().as_bytes());
 	}
 }
 
