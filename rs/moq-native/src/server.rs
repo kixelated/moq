@@ -237,7 +237,10 @@ impl Request {
 	pub async fn close(self, status: http::StatusCode) -> Result<(), quinn::WriteError> {
 		match self {
 			Self::WebTransport(request) => request.close(status).await,
-			Self::Quic(request) => Ok(request.close(status)),
+			Self::Quic(request) => {
+				request.close(status);
+				Ok(())
+			}
 		}
 	}
 
