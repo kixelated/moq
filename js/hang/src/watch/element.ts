@@ -26,15 +26,21 @@ export default class HangWatch extends HTMLElement {
 
 	constructor() {
 		super();
-
-		const canvas = this.querySelector("canvas") as HTMLCanvasElement | undefined;
-
 		this.connection = new Connection();
 		this.broadcast = new Broadcast(this.connection, {
 			enabled: true,
 			// TODO: Temporarily defaults to false: Don't automatically reload the broadcast.
 			reload: false,
 		});
+	}
+
+	init() {
+		const canvas = this.querySelector("canvas") as HTMLCanvasElement | undefined;
+		if (!canvas) {
+			const newCanvas = this.ownerDocument.createElement("canvas");
+			this.appendChild(newCanvas);
+			console.warn("appended new canvas", newCanvas);
+		}
 		this.video = new VideoRenderer(this.broadcast.video, { canvas });
 		this.audio = new AudioEmitter(this.broadcast.audio);
 
@@ -95,9 +101,6 @@ export default class HangWatch extends HTMLElement {
 			const paused = effect.get(this.video.paused) || effect.get(this.audio.muted);
 			this.audio.paused.set(paused);
 		});
-
-		this.#renderControls();
-		this.#renderCaptions();
 	}
 
 	attributeChangedCallback(name: Observed, oldValue: string | null, newValue: string | null) {
@@ -126,6 +129,19 @@ export default class HangWatch extends HTMLElement {
 			const exhaustive: never = name;
 			throw new Error(`Invalid attribute: ${exhaustive}`);
 		}
+	}
+
+	connectedCallback() {
+		console.warn(`connectedCallback`, this);
+		this.init();
+		this.#renderControls();
+		this.#renderCaptions();
+	}
+
+	disconnectedCallback() {
+		// Clean up when the element is disconnected from the document
+		// The signals cleanup will handle most of the cleanup automatically
+		console.warn(`disconnectedCallback`, this);
 	}
 
 	// Make corresponding properties for the element, more type-safe than using attributes.
