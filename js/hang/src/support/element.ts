@@ -11,8 +11,9 @@ export default class HangSupport extends HTMLElement {
 	#show = new Signal<Partial>("full");
 	#details = new Signal<boolean>(false);
 	#support = new Signal<Full | undefined>(undefined);
-	#signals = new Effect();
 	#close = new Signal<boolean>(false);
+
+	#signals?: Effect;
 
 	static observedAttributes = OBSERVED;
 
@@ -20,7 +21,16 @@ export default class HangSupport extends HTMLElement {
 		super();
 
 		isSupported().then((s) => this.#support.set(s));
+	}
+
+	connectedCallback() {
+		this.#signals = new Effect();
 		this.#signals.effect(this.#render.bind(this));
+	}
+
+	disconnectedCallback() {
+		this.#signals?.close();
+		this.#signals = undefined;
 	}
 
 	attributeChangedCallback(name: Observed, _oldValue: string | null, newValue: string | null) {
@@ -70,10 +80,6 @@ export default class HangSupport extends HTMLElement {
 
 	set details(details: boolean) {
 		this.#details.set(details);
-	}
-
-	disconnectedCallback() {
-		this.#signals.close();
 	}
 
 	#render(effect: Effect) {

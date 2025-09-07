@@ -1,11 +1,11 @@
 import type { Path } from "@kixelated/moq";
 import { Effect, Signal } from "@kixelated/signals";
-import { type Connection, Moq, type Publish, Watch } from "..";
+import { type Connection, type Moq, type Publish, Watch } from "..";
 
 export type Broadcast = Watch.Broadcast | Publish.Broadcast;
 
 export type RoomProps = {
-	name?: Path.Valid | Signal<Path.Valid>;
+	name?: Path.Valid | Signal<Path.Valid | undefined>;
 };
 
 export class Room {
@@ -14,7 +14,7 @@ export class Room {
 	connection: Connection;
 
 	// An optional prefix to filter broadcasts by.
-	name: Signal<Path.Valid>;
+	name: Signal<Path.Valid | undefined>;
 
 	// The active broadcasts, sorted by announcement time.
 	active = new Map<Path.Valid, Broadcast>();
@@ -36,7 +36,7 @@ export class Room {
 
 	constructor(connection: Connection, props?: RoomProps) {
 		this.connection = connection;
-		this.name = Signal.from(props?.name ?? Moq.Path.empty());
+		this.name = Signal.from(props?.name);
 
 		this.#signals.effect(this.#init.bind(this));
 	}

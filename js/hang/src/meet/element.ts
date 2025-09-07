@@ -1,5 +1,5 @@
 import { Path } from "@kixelated/moq";
-import { Effect } from "@kixelated/signals";
+import { Effect, Signal } from "@kixelated/signals";
 import * as DOM from "@kixelated/signals/dom";
 import { type Publish, Watch } from "..";
 import { Connection } from "../connection";
@@ -9,11 +9,67 @@ import { Room } from "./room";
 const OBSERVED = ["url", "name"] as const;
 type Observed = (typeof OBSERVED)[number];
 
+export interface HangMeetSignals {
+	url: Signal<URL | undefined>;
+	name: Signal<Path.Valid | undefined>;
+}
+
 // NOTE: This element is more of an example of how to use the library.
 // You likely want your own layout, rendering, controls, etc.
 // This element instead creates a crude NxN grid of broadcasts.
 export default class HangMeet extends HTMLElement {
 	static observedAttributes = OBSERVED;
+
+	signals: HangMeetSignals = {
+		url: new Signal<URL | undefined>(undefined),
+		name: new Signal<Path.Valid | undefined>(undefined),
+	};
+
+	active = new Signal<HangMeetInstance | undefined>(undefined);
+
+	connectedCallback() {
+		if (this.active.peek()) throw new Error("connectedCallback called twice");
+		this.active.set(new HangMeetInstance(this));
+	}
+
+	disconnectedCallback() {
+		if (!this.active.peek()) throw new Error("disconnectedCallback called without connectedCallback");
+		this.active.set((prev) => {
+			prev?.close();
+			return undefined;
+		});
+	}
+
+	attributeChangedCallback(name: Observed, _oldValue: string | null, newValue: string | null) {
+		if (name === "url") {
+			this.url = newValue ? new URL(newValue) : undefined;
+		} else if (name === "name") {
+			this.name = newValue ?? undefined;
+		} else {
+			const exhaustive: never = name;
+			throw new Error(`Invalid attribute: ${exhaustive}`);
+		}
+	}
+
+	get url(): URL | undefined {
+		return this.signals.url.peek();
+	}
+
+	set url(url: URL | undefined) {
+		this.signals.url.set(url);
+	}
+
+	get name(): string | undefined {
+		return this.signals.name.peek()?.toString();
+	}
+
+	set name(name: string | undefined) {
+		this.signals.name.set(name ? Path.from(name) : undefined);
+	}
+}
+
+class HangMeetInstance {
+	parent: HangMeet;
 
 	connection: Connection;
 	room: Room;
@@ -31,11 +87,11 @@ export default class HangMeet extends HTMLElement {
 
 	#signals = new Effect();
 
-	constructor() {
-		super();
+	constructor(parent: HangMeet) {
+		this.parent = parent;
 
-		this.connection = new Connection();
-		this.room = new Room(this.connection);
+		this.connection = new Connection({ url: this.parent.signals.url });
+		this.room = new Room(this.connection, { name: this.parent.signals.name });
 
 		this.#container = DOM.create("div", {
 			style: {
@@ -45,18 +101,28 @@ export default class HangMeet extends HTMLElement {
 				alignItems: "center",
 			},
 		});
-		this.appendChild(this.#container);
+
+		DOM.render(this.#signals, this.parent, this.#container);
 
 		// A callback that is fired when one of our local broadcasts is added/removed.
 		this.room.onLocal(this.#onLocal.bind(this));
 
 		// A callback that is fired when a remote broadcast is added/removed.
 		this.room.onRemote(this.#onRemote.bind(this));
+
+		this.#signals.effect((effect) => {
+			// This is kind of a hack to reload the effect when the DOM changes.
+			const observer = new MutationObserver(() => effect.reload());
+			observer.observe(this.parent, { childList: true });
+			effect.cleanup(() => observer.disconnect());
+
+			this.#run(effect);
+		})
 	}
 
-	connectedCallback() {
+	#run(effect: Effect) {
 		// Find any nested `hang-publish` elements and mark them as local.
-		for (const element of this.querySelectorAll("hang-publish")) {
+		for (const element of this.parent.querySelectorAll("hang-publish")) {
 			if (!(element instanceof HangPublish)) {
 				console.warn("hang-publish element not found; tree-shaking?");
 				continue;
@@ -65,25 +131,23 @@ export default class HangMeet extends HTMLElement {
 			const publish = element as HangPublish;
 
 			// Monitor the name of the publish element and update the room.
-			this.#signals.effect((effect) => {
-				const name = effect.get(publish.broadcast.name);
+			effect.effect((effect) => {
+				const active = effect.get(publish.active);
+				if (!active) return;
+
+				const name = effect.get(active.broadcast.name);
 				if (!name) return;
 
-				this.room.preview(name, publish.broadcast);
+				this.room.preview(name, active.broadcast);
 				effect.cleanup(() => this.room.unpreview(name));
 			});
 
 			// Copy the connection URL to the publish element so they're the same.
 			// TODO Reuse the connection instead of dialing a new one.
-			this.#signals.effect((effect) => {
-				const url = effect.get(this.connection.url);
-				effect.set(publish.connection.url, url);
+			effect.effect((effect) => {
+				publish.url = effect.get(this.connection.url);
 			});
 		}
-	}
-
-	disconnectedCallback() {
-		this.#signals.close();
 	}
 
 	#onLocal(name: Path.Valid, broadcast?: Publish.Broadcast) {
@@ -152,31 +216,10 @@ export default class HangMeet extends HTMLElement {
 		this.#container.appendChild(canvas);
 	}
 
-	attributeChangedCallback(name: Observed, _oldValue: string | null, newValue: string | null) {
-		if (name === "url") {
-			this.url = newValue ? new URL(newValue) : undefined;
-		} else if (name === "name") {
-			this.name = Path.from(newValue ?? "");
-		} else {
-			const exhaustive: never = name;
-			throw new Error(`Invalid attribute: ${exhaustive}`);
-		}
-	}
-
-	get url(): URL | undefined {
-		return this.connection.url.peek();
-	}
-
-	set url(url: URL | undefined) {
-		this.connection.url.set(url);
-	}
-
-	get name(): Path.Valid {
-		return this.room.name.peek();
-	}
-
-	set name(name: Path.Valid) {
-		this.room.name.set(name);
+	close() {
+		this.#signals.close();
+		this.room.close();
+		this.connection.close();
 	}
 }
 

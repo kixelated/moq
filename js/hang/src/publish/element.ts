@@ -11,55 +11,44 @@ type Observed = (typeof OBSERVED)[number];
 
 type SourceType = "camera" | "screen";
 
+export interface HangPublishSignals {
+	url: Signal<URL | undefined>;
+	name: Signal<Moq.Path.Valid | undefined>;
+	device: Signal<SourceType | undefined>;
+	audio: Signal<boolean>;
+	video: Signal<boolean>;
+	controls: Signal<boolean>;
+	captions: Signal<boolean>;
+	source: Signal<SourceType | undefined>;
+}
+
 export default class HangPublish extends HTMLElement {
 	static observedAttributes = OBSERVED;
 
-	#controls = new Signal(false);
+	signals: HangPublishSignals = {
+		url: new Signal<URL | undefined>(undefined),
+		name: new Signal<Moq.Path.Valid | undefined>(undefined),
+		device: new Signal<SourceType | undefined>(undefined),
+		audio: new Signal<boolean>(false),
+		video: new Signal<boolean>(false),
+		controls: new Signal(false),
+		captions: new Signal(false),
+		source: new Signal<SourceType | undefined>(undefined),
+	};
 
-	connection: Connection;
-	broadcast: Broadcast;
+	active = new Signal<HangPublishInstance | undefined>(undefined);
 
-	#source = new Signal<SourceType | undefined>(undefined);
-	#video = new Signal<Source.Camera | Source.Screen | undefined>(undefined);
-	#audio = new Signal<Source.Microphone | Source.Screen | undefined>(undefined);
+	connectedCallback() {
+		if (this.active.peek()) throw new Error("connectedCallback called twice");
+		this.active.set(new HangPublishInstance(this));
+	}
 
-	#signals = new Effect();
-
-	constructor() {
-		super();
-
-		const preview = this.querySelector("video") as HTMLVideoElement | undefined;
-
-		this.connection = new Connection();
-		this.broadcast = new Broadcast(this.connection);
-
-		// Only publish when we have media available.
-		// TODO Configurable?
-		this.#signals.effect((effect) => {
-			const audio = effect.get(this.broadcast.audio.source);
-			const video = effect.get(this.broadcast.video.source);
-			this.broadcast.enabled.set(!!audio || !!video);
+	disconnectedCallback() {
+		if (!this.active.peek()) throw new Error("disconnectedCallback called without connectedCallback");
+		this.active.set((prev) => {
+			prev?.close();
+			return undefined;
 		});
-
-		this.#signals.effect((effect) => {
-			if (!preview) return;
-
-			const media = effect.get(this.broadcast.video.source);
-			if (!media) {
-				preview.style.display = "none";
-				return;
-			}
-
-			preview.srcObject = new MediaStream([media]);
-			preview.style.display = "block";
-
-			effect.cleanup(() => {
-				preview.srcObject = null;
-			});
-		});
-
-		this.#renderControls();
-		this.#renderCaptions();
 	}
 
 	attributeChangedCallback(name: Observed, oldValue: string | null, newValue: string | null) {
@@ -90,21 +79,22 @@ export default class HangPublish extends HTMLElement {
 	}
 
 	get url(): URL | undefined {
-		return this.connection.url.peek();
+		return this.signals.url.peek();
 	}
 
 	set url(url: URL | undefined) {
-		this.connection.url.set(url);
+		this.signals.url.set(url);
 	}
 
 	get name(): string | undefined {
-		return this.broadcast.name.peek()?.toString();
+		return this.signals.name.peek()?.toString();
 	}
 
 	set name(name: string | undefined) {
-		this.broadcast.name.set(name ? Moq.Path.from(name) : undefined);
+		this.signals.name.set(name ? Moq.Path.from(name) : undefined);
 	}
 
+	// TODO: remove device; it's a backwards compatible alias for source.
 	get device(): SourceType | undefined {
 		return this.source;
 	}
@@ -114,14 +104,114 @@ export default class HangPublish extends HTMLElement {
 	}
 
 	get source(): SourceType | undefined {
-		return this.#source.peek();
+		return this.signals.source.peek();
 	}
 
 	set source(source: SourceType | undefined) {
-		if (source === this.#source.peek()) return;
+		this.signals.source.set(source);
+	}
 
-		this.#audio.peek()?.close();
-		this.#video.peek()?.close();
+	get audio(): boolean {
+		return this.signals.audio.peek();
+	}
+
+	set audio(audio: boolean) {
+		this.signals.audio.set(audio);
+	}
+
+	get video(): boolean {
+		return this.signals.video.peek();
+	}
+
+	set video(video: boolean) {
+		this.signals.video.set(video);
+	}
+
+	get controls(): boolean {
+		return this.signals.controls.peek();
+	}
+
+	set controls(controls: boolean) {
+		this.signals.controls.set(controls);
+	}
+
+	get captions(): boolean {
+		return this.signals.captions.peek();
+	}
+
+	set captions(captions: boolean) {
+		this.signals.captions.set(captions);
+	}
+}
+
+class HangPublishInstance {
+	parent: HangPublish;
+	connection: Connection;
+	broadcast: Broadcast;
+
+	#preview: Signal<HTMLVideoElement | undefined>;
+	#video = new Signal<Source.Camera | Source.Screen | undefined>(undefined);
+	#audio = new Signal<Source.Microphone | Source.Screen | undefined>(undefined);
+
+	#signals = new Effect();
+
+	constructor(parent: HangPublish) {
+		this.parent = parent;
+
+		// Watch to see if the preview element is added or removed.
+		this.#preview = new Signal(this.parent.querySelector("video") as HTMLVideoElement | undefined);
+		const observer = new MutationObserver(() => {
+			this.#preview.set(this.parent.querySelector("video") as HTMLVideoElement | undefined);
+		});
+		observer.observe(this.parent, { childList: true });
+		this.#signals.cleanup(() => observer.disconnect());
+
+		this.connection = new Connection({
+			url: this.parent.signals.url,
+		});
+		this.broadcast = new Broadcast(this.connection, {
+			enabled: true, // TODO allow configuring this
+			name: this.parent.signals.name,
+
+			audio: {
+				enabled: this.parent.signals.audio,
+				captions: {
+					enabled: this.parent.signals.captions,
+				},
+				speaking: {
+					enabled: this.parent.signals.captions,
+				},
+			},
+			video: {
+				enabled: this.parent.signals.video,
+			},
+		});
+
+		this.#signals.effect((effect) => {
+			const preview = effect.get(this.#preview);
+			if (!preview) return;
+
+			const media = effect.get(this.broadcast.video.source);
+			if (!media) {
+				preview.style.display = "none";
+				return;
+			}
+
+			preview.srcObject = new MediaStream([media]);
+			preview.style.display = "block";
+
+			effect.cleanup(() => {
+				preview.srcObject = null;
+			});
+		});
+
+		this.#signals.effect(this.#runSource.bind(this));
+		this.#signals.effect(this.#renderControls.bind(this));
+		this.#signals.effect(this.#renderCaptions.bind(this));
+	}
+
+	#runSource(effect: Effect) {
+		const source = effect.get(this.parent.signals.source);
 
 		if (source === "camera") {
 			const video = new Source.Camera({ enabled: this.broadcast.video.enabled });
@@ -136,9 +226,18 @@ export default class HangPublish extends HTMLElement {
 				effect.set(this.broadcast.audio.source, stream);
 			});
 
-			this.#video.set(video);
-			this.#audio.set(audio);
-		} else if (source === "screen") {
+			effect.set(this.#video, video);
+			effect.set(this.#audio, audio);
+
+			effect.cleanup(() => {
+				video.close();
+				audio.close();
+			});
+
+			return;
+		}
+
+		if (source === "screen") {
 			const screen = new Source.Screen();
 
 			screen.signals.effect((effect) => {
@@ -155,50 +254,18 @@ export default class HangPublish extends HTMLElement {
 				effect.set(screen.enabled, audio || video, false);
 			});
 
-			this.#video.set(screen);
-			this.#audio.set(screen);
-		} else {
-			this.#video.set(undefined);
-			this.#audio.set(undefined);
+			effect.set(this.#video, screen);
+			effect.set(this.#audio, screen);
+
+			effect.cleanup(() => {
+				screen.close();
+			});
+
+			return;
 		}
-
-		this.#source.set(source);
 	}
 
-	get audio(): boolean {
-		return this.broadcast.audio.enabled.peek();
-	}
-
-	set audio(audio: boolean) {
-		this.broadcast.audio.enabled.set(audio);
-	}
-
-	get video(): boolean {
-		return this.broadcast.video.enabled.peek();
-	}
-
-	set video(video: boolean) {
-		this.broadcast.video.enabled.set(video);
-	}
-
-	get controls(): boolean {
-		return this.#controls.peek();
-	}
-
-	set controls(controls: boolean) {
-		this.#controls.set(controls);
-	}
-
-	get captions(): boolean {
-		return this.broadcast.audio.captions.enabled.peek();
-	}
-
-	set captions(captions: boolean) {
-		this.broadcast.audio.captions.enabled.set(captions);
-		this.broadcast.audio.speaking.enabled.set(captions);
-	}
-
-	#renderControls() {
+	#renderControls(effect: Effect) {
 		const controls = DOM.create("div", {
 			style: {
 				display: "flex",
@@ -209,11 +276,10 @@ export default class HangPublish extends HTMLElement {
 			},
 		});
 
-		this.appendChild(controls);
-		this.#signals.cleanup(() => this.removeChild(controls));
+		DOM.render(effect, this.parent, controls);
 
-		this.#signals.effect((effect) => {
-			const show = effect.get(this.#controls);
+		effect.effect((effect) => {
+			const show = effect.get(this.parent.signals.controls);
 			if (!show) return;
 
 			this.#renderSelect(controls, effect);
@@ -221,7 +287,7 @@ export default class HangPublish extends HTMLElement {
 		});
 	}
 
-	#renderCaptions() {
+	#renderCaptions(effect: Effect) {
 		const captions = DOM.create("div", {
 			style: {
 				display: "flex",
@@ -232,11 +298,10 @@ export default class HangPublish extends HTMLElement {
 			},
 		});
 
-		this.appendChild(captions);
-		this.#signals.cleanup(() => this.removeChild(captions));
+		DOM.render(effect, this.parent, captions);
 
-		this.#signals.effect((effect) => {
-			const show = effect.get(this.broadcast.audio.captions.enabled);
+		effect.effect((effect) => {
+			const show = effect.get(this.parent.signals.captions);
 			if (!show) return;
 
 			const leftSpacer = DOM.create("div", {
@@ -259,15 +324,9 @@ export default class HangPublish extends HTMLElement {
 				speakingIcon.textContent = speaking ? "🗣️" : " ";
 			});
 
-			captions.appendChild(leftSpacer);
-			captions.appendChild(captionText);
-			captions.appendChild(speakingIcon);
-
-			effect.cleanup(() => {
-				captions.removeChild(leftSpacer);
-				captions.removeChild(captionText);
-				captions.removeChild(speakingIcon);
-			});
+			DOM.render(effect, captions, leftSpacer);
+			DOM.render(effect, captions, captionText);
+			DOM.render(effect, captions, speakingIcon);
 		});
 	}
 
@@ -288,8 +347,7 @@ export default class HangPublish extends HTMLElement {
 		this.#renderScreen(container, effect);
 		this.#renderNothing(container, effect);
 
-		parent.appendChild(container);
-		effect.cleanup(() => parent.removeChild(container));
+		DOM.render(effect, parent, container);
 	}
 
 	#renderMicrophone(parent: HTMLDivElement, effect: Effect) {
@@ -314,17 +372,17 @@ export default class HangPublish extends HTMLElement {
 		DOM.render(effect, container, microphone);
 
 		effect.event(microphone, "click", () => {
-			if (this.source === "camera") {
+			if (this.parent.source === "camera") {
 				// Camera already selected, toggle audio.
-				this.audio = !this.audio;
+				this.parent.audio = !this.parent.audio;
 			} else {
-				this.source = "camera";
-				this.audio = true;
+				this.parent.source = "camera";
+				this.parent.audio = true;
 			}
 		});
 
 		effect.effect((effect) => {
-			const selected = effect.get(this.#source);
+			const selected = effect.get(this.parent.signals.source);
 			const audio = effect.get(this.broadcast.audio.enabled);
 			microphone.style.opacity = selected === "camera" && audio ? "1" : "0.5";
 		});
@@ -401,17 +459,17 @@ export default class HangPublish extends HTMLElement {
 		DOM.render(effect, container, camera);
 
 		effect.event(camera, "click", () => {
-			if (this.source === "camera") {
+			if (this.parent.source === "camera") {
 				// Camera already selected, toggle video.
-				this.video = !this.video;
+				this.parent.video = !this.parent.video;
 			} else {
-				this.source = "camera";
-				this.video = true;
+				this.parent.source = "camera";
+				this.parent.video = true;
 			}
 		});
 
 		effect.effect((effect) => {
-			const selected = effect.get(this.#source);
+			const selected = effect.get(this.parent.signals.source);
 			const video = effect.get(this.broadcast.video.enabled);
 			camera.style.opacity = selected === "camera" && video ? "1" : "0.5";
 		});
@@ -478,11 +536,11 @@ export default class HangPublish extends HTMLElement {
 		);
 
 		effect.event(screen, "click", () => {
-			this.source = "screen";
+			this.parent.source = "screen";
 		});
 
 		effect.effect((effect) => {
-			const selected = effect.get(this.#source);
+			const selected = effect.get(this.parent.signals.source);
 			screen.style.opacity = selected === "screen" ? "1" : "0.5";
 		});
 
@@ -501,11 +559,11 @@ export default class HangPublish extends HTMLElement {
 		);
 
 		effect.event(nothing, "click", () => {
-			this.source = undefined;
+			this.parent.source = undefined;
 		});
 
 		effect.effect((effect) => {
-			const selected = effect.get(this.#source);
+			const selected = effect.get(this.parent.signals.source);
 			nothing.style.opacity = selected === undefined ? "1" : "0.5";
 		});
 
@@ -540,6 +598,12 @@ export default class HangPublish extends HTMLElement {
 
 		parent.appendChild(container);
 		effect.cleanup(() => parent.removeChild(container));
+	}
+
+	close() {
+		this.#signals.close();
+		this.broadcast.close();
+		this.connection.close();
 	}
 }
 

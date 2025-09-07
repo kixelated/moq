@@ -54,19 +54,21 @@ export default class HangWatch extends HTMLElement {
 	};
 
 	// An instance of HangWatchInstance once its inserted into the DOM.
-	active?: HangWatchInstance;
+	active = new Signal<HangWatchInstance | undefined>(undefined);
 
 	// Annoyingly, we have to use these callbacks to figure out when the element is connected to the DOM.
 	// This wouldn't be so bad if there was a destructor for web components to clean up our effects.
 	connectedCallback() {
-		if (this.active) throw new Error("connectedCallback called twice");
-		this.active = new HangWatchInstance(this);
+		if (this.active.peek()) throw new Error("connectedCallback called twice");
+		this.active.set(new HangWatchInstance(this));
 	}
 
 	disconnectedCallback() {
-		if (!this.active) throw new Error("disconnectedCallback called without a connectedCallback");
-		this.active.close();
-		this.active = undefined;
+		if (!this.active.peek()) throw new Error("disconnectedCallback called without a connectedCallback");
+		this.active.set((prev) => {
+			prev?.close();
+			return undefined;
+		});
 	}
 
 	attributeChangedCallback(name: Observed, oldValue: string | null, newValue: string | null) {
@@ -174,7 +176,7 @@ class HangWatchInstance {
 	broadcast: Broadcast;
 	video: VideoRenderer;
 	audio: AudioEmitter;
-	effects: Effect;
+	#signals: Effect;
 
 	constructor(parent: HangWatch) {
 		this.parent = parent;
@@ -196,17 +198,15 @@ class HangWatchInstance {
 			},
 		});
 
-		this.effects = new Effect();
+		this.#signals = new Effect();
 
 		// Watch to see if the canvas element is added or removed.
-		const canvas = new Signal<HTMLCanvasElement | undefined>(
-			this.parent.querySelector("canvas") as HTMLCanvasElement | undefined,
-		);
+		const canvas = new Signal(this.parent.querySelector("canvas") as HTMLCanvasElement | undefined);
 		const observer = new MutationObserver(() => {
 			canvas.set(this.parent.querySelector("canvas") as HTMLCanvasElement | undefined);
 		});
-		observer.observe(this.parent, { subtree: true, childList: true });
-		this.effects.cleanup(() => observer.disconnect());
+		observer.observe(this.parent, { childList: true });
+		this.#signals.cleanup(() => observer.disconnect());
 
 		this.video = new VideoRenderer(this.broadcast.video, { canvas, paused: this.parent.signals.paused });
 		this.audio = new AudioEmitter(this.broadcast.audio, {
@@ -219,7 +219,7 @@ class HangWatchInstance {
 		// This is kind of dangerous because it can create loops.
 		// NOTE: This only runs when the element is connected to the DOM, which is not obvious.
 		// This is because there's no destructor for web components to clean up our effects.
-		this.effects.effect((effect) => {
+		this.#signals.effect((effect) => {
 			const url = effect.get(this.parent.signals.url);
 			if (url) {
 				this.parent.setAttribute("url", url.toString());
@@ -228,7 +228,7 @@ class HangWatchInstance {
 			}
 		});
 
-		this.effects.effect((effect) => {
+		this.#signals.effect((effect) => {
 			const broadcast = effect.get(this.parent.signals.name);
 			if (broadcast) {
 				this.parent.setAttribute("name", broadcast.toString());
@@ -237,7 +237,7 @@ class HangWatchInstance {
 			}
 		});
 
-		this.effects.effect((effect) => {
+		this.#signals.effect((effect) => {
 			const muted = effect.get(this.parent.signals.muted);
 			if (muted) {
 				this.parent.setAttribute("muted", "");
@@ -246,7 +246,7 @@ class HangWatchInstance {
 			}
 		});
 
-		this.effects.effect((effect) => {
+		this.#signals.effect((effect) => {
 			const paused = effect.get(this.parent.signals.paused);
 			if (paused) {
 				this.parent.setAttribute("paused", "true");
@@ -255,12 +255,12 @@ class HangWatchInstance {
 			}
 		});
 
-		this.effects.effect((effect) => {
+		this.#signals.effect((effect) => {
 			const volume = effect.get(this.parent.signals.volume);
 			this.parent.setAttribute("volume", volume.toString());
 		});
 
-		this.effects.effect((effect) => {
+		this.#signals.effect((effect) => {
 			const controls = effect.get(this.parent.signals.controls);
 			if (controls) {
 				this.parent.setAttribute("controls", "");
@@ -269,8 +269,8 @@ class HangWatchInstance {
 			}
 		});
 
-		this.effects.effect(this.#renderControls.bind(this));
-		this.effects.effect(this.#renderCaptions.bind(this));
+		this.#signals.effect(this.#renderControls.bind(this));
+		this.#signals.effect(this.#renderCaptions.bind(this));
 	}
 
 	close() {
@@ -278,7 +278,7 @@ class HangWatchInstance {
 		this.broadcast.close();
 		this.video.close();
 		this.audio.close();
-		this.effects.close();
+		this.#signals.close();
 	}
 
 	#renderControls(effect: Effect) {
