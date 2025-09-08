@@ -28,12 +28,10 @@ export default class HangMeet extends HTMLElement {
 	active = new Signal<HangMeetInstance | undefined>(undefined);
 
 	connectedCallback() {
-		if (this.active.peek()) throw new Error("connectedCallback called twice");
 		this.active.set(new HangMeetInstance(this));
 	}
 
 	disconnectedCallback() {
-		if (!this.active.peek()) throw new Error("disconnectedCallback called without connectedCallback");
 		this.active.set((prev) => {
 			prev?.close();
 			return undefined;
@@ -113,11 +111,11 @@ class HangMeetInstance {
 		this.#signals.effect((effect) => {
 			// This is kind of a hack to reload the effect when the DOM changes.
 			const observer = new MutationObserver(() => effect.reload());
-			observer.observe(this.parent, { childList: true });
+			observer.observe(this.parent, { childList: true, subtree: true });
 			effect.cleanup(() => observer.disconnect());
 
 			this.#run(effect);
-		})
+		});
 	}
 
 	#run(effect: Effect) {

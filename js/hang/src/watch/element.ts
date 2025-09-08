@@ -59,12 +59,10 @@ export default class HangWatch extends HTMLElement {
 	// Annoyingly, we have to use these callbacks to figure out when the element is connected to the DOM.
 	// This wouldn't be so bad if there was a destructor for web components to clean up our effects.
 	connectedCallback() {
-		if (this.active.peek()) throw new Error("connectedCallback called twice");
 		this.active.set(new HangWatchInstance(this));
 	}
 
 	disconnectedCallback() {
-		if (!this.active.peek()) throw new Error("disconnectedCallback called without a connectedCallback");
 		this.active.set((prev) => {
 			prev?.close();
 			return undefined;
@@ -205,7 +203,7 @@ class HangWatchInstance {
 		const observer = new MutationObserver(() => {
 			canvas.set(this.parent.querySelector("canvas") as HTMLCanvasElement | undefined);
 		});
-		observer.observe(this.parent, { childList: true });
+		observer.observe(this.parent, { childList: true, subtree: true });
 		this.#signals.cleanup(() => observer.disconnect());
 
 		this.video = new VideoRenderer(this.broadcast.video, { canvas, paused: this.parent.signals.paused });
@@ -349,7 +347,7 @@ class HangWatchInstance {
 			title: "Pause",
 		});
 
-		button.addEventListener("click", (e) => {
+		effect.event(button, "click", (e) => {
 			e.preventDefault();
 			this.video.paused.set((prev) => !prev);
 		});
@@ -376,7 +374,7 @@ class HangWatchInstance {
 			title: "Mute",
 		});
 
-		muteButton.addEventListener("click", () => {
+		effect.event(muteButton, "click", () => {
 			this.audio.muted.set((p) => !p);
 		});
 
@@ -386,7 +384,7 @@ class HangWatchInstance {
 			max: "100",
 		});
 
-		volumeSlider.addEventListener("input", (e) => {
+		effect.event(volumeSlider, "input", (e) => {
 			const target = e.currentTarget as HTMLInputElement;
 			const volume = parseFloat(target.value) / 100;
 			this.audio.volume.set(volume);
@@ -453,7 +451,7 @@ class HangWatchInstance {
 			"⛶",
 		);
 
-		button.addEventListener("click", () => {
+		effect.event(button, "click", () => {
 			if (document.fullscreenElement) {
 				document.exitFullscreen();
 			} else {

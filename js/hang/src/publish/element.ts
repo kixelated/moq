@@ -39,12 +39,10 @@ export default class HangPublish extends HTMLElement {
 	active = new Signal<HangPublishInstance | undefined>(undefined);
 
 	connectedCallback() {
-		if (this.active.peek()) throw new Error("connectedCallback called twice");
 		this.active.set(new HangPublishInstance(this));
 	}
 
 	disconnectedCallback() {
-		if (!this.active.peek()) throw new Error("disconnectedCallback called without connectedCallback");
 		this.active.set((prev) => {
 			prev?.close();
 			return undefined;
@@ -163,7 +161,7 @@ class HangPublishInstance {
 		const observer = new MutationObserver(() => {
 			this.#preview.set(this.parent.querySelector("video") as HTMLVideoElement | undefined);
 		});
-		observer.observe(this.parent, { childList: true });
+		observer.observe(this.parent, { childList: true, subtree: true });
 		this.#signals.cleanup(() => observer.disconnect());
 
 		this.connection = new Connection({
@@ -208,6 +206,12 @@ class HangPublishInstance {
 		this.#signals.effect(this.#runSource.bind(this));
 		this.#signals.effect(this.#renderControls.bind(this));
 		this.#signals.effect(this.#renderCaptions.bind(this));
+
+		// Keep device signal in sync with source signal for backwards compatibility
+		this.#signals.effect((effect) => {
+			const source = effect.get(this.parent.signals.source);
+			effect.set(this.parent.signals.device, source);
+		});
 	}
 
 	#runSource(effect: Effect) {

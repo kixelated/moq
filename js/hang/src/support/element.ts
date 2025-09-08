@@ -199,7 +199,7 @@ export default class HangSupport extends HTMLElement {
 			style: { fontSize: "14px" },
 		});
 
-		detailsButton.addEventListener("click", () => {
+		effect.event(detailsButton, "click", () => {
 			this.#details.set((prev) => !prev);
 		});
 
@@ -216,7 +216,7 @@ export default class HangSupport extends HTMLElement {
 			"Close ❌",
 		);
 
-		closeButton.addEventListener("click", () => {
+		effect.event(closeButton, "click", () => {
 			this.#close.set(true);
 		});
 
