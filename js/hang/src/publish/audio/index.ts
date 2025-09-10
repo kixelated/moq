@@ -7,46 +7,17 @@ import * as Time from "../../time";
 import * as libav from "../../util/libav";
 import { Captions, type CaptionsProps } from "./captions";
 import type * as Capture from "./capture";
+import type { Source } from "./types";
 
 export * from "./captions";
+export * from "./types";
 
 const GAIN_MIN = 0.001;
 const FADE_TIME = 0.2;
 
-export type Source = AudioStreamTrack;
-
 // Unfortunately, we need to use a Vite-exclusive import for now.
 import CaptureWorklet from "./capture-worklet?worker&url";
 import { Speaking, type SpeakingProps } from "./speaking";
-
-export type AudioConstraints = Omit<
-	MediaTrackConstraints,
-	"aspectRatio" | "backgroundBlur" | "displaySurface" | "facingMode" | "frameRate" | "height" | "width"
->;
-
-// Stronger typing for the MediaStreamTrack interface.
-export interface AudioStreamTrack extends MediaStreamTrack {
-	kind: "audio";
-	clone(): AudioStreamTrack;
-	getSettings(): AudioTrackSettings;
-}
-
-// MediaTrackSettings can represent both audio and video, which means a LOT of possibly undefined properties.
-// This is a fork of the MediaTrackSettings interface with properties required for audio or video.
-export interface AudioTrackSettings {
-	deviceId: string;
-	groupId: string;
-
-	// Seems to be available on all browsers.
-	sampleRate: number;
-
-	// The rest is optional unfortunately.
-	autoGainControl?: boolean;
-	channelCount?: number; // ugh Safari why
-	echoCancellation?: boolean;
-	noiseSuppression?: boolean;
-	sampleSize?: number;
-}
 
 // The initial values for our signals.
 export type AudioProps = {
@@ -94,8 +65,8 @@ export class Audio {
 		this.broadcast = broadcast;
 		this.source = Signal.from(props?.source);
 		this.enabled = Signal.from(props?.enabled ?? false);
-		this.speaking = new Speaking(this, props?.speaking);
-		this.captions = new Captions(this, props?.captions);
+		this.speaking = new Speaking(this.broadcast, this.source, props?.speaking);
+		this.captions = new Captions(this.speaking, props?.captions);
 		this.muted = Signal.from(props?.muted ?? false);
 		this.volume = Signal.from(props?.volume ?? 1);
 		this.maxLatency = props?.maxLatency ?? (100 as Time.Milli); // Default is a group every 100ms

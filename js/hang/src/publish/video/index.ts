@@ -8,40 +8,13 @@ import { isFirefox } from "../../util/hacks";
 import * as Hex from "../../util/hex";
 import { Detection, type DetectionProps } from "./detection";
 import { VideoTrackProcessor } from "./polyfill";
+import type { Source, VideoTrackSettings } from "./types";
 
 export * from "./detection";
-
-export type Source = VideoStreamTrack;
+export * from "./types";
 
 // Create a group every 2 seconds
 const GOP_DURATION = Time.Micro.fromSecond(2 as Time.Second);
-
-// Stronger typing for the MediaStreamTrack interface.
-export interface VideoStreamTrack extends MediaStreamTrack {
-	kind: "video";
-	clone(): VideoStreamTrack;
-	getSettings(): VideoTrackSettings;
-}
-
-export interface VideoTrackSettings {
-	deviceId: string;
-	groupId: string;
-
-	aspectRatio: number;
-	facingMode: "user" | "environment" | "left" | "right";
-	frameRate: number;
-	height: number;
-	resizeMode: "none" | "crop-and-scale";
-	width: number;
-}
-
-export type VideoConstraints = Omit<
-	MediaTrackConstraints,
-	"autoGainControl" | "channelCount" | "echoCancellation" | "noiseSuppression" | "sampleRate" | "sampleSize"
-> & {
-	// TODO update @types/web
-	resizeMode?: "none" | "crop-and-scale";
-};
 
 export type VideoProps = {
 	enabled?: boolean | Signal<boolean>;
@@ -76,7 +49,7 @@ export class Video {
 
 	constructor(broadcast: Moq.BroadcastProducer, props?: VideoProps) {
 		this.broadcast = broadcast;
-		this.detection = new Detection(this, props?.detection);
+		this.detection = new Detection(this.broadcast, this.frame.peek.bind(this.frame), props?.detection);
 
 		this.source = Signal.from(props?.source);
 		this.enabled = Signal.from(props?.enabled ?? false);

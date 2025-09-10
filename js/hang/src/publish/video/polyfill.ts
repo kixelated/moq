@@ -1,5 +1,5 @@
 import * as Time from "../../time";
-import type { VideoStreamTrack } from ".";
+import type { VideoStreamTrack } from "./types";
 
 // Firefox doesn't support MediaStreamTrackProcessor so we need to use a polyfill.
 // Based on: https://jan-ivar.github.io/polyfills/mediastreamtrackprocessor.js

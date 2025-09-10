@@ -36,5 +36,7 @@
 		"erasableSyntaxOnly": true,
 
 		"skipLibCheck": true
-	}
+	},
+	"include": ["does-not-exist"],
+	"exclude": ["**/node_modules", "**/dist", "**/target"]
 }

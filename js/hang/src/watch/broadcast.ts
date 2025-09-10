@@ -2,11 +2,11 @@ import type * as Moq from "@kixelated/moq";
 import { Effect, type Getter, Signal } from "@kixelated/signals";
 import * as Catalog from "../catalog";
 import type { Connection } from "../connection";
-import { Audio, type AudioProps } from "./audio";
+import * as Audio from "./audio";
 import { Chat, type ChatProps } from "./chat";
 import { Location, type LocationProps } from "./location";
 import { Preview, type PreviewProps } from "./preview";
-import { Video, type VideoProps } from "./video";
+import * as Video from "./video";
 import { Detection, type DetectionProps } from "./video/detection";
 
 export interface BroadcastProps {
@@ -20,8 +20,8 @@ export interface BroadcastProps {
 	// You can disable reloading if you don't want to wait for an announcement.
 	reload?: boolean | Signal<boolean>;
 
-	video?: VideoProps;
-	audio?: AudioProps;
+	video?: Video.SourceProps;
+	audio?: Audio.SourceProps;
 	location?: LocationProps;
 	chat?: ChatProps;
 	detection?: DetectionProps;
@@ -39,8 +39,8 @@ export class Broadcast {
 	user = new Signal<Catalog.User | undefined>(undefined);
 	reload: Signal<boolean>;
 
-	audio: Audio;
-	video: Video;
+	audio: Audio.Source;
+	video: Video.Source;
 	location: Location;
 	chat: Chat;
 	detection: Detection;
@@ -62,8 +62,8 @@ export class Broadcast {
 		this.name = Signal.from(props?.name);
 		this.enabled = Signal.from(props?.enabled ?? false);
 		this.reload = Signal.from(props?.reload ?? true);
-		this.audio = new Audio(this.#broadcast, this.#catalog, props?.audio);
-		this.video = new Video(this.#broadcast, this.#catalog, props?.video);
+		this.audio = new Audio.Source(this.#broadcast, this.#catalog, props?.audio);
+		this.video = new Video.Source(this.#broadcast, this.#catalog, props?.video);
 		this.location = new Location(this.#broadcast, this.#catalog, props?.location);
 		this.chat = new Chat(this.#broadcast, this.#catalog, props?.chat);
 		this.detection = new Detection(this.#broadcast, this.#catalog, props?.detection);

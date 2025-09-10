@@ -1,5 +1,6 @@
 export * from "./announced";
 export * from "./broadcast";
+export * from "./connect";
 export * from "./connection";
 export * from "./group";
 export * as Ietf from "./ietf";
