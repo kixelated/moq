@@ -57,7 +57,6 @@ If you don't like Nix, then you can install dependencies manually:
 - [Node.js](https://nodejs.org/)
 - [pnpm](https://pnpm.io/)
 - [FFmpeg](https://ffmpeg.org/download.html)
-- [GStreamer](https://gstreamer.freedesktop.org/documentation/installing/index.html) (optional)
 - [Deno](https://deno.com/runtime) (optional)
 - ...probably some other stuff
 

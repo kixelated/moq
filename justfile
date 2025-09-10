@@ -70,13 +70,15 @@ leaf:
 pub name url='http://localhost:4443/anon':
 	just --justfile rs/justfile pub {{name}} {{url}}
 
-# Publish a video using gstreamer to the localhost relay server
+# Publish/subscribe using gstreamer - see https://github.com/kixelated/hang-gst
 pub-gst name url='http://localhost:4443/anon':
-	just --justfile rs/justfile pub-gst {{name}} {{url}}
+	@echo "GStreamer plugin has moved to: https://github.com/kixelated/hang-gst"
+	@echo "Install and use hang-gst directly for GStreamer functionality"
 
-# Subscribe to a video using gstreamer
+# Subscribe to a video using gstreamer - see https://github.com/kixelated/hang-gst  
 sub name url='http://localhost:4443/anon':
-	just --justfile rs/justfile sub {{name}} {{url}}
+	@echo "GStreamer plugin has moved to: https://github.com/kixelated/hang-gst"
+	@echo "Install and use hang-gst directly for GStreamer functionality"
 
 # Publish a video using ffmpeg directly from hang to the localhost
 serve name:
