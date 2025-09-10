@@ -18,7 +18,6 @@ check:
 	pnpm -r test
 	pnpm exec biome check
 	pnpm exec madge --circular --extensions ts,tsx .
-	# pnpm exec knip --no-exit-code
 
 # Automatically fix some issues.
 fix:
