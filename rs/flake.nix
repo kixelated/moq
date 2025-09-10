@@ -43,16 +43,6 @@
 
         craneLib = (crane.mkLib pkgs).overrideToolchain rust-toolchain;
 
-        gst-deps = with pkgs.gst_all_1; [
-          gstreamer
-          gst-plugins-base
-          gst-plugins-good
-          gst-plugins-bad
-          gst-plugins-ugly
-          gst-plugins-rs
-          gst-libav
-        ];
-
         shell-deps =
           with pkgs;
           [
@@ -65,8 +55,8 @@
             curl
             cargo-sort
             cargo-shear
-          ]
-          ++ gst-deps;
+            cargo-edit
+          ];
 
         # Helper function to get crate info from Cargo.toml
         crateInfo = cargoTomlPath: craneLib.crateNameFromCargoToml { cargoToml = cargoTomlPath; };
