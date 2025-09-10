@@ -13,7 +13,7 @@ default:
 
 # Install any required dependencies.
 setup:
-	just --justfile rs/justfile setup
+	cd rs && just setup
 
 # Alias for dev.
 all: dev
@@ -35,7 +35,7 @@ dev:
 
 # Run a localhost relay server
 relay:
-	just --justfile rs/justfile relay
+	cd rs && just relay
 
 # Run a cluster of relay servers
 cluster:
@@ -60,57 +60,55 @@ cluster:
 
 # Run a root node, accepting connections from leaf nodes.
 root:
-	just --justfile rs/justfile root
+	cd rs && just root
 
 # Run a leaf node, connecting to the root node.
 leaf:
-	just --justfile rs/justfile leaf
+	cd rs && just leaf
 
 # Publish a video using ffmpeg to the localhost relay server
 pub name url='http://localhost:4443/anon':
-	just --justfile rs/justfile pub {{name}} {{url}}
+	cd rs && just pub {{name}} {{url}}
 
 # Publish/subscribe using gstreamer - see https://github.com/kixelated/hang-gst
 pub-gst name url='http://localhost:4443/anon':
 	@echo "GStreamer plugin has moved to: https://github.com/kixelated/hang-gst"
 	@echo "Install and use hang-gst directly for GStreamer functionality"
 
-# Subscribe to a video using gstreamer - see https://github.com/kixelated/hang-gst  
+# Subscribe to a video using gstreamer - see https://github.com/kixelated/hang-gst
 sub name url='http://localhost:4443/anon':
 	@echo "GStreamer plugin has moved to: https://github.com/kixelated/hang-gst"
 	@echo "Install and use hang-gst directly for GStreamer functionality"
 
 # Publish a video using ffmpeg directly from hang to the localhost
 serve name:
-	just --justfile rs/justfile serve {{name}}
+	cd rs && just serve {{name}}
 
 # Run the web server
 web url='http://localhost:4443/anon':
-	just --justfile js/justfile web {{url}}
+	cd js && just web {{url}}
 
 # Publish the clock broadcast
 # `action` is either `publish` or `subscribe`
 clock action:
-	just --justfile rs/justfile clock {{action}}
+	cd rs && just clock {{action}}
 
 # Run the CI checks
 check:
-	just --justfile rs/justfile check
-	just --justfile js/justfile check
-	#@if which nix > /dev/null; then nix fmt -- --fail-on-change; else echo "nix not found, skipping Nix formatting check"; fi
+	cd rs && just check
+	cd js && just check
 
 # Automatically fix some issues.
 fix:
-	just --justfile rs/justfile fix
-	just --justfile js/justfile fix
-	#@if which nix > /dev/null; then nix fmt; else echo "nix not found, skipping Nix formatting"; fi
+	cd rs && just fix
+	cd js && just fix
 
 # Upgrade any tooling
 upgrade:
-	just --justfile rs/justfile upgrade
-	just --justfile js/justfile upgrade
+	cd rs && just upgrade
+	cd js && just upgrade
 
 # Build the packages
 build:
-	just --justfile rs/justfile build
-	just --justfile js/justfile build
+	cd rs && just build
+	cd js && just build
