@@ -40,7 +40,7 @@ export interface ConnectionProps {
 }
 
 // Save if WebSocket won the last race, so we won't give QUIC a head start next time.
-const websocketWon = new Map<string, boolean>();
+const websocketWon = new Set<string>();
 
 /**
  * Establishes a connection to a MOQ server.
@@ -59,7 +59,7 @@ export async function connect(url: URL, props?: ConnectionProps): Promise<Connec
 
 	// Give QUIC a 200ms head start to connect before trying WebSocket, unless WebSocket has won in the past.
 	// NOTE that QUIC should be faster because it involves 1/2 fewer RTTs.
-	const headstart = !webtransport || websocketWon.get(url.toString()) ? 0 : (props?.websocket?.delay ?? 200);
+	const headstart = !webtransport || websocketWon.has(url.toString()) ? 0 : (props?.websocket?.delay ?? 200);
 	const websocket =
 		props?.websocket?.enabled !== false
 			? connectWebSocket(props?.websocket?.url ?? url, headstart, cancel)
@@ -80,7 +80,7 @@ export async function connect(url: URL, props?: ConnectionProps): Promise<Connec
 	// Save if WebSocket won the last race, so we won't give QUIC a head start next time.
 	if (quic instanceof WebTransportWs) {
 		console.warn(url.toString(), "using WebSocket fallback; the user experience may be degraded");
-		websocketWon.set(url.toString(), true);
+		websocketWon.add(url.toString());
 	}
 
 	// moq-rs currently requires the ROLE extension to be set.
