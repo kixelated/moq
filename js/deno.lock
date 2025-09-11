@@ -93,8 +93,10 @@
         "packageJson": {
           "dependencies": [
             "npm:@biomejs/biome@^2.2.2",
+            "npm:@types/react@^19.1.8",
             "npm:dequal@^2.0.3",
             "npm:rimraf@^6.0.1",
+            "npm:solid-js@^1.9.7",
             "npm:tsx@^4.20.5",
             "npm:typescript@^5.9.2"
           ]
