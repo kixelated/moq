@@ -85,7 +85,7 @@
       },
     },
     "moq-token": {
-      "name": "moq-token",
+      "name": "@kixelated/moq-token",
       "version": "0.1.0",
       "dependencies": {
         "@hexagon/base64": "^2.0.4",
@@ -286,6 +286,8 @@
     "@kixelated/moq": ["@kixelated/moq@workspace:moq"],
 
     "@kixelated/moq-clock": ["@kixelated/moq-clock@workspace:moq-clock"],
+
+    "@kixelated/moq-token": ["@kixelated/moq-token@workspace:moq-token"],
 
     "@kixelated/signals": ["@kixelated/signals@workspace:signals"],
 
@@ -814,8 +816,6 @@
     "module-definition": ["module-definition@6.0.1", "", { "dependencies": { "ast-module-types": "^6.0.1", "node-source-walk": "^7.0.1" }, "bin": { "module-definition": "bin/cli.js" } }, "sha512-FeVc50FTfVVQnolk/WQT8MX+2WVcDnTGiq6Wo+/+lJ2ET1bRVi3HG3YlJUfqagNMc/kUlFSoR96AJkxGpKz13g=="],
 
     "module-lookup-amd": ["module-lookup-amd@9.0.5", "", { "dependencies": { "commander": "^12.1.0", "glob": "^7.2.3", "requirejs": "^2.3.7", "requirejs-config-file": "^4.0.0" }, "bin": { "lookup-amd": "bin/cli.js" } }, "sha512-Rs5FVpVcBYRHPLuhHOjgbRhosaQYLtEo3JIeDIbmNo7mSssi1CTzwMh8v36gAzpbzLGXI9wB/yHh+5+3fY1QVw=="],
-
-    "moq-token": ["moq-token@workspace:moq-token"],
 
     "ms": ["ms@2.1.3", "", {}, "sha512-6FlzubTLZG3J2a/NVCAleEhjzq5oxgHyaCU9yYXvcLsvoVaHJq/s5xXI6/XXP6tz7R9xAOtHnSO/tXtF3WRTlA=="],
 
