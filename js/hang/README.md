@@ -24,7 +24,7 @@ It uses new web APIs like WebCodecs, WebTransport, and Web Components.
 ## Installation
 
 ```bash
-npm install @kixelated/hang
+npm add @kixelated/hang
 # or
 pnpm add @kixelated/hang
 yarn add @kixelated/hang

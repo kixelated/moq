@@ -5,7 +5,7 @@ A simple JWT and JWK based authentication scheme for moq-relay.
 ## Installation
 
 ```bash
-npm install moq-token
+npm add moq-token
 ```
 
 ## Usage
