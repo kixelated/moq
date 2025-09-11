@@ -15,7 +15,8 @@
 	},
 	"scripts": {
 		"build": "rimraf dist && tsc -b && tsx ../scripts/package.ts",
-		"check": "tsc --noEmit",
+		"check": "tsc --noEmit && biome check && madge --circular --extensions ts,tsx src",
+		"fix": "biome check --fix",
 		"test": "tsx --test \"src/**/*.test.ts\"",
 		"release": "tsx ../scripts/release.ts"
 	},
@@ -24,12 +25,18 @@
 		"@kixelated/web-transport-ws": "^0.1.2"
 	},
 	"peerDependencies": {
-		"zod": "^4.0.0"
+		"zod": "^4.1.0"
 	},
 	"devDependencies": {
 		"@typescript/lib-dom": "npm:@types/web@^0.0.241",
 		"vite": "^6.3.5",
+		"@types/node": "^24.3.1",
 		"vite-plugin-html": "^3.2.2",
-		"@types/deno": "^2.3.0"
+		"tsx": "^4.20.5",
+		"rimraf": "^6.0.1",
+		"@types/deno": "^2.3.0",
+		"@biomejs/biome": "^2.2.2",
+		"typescript": "^5.9.2",
+		"madge": "^8.0.0"
 	}
 }

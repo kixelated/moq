@@ -16,7 +16,9 @@
   "workspace": {
     "packageJson": {
       "dependencies": [
-        "npm:@types/deno@^2.3.0"
+        "npm:@biomejs/biome@^2.2.2",
+        "npm:@types/deno@^2.3.0",
+        "npm:typescript@^5.9.2"
       ]
     }
   }

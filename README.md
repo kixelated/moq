@@ -63,7 +63,7 @@ If you don't like Nix, then you can install dependencies manually:
 **Run it:**
 ```sh
 # Install some more dependencies
-just setup
+just install
 
 # Runs a relay, demo media, and the web server
 just dev

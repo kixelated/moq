@@ -6,14 +6,14 @@ import type { TrackConsumer, TrackProducer } from "./track";
 
 export async function read<T = unknown>(
 	source: TrackConsumer | GroupConsumer,
-	schema: z.ZodType<T>,
+	schema: z.ZodSchema<T>,
 ): Promise<T | undefined> {
 	const next = await source.readJson();
 	if (next === undefined) return undefined; // only treat undefined as EOF, not other falsy values
 	return schema.parse(next);
 }
 
-export function write<T = unknown>(source: TrackProducer | GroupProducer, value: T, schema: z.ZodType<T>) {
+export function write<T = unknown>(source: TrackProducer | GroupProducer, value: T, schema: z.ZodSchema<T>) {
 	const valid = schema.parse(value);
 	source.writeJson(valid);
 }

@@ -16,11 +16,18 @@
 	],
 	"scripts": {
 		"build": "rimraf dist && tsc -b && tsx ../scripts/package.ts",
-		"check": "tsc --noEmit",
+		"check": "tsc --noEmit && biome check",
+		"fix": "biome check --fix",
 		"release": "tsx ../scripts/release.ts"
 	},
 	"dependencies": {
 		"dequal": "^2.0.3"
+	},
+	"devDependencies": {
+		"typescript": "^5.9.2",
+		"@biomejs/biome": "^2.2.2",
+		"rimraf": "^6.0.1",
+		"tsx": "^4.20.5"
 	},
 	"peerDependencies": {
 		"@types/react": "^19.1.8",

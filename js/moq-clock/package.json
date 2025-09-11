@@ -13,12 +13,15 @@
 		"moq-clock": "./src/main.ts"
 	},
 	"scripts": {
-		"check": "deno check"
+		"check": "deno check && biome check",
+		"fix": "biome check --fix"
 	},
 	"dependencies": {
 		"@kixelated/moq": "workspace:*"
 	},
 	"devDependencies": {
-		"@types/deno": "^2.3.0"
+		"@types/deno": "^2.3.0",
+		"typescript": "^5.9.2",
+		"@biomejs/biome": "^2.2.2"
 	}
 }

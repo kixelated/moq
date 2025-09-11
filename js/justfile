@@ -11,18 +11,20 @@ web url='http://localhost:4443/anon':
 	pnpm i
 	VITE_RELAY_URL="{{url}}" pnpm -r run dev
 
+# Install any dependencies.
+install:
+	pnpm -r install
+
 # Run the CI checks
 check:
-	pnpm install --frozen-lockfile
+	pnpm -r install --frozen-lockfile
 	pnpm -r run check
-	pnpm -r test
-	pnpm exec biome check
-	pnpm exec madge --circular --extensions ts,tsx .
+	pnpm -r run test
 
 # Automatically fix some issues.
 fix:
-	pnpm install
-	pnpm exec biome check --fix
+	pnpm -r install
+	pnpm -r run fix
 
 # Upgrade any tooling
 upgrade:
@@ -32,5 +34,5 @@ upgrade:
 
 # Build the packages
 build:
-	pnpm install --frozen-lockfile
+	pnpm -r install --frozen-lockfile
 	pnpm -r run build

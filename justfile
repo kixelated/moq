@@ -11,9 +11,10 @@ set quiet
 default:
   just --list
 
-# Install any required dependencies.
-setup:
-	cd rs && just setup
+# Install any dependencies.
+install:
+	cd rs && just install
+	cd js && just install
 
 # Alias for dev.
 all: dev
