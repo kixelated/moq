@@ -85,48 +85,6 @@ export class Broadcast {
 		this.signals.effect(this.#runCatalog.bind(this));
 	}
 
-	/*
-	#runScreen(effect: Effect): void {
-		const device = effect.get(this.device);
-		if (device !== "screen") return;
-
-		if (!effect.get(this.audio.enabled) && !effect.get(this.video.enabled)) return;
-
-		// TODO Expose these to the application.
-		// @ts-expect-error Chrome only
-		let controller: CaptureController | undefined;
-		// @ts-expect-error Chrome only
-		if (typeof self.CaptureController !== "undefined") {
-			// @ts-expect-error Chrome only
-			controller = new CaptureController();
-			controller.setFocusBehavior("no-focus-change");
-		}
-
-		const mediaPromise = navigator.mediaDevices.getDisplayMedia({
-			video: effect.get(this.video.constraints) ?? true,
-			audio: effect.get(this.audio.constraints) ?? true,
-			// @ts-expect-error Chrome only
-			controller,
-			preferCurrentTab: false,
-			selfBrowserSurface: "exclude",
-			surfaceSwitching: "include",
-			// TODO We should try to get system audio, but need to be careful about feedback.
-			// systemAudio: "exclude",
-		});
-
-		effect.spawn(async (_cancel) => {
-			const media = await mediaPromise;
-			const video = media.getVideoTracks().at(0) as VideoStreamTrack | undefined;
-			const audio = media.getAudioTracks().at(0) as AudioStreamTrack | undefined;
-
-			effect.cleanup(() => video?.stop());
-			effect.cleanup(() => audio?.stop());
-			effect.set(this.video.media, video);
-			effect.set(this.audio.media, audio);
-		});
-	}
-	*/
-
 	#runCatalog(effect: Effect): void {
 		if (!effect.get(this.enabled)) return;
 
