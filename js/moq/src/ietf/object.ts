@@ -1,4 +1,4 @@
-import type { Reader, Writer } from "../stream";
+import type { Reader, Writer } from "../stream.ts";
 
 const SUBGROUP_ID = 0x0; // Must always be layer 0
 const STREAM_TYPE = 0x04;

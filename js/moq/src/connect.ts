@@ -1,9 +1,9 @@
 import WebTransportWs from "@kixelated/web-transport-ws";
-import type { Connection } from "./connection";
-import * as Ietf from "./ietf";
-import * as Lite from "./lite";
-import { Stream } from "./stream";
-import * as Hex from "./util/hex";
+import type { Connection } from "./connection.ts";
+import * as Ietf from "./ietf/index.ts";
+import * as Lite from "./lite/index.ts";
+import { Stream } from "./stream.ts";
+import * as Hex from "./util/hex.ts";
 
 export interface WebSocketOptions {
 	// If true (default), enable the WebSocket fallback.

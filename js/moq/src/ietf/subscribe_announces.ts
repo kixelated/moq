@@ -1,6 +1,6 @@
-import type * as Path from "../path";
-import type { Reader, Writer } from "../stream";
-import * as Namespace from "./namespace";
+import type * as Path from "../path.ts";
+import type { Reader, Writer } from "../stream.ts";
+import * as Namespace from "./namespace.ts";
 
 export class SubscribeAnnounces {
 	static id = 0x11;

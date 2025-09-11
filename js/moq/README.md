@@ -18,7 +18,7 @@ Check out [../hang] for a higher-level media library that uses this package.
 ```bash
 npm install @kixelated/moq
 # or
-pnpm add @kixelated/moq
+bun add @kixelated/moq
 # or
 yarn add @kixelated/moq
 ```

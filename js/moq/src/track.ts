@@ -1,5 +1,5 @@
-import { type GroupConsumer, GroupProducer } from "./group";
-import { type WatchConsumer, WatchProducer } from "./util/watch";
+import { type GroupConsumer, GroupProducer } from "./group.ts";
+import { type WatchConsumer, WatchProducer } from "./util/watch.ts";
 
 /**
  * Handles writing and managing groups in a track.

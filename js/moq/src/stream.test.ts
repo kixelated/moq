@@ -1,6 +1,6 @@
 import assert from "node:assert";
 import test from "node:test";
-import { Reader, Writer } from "./stream";
+import { Reader, Writer } from "./stream.ts";
 
 // Helper to create a writable stream that captures written data
 function createTestWritableStream(): { stream: WritableStream<Uint8Array>; written: Uint8Array[] } {

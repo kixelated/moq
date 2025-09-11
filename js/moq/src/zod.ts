@@ -1,8 +1,8 @@
 // Helper containers for Zod-validated track encoding/decoding.
 
 import type * as z from "zod";
-import type { GroupConsumer, GroupProducer } from "./group";
-import type { TrackConsumer, TrackProducer } from "./track";
+import type { GroupConsumer, GroupProducer } from "./group.ts";
+import type { TrackConsumer, TrackProducer } from "./track.ts";
 
 export async function read<T = unknown>(
 	source: TrackConsumer | GroupConsumer,

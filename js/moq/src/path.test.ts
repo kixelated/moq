@@ -1,6 +1,6 @@
 import assert from "node:assert";
 import test from "node:test";
-import * as Path from "./path";
+import * as Path from "./path.ts";
 
 test("Path constructor trims leading and trailing slashes", () => {
 	assert.strictEqual(Path.from("/foo/bar/"), "foo/bar");

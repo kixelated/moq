@@ -54,8 +54,7 @@ If you don't like Nix, then you can install dependencies manually:
 **Requirements:**
 - [Just](https://github.com/casey/just)
 - [Rust](https://www.rust-lang.org/tools/install)
-- [Node.js](https://nodejs.org/)
-- [pnpm](https://pnpm.io/)
+- [Bun](https://bun.sh/)
 - [FFmpeg](https://ffmpeg.org/download.html)
 - [Deno](https://deno.com/runtime) (optional)
 - ...probably some other stuff

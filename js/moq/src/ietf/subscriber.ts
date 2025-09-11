@@ -1,16 +1,16 @@
-import { type AnnouncedConsumer, AnnouncedProducer } from "../announced";
-import { type BroadcastConsumer, BroadcastProducer } from "../broadcast";
-import { GroupProducer } from "../group";
-import * as Path from "../path";
-import type { Reader } from "../stream";
-import type { TrackProducer } from "../track";
-import { error } from "../util/error";
-import type { Announce, Unannounce } from "./announce";
-import type * as Control from "./control";
-import { Frame, type Group } from "./object";
-import { Subscribe, type SubscribeDone, type SubscribeError, type SubscribeOk, Unsubscribe } from "./subscribe";
-import type { SubscribeAnnouncesError, SubscribeAnnouncesOk } from "./subscribe_announces";
-import type { TrackStatus } from "./track";
+import { type AnnouncedConsumer, AnnouncedProducer } from "../announced.ts";
+import { type BroadcastConsumer, BroadcastProducer } from "../broadcast.ts";
+import { GroupProducer } from "../group.ts";
+import * as Path from "../path.ts";
+import type { Reader } from "../stream.ts";
+import type { TrackProducer } from "../track.ts";
+import { error } from "../util/error.ts";
+import type { Announce, Unannounce } from "./announce.ts";
+import type * as Control from "./control.ts";
+import { Frame, type Group } from "./object.ts";
+import { Subscribe, type SubscribeDone, type SubscribeError, type SubscribeOk, Unsubscribe } from "./subscribe.ts";
+import type { SubscribeAnnouncesError, SubscribeAnnouncesOk } from "./subscribe_announces.ts";
+import type { TrackStatus } from "./track.ts";
 
 /**
  * Handles subscribing to broadcasts using moq-transport protocol with lite-compatibility restrictions.

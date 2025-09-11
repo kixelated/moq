@@ -1,6 +1,6 @@
 import assert from "node:assert";
 import test from "node:test";
-import { TrackProducer } from "./track";
+import { TrackProducer } from "./track.ts";
 
 test("track clone", async () => {
 	const producer = new TrackProducer("test", 0);

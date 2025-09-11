@@ -1,17 +1,17 @@
 import { Mutex } from "async-mutex";
-import type { Reader, Stream as StreamInner } from "../stream";
-import { Announce, AnnounceCancel, AnnounceError, AnnounceOk, Unannounce } from "./announce";
-import { Fetch, FetchCancel, FetchError, FetchOk } from "./fetch";
-import { GoAway } from "./goaway";
-import * as Setup from "./setup";
-import { Subscribe, SubscribeDone, SubscribeError, SubscribeOk, Unsubscribe } from "./subscribe";
+import type { Reader, Stream as StreamInner } from "../stream.ts";
+import { Announce, AnnounceCancel, AnnounceError, AnnounceOk, Unannounce } from "./announce.ts";
+import { Fetch, FetchCancel, FetchError, FetchOk } from "./fetch.ts";
+import { GoAway } from "./goaway.ts";
+import * as Setup from "./setup.ts";
+import { Subscribe, SubscribeDone, SubscribeError, SubscribeOk, Unsubscribe } from "./subscribe.ts";
 import {
 	SubscribeAnnounces,
 	SubscribeAnnouncesError,
 	SubscribeAnnouncesOk,
 	UnsubscribeAnnounces,
-} from "./subscribe_announces";
-import { TrackStatus, TrackStatusRequest } from "./track";
+} from "./subscribe_announces.ts";
+import { TrackStatus, TrackStatusRequest } from "./track.ts";
 
 /**
  * Control message types as defined in moq-transport-07

@@ -1,5 +1,5 @@
-import * as Path from "./path";
-import { type WatchConsumer, WatchProducer } from "./util/watch";
+import * as Path from "./path.ts";
+import { type WatchConsumer, WatchProducer } from "./util/watch.ts";
 
 /**
  * The availability of a broadcast.

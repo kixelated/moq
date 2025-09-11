@@ -4,6 +4,7 @@
 		"target": "esnext",
 		"module": "esnext",
 		"moduleResolution": "bundler",
+		"rewriteRelativeImportExtensions": true,
 
 		"declaration": true,
 		"declarationMap": true,

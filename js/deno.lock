@@ -1,0 +1,105 @@
+{
+  "version": "5",
+  "specifiers": {
+    "jsr:@std/cli@*": "1.0.21"
+  },
+  "jsr": {
+    "@std/cli@1.0.21": {
+      "integrity": "cd25b050bdf6282e321854e3822bee624f07aca7636a3a76d95f77a3a919ca2a"
+    }
+  },
+  "workspace": {
+    "packageJson": {
+      "dependencies": [
+        "npm:concurrently@^9.2.1"
+      ]
+    },
+    "members": {
+      "hang": {
+        "packageJson": {
+          "dependencies": [
+            "npm:@huggingface/transformers@^3.7.2",
+            "npm:@kixelated/libavjs-webcodecs-polyfill@~0.5.5",
+            "npm:@libav.js/variant-opus-af@^6.8.8",
+            "npm:@types/audioworklet@^0.0.77",
+            "npm:@types/web@^0.0.241",
+            "npm:async-mutex@0.5",
+            "npm:comlink@^4.4.2",
+            "npm:fast-glob@^3.3.3",
+            "npm:rimraf@^6.0.1",
+            "npm:tsx@^4.20.5",
+            "npm:typescript@^5.9.2",
+            "npm:vitest@^3.2.4",
+            "npm:zod@^4.1.0"
+          ]
+        }
+      },
+      "hang-demo": {
+        "packageJson": {
+          "dependencies": [
+            "npm:@biomejs/biome@^2.2.2",
+            "npm:@tailwindcss/postcss@^4.1.13",
+            "npm:@tailwindcss/typography@~0.5.16",
+            "npm:@tailwindcss/vite@^4.1.13",
+            "npm:highlight.js@^11.11.1",
+            "npm:tailwindcss@^4.1.13",
+            "npm:typescript@^5.9.2",
+            "npm:vite-plugin-html@^3.2.2",
+            "npm:vite@^6.3.6"
+          ]
+        }
+      },
+      "moq": {
+        "packageJson": {
+          "dependencies": [
+            "npm:@biomejs/biome@^2.2.2",
+            "npm:@kixelated/web-transport-ws@~0.1.2",
+            "npm:@types/deno@^2.3.0",
+            "npm:@types/node@^24.3.1",
+            "npm:@types/web@^0.0.241",
+            "npm:async-mutex@0.5",
+            "npm:madge@8",
+            "npm:rimraf@^6.0.1",
+            "npm:tsx@^4.20.5",
+            "npm:typescript@^5.9.2",
+            "npm:vite-plugin-html@^3.2.2",
+            "npm:vite@^6.3.6"
+          ]
+        }
+      },
+      "moq-clock": {
+        "packageJson": {
+          "dependencies": [
+            "npm:@biomejs/biome@^2.2.2",
+            "npm:@types/deno@^2.3.0",
+            "npm:typescript@^5.9.2"
+          ]
+        }
+      },
+      "moq-token": {
+        "packageJson": {
+          "dependencies": [
+            "npm:@biomejs/biome@^2.2.2",
+            "npm:@hexagon/base64@^2.0.4",
+            "npm:@types/node@^24.3.1",
+            "npm:jose@^6.1.0",
+            "npm:tsx@^4.20.5",
+            "npm:typescript@^5.9.2",
+            "npm:zod@^4.1.5"
+          ]
+        }
+      },
+      "signals": {
+        "packageJson": {
+          "dependencies": [
+            "npm:@biomejs/biome@^2.2.2",
+            "npm:dequal@^2.0.3",
+            "npm:rimraf@^6.0.1",
+            "npm:tsx@^4.20.5",
+            "npm:typescript@^5.9.2"
+          ]
+        }
+      }
+    }
+  }
+}

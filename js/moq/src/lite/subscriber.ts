@@ -1,14 +1,14 @@
-import { type AnnouncedConsumer, AnnouncedProducer } from "../announced";
-import { type BroadcastConsumer, BroadcastProducer } from "../broadcast";
-import { GroupProducer } from "../group";
-import * as Path from "../path";
-import { type Reader, Stream } from "../stream";
-import type { TrackProducer } from "../track";
-import { error } from "../util/error";
-import { Announce, AnnounceInit, AnnounceInterest } from "./announce";
-import type { Group } from "./group";
-import { StreamId } from "./stream";
-import { Subscribe, SubscribeOk } from "./subscribe";
+import { type AnnouncedConsumer, AnnouncedProducer } from "../announced.ts";
+import { type BroadcastConsumer, BroadcastProducer } from "../broadcast.ts";
+import { GroupProducer } from "../group.ts";
+import * as Path from "../path.ts";
+import { type Reader, Stream } from "../stream.ts";
+import type { TrackProducer } from "../track.ts";
+import { error } from "../util/error.ts";
+import { Announce, AnnounceInit, AnnounceInterest } from "./announce.ts";
+import type { Group } from "./group.ts";
+import { StreamId } from "./stream.ts";
+import { Subscribe, SubscribeOk } from "./subscribe.ts";
 
 /**
  * Handles subscribing to broadcasts and managing their lifecycle.

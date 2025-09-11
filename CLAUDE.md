@@ -55,7 +55,7 @@ Key architectural rule: The CDN/relay must not know about application logic, med
 
 1. The project uses `just` as the task runner - check `justfile` for all available commands
 2. For Rust development, the workspace is configured in the `rs/Cargo.toml`
-3. For JS/TS development, pnpm workspaces are used with configuration in `js/pnpm-workspace.yaml`
+3. For JS/TS development, bun workspaces are used with configuration in `js/package.json`
 4. Try to keep stuff out of the root unless necessary; scope tools to specific languages.
 5. The demo runs on https://localhost:8080 with self-signed certificates
 

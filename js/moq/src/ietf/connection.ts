@@ -1,25 +1,25 @@
-import type { AnnouncedConsumer } from "../announced";
-import type { BroadcastConsumer } from "../broadcast";
-import type { Connection as ConnectionInterface } from "../connection";
-import * as Path from "../path";
-import { type Reader, Readers, type Stream } from "../stream";
-import { unreachable } from "../util";
-import { Announce, AnnounceCancel, AnnounceError, AnnounceOk, Unannounce } from "./announce";
-import * as Control from "./control";
-import { Fetch, FetchError, FetchOk } from "./fetch";
-import { GoAway } from "./goaway";
-import { Group, readStreamType } from "./object";
-import { Publisher } from "./publisher";
-import * as Setup from "./setup";
-import { Subscribe, SubscribeDone, SubscribeError, SubscribeOk, Unsubscribe } from "./subscribe";
+import type { AnnouncedConsumer } from "../announced.ts";
+import type { BroadcastConsumer } from "../broadcast.ts";
+import type { Connection as ConnectionInterface } from "../connection.ts";
+import * as Path from "../path.ts";
+import { type Reader, Readers, type Stream } from "../stream.ts";
+import { unreachable } from "../util/index.ts";
+import { Announce, AnnounceCancel, AnnounceError, AnnounceOk, Unannounce } from "./announce.ts";
+import * as Control from "./control.ts";
+import { Fetch, FetchError, FetchOk } from "./fetch.ts";
+import { GoAway } from "./goaway.ts";
+import { Group, readStreamType } from "./object.ts";
+import { Publisher } from "./publisher.ts";
+import * as Setup from "./setup.ts";
+import { Subscribe, SubscribeDone, SubscribeError, SubscribeOk, Unsubscribe } from "./subscribe.ts";
 import {
 	SubscribeAnnounces,
 	SubscribeAnnouncesError,
 	SubscribeAnnouncesOk,
 	UnsubscribeAnnounces,
-} from "./subscribe_announces";
-import { Subscriber } from "./subscriber";
-import { TrackStatus, TrackStatusRequest } from "./track";
+} from "./subscribe_announces.ts";
+import { Subscriber } from "./subscriber.ts";
+import { TrackStatus, TrackStatusRequest } from "./track.ts";
 
 /**
  * Represents a connection to a MoQ server using moq-transport protocol.

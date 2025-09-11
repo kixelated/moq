@@ -1,15 +1,15 @@
-import type { AnnouncedConsumer } from "../announced";
-import type { BroadcastConsumer } from "../broadcast";
-import type { Connection as ConnectionInterface } from "../connection";
-import * as Path from "../path";
-import { type Reader, Readers, Stream } from "../stream";
-import { AnnounceInterest } from "./announce";
-import { Group } from "./group";
-import { Publisher } from "./publisher";
-import { SessionInfo } from "./session";
-import { StreamId } from "./stream";
-import { Subscribe } from "./subscribe";
-import { Subscriber } from "./subscriber";
+import type { AnnouncedConsumer } from "../announced.ts";
+import type { BroadcastConsumer } from "../broadcast.ts";
+import type { Connection as ConnectionInterface } from "../connection.ts";
+import * as Path from "../path.ts";
+import { type Reader, Readers, Stream } from "../stream.ts";
+import { AnnounceInterest } from "./announce.ts";
+import { Group } from "./group.ts";
+import { Publisher } from "./publisher.ts";
+import { SessionInfo } from "./session.ts";
+import { StreamId } from "./stream.ts";
+import { Subscribe } from "./subscribe.ts";
+import { Subscriber } from "./subscriber.ts";
 
 /**
  * Represents a connection to a MoQ server.

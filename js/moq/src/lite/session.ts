@@ -1,4 +1,4 @@
-import type { Reader, Writer } from "../stream";
+import type { Reader, Writer } from "../stream.ts";
 
 export const Version = {
 	DRAFT_00: 0xff000000,

@@ -1,5 +1,5 @@
-import type * as Path from "../path";
-import type { Reader, Writer } from "../stream";
+import type * as Path from "../path.ts";
+import type { Reader, Writer } from "../stream.ts";
 
 export class Fetch {
 	static id = 0x16;

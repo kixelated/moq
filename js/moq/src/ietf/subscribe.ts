@@ -1,6 +1,6 @@
-import type * as Path from "../path";
-import type { Reader, Writer } from "../stream";
-import * as Namespace from "./namespace";
+import type * as Path from "../path.ts";
+import type { Reader, Writer } from "../stream.ts";
+import * as Namespace from "./namespace.ts";
 
 // We only support Latest Group (0x1)
 const FILTER_TYPE = 0x01;

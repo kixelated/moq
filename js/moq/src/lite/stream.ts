@@ -1,7 +1,7 @@
-import type { AnnounceInterest } from "./announce";
-import type { Group } from "./group";
-import type { SessionClient } from "./session";
-import type { Subscribe } from "./subscribe";
+import type { AnnounceInterest } from "./announce.ts";
+import type { Group } from "./group.ts";
+import type { SessionClient } from "./session.ts";
+import type { Subscribe } from "./subscribe.ts";
 
 export type StreamBi = SessionClient | AnnounceInterest | Subscribe;
 export type StreamUni = Group;

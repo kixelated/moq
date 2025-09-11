@@ -1,5 +1,5 @@
-import * as Path from "../path";
-import type { Reader, Writer } from "../stream";
+import * as Path from "../path.ts";
+import type { Reader, Writer } from "../stream.ts";
 
 export class SubscribeUpdate {
 	priority: number;

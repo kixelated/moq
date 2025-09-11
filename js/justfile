@@ -8,31 +8,30 @@ default:
 
 # Run the web server
 web url='http://localhost:4443/anon':
-	pnpm install
-	VITE_RELAY_URL="{{url}}" pnpm -r run dev
+	bun install
+	VITE_RELAY_URL="{{url}}" bun run --filter='*' dev
 
 # Install any dependencies.
 install:
-	pnpm install
+	bun install
 
 # Run the CI checks
 check:
-	pnpm install --frozen-lockfile
-	pnpm -r run check
-	pnpm -r run test
+	bun install --frozen-lockfile
+	bun run --filter='*' check
+	bun run --filter='*' test
 
 # Automatically fix some issues.
 fix:
-	pnpm install
-	pnpm -r run fix
+	bun install
+	bun run --filter='*' fix
 
 # Upgrade any tooling
 upgrade:
-	pnpm self-update
-	pnpm -r update
-	pnpm -r outdated
+	bun update
+	bun outdated
 
 # Build the packages
 build:
-	pnpm install --frozen-lockfile
-	pnpm -r run build
+	bun install --frozen-lockfile
+	bun run --filter='*' build
