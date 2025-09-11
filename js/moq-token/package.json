@@ -1,5 +1,5 @@
 {
-	"name": "moq-token",
+	"name": "@kixelated/moq-token",
 	"type": "module",
 	"version": "0.1.0",
 	"description": "Media over QUIC - Token Generation and Validation",
