@@ -8,7 +8,8 @@
 	"repository": "github:kixelated/moq",
 	"scripts": {
 		"dev": "vite --open",
-		"check": "tsc --noEmit"
+		"check": "tsc --noEmit && biome check",
+		"fix": "biome check --fix"
 	},
 	"dependencies": {
 		"@kixelated/hang": "workspace:^"
@@ -21,6 +22,7 @@
 		"tailwindcss": "^4.1.13",
 		"typescript": "^5.9.2",
 		"vite": "^6.3.5",
-		"vite-plugin-html": "^3.2.2"
+		"vite-plugin-html": "^3.2.2",
+		"@biomejs/biome": "^2.2.2"
 	}
 }

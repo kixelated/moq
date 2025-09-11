@@ -1,18 +1,18 @@
 import { Effect, Signal } from "@kixelated/signals";
-import type { Audio } from ".";
+import type { Source } from "./source";
 
 const MIN_GAIN = 0.001;
 const FADE_TIME = 0.2;
 
-export type AudioEmitterProps = {
+export type EmitterProps = {
 	volume?: number | Signal<number>;
 	muted?: boolean | Signal<boolean>;
 	paused?: boolean | Signal<boolean>;
 };
 
 // A helper that emits audio directly to the speakers.
-export class AudioEmitter {
-	source: Audio;
+export class Emitter {
+	source: Source;
 	volume: Signal<number>;
 	muted: Signal<boolean>;
 
@@ -28,7 +28,7 @@ export class AudioEmitter {
 	// The gain node used to adjust the volume.
 	#gain = new Signal<GainNode | undefined>(undefined);
 
-	constructor(source: Audio, props?: AudioEmitterProps) {
+	constructor(source: Source, props?: EmitterProps) {
 		this.source = source;
 		this.volume = Signal.from(props?.volume ?? 0.5);
 		this.muted = Signal.from(props?.muted ?? false);

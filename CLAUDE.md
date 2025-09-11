@@ -10,7 +10,7 @@ MoQ (Media over QUIC) is a next-generation live media delivery protocol providin
 
 ```bash
 # Setup and install dependencies
-just setup
+just install
 
 # Run full development environment (relay + demo media + web server)
 just dev

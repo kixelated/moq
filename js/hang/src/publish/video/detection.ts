@@ -2,7 +2,6 @@ import * as Moq from "@kixelated/moq";
 import { Effect, type Getter, Signal } from "@kixelated/signals";
 import * as Comlink from "comlink";
 import * as Catalog from "../../catalog";
-import type { Video } from ".";
 import type { DetectionWorker } from "./detection-worker";
 // Vite-specific import for worker
 import WorkerUrl from "./detection-worker?worker&url";
@@ -14,7 +13,9 @@ export type DetectionProps = {
 };
 
 export class Detection {
-	video: Video;
+	broadcast: Moq.BroadcastProducer;
+	frame: () => VideoFrame | undefined;
+
 	enabled: Signal<boolean>;
 	objects = new Signal<Catalog.DetectionObjects | undefined>(undefined);
 
@@ -28,8 +29,9 @@ export class Detection {
 
 	signals = new Effect();
 
-	constructor(video: Video, props?: DetectionProps) {
-		this.video = video;
+	constructor(broadcast: Moq.BroadcastProducer, frame: () => VideoFrame | undefined, props?: DetectionProps) {
+		this.broadcast = broadcast;
+		this.frame = frame;
 		this.enabled = Signal.from(props?.enabled ?? false);
 		this.#interval = props?.interval ?? 1000;
 		this.#threshold = props?.threshold ?? 0.5;
@@ -44,8 +46,8 @@ export class Detection {
 		const enabled = effect.get(this.enabled);
 		if (!enabled) return;
 
-		this.video.broadcast.insertTrack(this.#track.consume());
-		effect.cleanup(() => this.video.broadcast.removeTrack(this.#track.name));
+		this.broadcast.insertTrack(this.#track.consume());
+		effect.cleanup(() => this.broadcast.removeTrack(this.#track.name));
 
 		// Set the detection catalog
 		this.#catalog.set({
@@ -69,7 +71,7 @@ export class Detection {
 		});
 
 		const process = async () => {
-			const frame = this.video.frame.peek();
+			const frame = this.frame();
 			if (!frame) return;
 
 			const cloned = frame.clone();

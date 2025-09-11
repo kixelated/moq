@@ -3,9 +3,9 @@ import { Effect, Signal } from "@kixelated/signals";
 import type * as Catalog from "../../catalog";
 import { u8 } from "../../catalog";
 import type * as Time from "../../time";
-import type { Audio } from ".";
 import type { Request, Result } from "./captions-worker";
 import CaptureWorklet from "./capture-worklet?worker&url";
+import type { Speaking } from "./speaking";
 
 export type CaptionsProps = {
 	enabled?: boolean | Signal<boolean>;
@@ -16,7 +16,7 @@ export type CaptionsProps = {
 };
 
 export class Captions {
-	audio: Audio;
+	speaking: Speaking;
 
 	// Enable caption generation via an on-device model (whisper).
 	enabled: Signal<boolean>;
@@ -30,8 +30,8 @@ export class Captions {
 
 	#track = new Moq.TrackProducer("captions.txt", 1);
 
-	constructor(audio: Audio, props?: CaptionsProps) {
-		this.audio = audio;
+	constructor(speaking: Speaking, props?: CaptionsProps) {
+		this.speaking = speaking;
 		this.#ttl = props?.ttl ?? (10000 as Time.Milli);
 		this.enabled = Signal.from(props?.enabled ?? false);
 
@@ -42,11 +42,11 @@ export class Captions {
 		const enabled = effect.get(this.enabled);
 		if (!enabled) return;
 
-		const source = effect.get(this.audio.source);
+		const source = effect.get(this.speaking.source);
 		if (!source) return;
 
-		this.audio.broadcast.insertTrack(this.#track.consume());
-		effect.cleanup(() => this.audio.broadcast.removeTrack(this.#track.name));
+		this.speaking.broadcast.insertTrack(this.#track.consume());
+		effect.cleanup(() => this.speaking.broadcast.removeTrack(this.#track.name));
 
 		const catalog: Catalog.Captions = {
 			track: {
@@ -119,11 +119,11 @@ export class Captions {
 		});
 
 		effect.effect((nested) => {
-			if (!nested.get(this.audio.speaking.enabled)) {
+			if (!nested.get(this.speaking.enabled)) {
 				console.warn("VAD needs to be enabled to transcribe");
 				return;
 			}
-			const speaking = nested.get(this.audio.speaking.active);
+			const speaking = nested.get(this.speaking.active);
 			worker.postMessage({ type: "speaking", speaking });
 		});
 	}

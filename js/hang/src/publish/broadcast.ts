@@ -2,17 +2,17 @@ import * as Moq from "@kixelated/moq";
 import { Effect, type Getter, Signal } from "@kixelated/signals";
 import * as Catalog from "../catalog";
 import type { Connection } from "../connection";
-import { Audio, type AudioProps } from "./audio";
+import * as Audio from "./audio";
 import { Chat, type ChatProps } from "./chat";
 import { Location, type LocationProps } from "./location";
 import { Preview, type PreviewProps } from "./preview";
-import { Video, type VideoProps } from "./video";
+import * as Video from "./video";
 
 export type BroadcastProps = {
 	enabled?: boolean | Signal<boolean>;
 	name?: Moq.Path.Valid | Signal<Moq.Path.Valid | undefined>;
-	audio?: AudioProps;
-	video?: VideoProps;
+	audio?: Audio.EncoderProps;
+	video?: Video.EncoderProps;
 	location?: LocationProps;
 	user?: Catalog.User | Signal<Catalog.User | undefined>;
 	chat?: ChatProps;
@@ -27,8 +27,8 @@ export class Broadcast {
 	enabled: Signal<boolean>;
 	name: Signal<Moq.Path.Valid | undefined>;
 
-	audio: Audio;
-	video: Video;
+	audio: Audio.Encoder;
+	video: Video.Encoder;
 
 	location: Location;
 	user: Signal<Catalog.User | undefined>;
@@ -51,8 +51,8 @@ export class Broadcast {
 		this.enabled = Signal.from(props?.enabled ?? false);
 		this.name = Signal.from(props?.name);
 
-		this.audio = new Audio(this.#broadcast, props?.audio);
-		this.video = new Video(this.#broadcast, props?.video);
+		this.audio = new Audio.Encoder(this.#broadcast, props?.audio);
+		this.video = new Video.Encoder(this.#broadcast, props?.video);
 		this.location = new Location(this.#broadcast, props?.location);
 		this.chat = new Chat(this.#broadcast, props?.chat);
 		this.preview = new Preview(this.#broadcast, props?.preview);

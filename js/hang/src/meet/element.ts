@@ -80,7 +80,7 @@ class HangMeetInstance {
 	// We have to save a reference to the Video/Audio renderers so we can close them.
 	#remotes = new Map<
 		string,
-		{ canvas: HTMLCanvasElement; renderer: Watch.VideoRenderer; emitter: Watch.AudioEmitter }
+		{ canvas: HTMLCanvasElement; renderer: Watch.Video.Renderer; emitter: Watch.Audio.Emitter }
 	>();
 
 	#signals = new Effect();
@@ -205,8 +205,8 @@ class HangMeetInstance {
 			},
 		});
 
-		const renderer = new Watch.VideoRenderer(broadcast.video, { canvas });
-		const emitter = new Watch.AudioEmitter(broadcast.audio);
+		const renderer = new Watch.Video.Renderer(broadcast.video, { canvas });
+		const emitter = new Watch.Audio.Emitter(broadcast.audio);
 
 		this.#remotes.set(name, { canvas, renderer, emitter });
 

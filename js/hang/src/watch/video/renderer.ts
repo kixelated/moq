@@ -1,15 +1,14 @@
 import { Effect, Signal } from "@kixelated/signals";
-import type { Video } from ".";
+import type { Source } from "./source";
 
-export type VideoRendererProps = {
+export type RendererProps = {
 	canvas?: HTMLCanvasElement | Signal<HTMLCanvasElement | undefined>;
 	paused?: boolean | Signal<boolean>;
 };
 
 // An component to render a video to a canvas.
-export class VideoRenderer {
-	// The source of video frames, also responsible for switching between video tracks.
-	source: Video;
+export class Renderer {
+	source: Source;
 
 	// The canvas to render the video to.
 	canvas: Signal<HTMLCanvasElement | undefined>;
@@ -22,7 +21,7 @@ export class VideoRenderer {
 	#ctx = new Signal<CanvasRenderingContext2D | undefined>(undefined);
 	#signals = new Effect();
 
-	constructor(source: Video, props?: VideoRendererProps) {
+	constructor(source: Source, props?: RendererProps) {
 		this.source = source;
 		this.canvas = Signal.from(props?.canvas);
 		this.paused = Signal.from(props?.paused ?? false);

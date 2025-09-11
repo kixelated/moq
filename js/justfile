@@ -8,21 +8,23 @@ default:
 
 # Run the web server
 web url='http://localhost:4443/anon':
-	pnpm i
+	pnpm install
 	VITE_RELAY_URL="{{url}}" pnpm -r run dev
+
+# Install any dependencies.
+install:
+	pnpm install
 
 # Run the CI checks
 check:
 	pnpm install --frozen-lockfile
 	pnpm -r run check
-	pnpm -r test
-	pnpm exec biome check
-	# pnpm exec knip --no-exit-code
+	pnpm -r run test
 
 # Automatically fix some issues.
 fix:
 	pnpm install
-	pnpm exec biome check --fix
+	pnpm -r run fix
 
 # Upgrade any tooling
 upgrade:

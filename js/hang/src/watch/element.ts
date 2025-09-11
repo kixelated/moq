@@ -2,9 +2,9 @@ import * as Moq from "@kixelated/moq";
 import { Effect, Signal } from "@kixelated/signals";
 import * as DOM from "@kixelated/signals/dom";
 import { Connection } from "../connection";
-import { AudioEmitter } from "./audio";
+import * as Audio from "./audio";
 import { Broadcast } from "./broadcast";
-import { VideoRenderer } from "./video";
+import * as Video from "./video";
 
 const OBSERVED = ["url", "name", "paused", "volume", "muted", "controls", "captions", "reload"] as const;
 type Observed = (typeof OBSERVED)[number];
@@ -172,8 +172,8 @@ class HangWatchInstance {
 	// However be warned that the API is still in flux and may change.
 	connection: Connection;
 	broadcast: Broadcast;
-	video: VideoRenderer;
-	audio: AudioEmitter;
+	video: Video.Renderer;
+	audio: Audio.Emitter;
 	#signals: Effect;
 
 	constructor(parent: HangWatch) {
@@ -206,8 +206,8 @@ class HangWatchInstance {
 		observer.observe(this.parent, { childList: true, subtree: true });
 		this.#signals.cleanup(() => observer.disconnect());
 
-		this.video = new VideoRenderer(this.broadcast.video, { canvas, paused: this.parent.signals.paused });
-		this.audio = new AudioEmitter(this.broadcast.audio, {
+		this.video = new Video.Renderer(this.broadcast.video, { canvas, paused: this.parent.signals.paused });
+		this.audio = new Audio.Emitter(this.broadcast.audio, {
 			volume: this.parent.signals.volume,
 			muted: this.parent.signals.muted,
 			paused: this.parent.signals.paused,

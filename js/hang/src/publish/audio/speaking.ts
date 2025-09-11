@@ -2,9 +2,9 @@ import * as Moq from "@kixelated/moq";
 import { Effect, Signal } from "@kixelated/signals";
 import type * as Catalog from "../../catalog";
 import { u8 } from "../../catalog";
-import type { Audio } from ".";
 import CaptureWorklet from "./capture-worklet?worker&url";
 import type { Request, Result } from "./speaking-worker";
+import type { Source } from "./types";
 
 export type SpeakingProps = {
 	enabled?: boolean | Signal<boolean>;
@@ -12,7 +12,9 @@ export type SpeakingProps = {
 
 // Detects when the user is speaking.
 export class Speaking {
-	audio: Audio;
+	broadcast: Moq.BroadcastProducer;
+	source: Signal<Source | undefined>;
+
 	enabled: Signal<boolean>;
 
 	active = new Signal<boolean>(false);
@@ -22,8 +24,9 @@ export class Speaking {
 
 	#track = new Moq.TrackProducer("speaking.bool", 1);
 
-	constructor(audio: Audio, props?: SpeakingProps) {
-		this.audio = audio;
+	constructor(broadcast: Moq.BroadcastProducer, source: Signal<Source | undefined>, props?: SpeakingProps) {
+		this.broadcast = broadcast;
+		this.source = source;
 		this.enabled = Signal.from(props?.enabled ?? false);
 		this.signals.effect(this.#run.bind(this));
 	}
@@ -32,11 +35,11 @@ export class Speaking {
 		const enabled = effect.get(this.enabled);
 		if (!enabled) return;
 
-		const source = effect.get(this.audio.source);
+		const source = effect.get(this.source);
 		if (!source) return;
 
-		this.audio.broadcast.insertTrack(this.#track.consume());
-		effect.cleanup(() => this.audio.broadcast.removeTrack(this.#track.name));
+		this.broadcast.insertTrack(this.#track.consume());
+		effect.cleanup(() => this.broadcast.removeTrack(this.#track.name));
 
 		const catalog: Catalog.Speaking = {
 			track: {

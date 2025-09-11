@@ -36,10 +36,10 @@ This file contains security and performance issues that need to be addressed. Th
 - [ ] **Optimize string handling** - Use string interning for frequently used path names
 - [ ] **Add configurable buffer sizes** - Make frame/group buffers configurable based on use case
 
-### 📊 Metrics & Observability 
+### 📊 Metrics & Observability
 
 - [ ] **Add connection health metrics** - Track bandwidth, latency, error rates per connection
-- [ ] **Implement graceful degradation** - Reduce quality/features under resource pressure  
+- [ ] **Implement graceful degradation** - Reduce quality/features under resource pressure
 - [ ] **Add resource usage monitoring** - Track memory, CPU, network usage per session
 - [ ] **Log security events** - Audit log for rate limit violations, auth failures, etc.
 
@@ -59,7 +59,7 @@ When working on these issues:
 New contributors should:
 
 1. Read the main [CLAUDE.md](./CLAUDE.md) for project setup and development guidelines
-2. Run `just setup` to install dependencies 
+2. Run `just install` to install dependencies
 3. Run `just check` to ensure tests pass before making changes
 4. Pick a single TODO item to work on
 5. Create a PR with tests and documentation for your changes
