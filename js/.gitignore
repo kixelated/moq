@@ -2,7 +2,7 @@ node_modules/
 dist/
 *.tsbuildinfo
 
-# We're using pnpm
+# We're using bun
 package-lock.json
-bun.lockb
 yarn.lock
+pnpm-lock.yaml

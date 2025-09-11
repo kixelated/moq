@@ -15,8 +15,8 @@
 		"build": "tsc -b",
 		"check": "tsc --noEmit && biome check",
 		"fix": "biome check --fix",
-		"test": "node --test --import tsx/esm src/*.test.ts",
-		"release": "tsx ../scripts/release.ts"
+		"test": "bun test",
+		"release": "bun ../scripts/release.ts"
 	},
 	"dependencies": {
 		"@hexagon/base64": "^2.0.4",
@@ -25,7 +25,6 @@
 	},
 	"devDependencies": {
 		"@types/node": "^24.3.1",
-		"tsx": "^4.20.5",
 		"typescript": "^5.9.2",
 		"@biomejs/biome": "^2.2.2"
 	}

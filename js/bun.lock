@@ -25,7 +25,6 @@
         "@typescript/lib-dom": "npm:@types/web@^0.0.241",
         "fast-glob": "^3.3.3",
         "rimraf": "^6.0.1",
-        "tsx": "^4.20.5",
         "typescript": "^5.9.2",
         "vitest": "^3.2.4",
       },
@@ -62,7 +61,6 @@
         "@typescript/lib-dom": "npm:@types/web@^0.0.241",
         "madge": "^8.0.0",
         "rimraf": "^6.0.1",
-        "tsx": "^4.20.5",
         "typescript": "^5.9.2",
         "vite": "^6.3.6",
         "vite-plugin-html": "^3.2.2",
@@ -97,7 +95,6 @@
       "devDependencies": {
         "@biomejs/biome": "^2.2.2",
         "@types/node": "^24.3.1",
-        "tsx": "^4.20.5",
         "typescript": "^5.9.2",
       },
     },
@@ -112,7 +109,6 @@
         "@types/react": "^19.1.8",
         "rimraf": "^6.0.1",
         "solid-js": "^1.9.7",
-        "tsx": "^4.20.5",
         "typescript": "^5.9.2",
       },
       "peerDependencies": {
