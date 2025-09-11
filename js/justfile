@@ -8,22 +8,22 @@ default:
 
 # Run the web server
 web url='http://localhost:4443/anon':
-	pnpm i
+	pnpm install
 	VITE_RELAY_URL="{{url}}" pnpm -r run dev
 
 # Install any dependencies.
 install:
-	pnpm -r install
+	pnpm install
 
 # Run the CI checks
 check:
-	pnpm -r install --frozen-lockfile
+	pnpm install --frozen-lockfile
 	pnpm -r run check
 	pnpm -r run test
 
 # Automatically fix some issues.
 fix:
-	pnpm -r install
+	pnpm install
 	pnpm -r run fix
 
 # Upgrade any tooling
@@ -34,5 +34,5 @@ upgrade:
 
 # Build the packages
 build:
-	pnpm -r install --frozen-lockfile
+	pnpm install --frozen-lockfile
 	pnpm -r run build

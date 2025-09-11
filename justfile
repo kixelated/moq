@@ -22,7 +22,7 @@ all: dev
 # Run the relay, web server, and publish bbb.
 dev:
 	# We use pnpm for concurrently, unfortunately, so make sure it's installed.
-	cd js && pnpm i
+	cd js && just install
 
 	# Build the rust packages so `cargo run` has a head start.
 	cd rs && just build
@@ -41,7 +41,7 @@ relay:
 # Run a cluster of relay servers
 cluster:
 	# We use pnpm for concurrently, unfortunately, so make sure it's installed.
-	cd js && pnpm i
+	cd js && just install
 
 	# Generate auth tokens if needed
 	@cd rs && just auth-token
