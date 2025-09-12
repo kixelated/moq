@@ -18,13 +18,13 @@ install:
 # Run the CI checks
 check:
 	bun install --frozen-lockfile
-	bun run --filter='*' check
-	bun run --filter='*' test
+	bun run --filter='*' --elide-lines=0 check
+	bun run --filter='*' --elide-lines=0 test
 
 # Automatically fix some issues.
 fix:
 	bun install
-	bun run --filter='*' fix
+	bun run --filter='*' --elide-lines=0 fix
 
 # Upgrade any tooling
 upgrade:
@@ -34,4 +34,4 @@ upgrade:
 # Build the packages
 build:
 	bun install --frozen-lockfile
-	bun run --filter='*' build
+	bun run --filter='*' --elide-lines=0 build
