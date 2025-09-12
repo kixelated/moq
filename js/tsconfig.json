@@ -38,6 +38,7 @@
 
 		"skipLibCheck": true
 	},
-	"include": ["does-not-exist"],
+	// Include something just so TS doesn't complain about not matching files
+	"include": ["scripts"],
 	"exclude": ["**/node_modules", "**/dist", "**/target"]
 }

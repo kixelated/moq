@@ -138,26 +138,30 @@ export class Publisher {
 		}
 
 		const track = broadcast.subscribe(msg.track, msg.priority);
-		const info = new SubscribeOk(track.priority);
-		await info.encode(stream.writer);
+		try {
+			const info = new SubscribeOk(track.priority);
+			await info.encode(stream.writer);
 
-		console.debug(`publish ok: broadcast=${msg.broadcast} track=${track.name}`);
+			console.debug(`publish ok: broadcast=${msg.broadcast} track=${track.name}`);
 
-		const serving = this.#runTrack(msg.id, msg.broadcast, track, stream.writer);
+			const serving = this.#runTrack(msg.id, msg.broadcast, track, stream.writer);
 
-		for (;;) {
-			const decode = SubscribeUpdate.decodeMaybe(stream.reader);
+			for (;;) {
+				const decode = SubscribeUpdate.decodeMaybe(stream.reader);
 
-			const result = await Promise.any([serving, decode]);
-			if (!result) break;
+				const result = await Promise.any([serving, decode]);
+				if (!result) break;
 
-			if (result instanceof SubscribeUpdate) {
-				// TODO use the update
-				console.warn("subscribe update not supported", result);
+				if (result instanceof SubscribeUpdate) {
+					// TODO use the update
+					console.warn("subscribe update not supported", result);
+				}
 			}
-		}
 
-		console.debug(`publish done: broadcast=${msg.broadcast} track=${track.name}`);
+			console.debug(`publish done: broadcast=${msg.broadcast} track=${track.name}`);
+		} finally {
+			track.close();
+		}
 	}
 
 	/**

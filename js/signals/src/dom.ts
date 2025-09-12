@@ -85,14 +85,7 @@ export function render(effect: Effect, parent: Node, element: Element | ((effect
 	}
 
 	parent.appendChild(node);
-	effect.cleanup(() => {
-		try {
-			parent.removeChild(node);
-		} catch (e) {
-			console.log("cleanup failed", parent, node);
-			throw e;
-		}
-	});
+	effect.cleanup(() => parent.removeChild(node));
 }
 
 export function setClass(effect: Effect, element: HTMLElement, ...classNames: string[]) {
