@@ -130,7 +130,7 @@ export class Encoder {
 
 				encoder.encode(frame, { keyFrame });
 
-				next = await reader.read();
+				next = await Promise.race([reader.read(), cancel]);
 				if (!next || !next.value) return;
 
 				frame = next.value;
