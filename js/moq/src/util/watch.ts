@@ -29,19 +29,27 @@ export class WatchProducer<T> {
 	#epoch = 0;
 	#consumers = 0;
 
+	// In DEBUG mode, we make sure GC runs within a minute of being closed to detect leaks.
+	#gcTimeout: ReturnType<typeof setTimeout> | undefined;
+
 	// Sanity check to make sure `close()` or `abort()` is being called.
-	private static finalizer = new FinalizationRegistry<string>((debugInfo) => {
-		console.warn(`WatchProducer was garbage collected without being closed:\n${debugInfo}`);
-	});
+	private static finalizer = new FinalizationRegistry((fn: () => void) => fn());
 
 	constructor(init: T) {
 		this.#current = init;
 		this.#unused.resolve(undefined);
 
-		if (DEV) {
-			const debugInfo = new Error("Created here").stack ?? "No stack";
-			WatchProducer.finalizer.register(this, debugInfo, this);
-		}
+		if (!DEV) return;
+
+		const debugInfo = new Error("Created here").stack ?? "No stack";
+		WatchProducer.finalizer.register(this, this.#gc.bind(this, debugInfo), this);
+
+		// Detect leaks and stuff.
+		this.closed().then(() => {
+			this.#gcTimeout = setTimeout(() => {
+				console.warn(`WatchProducer was not garbage collected a minute after being closed:\n${debugInfo}`);
+			}, 60000);
+		});
 	}
 
 	value(): T {
@@ -77,10 +85,6 @@ export class WatchProducer<T> {
 		}
 		this.#closed.resolve(undefined);
 		this.#unused.resolve(undefined);
-
-		if (DEV) {
-			WatchProducer.finalizer.unregister(this);
-		}
 	}
 
 	abort(reason: Error) {
@@ -89,10 +93,6 @@ export class WatchProducer<T> {
 		}
 		this.#closed.reject(reason);
 		this.#unused.reject(reason);
-
-		if (DEV) {
-			WatchProducer.finalizer.unregister(this);
-		}
 	}
 
 	async closed(): Promise<void> {
@@ -127,6 +127,15 @@ export class WatchProducer<T> {
 	get epoch(): number {
 		return this.#epoch;
 	}
+
+	// Called when the WatchProducer is garbage collected.
+	#gc(stack: string) {
+		if (this.#gcTimeout) {
+			clearTimeout(this.#gcTimeout);
+		} else {
+			console.warn(`WatchProducer was garbage collected without being closed:\n${stack}`);
+		}
+	}
 }
 
 export class WatchConsumer<T> {
@@ -138,18 +147,24 @@ export class WatchConsumer<T> {
 	// Whether our specific consumer is closed.
 	#closed = new Deferred<undefined>();
 
+	// In DEBUG mode, we make sure GC runs within a minute of being closed to detect leaks.
+	#gcTimeout: ReturnType<typeof setTimeout> | undefined;
+
 	// Sanity check to make sure `resolve()` or `reject()` is being called.
-	private static finalizer = new FinalizationRegistry<string>((debugInfo) => {
-		console.warn(`WatchConsumer was garbage collected without being closed:\n${debugInfo}`);
-	});
+	private static finalizer = new FinalizationRegistry((fn: () => void) => fn());
 
 	constructor(watch: WatchProducer<T>) {
 		this.#watch = watch;
 
-		if (DEV) {
-			const debugInfo = new Error("Created here").stack ?? "No stack";
-			WatchConsumer.finalizer.register(this, debugInfo, this);
-		}
+		if (!DEV) return;
+		const debugInfo = new Error("Created here").stack ?? "No stack";
+		WatchConsumer.finalizer.register(this, this.#gc.bind(this, debugInfo), this);
+
+		this.closed().then(() => {
+			this.#gcTimeout = setTimeout(() => {
+				console.warn(`WatchConsumer was not garbage collected a minute after being closed:\n${debugInfo}`);
+			}, 60000);
+		});
 	}
 
 	value(): T {
@@ -220,12 +235,17 @@ export class WatchConsumer<T> {
 		}
 		this.#closed.resolve(undefined);
 		this.#watch.unsubscribe();
-		if (DEV) {
-			WatchConsumer.finalizer.unregister(this);
-		}
 	}
 
 	async closed(): Promise<void> {
 		await Promise.race([this.#watch.closed(), this.#closed.promise]);
+	}
+
+	#gc(stack: string) {
+		if (this.#gcTimeout) {
+			clearTimeout(this.#gcTimeout);
+		} else {
+			console.warn(`WatchConsumer was garbage collected without being closed:\n${stack}`);
+		}
 	}
 }
