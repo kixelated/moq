@@ -1,5 +1,5 @@
+import { Signal } from "@kixelated/signals";
 import * as Path from "./path.ts";
-import { type WatchConsumer, WatchProducer } from "./util/watch.ts";
 
 /**
  * The availability of a broadcast.
@@ -11,46 +11,67 @@ export interface Announce {
 	active: boolean;
 }
 
+interface AnnouncedState {
+	queue: Announce[];
+	closed: boolean | Error;
+	consumers: number;
+}
+
 /**
  * Handles writing announcements to the announcement queue.
  *
  * @public
  */
 export class AnnouncedProducer {
-	#queue = new WatchProducer<Announce[]>([]);
+	#state: Signal<AnnouncedState>;
+
+	static #finalizer = new FinalizationRegistry(() => {
+		console.warn("AnnouncedProducer was garbage collected without being closed");
+	});
+
+	constructor() {
+		this.#state = new Signal<AnnouncedState>({
+			queue: [],
+			closed: false,
+			consumers: 0,
+		});
+
+		AnnouncedProducer.#finalizer.register(this, undefined, this);
+	}
 
 	/**
 	 * Writes an announcement to the queue.
 	 * @param announcement - The announcement to write
 	 */
 	write(announcement: Announce) {
-		this.#queue.update((announcements) => {
-			announcements.push(announcement);
-			return announcements;
+		if (this.#state.peek().closed) throw new Error("announced is closed");
+		this.#state.mutate((state) => {
+			state.queue.push(announcement);
 		});
 	}
 
 	/**
-	 * Aborts the writer with an error.
-	 * @param reason - The error reason for aborting
-	 */
-	abort(reason: Error) {
-		this.#queue.abort(reason);
-	}
-
-	/**
 	 * Closes the writer.
+	 * @param abort - If provided, throw this exception instead of returning undefined.
 	 */
-	close() {
-		this.#queue.close();
+	close(abort?: Error) {
+		if (!AnnouncedProducer.#finalizer.unregister(this)) return;
+		this.#state.mutate((state) => {
+			state.closed = abort ?? true;
+		});
 	}
 
 	/**
 	 * Returns a promise that resolves when the writer is closed.
 	 * @returns A promise that resolves when closed
 	 */
-	async closed(): Promise<void> {
-		await this.#queue.closed();
+	async closed(): Promise<Error | undefined> {
+		const closed = await this.#state.until((state) => !!state.closed);
+		return closed instanceof Error ? closed : undefined;
+	}
+
+	async unused(): Promise<void> {
+		await this.#state.until((state) => !!state.closed || state.consumers <= 0);
 	}
 
 	/**
@@ -59,7 +80,7 @@ export class AnnouncedProducer {
 	 * @returns A new AnnouncedConsumer instance
 	 */
 	consume(prefix = Path.empty()): AnnouncedConsumer {
-		return new AnnouncedConsumer(this.#queue.consume(), prefix);
+		return new AnnouncedConsumer(prefix, this.#state);
 	}
 }
 
@@ -72,8 +93,12 @@ export class AnnouncedConsumer {
 	/** The prefix for this reader */
 	readonly prefix: Path.Valid;
 
-	#queue: WatchConsumer<Announce[]>;
+	#state: Signal<AnnouncedState>;
 	#index = 0;
+
+	static #finalizer = new FinalizationRegistry<Path.Valid>((prefix) => {
+		console.warn("AnnouncedConsumer was garbage collected without being closed", prefix);
+	});
 
 	/**
 	 * Creates a new AnnounceConsumer with the specified prefix and queue.
@@ -82,9 +107,14 @@ export class AnnouncedConsumer {
 	 *
 	 * @internal
 	 */
-	constructor(queue: WatchConsumer<Announce[]>, prefix = Path.empty()) {
-		this.#queue = queue;
+	constructor(prefix: Path.Valid, state: Signal<AnnouncedState>) {
+		this.#state = state;
 		this.prefix = prefix;
+
+		AnnouncedConsumer.#finalizer.register(this, prefix, this);
+		this.#state.mutate((state) => {
+			state.consumers++;
+		});
 	}
 
 	/**
@@ -93,11 +123,12 @@ export class AnnouncedConsumer {
 	 */
 	async next(): Promise<Announce | undefined> {
 		for (;;) {
-			const queue = await this.#queue.when((v) => v.length > this.#index);
-			if (!queue) return undefined;
+			const state = await this.#state.until((state) => !!state.closed || state.queue.length > this.#index);
+			if (state.closed instanceof Error) throw state.closed;
+			if (state.closed) return undefined;
 
-			while (this.#index < queue.length) {
-				const announce = queue.at(this.#index++);
+			while (this.#index < state.queue.length) {
+				const announce = state.queue.at(this.#index++);
 				if (!announce) continue;
 
 				// Check if name starts with prefix and respects path boundaries
@@ -117,15 +148,19 @@ export class AnnouncedConsumer {
 	 * Closes the reader.
 	 */
 	close() {
-		this.#queue.close();
+		if (!AnnouncedConsumer.#finalizer.unregister(this)) return;
+		this.#state.mutate((state) => {
+			state.consumers--;
+		});
 	}
 
 	/**
 	 * Returns a promise that resolves when the reader is closed.
 	 * @returns A promise that resolves when closed
 	 */
-	async closed(): Promise<void> {
-		await this.#queue.closed();
+	async closed(): Promise<Error | undefined> {
+		const closed = await this.#state.until((state) => !!state.closed);
+		return closed instanceof Error ? closed : undefined;
 	}
 
 	/**
@@ -134,6 +169,6 @@ export class AnnouncedConsumer {
 	 * @returns A new AnnounceConsumer instance
 	 */
 	clone(): AnnouncedConsumer {
-		return new AnnouncedConsumer(this.#queue.clone(), this.prefix);
+		return new AnnouncedConsumer(this.prefix, this.#state);
 	}
 }

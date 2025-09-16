@@ -63,7 +63,7 @@ export default class HangWatch extends HTMLElement {
 	}
 
 	disconnectedCallback() {
-		this.active.set((prev) => {
+		this.active.update((prev) => {
 			prev?.close();
 			return undefined;
 		});
@@ -349,7 +349,7 @@ class HangWatchInstance {
 
 		effect.event(button, "click", (e) => {
 			e.preventDefault();
-			this.video.paused.set((prev) => !prev);
+			this.video.paused.update((prev) => !prev);
 		});
 
 		effect.effect((effect) => {
@@ -375,7 +375,7 @@ class HangWatchInstance {
 		});
 
 		effect.event(muteButton, "click", () => {
-			this.audio.muted.set((p) => !p);
+			this.audio.muted.update((p) => !p);
 		});
 
 		const volumeSlider = DOM.create("input", {

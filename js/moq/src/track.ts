@@ -1,5 +1,11 @@
+import { Signal } from "@kixelated/signals";
 import { type GroupConsumer, GroupProducer } from "./group.ts";
-import { type WatchConsumer, WatchProducer } from "./util/watch.ts";
+
+interface TrackState {
+	group: GroupConsumer | undefined;
+	closed: boolean | Error;
+	consumers: number;
+}
 
 /**
  * Handles writing and managing groups in a track.
@@ -12,8 +18,12 @@ export class TrackProducer {
 	/** The priority level of the track */
 	readonly priority: number;
 
-	#latest = new WatchProducer<GroupConsumer | null>(null);
+	#state: Signal<TrackState>;
 	#next?: number;
+
+	static #finalizer = new FinalizationRegistry<string>((name) => {
+		console.warn("TrackProducer was garbage collected without being closed", name);
+	});
 
 	/**
 	 * Creates a new TrackProducer with the specified name, priority, and latest group producer.
@@ -26,6 +36,14 @@ export class TrackProducer {
 	constructor(name: string, priority?: number) {
 		this.name = name;
 		this.priority = priority ?? 0;
+
+		this.#state = new Signal<TrackState>({
+			group: undefined,
+			closed: false,
+			consumers: 0,
+		});
+
+		TrackProducer.#finalizer.register(this, name, this);
 	}
 
 	/**
@@ -33,12 +51,14 @@ export class TrackProducer {
 	 * @returns A GroupProducer for the new group
 	 */
 	appendGroup(): GroupProducer {
+		if (this.#state.peek().closed) throw new Error("track is closed");
+
 		const group = new GroupProducer(this.#next ?? 0);
 
-		this.#next = group.id + 1;
-		this.#latest.update((latest) => {
-			latest?.close();
-			return group.consume();
+		this.#next = group.sequence + 1;
+		this.#state.mutate((state) => {
+			state.group?.close();
+			state.group = group.consume();
 		});
 
 		return group;
@@ -49,15 +69,17 @@ export class TrackProducer {
 	 * @param group - The group to insert
 	 */
 	insertGroup(group: GroupConsumer) {
+		if (this.#state.peek().closed) throw new Error("track is closed");
+
 		if (group.sequence < (this.#next ?? 0)) {
 			group.close();
 			return;
 		}
 
 		this.#next = group.sequence + 1;
-		this.#latest.update((latest) => {
-			latest?.close();
-			return group;
+		this.#state.mutate((state) => {
+			state.group?.close();
+			state.group = group;
 		});
 	}
 
@@ -93,45 +115,32 @@ export class TrackProducer {
 	/**
 	 * Closes the publisher and all associated groups.
 	 */
-	close() {
-		try {
-			this.#latest.update((latest) => {
-				latest?.close();
-				return null;
-			});
+	close(abort?: Error) {
+		if (!TrackProducer.#finalizer.unregister(this)) return;
 
-			this.#latest.close();
-		} catch {
-			// Already closed.
-		}
+		this.#state.mutate((state) => {
+			state.group?.close();
+			state.closed = abort ?? true;
+		});
 	}
 
-	closed(): Promise<void> {
-		return this.#latest.closed();
+	async closed(): Promise<Error | undefined> {
+		const closed = await this.#state.until((state) => !!state.closed);
+		return closed instanceof Error ? closed : undefined;
 	}
 
 	/**
 	 * Returns a promise that resolves when the publisher is unused.
+	 * NOTE: Ignores the closed state while there are still active consumers.
+	 *
 	 * @returns A promise that resolves when unused
 	 */
 	async unused(): Promise<void> {
-		await this.#latest.unused();
+		await this.#state.until((state) => !!state.closed || state.consumers <= 0);
 	}
 
 	consume(): TrackConsumer {
-		return new TrackConsumer(this.name, this.priority, this.#latest.consume());
-	}
-
-	/**
-	 * Aborts the publisher with an error.
-	 * @param reason - The error reason for aborting
-	 */
-	abort(reason: Error) {
-		this.#latest.update((latest) => {
-			latest?.close();
-			return null;
-		});
-		this.#latest.abort(reason);
+		return new TrackConsumer(this.name, this.priority, this.#state);
 	}
 }
 
@@ -146,14 +155,18 @@ export class TrackConsumer {
 	/** The priority level of the track */
 	readonly priority: number;
 
-	#groups: WatchConsumer<GroupConsumer | null>;
+	#state: Signal<TrackState>;
 
 	// State used for the nextFrame helper.
 	#currentGroup?: GroupConsumer;
 	#currentFrame = 0;
 
-	#nextGroup?: Promise<GroupConsumer | undefined>;
-	#nextFrame?: Promise<Uint8Array | undefined>;
+	#nextGroup: Promise<{ group: GroupConsumer | undefined }>;
+	#nextFrame: Promise<{ frame: Uint8Array | undefined }>;
+
+	static #finalizer = new FinalizationRegistry<string>((name) => {
+		console.warn("TrackConsumer was garbage collected without being closed", name);
+	});
 
 	/**
 	 * Creates a new TrackConsumer with the specified name, priority, and groups consumer.
@@ -163,13 +176,40 @@ export class TrackConsumer {
 	 *
 	 * @internal
 	 */
-	constructor(name: string, priority: number, groups: WatchConsumer<GroupConsumer | null>) {
+	constructor(name: string, priority: number, state: Signal<TrackState>) {
 		this.name = name;
 		this.priority = priority;
-		this.#groups = groups;
+		this.#state = state;
+
+		this.#state.mutate((state) => {
+			state.consumers++;
+		});
 
 		// Start fetching the next group immediately.
-		this.#nextGroup = this.#groups.next((group) => !!group).then((group) => group?.clone());
+		this.#nextGroup = this.#fetchNextGroup();
+		this.#nextFrame = this.#fetchNextFrame(undefined);
+
+		TrackConsumer.#finalizer.register(this, name, this);
+	}
+
+	async #fetchNextGroup(): Promise<{ group: GroupConsumer | undefined }> {
+		const state = await this.#state.until(
+			(state) => !!state.closed || state.group?.sequence !== this.#currentGroup?.sequence,
+		);
+		if (state.group?.sequence !== this.#currentGroup?.sequence) return { group: state.group?.clone() };
+		if (state.closed instanceof Error) throw state.closed;
+		return { group: undefined };
+	}
+
+	async #fetchNextFrame(group?: GroupConsumer): Promise<{ frame: Uint8Array | undefined }> {
+		if (!group) return { frame: undefined };
+		return group
+			.readFrame()
+			.then((frame) => ({ frame }))
+			.catch((error) => {
+				console.warn("ignoring error reading frame", error);
+				return { frame: undefined };
+			});
 	}
 
 	/**
@@ -177,18 +217,18 @@ export class TrackConsumer {
 	 * @returns A promise that resolves to the next group or undefined
 	 */
 	async nextGroup(): Promise<GroupConsumer | undefined> {
-		const group = await this.#nextGroup;
+		const next = await this.#nextGroup;
 
 		// Start fetching the next group immediately.
-		this.#nextGroup = this.#groups.next((group) => !!group).then((group) => group?.clone());
+		this.#nextGroup = this.#fetchNextGroup();
 
 		// Update the state needed for the nextFrame() helper.
 		this.#currentGroup?.close();
-		this.#currentGroup = group?.clone(); // clone so we don't steal from the returned consumer
+		this.#currentGroup = next?.group?.clone(); // clone so we don't steal from the returned consumer
 		this.#currentFrame = 0;
-		this.#nextFrame = this.#currentGroup?.readFrame();
+		this.#nextFrame = this.#fetchNextFrame(this.#currentGroup);
 
-		return group;
+		return next?.group;
 	}
 
 	/**
@@ -207,13 +247,13 @@ export class TrackConsumer {
 				}
 
 				// Start reading the next frame.
-				this.#nextFrame = this.#currentGroup?.readFrame();
+				this.#nextFrame = this.#fetchNextFrame(this.#currentGroup);
 
 				// Return the frame and increment the frame index.
 				return { group: this.#currentGroup?.sequence, frame: this.#currentFrame++, data: next.frame };
 			}
 
-			this.#nextGroup = this.#groups.next((group) => !!group).then((group) => group?.clone());
+			this.#nextGroup = this.#fetchNextGroup();
 
 			if (this.#currentGroup && this.#currentGroup.sequence >= next.group.sequence) {
 				// Skip this old group.
@@ -227,7 +267,7 @@ export class TrackConsumer {
 			this.#currentFrame = 0;
 
 			// Start reading the next frame.
-			this.#nextFrame = this.#currentGroup?.readFrame();
+			this.#nextFrame = this.#fetchNextFrame(this.#currentGroup);
 		}
 	}
 
@@ -258,25 +298,15 @@ export class TrackConsumer {
 
 	// Returns the next non-undefined value from the nextFrame or nextGroup promises.
 	async #next(): Promise<{ frame: Uint8Array } | { group: GroupConsumer } | undefined> {
-		const nextFrame = this.#nextFrame
-			?.then((frame) => ({ frame }))
-			// Ignore errors reading the group; we can move on to the next group instead.
-			.catch((error) => {
-				console.warn("ignoring error reading frame", error);
-				return { frame: undefined };
-			}) ?? { frame: undefined };
-
-		const nextGroup = this.#nextGroup?.then((group) => ({ group })) ?? { group: undefined };
-
 		// The order matters here, because Promise.race returns the first resolved value *in order*.
 		// This is also why we're not using Promise.any, because I think it works differently?
-		const result = await Promise.race([nextFrame, nextGroup]);
+		const result = await Promise.race([this.#nextFrame, this.#nextGroup]);
 		if ("frame" in result) {
 			if (result.frame) {
 				return { frame: result.frame };
 			}
 
-			const other = await nextGroup;
+			const other = await this.#nextGroup;
 			return other.group ? { group: other.group } : undefined;
 		}
 
@@ -284,7 +314,7 @@ export class TrackConsumer {
 			return { group: result.group };
 		}
 
-		const other = await nextFrame;
+		const other = await this.#nextFrame;
 		return other.frame ? { frame: other.frame } : undefined;
 	}
 
@@ -296,27 +326,21 @@ export class TrackConsumer {
 	 * @returns A new TrackConsumer instance
 	 */
 	clone(): TrackConsumer {
-		return new TrackConsumer(this.name, this.priority, this.#groups.clone());
+		return new TrackConsumer(this.name, this.priority, this.#state);
 	}
 
 	/**
-	 * Closes the consumer.
+	 * Closes the consumer, disposing of any internal state.
 	 */
 	close() {
-		this.#groups.close();
+		if (!TrackConsumer.#finalizer.unregister(this)) return;
 
-		this.#nextGroup?.then((group) => group?.close()).catch(() => {});
-		this.#nextGroup = undefined;
-		this.#nextFrame = undefined;
+		this.#nextGroup.then((next) => next.group?.close()).catch(() => {});
 		this.#currentGroup?.close();
 		this.#currentGroup = undefined;
-	}
 
-	/**
-	 * Returns a promise that resolves when the consumer is closed.
-	 * @returns A promise that resolves when closed
-	 */
-	async closed(): Promise<void> {
-		await this.#groups.closed();
+		this.#state.mutate((state) => {
+			state.consumers--;
+		});
 	}
 }

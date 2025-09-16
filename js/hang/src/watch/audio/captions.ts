@@ -44,9 +44,9 @@ export class Captions {
 		const sub = broadcast.subscribe(info.captions.track.name, info.captions.track.priority);
 		effect.cleanup(() => sub.close());
 
-		effect.spawn(async (cancel) => {
+		effect.spawn(async () => {
 			for (;;) {
-				const frame = await Promise.race([sub.readString(), cancel]);
+				const frame = await sub.readString();
 				if (frame === undefined) break; // don't treat "" as EOS
 				this.#text.set(frame);
 			}

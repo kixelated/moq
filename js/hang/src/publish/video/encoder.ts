@@ -95,21 +95,21 @@ export class Encoder {
 				group?.writeFrame(buffer);
 			},
 			error: (err: Error) => {
-				group?.abort(err);
-				this.#track.abort(err);
+				group?.close(err);
+				this.#track.close(err);
 			},
 		});
 		effect.cleanup(() => encoder.close());
 
-		effect.spawn(async (cancel) => {
-			let next = await Promise.race([reader.read(), cancel]);
+		effect.spawn(async () => {
+			let next = await reader.read();
 			if (!next || !next.value) return;
 
 			effect.set(this.#active, true, false);
 
 			let frame = next.value;
 
-			const config = await Promise.race([Encoder.#bestEncoderConfig(settings, frame), cancel]);
+			const config = await Encoder.#bestEncoderConfig(settings, frame);
 			if (!config) return; // cancelled
 
 			encoder.configure(config);
@@ -123,14 +123,14 @@ export class Encoder {
 					groupTimestamp = frame.timestamp as Time.Micro;
 				}
 
-				this.frame.set((prev) => {
+				this.frame.update((prev) => {
 					prev?.close();
 					return frame;
 				});
 
 				encoder.encode(frame, { keyFrame });
 
-				next = await Promise.race([reader.read(), cancel]);
+				next = await reader.read();
 				if (!next || !next.value) return;
 
 				frame = next.value;
@@ -340,7 +340,7 @@ export class Encoder {
 	}
 
 	close() {
-		this.frame.set((prev) => {
+		this.frame.update((prev) => {
 			prev?.close();
 			return undefined;
 		});

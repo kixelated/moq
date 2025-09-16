@@ -83,14 +83,10 @@ export class Location {
 	}
 }
 
-async function runConsumer(
-	consumer: Moq.TrackConsumer,
-	location: Signal<Catalog.Position | undefined>,
-	cancel: Promise<void>,
-) {
+async function runConsumer(consumer: Moq.TrackConsumer, location: Signal<Catalog.Position | undefined>) {
 	try {
 		for (;;) {
-			const position = await Promise.race([Zod.read(consumer, Catalog.PositionSchema), cancel]);
+			const position = await Zod.read(consumer, Catalog.PositionSchema);
 			if (!position) break;
 
 			location.set(position);

@@ -1,4 +1,16 @@
-import { type WatchConsumer, WatchProducer } from "./util/watch.ts";
+import { Effect, Signal } from "@kixelated/signals";
+
+export class GroupState {
+	frames: Signal<Uint8Array[]>;
+	closed: Signal<boolean | Error>;
+	consumers: Signal<number>;
+
+	constructor() {
+		this.frames = new Signal<Uint8Array[]>([]);
+		this.closed = new Signal<boolean | Error>(false);
+		this.consumers = new Signal(0);
+	}
+}
 
 /**
  * Handles writing frames to a group.
@@ -7,19 +19,26 @@ import { type WatchConsumer, WatchProducer } from "./util/watch.ts";
  */
 export class GroupProducer {
 	/** The unique identifier for this writer */
-	readonly id: number;
+	readonly sequence: number;
 
-	// A stream of frames.
-	#frames = new WatchProducer<Uint8Array[]>([]);
+	state: GroupState;
+
+	static #finalizer = new FinalizationRegistry(() => {
+		console.warn("GroupProducer was garbage collected without being closed");
+	});
+
+	signals = new Effect();
 
 	/**
 	 * Creates a new GroupProducer with the specified ID and frames producer.
-	 * @param id - The unique identifier
+	 * @param sequence - The incrementing sequence number
 	 *
 	 * @internal
 	 */
-	constructor(id: number) {
-		this.id = id;
+	constructor(sequence: number) {
+		this.sequence = sequence;
+		this.state = new GroupState();
+		GroupProducer.#finalizer.register(this, sequence, this);
 	}
 
 	/**
@@ -27,7 +46,10 @@ export class GroupProducer {
 	 * @param frame - The frame to write
 	 */
 	writeFrame(frame: Uint8Array) {
-		this.#frames.update((frames) => [...frames, frame]);
+		if (this.state.closed.peek()) throw new Error("group is closed");
+		this.state.frames.mutate((frames) => {
+			frames.push(frame);
+		});
 	}
 
 	writeString(str: string) {
@@ -44,29 +66,16 @@ export class GroupProducer {
 
 	/**
 	 * Closes the writer.
+	 * @param abort - If provided, throw this exception.
 	 */
-	close() {
-		this.#frames.close();
-	}
-
-	/**
-	 * Returns a promise that resolves when the writer is unused.
-	 * @returns A promise that resolves when unused
-	 */
-	async unused(): Promise<void> {
-		await this.#frames.unused();
-	}
-
-	/**
-	 * Aborts the writer with an error.
-	 * @param reason - The error reason for aborting
-	 */
-	abort(reason: Error) {
-		this.#frames.abort(reason);
+	close(abort?: Error) {
+		if (!GroupProducer.#finalizer.unregister(this)) return;
+		this.state.closed.set(abort ?? true);
+		this.signals.close();
 	}
 
 	consume(): GroupConsumer {
-		return new GroupConsumer(this.#frames.consume(), this.id);
+		return new GroupConsumer(this.sequence, this.state);
 	}
 }
 
@@ -79,8 +88,18 @@ export class GroupConsumer {
 	/** The unique identifier for this reader */
 	readonly sequence: number;
 
-	#frames: WatchConsumer<Uint8Array[]>;
+	state: GroupState;
+
 	#index = 0;
+
+	//#close!: (error: Error | undefined) => void;
+	closed = new Signal<Error | boolean>(false);
+
+	static #finalizer = new FinalizationRegistry(() => {
+		console.warn("GroupConsumer was garbage collected without being closed");
+	});
+
+	signals = new Effect();
 
 	/**
 	 * Creates a new GroupConsumer with the specified ID and frames consumer.
@@ -89,9 +108,16 @@ export class GroupConsumer {
 	 *
 	 * @internal
 	 */
-	constructor(frames: WatchConsumer<Uint8Array[]>, id: number) {
-		this.sequence = id;
-		this.#frames = frames;
+	constructor(sequence: number, state: GroupState) {
+		this.sequence = sequence;
+		this.state = state;
+		this.state.consumers.update((consumers) => consumers + 1);
+
+		this.signals.effect((effect) => {
+			const closed = effect.get(this.state.closed);
+			if (!closed) return;
+			this.closed.set(closed);
+		});
 	}
 
 	/**
@@ -99,8 +125,12 @@ export class GroupConsumer {
 	 * @returns A promise that resolves to the next frame or undefined
 	 */
 	async readFrame(): Promise<Uint8Array | undefined> {
-		const frames = await this.#frames.when((frames) => frames.length > this.#index);
-		return frames?.at(this.#index++);
+		const state = await this.state.frames.until((frames) => frames.length > this.#index);
+		if (frames.length > this.#index) {
+			return frames.at(this.#index++);
+		}
+		if (state.closed instanceof Error) throw state.closed;
+		return;
 	}
 
 	async readString(): Promise<string | undefined> {
@@ -119,18 +149,15 @@ export class GroupConsumer {
 	}
 
 	/**
-	 * Returns a promise that resolves when the reader is closed.
-	 * @returns A promise that resolves when closed
-	 */
-	async closed(): Promise<void> {
-		await this.#frames.closed();
-	}
-
-	/**
 	 * Closes the reader.
 	 */
-	close() {
-		this.#frames.close();
+	close(reason?: Error) {
+		if (!GroupConsumer.#finalizer.unregister(this)) return;
+		this.#state.mutate((state) => {
+			state.consumers--;
+		});
+		this.closed.set(reason);
+		this.#signals.close();
 	}
 
 	/**
@@ -138,7 +165,7 @@ export class GroupConsumer {
 	 * @returns A new GroupConsumer instance
 	 */
 	clone(): GroupConsumer {
-		return new GroupConsumer(this.#frames.clone(), this.sequence);
+		return new GroupConsumer(this.sequence, this.#state);
 	}
 
 	get index() {

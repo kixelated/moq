@@ -98,11 +98,9 @@ export class Broadcast {
 		const announced = conn.announced(name);
 		effect.cleanup(() => announced.close());
 
-		effect.spawn(async (cancel) => {
+		effect.spawn(async () => {
 			for (;;) {
-				const update = await Promise.race([announced.next(), cancel]);
-
-				// We're donezo.
+				const update = await announced.next();
 				if (!update) break;
 
 				// Require full equality
@@ -143,10 +141,10 @@ export class Broadcast {
 		effect.spawn(this.#fetchCatalog.bind(this, catalog));
 	}
 
-	async #fetchCatalog(catalog: Moq.TrackConsumer, cancel: Promise<void>): Promise<void> {
+	async #fetchCatalog(catalog: Moq.TrackConsumer): Promise<void> {
 		try {
 			for (;;) {
-				const update = await Promise.race([Catalog.fetch(catalog), cancel]);
+				const update = await Catalog.fetch(catalog);
 				if (!update) break;
 
 				console.debug("received catalog", this.name.peek(), update);

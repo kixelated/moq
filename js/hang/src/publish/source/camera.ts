@@ -38,7 +38,7 @@ export class Camera {
 			deviceId: device ? { exact: device } : undefined,
 		};
 
-		effect.spawn(async (cancel) => {
+		effect.spawn(async () => {
 			const media = navigator.mediaDevices.getUserMedia({ video: finalConstraints }).catch(() => undefined);
 
 			// If the effect is cancelled for any reason (ex. cancel), stop any media that we got.
@@ -50,7 +50,7 @@ export class Camera {
 				),
 			);
 
-			const stream = await Promise.race([media, cancel]);
+			const stream = await Promise.race([media, effect.cancel]);
 			if (!stream) return;
 
 			this.device.permission.set(true);

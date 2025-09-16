@@ -132,7 +132,7 @@ export class Subscriber {
 			await this.#control.write(msg);
 		} catch (err) {
 			const e = error(err);
-			track.abort(e);
+			track.close(e);
 		} finally {
 			this.#subscribes.delete(subscribeId);
 			this.#subscribeCallbacks.delete(subscribeId);
@@ -174,6 +174,7 @@ export class Subscriber {
 	 */
 	async handleGroup(group: Group, stream: Reader) {
 		const producer = new GroupProducer(group.groupId);
+		const producerUnused = producer.unused();
 
 		try {
 			const track = this.#subscribes.get(group.trackAlias);
@@ -181,12 +182,14 @@ export class Subscriber {
 				throw new Error(`unknown track: alias=${group.trackAlias}`);
 			}
 
+			const trackUnused = track.unused();
+
 			// Convert to Group (moq-lite equivalent)
 			track.insertGroup(producer.consume());
 
 			// Read objects from the stream until end of group
 			for (;;) {
-				const done = await Promise.race([stream.done(), track.unused(), producer.unused()]);
+				const done = await Promise.race([stream.done(), trackUnused, producerUnused]);
 				if (done !== false) break;
 
 				const frame = await Frame.decode(stream);
@@ -199,7 +202,7 @@ export class Subscriber {
 			producer.close();
 		} catch (err: unknown) {
 			const e = error(err);
-			producer.abort(e);
+			producer.close(e);
 			stream.stop(e);
 		}
 	}

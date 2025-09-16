@@ -42,7 +42,7 @@ export class Screen {
 			controller.setFocusBehavior("no-focus-change");
 		}
 
-		effect.spawn(async (cancel) => {
+		effect.spawn(async () => {
 			const media = await Promise.race([
 				navigator.mediaDevices
 					.getDisplayMedia({
@@ -57,7 +57,7 @@ export class Screen {
 						// systemAudio: "exclude",
 					})
 					.catch(() => undefined),
-				cancel,
+				effect.cancel,
 			]);
 			if (!media) return;
 

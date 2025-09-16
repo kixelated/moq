@@ -32,7 +32,7 @@ export default class HangMeet extends HTMLElement {
 	}
 
 	disconnectedCallback() {
-		this.active.set((prev) => {
+		this.active.update((prev) => {
 			prev?.close();
 			return undefined;
 		});

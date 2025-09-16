@@ -43,7 +43,7 @@ export default class HangPublish extends HTMLElement {
 	}
 
 	disconnectedCallback() {
-		this.active.set((prev) => {
+		this.active.update((prev) => {
 			prev?.close();
 			return undefined;
 		});
@@ -426,7 +426,7 @@ class HangPublishInstance {
 			});
 
 			const caret = DOM.create("span", { style: { fontSize: "0.75em", cursor: "pointer" } }, "▼");
-			effect.event(caret, "click", () => visible.set((v) => !v));
+			effect.event(caret, "click", () => visible.update((v) => !v));
 
 			effect.effect((effect) => {
 				const v = effect.get(visible);
@@ -513,7 +513,7 @@ class HangPublishInstance {
 			});
 
 			const caret = DOM.create("span", { style: { fontSize: "0.75em", cursor: "pointer" } }, "▼");
-			effect.event(caret, "click", () => visible.set((v) => !v));
+			effect.event(caret, "click", () => visible.update((v) => !v));
 
 			effect.effect((effect) => {
 				const v = effect.get(visible);

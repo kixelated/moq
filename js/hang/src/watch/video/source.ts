@@ -67,7 +67,10 @@ export class Source {
 
 		// We don't clear previous frames so we can seamlessly switch tracks.
 		const sub = broadcast.subscribe(info.track.name, info.track.priority);
-		effect.cleanup(() => sub.close());
+		effect.cleanup(() => {
+			console.log("closing sub");
+			sub.close();
+		});
 
 		const decoder = new VideoDecoder({
 			output: (frame) => {
@@ -81,7 +84,7 @@ export class Source {
 					return;
 				}
 
-				this.frame.set((prev) => {
+				this.frame.update((prev) => {
 					prev?.close();
 					return this.#next;
 				});
@@ -105,30 +108,28 @@ export class Source {
 			optimizeForLatency: config.optimizeForLatency ?? true,
 		});
 
-		effect.spawn(async (cancel) => {
-			try {
-				for (;;) {
-					const next = await Promise.race([sub.nextFrame(), cancel]);
-					if (!next) break;
+		effect.spawn(async () => {
+			console.log("running decoder");
+			for (;;) {
+				const next = await sub.nextFrame();
+				console.log("next frame", next);
+				if (!next) break;
 
-					const decoded = Frame.decode(next.data);
+				const decoded = Frame.decode(next.data);
 
-					const chunk = new EncodedVideoChunk({
-						type: next.frame === 0 ? "key" : "delta",
-						data: decoded.data,
-						timestamp: decoded.timestamp,
-					});
+				const chunk = new EncodedVideoChunk({
+					type: next.frame === 0 ? "key" : "delta",
+					data: decoded.data,
+					timestamp: decoded.timestamp,
+				});
 
-					decoder.decode(chunk);
-				}
-			} catch (error) {
-				console.warn("video subscription error", error);
+				decoder.decode(chunk);
 			}
 		});
 	}
 
 	close() {
-		this.frame.set((prev) => {
+		this.frame.update((prev) => {
 			prev?.close();
 			return undefined;
 		});

@@ -200,7 +200,7 @@ export default class HangSupport extends HTMLElement {
 		});
 
 		effect.event(detailsButton, "click", () => {
-			this.#details.set((prev) => !prev);
+			this.#details.update((prev) => !prev);
 		});
 
 		effect.effect((effect) => {

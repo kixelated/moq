@@ -54,9 +54,9 @@ export class Message {
 		effect.set(this.#latest, "");
 		effect.cleanup(() => this.#latest.set(undefined));
 
-		effect.spawn(async (cancel) => {
+		effect.spawn(async () => {
 			for (;;) {
-				const frame = await Promise.race([track.readString(), cancel]);
+				const frame = await track.readString();
 				if (frame === undefined) break;
 
 				// Use a function to avoid the dequal check.

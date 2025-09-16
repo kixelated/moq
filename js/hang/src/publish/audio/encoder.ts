@@ -158,10 +158,9 @@ export class Encoder {
 
 		let groupTimestamp = 0 as Time.Micro;
 
-		effect.spawn(async (cancel) => {
+		effect.spawn(async () => {
 			// We're using an async polyfill temporarily for Safari support.
-			const loaded = await Promise.race([libav.polyfill(), cancel]);
-			if (!loaded) return; // cancelled
+			await libav.polyfill();
 
 			const encoder = new AudioEncoder({
 				output: (frame) => {
@@ -180,7 +179,7 @@ export class Encoder {
 				},
 				error: (err) => {
 					console.error("encoder error", err);
-					group.abort(err);
+					group.close(err);
 					worklet.port.onmessage = null;
 				},
 			});

@@ -95,10 +95,10 @@ export class Room {
 		effect.spawn(this.#runRemotes.bind(this, announced));
 	}
 
-	async #runRemotes(announced: Moq.AnnouncedConsumer, cancel: Promise<void>) {
+	async #runRemotes(announced: Moq.AnnouncedConsumer) {
 		try {
 			for (;;) {
-				const update = await Promise.race([announced.next(), cancel]);
+				const update = await announced.next();
 
 				// We're donezo.
 				if (!update) break;

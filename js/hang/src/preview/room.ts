@@ -50,11 +50,10 @@ export class Room {
 		effect.spawn(this.#runMembers.bind(this, conn, announced));
 	}
 
-	async #runMembers(connection: Moq.Connection, announced: Moq.AnnouncedConsumer, cancel: Promise<void>) {
+	async #runMembers(connection: Moq.Connection, announced: Moq.AnnouncedConsumer) {
 		try {
 			for (;;) {
-				const update = await Promise.race([announced.next(), cancel]);
-
+				const update = await announced.next();
 				if (!update) break;
 
 				this.#handleUpdate(connection, update);

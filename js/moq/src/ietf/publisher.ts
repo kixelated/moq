@@ -110,13 +110,8 @@ export class Publisher {
 	async #runTrack(subscribeId: bigint, trackAlias: bigint, track: TrackConsumer) {
 		try {
 			for (;;) {
-				const next = track.nextGroup();
-				const group = await Promise.race([next]);
-				if (!group) {
-					next.then((group) => group?.close()).catch(() => {});
-					break;
-				}
-
+				const group = await track.nextGroup();
+				if (!group) break;
 				void this.#runGroup(subscribeId, trackAlias, group);
 			}
 
@@ -143,6 +138,7 @@ export class Publisher {
 		try {
 			// Create a new unidirectional stream for this group
 			const stream = await Writer.open(this.#quic);
+			const closed = stream.closed();
 
 			// Write stream type for STREAM_HEADER_SUBGROUP
 			await writeStreamType(stream);
@@ -159,7 +155,7 @@ export class Publisher {
 			try {
 				let objectId = 0;
 				for (;;) {
-					const frame = await Promise.race([group.readFrame(), stream.closed()]);
+					const frame = await Promise.race([group.readFrame(), closed]);
 					if (!frame) break;
 
 					// Write each frame as an object

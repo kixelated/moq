@@ -44,9 +44,9 @@ export class Speaking {
 		const sub = broadcast.subscribe(info.speaking.track.name, info.speaking.track.priority);
 		effect.cleanup(() => sub.close());
 
-		effect.spawn(async (cancel) => {
+		effect.spawn(async () => {
 			for (;;) {
-				const speaking = await Promise.race([sub.readBool(), cancel]);
+				const speaking = await sub.readBool();
 				if (speaking === undefined) break;
 
 				this.#active.set(speaking);

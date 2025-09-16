@@ -43,13 +43,13 @@ export class Detection {
 			const track = broadcast.subscribe(catalog.track.name, catalog.track.priority);
 			effect.cleanup(() => track.close());
 
-			effect.spawn(async (cancel) => {
+			effect.spawn(async () => {
 				for (;;) {
-					const frame = await Promise.race([Zod.read(track, Catalog.DetectionObjectsSchema), cancel]);
+					const frame = await Zod.read(track, Catalog.DetectionObjectsSchema);
 					if (!frame) break;
 
 					// Use a function to avoid the dequal check.
-					this.objects.set(() => frame);
+					this.objects.update(() => frame);
 				}
 			});
 

@@ -63,10 +63,9 @@ export class Detection {
 		let timeout: ReturnType<typeof setTimeout>;
 		effect.cleanup(() => clearTimeout(timeout));
 
-		effect.spawn(async (cancel) => {
-			const ready = await Promise.race([api.ready(), cancel]);
+		effect.spawn(async () => {
+			const ready = await api.ready();
 			if (!ready) return;
-
 			process();
 		});
 

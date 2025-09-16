@@ -105,7 +105,7 @@ export class LocationPeer {
 			broadcast.insertTrack(track.consume());
 			effect.cleanup(() => broadcast.removeTrack(track.name));
 
-			this.catalog.set((prev) => {
+			this.catalog.update((prev) => {
 				return {
 					...(prev ?? {}),
 					[handle]: {
@@ -116,7 +116,7 @@ export class LocationPeer {
 			});
 
 			effect.cleanup(() => {
-				this.catalog.set((prev) => {
+				this.catalog.update((prev) => {
 					const { [handle]: _, ...rest } = prev ?? {};
 					return {
 						...rest,

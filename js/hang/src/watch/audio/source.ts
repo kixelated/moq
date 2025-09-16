@@ -151,8 +151,8 @@ export class Source {
 		const sub = broadcast.subscribe(info.track.name, info.track.priority);
 		effect.cleanup(() => sub.close());
 
-		effect.spawn(async (cancel) => {
-			const loaded = await Promise.race([libav.polyfill(), cancel]);
+		effect.spawn(async () => {
+			const loaded = await libav.polyfill();
 			if (!loaded) return; // cancelled
 
 			const decoder = new AudioDecoder({
@@ -176,7 +176,7 @@ export class Source {
 			effect.cleanup(() => consumer.close());
 
 			for (;;) {
-				const frame = await Promise.race([consumer.decode(), cancel]);
+				const frame = await consumer.decode();
 				if (!frame) break;
 
 				const chunk = new EncodedAudioChunk({

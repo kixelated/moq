@@ -66,6 +66,7 @@
         "vite-plugin-html": "^3.2.2",
       },
       "peerDependencies": {
+        "@kixelated/signals": "workspace:*",
         "zod": "^4.1.0",
       },
     },

@@ -42,13 +42,16 @@ export class Device<Kind extends "audio" | "video"> {
 		this.signals.effect(this.#runRequested.bind(this));
 	}
 
-	async #run(effect: Effect, cancel: Promise<void>) {
+	async #run(effect: Effect) {
 		// Force a reload of the devices list if we don't have permission.
 		// We still try anyway.
 		effect.get(this.permission);
 
 		// Ignore permission errors for now.
-		let devices = await Promise.race([navigator.mediaDevices.enumerateDevices().catch(() => undefined), cancel]);
+		let devices = await Promise.race([
+			navigator.mediaDevices.enumerateDevices().catch(() => undefined),
+			effect.cancel,
+		]);
 		if (!devices) return; // cancelled, keep stale values
 
 		devices = devices.filter((d) => d.kind === `${this.kind}input`);

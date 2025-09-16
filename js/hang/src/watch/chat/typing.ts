@@ -48,9 +48,9 @@ export class Typing {
 		const track = broadcast.subscribe(catalog.name, catalog.priority);
 		effect.cleanup(() => track.close());
 
-		effect.spawn(async (cancel) => {
+		effect.spawn(async () => {
 			for (;;) {
-				const value = await Promise.race([track.readBool(), cancel]);
+				const value = await track.readBool();
 				if (value === undefined) break;
 
 				this.active.set(value);

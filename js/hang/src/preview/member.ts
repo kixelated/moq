@@ -26,10 +26,10 @@ export class Member {
 			const track = this.broadcast.subscribe("preview.json", 0);
 			effect.cleanup(() => track.close());
 
-			effect.spawn(async (cancel) => {
+			effect.spawn(async () => {
 				try {
 					for (;;) {
-						const frame = await Promise.race([Zod.read(track, Preview.InfoSchema), cancel]);
+						const frame = await Zod.read(track, Preview.InfoSchema);
 						if (!frame) break;
 
 						this.info.set(frame);

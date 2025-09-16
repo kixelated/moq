@@ -39,7 +39,7 @@ export class Microphone {
 			deviceId: device !== undefined ? { exact: device } : undefined,
 		};
 
-		effect.spawn(async (cancel) => {
+		effect.spawn(async () => {
 			const media = navigator.mediaDevices.getUserMedia({ audio: finalConstraints }).catch(() => undefined);
 
 			// If the effect is cancelled for any reason (ex. cancel), stop any media that we got.
@@ -51,7 +51,7 @@ export class Microphone {
 				),
 			);
 
-			const stream = await Promise.race([media, cancel]);
+			const stream = await Promise.race([media, effect.cancel]);
 			if (!stream) return;
 
 			// Success, we can enumerate devices now.

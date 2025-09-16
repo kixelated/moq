@@ -77,7 +77,7 @@ export class Subscriber {
 
 				producer.close();
 			} catch (err: unknown) {
-				producer.abort(error(err));
+				producer.close(error(err));
 			}
 		})();
 
@@ -136,7 +136,7 @@ export class Subscriber {
 			console.debug(`subscribe close: id=${id} broadcast=${broadcast} track=${track.name}`);
 		} catch (err) {
 			const e = error(err);
-			track.abort(e);
+			track.close(e);
 			console.warn(`subscribe error: id=${id} broadcast=${broadcast} track=${track.name} error=${e.message}`);
 		} finally {
 			this.#subscribes.delete(id);
@@ -164,9 +164,13 @@ export class Subscriber {
 		const producer = new GroupProducer(group.sequence);
 		subscribe.insertGroup(producer.consume());
 
+		// Run once so we don't create a
+		const subscribeUnused = subscribe.unused();
+		const producerUnused = producer.unused();
+
 		try {
 			for (;;) {
-				const done = await Promise.race([stream.done(), subscribe.unused(), producer.unused()]);
+				const done = await Promise.race([stream.done(), subscribeUnused, producerUnused]);
 				if (done !== false) break;
 
 				const size = await stream.u53();
@@ -178,7 +182,7 @@ export class Subscriber {
 
 			producer.close();
 		} catch (err: unknown) {
-			producer.abort(error(err));
+			producer.close(error(err));
 		}
 	}
 

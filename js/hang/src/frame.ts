@@ -81,13 +81,21 @@ export class Consumer {
 	constructor(track: Moq.TrackConsumer, props?: ConsumerProps) {
 		this.#track = track;
 		this.#latency = Time.Micro.fromMilli(props?.latency ?? Time.Milli.zero);
+
 		this.#signals.spawn(this.#run.bind(this));
+		this.#signals.cleanup(() => {
+			this.#track.close();
+			for (const group of this.#groups) {
+				group.close();
+			}
+			this.#groups.length = 0;
+		});
 	}
 
-	async #run(cancel: Promise<void>) {
+	async #run() {
 		// Start fetching groups in the background
 		for (;;) {
-			const group = await Promise.race([this.#track.nextGroup(), cancel]);
+			const group = await this.#track.nextGroup();
 			if (!group) break;
 
 			if (group.sequence < this.#active) {
@@ -99,7 +107,7 @@ export class Consumer {
 
 			// Insert into #groups based on the group sequence number (ascending).
 			// This is used to cancel old groups.
-			this.#groups.push(group.clone());
+			this.#groups.push(group);
 			this.#groups.sort((a, b) => a.sequence - b.sequence);
 
 			// Start buffering frames from this group
@@ -107,12 +115,12 @@ export class Consumer {
 		}
 	}
 
-	async #runGroup(group: Moq.GroupConsumer, cancel: Promise<void>) {
+	async #runGroup(group: Moq.GroupConsumer) {
 		try {
 			let keyframe = true;
 
 			for (;;) {
-				const next = await Promise.race([group.readFrame(), cancel]);
+				const next = await group.readFrame();
 				if (!next) break;
 
 				const { data, timestamp } = decode(next);
@@ -239,7 +247,7 @@ export class Consumer {
 				this.#notify = resolve;
 			}).then(() => true);
 
-			if (!(await Promise.race([wait, this.#signals.closed()]))) {
+			if (!(await Promise.race([wait, this.#signals.closed]))) {
 				this.#notify = undefined;
 				// Consumer was closed while waiting for a new frame.
 				return undefined;

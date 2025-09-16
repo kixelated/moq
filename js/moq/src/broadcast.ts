@@ -1,11 +1,10 @@
+import { Signal } from "@kixelated/signals";
 import { type TrackConsumer, TrackProducer } from "./track.ts";
-import { type WatchConsumer, WatchProducer } from "./util/watch.ts";
 
-class State {
-	tracks = new Map<string, TrackConsumer>();
-
-	// Called when a track is not found.
-	// The receiver is responsible for producing the track.
+interface BroadcastState {
+	tracks: Map<string, TrackConsumer>;
+	closed: boolean | Error;
+	consumers: number;
 	onUnknown?: (track: TrackProducer) => void;
 }
 
@@ -15,13 +14,24 @@ class State {
  * @public
  */
 export class BroadcastProducer {
-	#state: WatchProducer<State>;
+	#state: Signal<BroadcastState>;
+
+	static #finalizer = new FinalizationRegistry(() => {
+		console.warn("BroadcastProducer was garbage collected without being closed");
+	});
 
 	/**
 	 * @internal
 	 */
 	constructor() {
-		this.#state = new WatchProducer<State>(new State());
+		this.#state = new Signal<BroadcastState>({
+			tracks: new Map(),
+			closed: false,
+			consumers: 0,
+			onUnknown: undefined,
+		});
+
+		BroadcastProducer.#finalizer.register(this, undefined, this);
 	}
 
 	/**
@@ -30,6 +40,8 @@ export class BroadcastProducer {
 	 * @returns A TrackProducer for the new track
 	 */
 	createTrack(name: string): TrackProducer {
+		if (this.#state.peek().closed) throw new Error(`broadcast is closed: ${this.#state.peek().closed}`);
+
 		const track = new TrackProducer(name, 0);
 		this.insertTrack(track.consume());
 		return track;
@@ -40,11 +52,11 @@ export class BroadcastProducer {
 	 * @param track - The track reader to insert
 	 */
 	insertTrack(track: TrackConsumer) {
-		this.#state.update((state) => {
-			const existing = state.tracks.get(track.name);
-			existing?.close();
+		if (this.#state.peek().closed) throw new Error(`broadcast is closed: ${this.#state.peek().closed}`);
+
+		this.#state.mutate((state) => {
+			state.tracks.get(track.name)?.close();
 			state.tracks.set(track.name, track);
-			return state;
 		});
 	}
 
@@ -53,16 +65,11 @@ export class BroadcastProducer {
 	 * @param name - The name of the track to remove
 	 */
 	removeTrack(name: string) {
-		try {
-			this.#state.update((state) => {
-				const track = state.tracks.get(name);
-				track?.close();
-				state.tracks.delete(name);
-				return state;
-			});
-		} catch {
-			// We don't care if we try to remove when closed
-		}
+		this.#state.mutate((state) => {
+			const track = state.tracks.get(name);
+			track?.close();
+			state.tracks.delete(name);
+		});
 	}
 
 	/**
@@ -72,43 +79,43 @@ export class BroadcastProducer {
 	 * @param fn - The callback function to handle unknown tracks
 	 */
 	unknownTrack(fn?: (track: TrackProducer) => void) {
-		this.#state.update((state) => {
+		this.#state.mutate((state) => {
 			state.onUnknown = fn;
-			return state;
 		});
-	}
-
-	/**
-	 * Aborts the writer with an error.
-	 * @param reason - The error reason for aborting
-	 */
-	abort(reason: Error) {
-		this.#state.abort(reason);
 	}
 
 	/**
 	 * Closes the writer and all associated tracks.
+	 *
+	 * @param abort - If provided, throw this exception instead of returning undefined.
 	 */
-	close() {
-		this.#state.update((state) => {
+	close(abort?: Error) {
+		if (!BroadcastProducer.#finalizer.unregister(this)) return;
+
+		this.#state.mutate((state) => {
+			state.closed = abort ?? true;
+
 			for (const track of state.tracks.values()) {
 				track.close();
 			}
 			state.tracks.clear();
-			return state;
 		});
-		this.#state.close();
+	}
+
+	async closed(): Promise<Error | undefined> {
+		const closed = await this.#state.until((state) => !!state.closed);
+		return closed instanceof Error ? closed : undefined;
 	}
 
 	/**
 	 * Returns a promise that resolves when the writer is unused.
 	 */
 	async unused(): Promise<void> {
-		return this.#state.unused();
+		await this.#state.until((state) => !!state.closed || state.consumers <= 0);
 	}
 
 	consume(): BroadcastConsumer {
-		return new BroadcastConsumer(this.#state.consume());
+		return new BroadcastConsumer(this.#state);
 	}
 }
 
@@ -120,13 +127,21 @@ export class BroadcastProducer {
  * @public
  */
 export class BroadcastConsumer {
-	#state: WatchConsumer<State>;
+	#state: Signal<BroadcastState>;
+
+	static #finalizer = new FinalizationRegistry(() => {
+		console.warn("BroadcastConsumer was garbage collected without being closed");
+	});
 
 	/**
 	 * @internal
 	 */
-	constructor(state: WatchConsumer<State>) {
+	constructor(state: Signal<BroadcastState>) {
 		this.#state = state;
+		BroadcastConsumer.#finalizer.register(this, undefined, this);
+		this.#state.mutate((state) => {
+			state.consumers++;
+		});
 	}
 
 	/**
@@ -136,9 +151,11 @@ export class BroadcastConsumer {
 	 * @returns A TrackConsumer for the subscribed track
 	 */
 	subscribe(track: string, priority: number): TrackConsumer {
-		const state = this.#state.value();
+		if (this.#state.peek().closed) {
+			throw new Error(`broadcast is closed: ${this.#state.peek().closed}`);
+		}
 
-		const existing = state.tracks.get(track);
+		const existing = this.#state.peek().tracks.get(track);
 		if (existing) {
 			return existing.clone();
 		}
@@ -146,10 +163,11 @@ export class BroadcastConsumer {
 		const producer = new TrackProducer(track, priority);
 		const consumer = producer.consume();
 
-		if (state.onUnknown) {
-			state.onUnknown(producer);
+		const onUnknown = this.#state.peek().onUnknown;
+		if (onUnknown) {
+			onUnknown(producer);
 		} else {
-			producer.abort(new Error("not found"));
+			producer.close(new Error("not found"));
 		}
 
 		return consumer;
@@ -159,15 +177,19 @@ export class BroadcastConsumer {
 	 * Returns a promise that resolves when the reader is closed.
 	 * @returns A promise that resolves when closed
 	 */
-	async closed(): Promise<void> {
-		return this.#state.closed();
+	async closed(): Promise<Error | undefined> {
+		const closed = await this.#state.until((state) => !!state.closed);
+		return closed instanceof Error ? closed : undefined;
 	}
 
 	/**
 	 * Closes the reader.
 	 */
 	close() {
-		this.#state.close();
+		if (!BroadcastConsumer.#finalizer.unregister(this)) return;
+		this.#state.mutate((state) => {
+			state.consumers--;
+		});
 	}
 
 	/**
@@ -175,6 +197,6 @@ export class BroadcastConsumer {
 	 * @returns A new BroadcastConsumer instance
 	 */
 	clone(): BroadcastConsumer {
-		return new BroadcastConsumer(this.#state.clone());
+		return new BroadcastConsumer(this.#state);
 	}
 }

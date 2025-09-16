@@ -121,6 +121,7 @@ async function connectWebTransport(
 		console.warn(fingerprintUrl.toString(), "performing an insecure fingerprint fetch; use https:// in production");
 
 		// Fetch the fingerprint from the server.
+		// TODO cancel the request if the effect is cancelled.
 		const fingerprint = await Promise.race([fetch(fingerprintUrl), cancel]);
 		if (!fingerprint) return undefined;
 

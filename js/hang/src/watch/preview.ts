@@ -33,9 +33,9 @@ export class Preview {
 			const track = broadcast.subscribe("preview.json", 0);
 			effect.cleanup(() => track.close());
 
-			effect.spawn(async (cancel) => {
+			effect.spawn(async () => {
 				try {
-					const info = await Promise.race([Zod.read(track, InfoSchema), cancel]);
+					const info = await Zod.read(track, InfoSchema);
 					if (!info) return;
 
 					this.preview.set(info);
