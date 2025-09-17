@@ -6,13 +6,13 @@ import type * as Path from "./path.ts";
  *
  * @public
  */
-export interface Announce {
+export interface Announced {
 	name: Path.Valid;
 	active: boolean;
 }
 
 export class AnnouncedState {
-	queue = new Signal<Announce[]>([]);
+	queue = new Signal<Announced[]>([]);
 	closed = new Signal<boolean | Error>(false);
 }
 
@@ -21,7 +21,7 @@ export class AnnouncedState {
  *
  * @public
  */
-export class Announced {
+export class AnnouncedQueue {
 	state = new AnnouncedState();
 
 	readonly closed: Promise<Error | undefined>;
@@ -40,7 +40,7 @@ export class Announced {
 	 * Writes an announcement to the queue.
 	 * @param announcement - The announcement to write
 	 */
-	write(announcement: Announce) {
+	write(announcement: Announced) {
 		if (this.state.closed.peek()) throw new Error("announced is closed");
 		this.state.queue.mutate((queue) => {
 			queue.push(announcement);
@@ -61,7 +61,7 @@ export class Announced {
 	/**
 	 * Returns the next announcement.
 	 */
-	async next(): Promise<Announce | undefined> {
+	async next(): Promise<Announced | undefined> {
 		for (;;) {
 			const announce = this.state.queue.peek().shift();
 			if (announce) return announce;

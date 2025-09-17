@@ -12,10 +12,10 @@ import type { Source } from "./types";
 const GAIN_MIN = 0.001;
 const FADE_TIME = 0.2;
 
+import { TRACKS } from "../tracks";
 // Unfortunately, we need to use a Vite-exclusive import for now.
 import CaptureWorklet from "./capture-worklet?worker&url";
 import { Speaking, type SpeakingProps } from "./speaking";
-import { TRACKS } from "../tracks";
 
 // The initial values for our signals.
 export type EncoderProps = {
@@ -66,6 +66,7 @@ export class Encoder {
 		this.maxLatency = props?.maxLatency ?? (100 as Time.Milli); // Default is a group every 100ms
 
 		this.#signals.effect(this.#runSource.bind(this));
+		this.#signals.effect(this.#runConfig.bind(this));
 		this.#signals.effect(this.#runGain.bind(this));
 		this.#signals.effect(this.#runCatalog.bind(this));
 	}
@@ -115,6 +116,23 @@ export class Encoder {
 		});
 	}
 
+	#runConfig(effect: Effect): void {
+		const source = effect.get(this.source);
+		if (!source) return;
+
+		const worklet = effect.get(this.#worklet);
+		if (!worklet) return;
+
+		const config = {
+			codec: "opus",
+			sampleRate: u53(worklet.context.sampleRate),
+			numberOfChannels: u53(worklet.channelCount),
+			bitrate: u53(worklet.channelCount * 32_000),
+		};
+
+		effect.set(this.#config, config);
+	}
+
 	#runGain(effect: Effect): void {
 		const gain = effect.get(this.#gain);
 		if (!gain) return;
@@ -139,15 +157,8 @@ export class Encoder {
 		const worklet = effect.get(this.#worklet);
 		if (!worklet) return;
 
-		const config = {
-			// TODO get codec and description from decoderConfig
-			codec: "opus",
-			sampleRate: u53(worklet.context.sampleRate),
-			numberOfChannels: u53(worklet.channelCount),
-			// TODO configurable
-			bitrate: u53(worklet.channelCount * 32_000),
-			// TODO there's a bunch of advanced Opus settings that we should use.
-		};
+		const config = effect.get(this.#config);
+		if (!config) return;
 
 		let group: Moq.Group = track.appendGroup();
 		effect.cleanup(() => group.close());
@@ -181,8 +192,8 @@ export class Encoder {
 			});
 			effect.cleanup(() => encoder.close());
 
+			console.debug("encoding audio", config);
 			encoder.configure(config);
-			effect.set(this.#config, config);
 
 			worklet.port.onmessage = ({ data }: { data: Capture.AudioFrame }) => {
 				const channels = data.channels.slice(0, worklet.channelCount);

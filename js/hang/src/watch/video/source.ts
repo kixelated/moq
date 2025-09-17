@@ -3,8 +3,8 @@ import { Effect, type Getter, Signal } from "@kixelated/signals";
 import * as Catalog from "../../catalog";
 import * as Frame from "../../frame";
 import * as Hex from "../../util/hex";
-import { Detection, type DetectionProps } from "./detection";
 import { PRIORITY } from "../priority";
+import { Detection, type DetectionProps } from "./detection";
 
 export type SourceProps = {
 	enabled?: boolean | Signal<boolean>;
@@ -107,10 +107,8 @@ export class Source {
 		});
 
 		effect.spawn(async () => {
-			console.log("running decoder");
 			for (;;) {
 				const next = await sub.readFrameSequence();
-				console.log("next frame", next);
 				if (!next) break;
 
 				const decoded = Frame.decode(next.data);

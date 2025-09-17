@@ -1,5 +1,5 @@
 import type * as Moq from "@kixelated/moq";
-import type { Path } from "@kixelated/moq";
+import { Path } from "@kixelated/moq";
 import { Effect, Signal } from "@kixelated/signals";
 import type { Connection } from "../connection";
 import { Member } from "./member";
@@ -44,26 +44,25 @@ export class Room {
 
 		const name = effect.get(this.name);
 
-		const announced = conn.announced(name);
-		effect.cleanup(() => announced.close());
-
-		effect.spawn(this.#runMembers.bind(this, conn, announced));
+		effect.spawn(this.#runMembers.bind(this, conn, name));
 	}
 
-	async #runMembers(connection: Moq.Connection, announced: Moq.Announced) {
+	async #runMembers(connection: Moq.Connection, name?: Moq.Path.Valid) {
 		try {
 			for (;;) {
-				const update = await announced.next();
+				const update = await connection.announced();
 				if (!update) break;
 
-				this.#handleUpdate(connection, update);
+				if (!name || Path.hasPrefix(name, update.name)) {
+					this.#handleUpdate(connection, update);
+				}
 			}
 		} finally {
 			this.close();
 		}
 	}
 
-	#handleUpdate(connection: Moq.Connection, update: Moq.Announce) {
+	#handleUpdate(connection: Moq.Connection, update: Moq.Announced) {
 		if (update.active) {
 			const broadcast = connection.consume(update.name);
 

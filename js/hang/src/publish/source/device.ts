@@ -106,9 +106,6 @@ export class Device<Kind extends "audio" | "video"> {
 			defaultDevice = devices.at(0);
 		}
 
-		console.debug(`all ${this.kind} devices`, devices);
-		console.debug(`default ${this.kind} device`, defaultDevice);
-
 		this.#devices.set(devices);
 		this.#default.set(defaultDevice?.deviceId);
 	}

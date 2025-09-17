@@ -138,9 +138,6 @@ export class Consumer {
 					// Already sorted; most of the time we just append to the end.
 					this.#frames.push(frame);
 				} else {
-					console.warn(
-						`frame out of order: ${frame.timestamp} < ${this.#frames[this.#frames.length - 1].timestamp}`,
-					);
 					this.#frames.push(frame);
 					this.#frames.sort((a, b) => a.timestamp - b.timestamp);
 				}
@@ -157,6 +154,8 @@ export class Consumer {
 			}
 
 			group.close();
+		} catch (_err) {
+			// Ignore errors, we close groups on purpose to skip them.
 		} finally {
 			if (group.sequence === this.#active) {
 				// Advance to the next group.
@@ -186,7 +185,6 @@ export class Consumer {
 		if (!nextFrame) return; // Within the same group, ignore for now
 
 		if (this.#prev) {
-			console.warn(`latency violation: ${Math.round(latency / 1000)}ms buffered`);
 			console.warn(`skipping ahead: ${Math.round((nextFrame.timestamp - this.#prev) / 1000)}ms`);
 		}
 

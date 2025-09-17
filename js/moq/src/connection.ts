@@ -6,9 +6,9 @@ import type * as Path from "./path.ts";
 export interface Connection {
 	readonly url: URL;
 
-	announced(prefix?: Path.Valid): Announced;
+	announced(): Promise<Announced | undefined>;
 	publish(name: Path.Valid, broadcast: Broadcast): void;
 	consume(broadcast: Path.Valid): Broadcast;
 	close(): void;
-	closed(): Promise<void>;
+	closed: Promise<void>;
 }

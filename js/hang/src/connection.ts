@@ -93,7 +93,7 @@ export class Connection {
 				// Reset the exponential backoff on success.
 				this.#delay = this.reload?.delay ?? (1000 as Time.Milli);
 
-				await Promise.race([effect.cancel, connection.closed()]);
+				await Promise.race([effect.cancel, connection.closed]);
 			} catch (err) {
 				console.warn("connection error:", err);
 

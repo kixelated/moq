@@ -6,9 +6,9 @@ import * as Audio from "./audio";
 import { Chat, type ChatProps } from "./chat";
 import { Location, type LocationProps } from "./location";
 import { Preview, type PreviewProps } from "./preview";
+import { PRIORITY } from "./priority";
 import * as Video from "./video";
 import { Detection, type DetectionProps } from "./video/detection";
-import { PRIORITY } from "./priority";
 
 export interface BroadcastProps {
 	// Whether to start downloading the broadcast.
@@ -96,17 +96,14 @@ export class Broadcast {
 		const name = effect.get(this.name);
 		if (!name) return;
 
-		const announced = conn.announced(name);
-		effect.cleanup(() => announced.close());
-
 		effect.spawn(async () => {
 			for (;;) {
-				const update = await announced.next();
+				const update = await conn.announced();
 				if (!update) break;
 
 				// Require full equality
-				if (update.name !== "") {
-					console.warn("ignoring suffix", update.name);
+				if (update.name !== name) {
+					console.warn("ignoring announce", update.name);
 					continue;
 				}
 

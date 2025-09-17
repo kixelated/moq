@@ -141,7 +141,7 @@ impl<S: web_transport_trait::Session> Publisher<S> {
 		let track = subscribe.track.clone();
 		let absolute = self.origin.absolute(&subscribe.broadcast).to_owned();
 
-		tracing::debug!(%id, broadcast = %absolute, %track, "subscribed started");
+		tracing::info!(%id, broadcast = %absolute, %track, "subscribed started");
 
 		let broadcast = self.origin.consume_broadcast(&subscribe.broadcast);
 
@@ -149,20 +149,17 @@ impl<S: web_transport_trait::Session> Publisher<S> {
 		web_async::spawn(async move {
 			if let Err(err) = Self::run_subscribe(session, &mut stream, &subscribe, broadcast).await {
 				match &err {
-					Error::Cancel => {
-						tracing::debug!(%id, broadcast = %absolute, %track, "subscribed cancelled")
-					}
 					// TODO better classify WebTransport errors.
-					Error::Transport(_) => {
-						tracing::debug!(%id, broadcast = %absolute, %track, "subscribed cancelled")
+					Error::Cancel | Error::Transport(_) => {
+						tracing::info!(%id, broadcast = %absolute, %track, "subscribed cancelled")
 					}
 					err => {
-						tracing::warn!(%err, %id, broadcast = %absolute, %track, "subscribed error")
+						tracing::warn!(%id, broadcast = %absolute, %track, %err, "subscribed error")
 					}
 				}
 				stream.writer.abort(&err);
 			} else {
-				tracing::debug!(%id, broadcast = %absolute, %track, "subscribed complete")
+				tracing::info!(%id, broadcast = %absolute, %track, "subscribed complete")
 			}
 		});
 

@@ -5,10 +5,10 @@ import * as Frame from "../../frame";
 import * as Time from "../../time";
 import * as Hex from "../../util/hex";
 import * as libav from "../../util/libav";
+import { PRIORITY } from "../priority";
 import { Captions, type CaptionsProps } from "./captions";
 import type * as Render from "./render";
 import { Speaking, type SpeakingProps } from "./speaking";
-import { PRIORITY } from "../priority";
 
 // We want some extra overhead to avoid starving the render worklet.
 // The default Opus frame duration is 20ms.

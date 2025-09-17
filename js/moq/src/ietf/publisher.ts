@@ -1,6 +1,6 @@
 import type { Broadcast } from "../broadcast.ts";
 import type { Group } from "../group.ts";
-import * as Path from "../path.ts";
+import type * as Path from "../path.ts";
 import { Writer } from "../stream.ts";
 import type { Track } from "../track.ts";
 import { error } from "../util/error.ts";
@@ -19,7 +19,6 @@ import { TrackStatus, type TrackStatusRequest } from "./track.ts";
 export class Publisher {
 	#quic: WebTransport;
 	#control: Control.Stream;
-	#root: Path.Valid;
 
 	// Our published broadcasts.
 	#broadcasts: Map<Path.Valid, Broadcast> = new Map();
@@ -31,10 +30,9 @@ export class Publisher {
 	 *
 	 * @internal
 	 */
-	constructor(quic: WebTransport, control: Control.Stream, root: Path.Valid) {
+	constructor(quic: WebTransport, control: Control.Stream) {
 		this.#quic = quic;
 		this.#control = control;
-		this.#root = root;
 	}
 
 	/**
@@ -42,27 +40,26 @@ export class Publisher {
 	 * @param name - The broadcast to publish
 	 */
 	publish(name: Path.Valid, broadcast: Broadcast) {
-		const full = Path.join(this.#root, name);
-		this.#broadcasts.set(full, broadcast);
-		void this.#runPublish(full, broadcast);
+		this.#broadcasts.set(name, broadcast);
+		void this.#runPublish(name, broadcast);
 	}
 
-	async #runPublish(full: Path.Valid, broadcast: Broadcast) {
+	async #runPublish(name: Path.Valid, broadcast: Broadcast) {
 		try {
-			const announce = new Announce(full);
+			const announce = new Announce(name);
 			await this.#control.write(announce);
 
 			// Wait until the broadcast is closed, then remove it from the lookup.
 			await broadcast.closed;
 
-			const unannounce = new Unannounce(full);
+			const unannounce = new Unannounce(name);
 			await this.#control.write(unannounce);
 		} catch (err: unknown) {
 			const e = error(err);
-			console.warn(`announce failed: broadcast=${full} error=${e.message}`);
+			console.warn(`announce failed: broadcast=${name} error=${e.message}`);
 		} finally {
 			broadcast.close();
-			this.#broadcasts.delete(full);
+			this.#broadcasts.delete(name);
 		}
 	}
 
@@ -74,8 +71,8 @@ export class Publisher {
 	 */
 	async handleSubscribe(msg: Subscribe) {
 		// Convert track namespace/name to broadcast path (moq-lite compatibility)
-		const full = Path.join(this.#root, msg.trackNamespace);
-		const broadcast = this.#broadcasts.get(full);
+		const name = msg.trackNamespace;
+		const broadcast = this.#broadcasts.get(name);
 
 		if (!broadcast) {
 			const errorMsg = new SubscribeError(
@@ -138,7 +135,6 @@ export class Publisher {
 		try {
 			// Create a new unidirectional stream for this group
 			const stream = await Writer.open(this.#quic);
-			const closed = stream.closed();
 
 			// Write stream type for STREAM_HEADER_SUBGROUP
 			await writeStreamType(stream);
@@ -155,7 +151,7 @@ export class Publisher {
 			try {
 				let objectId = 0;
 				for (;;) {
-					const frame = await Promise.race([group.readFrame(), closed]);
+					const frame = await Promise.race([group.readFrame(), stream.closed]);
 					if (!frame) break;
 
 					// Write each frame as an object

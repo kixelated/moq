@@ -122,7 +122,7 @@ impl<S: web_transport_trait::Session> Subscriber<S> {
 		path: PathOwned,
 		producers: &mut HashMap<PathOwned, BroadcastProducer>,
 	) -> Result<(), Error> {
-		tracing::debug!(broadcast = %self.log_path(&path), suffix = %path, "announced");
+		tracing::debug!(broadcast = %self.log_path(&path), suffix = %path, "announce");
 
 		let broadcast = Broadcast::produce();
 
@@ -178,7 +178,7 @@ impl<S: web_transport_trait::Session> Subscriber<S> {
 			priority: track.info.priority,
 		};
 
-		tracing::debug!(broadcast = %self.log_path(&broadcast), track = %track.info.name, id, "subscribe started");
+		tracing::info!(id, broadcast = %self.log_path(&broadcast), track = %track.info.name, "subscribe started");
 
 		let res = tokio::select! {
 			_ = track.unused() => Err(Error::Cancel),
@@ -187,15 +187,15 @@ impl<S: web_transport_trait::Session> Subscriber<S> {
 
 		match res {
 			Err(Error::Cancel) | Err(Error::Transport(_)) => {
-				tracing::debug!(broadcast = %self.log_path(&broadcast), track = %track.info.name, id, "subscribe cancelled");
+				tracing::info!(id, broadcast = %self.log_path(&broadcast), track = %track.info.name, "subscribe cancelled");
 				track.abort(Error::Cancel);
 			}
 			Err(err) => {
-				tracing::warn!(%err, broadcast = %self.log_path(&broadcast), track = %track.info.name, id, "subscribe error");
+				tracing::warn!(id, broadcast = %self.log_path(&broadcast), track = %track.info.name, %err, "subscribe error");
 				track.abort(err);
 			}
 			_ => {
-				tracing::debug!(broadcast = %self.log_path(&broadcast), track = %track.info.name, id, "subscribe complete");
+				tracing::info!(id, broadcast = %self.log_path(&broadcast), track = %track.info.name, "subscribe complete");
 				track.close();
 			}
 		}

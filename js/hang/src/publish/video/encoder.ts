@@ -1,14 +1,14 @@
 import * as Moq from "@kixelated/moq";
 import { Effect, type Getter, Signal } from "@kixelated/signals";
 import * as Catalog from "../../catalog";
-import { u53 } from "../../catalog/integers";
+import { u53 } from "../../catalog";
 import * as Frame from "../../frame";
 import * as Time from "../../time";
 import { isFirefox } from "../../util/hacks";
 import { TRACKS } from "../tracks";
 import { Detection, type DetectionProps } from "./detection";
 import { VideoTrackProcessor } from "./polyfill";
-import type { Source, VideoTrackSettings } from "./types";
+import type { Source, VideoStreamTrack } from "./types";
 
 // Create a group every 2 seconds
 const GOP_DURATION = Time.Micro.fromSecond(2 as Time.Second);
@@ -26,12 +26,10 @@ export class Encoder {
 	enabled: Signal<boolean>;
 	flip: Signal<boolean>;
 	source: Signal<Source | undefined>;
+	codec = new Signal<string | undefined>(undefined);
 
 	#catalog = new Signal<Catalog.Video | undefined>(undefined);
 	readonly catalog: Getter<Catalog.Video | undefined> = this.#catalog;
-
-	#encoderConfig = new Signal<VideoEncoderConfig | undefined>(undefined);
-	//#decoderConfig = new Signal<VideoDecoderConfig | undefined>(undefined);
 
 	#signals = new Effect();
 
@@ -45,6 +43,8 @@ export class Encoder {
 		this.enabled = Signal.from(props?.enabled ?? false);
 		this.flip = Signal.from(props?.flip ?? false);
 
+		bestCodec().then(this.codec.set.bind(this.codec));
+
 		this.#signals.effect(this.#runCatalog.bind(this));
 	}
 
@@ -55,12 +55,20 @@ export class Encoder {
 		const source = effect.get(this.source);
 		if (!source) return;
 
-		const settings = source.getSettings() as VideoTrackSettings;
+		const codec = effect.get(this.codec);
+		if (!codec) return;
+
+		effect.spawn(this.#runEncoder.bind(this, track, codec, source, effect));
+	}
+
+	async #runEncoder(track: Moq.Track, codec: string, source: VideoStreamTrack, effect: Effect): Promise<void> {
+		const settings = source.getSettings();
+
 		const processor = VideoTrackProcessor(source);
 		const reader = processor.getReader();
 		effect.cleanup(() => reader.cancel());
 
-		let group: Moq.Group | undefined;
+		let group: Moq.Group | undefined; // TODO close
 		effect.cleanup(() => group?.close());
 
 		let groupTimestamp = 0 as Time.Micro;
@@ -82,225 +90,103 @@ export class Encoder {
 				group?.close(err);
 			},
 		});
+
 		effect.cleanup(() => encoder.close());
+		let next = await reader.read();
+		if (!next || !next.value) return;
 
-		effect.spawn(async () => {
-			let next = await reader.read();
-			if (!next || !next.value) return;
+		let frame = next.value;
+		let width = frame.codedWidth;
+		let height = frame.codedHeight;
 
-			let frame = next.value;
+		let configure = true;
 
-			const config = await Encoder.#bestEncoderConfig(settings, frame);
-			if (!config) return; // cancelled
-
-			encoder.configure(config);
-
-			effect.set(this.#encoderConfig, config);
-
-			while (frame) {
-				// Force a keyframe if this is the first frame (no group yet), or GOP elapsed.
-				const keyFrame = !group || groupTimestamp + GOP_DURATION <= frame.timestamp;
-				if (keyFrame) {
-					groupTimestamp = frame.timestamp as Time.Micro;
-				}
-
-				this.frame.update((prev) => {
-					prev?.close();
-					return frame;
+		while (frame) {
+			if (configure) {
+				const bitrate = bestBitrate({
+					codec,
+					width,
+					height,
+					framerate: settings.frameRate,
 				});
 
-				encoder.encode(frame, { keyFrame });
+				const config: VideoEncoderConfig = {
+					codec,
+					width,
+					height,
+					framerate: settings.frameRate,
+					bitrate,
+					avc: codec.startsWith("avc1") ? { format: "annexb" } : undefined,
+					// @ts-expect-error Typescript needs to be updated.
+					hevc: codec.startsWith("hev1") ? { format: "annexb" } : undefined,
+					latencyMode: "realtime",
+					hardwareAcceleration: "prefer-hardware",
+				};
+				console.debug("encoding video", config);
+				encoder.configure(config);
 
-				next = await reader.read();
-				if (!next || !next.value) return;
-
-				frame = next.value;
+				configure = false;
 			}
-		});
-	}
 
-	// Try to determine the best config for the given settings.
-	static async #bestEncoderConfig(settings: VideoTrackSettings, frame: VideoFrame): Promise<VideoEncoderConfig> {
-		const width = frame.codedWidth;
-		const height = frame.codedHeight;
-		const framerate = settings.frameRate;
-
-		console.debug("determining best encoder config for: ", {
-			width,
-			height,
-			framerate,
-		});
-
-		// TARGET BITRATE CALCULATION (h264)
-		// 480p@30 = 1.0mbps
-		// 480p@60 = 1.5mbps
-		// 720p@30 = 2.5mbps
-		// 720p@60 = 3.5mpbs
-		// 1080p@30 = 4.5mbps
-		// 1080p@60 = 6.0mbps
-		const pixels = width * height;
-
-		// 30fps is the baseline, applying a multiplier for higher framerates.
-		// Framerate does not cause a multiplicative increase in bitrate because of delta encoding.
-		// TODO Make this better.
-		const framerateFactor = 30.0 + (framerate - 30) / 2;
-		const bitrate = Math.round(pixels * 0.07 * framerateFactor);
-
-		// ACTUAL BITRATE CALCULATION
-		// 480p@30 = 409920 * 30 * 0.07 = 0.9 Mb/s
-		// 480p@60 = 409920 * 45 * 0.07 = 1.3 Mb/s
-		// 720p@30 = 921600 * 30 * 0.07 = 1.9 Mb/s
-		// 720p@60 = 921600 * 45 * 0.07 = 2.9 Mb/s
-		// 1080p@30 = 2073600 * 30 * 0.07 = 4.4 Mb/s
-		// 1080p@60 = 2073600 * 45 * 0.07 = 6.5 Mb/s
-
-		// A list of codecs to try, in order of preference.
-		const HARDWARE_CODECS = [
-			// VP9
-			// More likely to have hardware decoding, but hardware encoding is less likely.
-			"vp09.00.10.08",
-			"vp09", // Browser's choice
-
-			// H.264
-			// Almost always has hardware encoding and decoding.
-			"avc1.640028",
-			"avc1.4D401F",
-			"avc1.42E01E",
-			"avc1",
-
-			// AV1
-			// One day will get moved higher up the list, but hardware decoding is rare.
-			"av01.0.08M.08",
-			"av01",
-
-			// HEVC (aka h.265)
-			// More likely to have hardware encoding, but less likely to be supported (licensing issues).
-			// Unfortunately, Firefox doesn't support decoding so it's down here at the bottom.
-			"hev1.1.6.L93.B0",
-			"hev1", // Browser's choice
-
-			// VP8
-			// A terrible codec but it's easy.
-			"vp8",
-		];
-
-		const SOFTWARE_CODECS = [
-			// Now try software encoding for simple enough codecs.
-			// H.264
-			"avc1.640028", // High
-			"avc1.4D401F", // Main
-			"avc1.42E01E", // Baseline
-			"avc1",
-
-			// VP8
-			"vp8",
-
-			// VP9
-			// It's a bit more expensive to encode so we shy away from it.
-			"vp09.00.10.08",
-			"vp09",
-
-			// HEVC (aka h.265)
-			// This likely won't work because of licensing issues.
-			"hev1.1.6.L93.B0",
-			"hev1", // Browser's choice
-
-			// AV1
-			// Super expensive to encode so it's our last choice.
-			"av01.0.08M.08",
-			"av01",
-		];
-
-		const baseConfig: VideoEncoderConfig = {
-			codec: "none",
-			width,
-			height,
-			bitrate,
-			latencyMode: "realtime",
-			framerate,
-		};
-
-		// Try hardware encoding first.
-		// We can't reliably detect hardware encoding on Firefox: https://github.com/w3c/webcodecs/issues/896
-		if (!isFirefox) {
-			for (const codec of HARDWARE_CODECS) {
-				const config = Encoder.#codecSpecific(baseConfig, codec, bitrate, true);
-				const { supported, config: hardwareConfig } = await VideoEncoder.isConfigSupported(config);
-				if (supported && hardwareConfig) {
-					console.debug("using hardware encoding: ", hardwareConfig);
-					return hardwareConfig;
-				}
+			// Force a keyframe if this is the first frame (no group yet), or GOP elapsed.
+			const keyFrame = !group || groupTimestamp + GOP_DURATION <= frame.timestamp;
+			if (keyFrame) {
+				groupTimestamp = frame.timestamp as Time.Micro;
 			}
-		} else {
-			console.warn("Cannot detect hardware encoding on Firefox.");
-		}
 
-		// Try software encoding.
-		for (const codec of SOFTWARE_CODECS) {
-			const config = Encoder.#codecSpecific(baseConfig, codec, bitrate, false);
-			const { supported, config: softwareConfig } = await VideoEncoder.isConfigSupported(config);
-			if (supported && softwareConfig) {
-				console.debug("using software encoding: ", softwareConfig);
-				return softwareConfig;
+			this.frame.update((prev) => {
+				prev?.close();
+				return frame;
+			});
+
+			encoder.encode(frame, { keyFrame });
+
+			next = await reader.read();
+			if (!next || !next.value) return;
+
+			frame = next.value;
+
+			// Reconfigure the bitrate if the frame size changes.
+			// TODO technically we should re-evaluate the codec too.
+			if (frame.codedWidth !== width || frame.codedHeight !== height) {
+				width = frame.codedWidth;
+				height = frame.codedHeight;
+				configure = true;
 			}
 		}
-
-		throw new Error("no supported codec");
-	}
-
-	// Modify the config for codec specific settings.
-	static #codecSpecific(
-		base: VideoEncoderConfig,
-		codec: string,
-		bitrate: number,
-		hardware: boolean,
-	): VideoEncoderConfig {
-		const config: VideoEncoderConfig = {
-			...base,
-			codec,
-			hardwareAcceleration: hardware ? "prefer-hardware" : undefined,
-		};
-
-		// We scale the bitrate for more efficient codecs.
-		// TODO This shouldn't be linear, as the efficiency is very similar at low bitrates.
-		if (config.codec.startsWith("avc1")) {
-			// Annex-B allows changing the resolution without nessisarily updating the catalog (description).
-			config.avc = { format: "annexb" };
-		} else if (config.codec.startsWith("hev1")) {
-			// Annex-B allows changing the resolution without nessisarily updating the catalog (description).
-			// @ts-expect-error Typescript needs to be updated.
-			config.hevc = { format: "annexb" };
-		} else if (config.codec.startsWith("vp09")) {
-			config.bitrate = bitrate * 0.8;
-		} else if (config.codec.startsWith("av01")) {
-			config.bitrate = bitrate * 0.6;
-		} else if (config.codec === "vp8") {
-			// Worse than H.264 but it's a backup plan.
-			config.bitrate = bitrate * 1.1;
-		}
-
-		return config;
 	}
 
 	// Returns the catalog for the configured settings.
 	#runCatalog(effect: Effect): void {
-		const encoderConfig = effect.get(this.#encoderConfig);
-		if (!encoderConfig) return;
+		const source = effect.get(this.source);
+		if (!source) return;
+
+		const codec = effect.get(this.codec);
+		if (!codec) return;
+
+		// NOTE: These settings are notoriously unreliable and do not update.
+		// We only guestimate the bitrate but it may be updated in real-time.
+		const settings = source.getSettings();
+		const bitrate = bestBitrate({
+			codec,
+			width: settings.width,
+			height: settings.height,
+			framerate: settings.frameRate,
+		});
 
 		const flip = effect.get(this.flip);
 
 		const catalog: Catalog.Video = {
 			track: TRACKS.video,
 			config: {
-				// The order is important here.
-				codec: encoderConfig.codec,
-				description: undefined, // NOTE: We currently don't support description
-				displayAspectWidth: encoderConfig.displayWidth ? u53(encoderConfig.displayWidth) : undefined,
-				displayAspectHeight: encoderConfig.displayHeight ? u53(encoderConfig.displayHeight) : undefined,
-				framerate: encoderConfig.framerate,
-				bitrate: encoderConfig.bitrate ? u53(encoderConfig.bitrate) : undefined,
+				codec,
 				flip,
-				rotation: undefined,
+
+				bitrate: u53(bitrate),
+				displayAspectWidth: u53(settings.width),
+				displayAspectHeight: u53(settings.height),
+
+				framerate: settings.frameRate,
 			},
 		};
 
@@ -316,4 +202,152 @@ export class Encoder {
 		this.#signals.close();
 		this.detection.close();
 	}
+}
+
+function bestBitrate(props: { codec: string; width: number; height: number; framerate: number }): number {
+	// TARGET BITRATE CALCULATION (h264)
+	// 480p@30 = 1.0mbps
+	// 480p@60 = 1.5mbps
+	// 720p@30 = 2.5mbps
+	// 720p@60 = 3.5mpbs
+	// 1080p@30 = 4.5mbps
+	// 1080p@60 = 6.0mbps
+	const pixels = props.width * props.height;
+
+	// 30fps is the baseline, applying a multiplier for higher framerates.
+	// Framerate does not cause a multiplicative increase in bitrate because of delta encoding.
+	// TODO Make this better.
+	const framerateFactor = 30.0 + (props.framerate - 30) / 2;
+	let bitrate = Math.round(pixels * 0.07 * framerateFactor);
+
+	// ACTUAL BITRATE CALCULATION
+	// 480p@30 = 409920 * 30 * 0.07 = 0.9 Mb/s
+	// 480p@60 = 409920 * 45 * 0.07 = 1.3 Mb/s
+	// 720p@30 = 921600 * 30 * 0.07 = 1.9 Mb/s
+	// 720p@60 = 921600 * 45 * 0.07 = 2.9 Mb/s
+	// 1080p@30 = 2073600 * 30 * 0.07 = 4.4 Mb/s
+	// 1080p@60 = 2073600 * 45 * 0.07 = 6.5 Mb/s
+
+	// We scale the bitrate for more efficient codecs.
+	// TODO This shouldn't be linear, as the efficiency is very similar at low bitrates.
+	if (props.codec.startsWith("avc1")) {
+		bitrate *= 1.0; // noop
+	} else if (props.codec.startsWith("hev1")) {
+		bitrate *= 0.7;
+	} else if (props.codec.startsWith("vp09")) {
+		bitrate *= 0.8;
+	} else if (props.codec.startsWith("av01")) {
+		bitrate *= 0.6;
+	} else if (props.codec === "vp8") {
+		// Worse than H.264 but it's a backup plan.
+		bitrate *= 1.1;
+	} else {
+		throw new Error(`unknown codec: ${props.codec}`);
+	}
+
+	return bitrate;
+}
+
+// Try to determine the best config for the given settings.
+async function bestCodec(): Promise<string> {
+	// A list of codecs to try, in order of preference.
+	const HARDWARE_CODECS = [
+		// VP9
+		// More likely to have hardware decoding, but hardware encoding is less likely.
+		"vp09.00.10.08",
+		"vp09", // Browser's choice
+
+		// H.264
+		// Almost always has hardware encoding and decoding.
+		"avc1.640028",
+		"avc1.4D401F",
+		"avc1.42E01E",
+		"avc1",
+
+		// AV1
+		// One day will get moved higher up the list, but hardware decoding is rare.
+		"av01.0.08M.08",
+		"av01",
+
+		// HEVC (aka h.265)
+		// More likely to have hardware encoding, but less likely to be supported (licensing issues).
+		// Unfortunately, Firefox doesn't support decoding so it's down here at the bottom.
+		"hev1.1.6.L93.B0",
+		"hev1", // Browser's choice
+
+		// VP8
+		// A terrible codec but it's easy.
+		"vp8",
+	];
+
+	const SOFTWARE_CODECS = [
+		// Now try software encoding for simple enough codecs.
+		// H.264
+		"avc1.640028", // High
+		"avc1.4D401F", // Main
+		"avc1.42E01E", // Baseline
+		"avc1",
+
+		// VP8
+		"vp8",
+
+		// VP9
+		// It's a bit more expensive to encode so we shy away from it.
+		"vp09.00.10.08",
+		"vp09",
+
+		// HEVC (aka h.265)
+		// This likely won't work because of licensing issues.
+		"hev1.1.6.L93.B0",
+		"hev1", // Browser's choice
+
+		// AV1
+		// Super expensive to encode so it's our last choice.
+		"av01.0.08M.08",
+		"av01",
+	];
+
+	// Try hardware encoding first.
+	// We can't reliably detect hardware encoding on Firefox: https://github.com/w3c/webcodecs/issues/896
+	if (!isFirefox) {
+		for (const codec of HARDWARE_CODECS) {
+			const config: VideoEncoderConfig = {
+				codec,
+				width: 1280,
+				height: 720,
+				latencyMode: "realtime",
+				hardwareAcceleration: "prefer-hardware",
+				avc: codec.startsWith("avc1") ? { format: "annexb" } : undefined,
+				// @ts-expect-error Typescript needs to be updated.
+				hevc: codec.startsWith("hev1") ? { format: "annexb" } : undefined,
+			};
+
+			const { supported, config: hardwareConfig } = await VideoEncoder.isConfigSupported(config);
+			if (supported && hardwareConfig) {
+				console.debug("using hardware encoding: ", hardwareConfig);
+				return codec;
+			}
+		}
+	} else {
+		console.warn("Cannot detect hardware encoding on Firefox.");
+	}
+
+	// Try software encoding.
+	for (const codec of SOFTWARE_CODECS) {
+		const config: VideoEncoderConfig = {
+			codec,
+			width: 1280,
+			height: 720,
+			latencyMode: "realtime",
+			hardwareAcceleration: "prefer-software",
+		};
+
+		const { supported, config: softwareConfig } = await VideoEncoder.isConfigSupported(config);
+		if (supported && softwareConfig) {
+			console.debug("using software encoding: ", softwareConfig);
+			return codec;
+		}
+	}
+
+	throw new Error("no supported codec");
 }

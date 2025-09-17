@@ -137,24 +137,6 @@ async function subscribe(config: Config) {
 	const connection = await connect(new URL(config.url));
 	console.log("✅ Connected to relay:", config.url);
 
-	// Optionally wait for the broadcast to be announced.
-	// You can use a shorter prefix if you care about multiple broadcasts.
-	const prefix = Path.from(config.broadcast);
-	const announced = connection.announced(prefix);
-
-	console.log("🔍 Waiting for announce:", prefix);
-
-	// Start a 1 second timeout because announcements are technically not required.
-	// But you're pretty screwed if you don't get one.
-	const timeout = new Promise((resolve) => setTimeout(resolve, 1000));
-
-	const announce = await Promise.race([announced.next(), timeout]);
-	if (!announce) {
-		console.warn("⚠️ No announce found after 1 second, subscribing anyway...");
-	} else {
-		console.log("🎉 Announced:", announce);
-	}
-
 	const broadcast = connection.consume(Path.from(config.broadcast));
 	const track = broadcast.subscribe(config.track, 0);
 

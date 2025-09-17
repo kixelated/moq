@@ -1,4 +1,4 @@
-import { Announced } from "../announced.ts";
+import { type Announced, AnnouncedQueue } from "../announced.ts";
 import { Broadcast, type TrackRequest } from "../broadcast.ts";
 import { Group } from "../group.ts";
 import * as Path from "../path.ts";
@@ -18,6 +18,8 @@ import { Subscribe, SubscribeOk } from "./subscribe.ts";
 export class Subscriber {
 	#quic: WebTransport;
 
+	#announced: AnnouncedQueue;
+
 	// Our subscribed tracks.
 	#subscribes = new Map<bigint, Track>();
 	#subscribeNext = 0n;
@@ -30,56 +32,52 @@ export class Subscriber {
 	 */
 	constructor(quic: WebTransport) {
 		this.#quic = quic;
+
+		this.#announced = new AnnouncedQueue();
+		void this.#runAnnounced(this.#announced);
 	}
 
 	/**
-	 * Gets an announced reader for the specified prefix.
-	 * @param prefix - The prefix for announcements
-	 * @returns An AnnounceConsumer instance
 	 */
-	announced(prefix: Path.Valid = Path.empty()): Announced {
-		console.debug(`announce please: prefix=${prefix}`);
+	async announced(): Promise<Announced | undefined> {
+		return this.#announced.next();
+	}
 
-		const announced = new Announced();
-		const msg = new AnnounceInterest(prefix);
+	async #runAnnounced(announced: AnnouncedQueue): Promise<void> {
+		const msg = new AnnounceInterest(Path.empty());
 
-		(async () => {
-			try {
-				// Open a stream and send the announce interest.
-				const stream = await Stream.open(this.#quic);
-				await stream.writer.u8(StreamId.Announce);
-				await msg.encode(stream.writer);
+		try {
+			// Open a stream and send the announce interest.
+			const stream = await Stream.open(this.#quic);
+			await stream.writer.u8(StreamId.Announce);
+			await msg.encode(stream.writer);
 
-				// First, receive ANNOUNCE_INIT
-				const init = await AnnounceInit.decode(stream.reader);
+			// First, receive ANNOUNCE_INIT
+			const init = await AnnounceInit.decode(stream.reader);
 
-				// Process initial announcements
-				for (const suffix of init.suffixes) {
-					const name = Path.join(prefix, suffix);
-					console.debug(`announced: broadcast=${name} active=true`);
-					announced.write({ name, active: true });
-				}
-
-				// Then receive updates
-				for (;;) {
-					const announce = await Announce.decodeMaybe(stream.reader);
-					if (!announce) {
-						break;
-					}
-
-					const name = Path.join(prefix, announce.suffix);
-
-					console.debug(`announced: broadcast=${name} active=${announce.active}`);
-					announced.write({ name, active: announce.active });
-				}
-
-				announced.close();
-			} catch (err: unknown) {
-				announced.close(error(err));
+			// Process initial announcements
+			for (const name of init.suffixes) {
+				console.debug(`announced: broadcast=${name} active=true`);
+				announced.write({ name, active: true });
 			}
-		})();
 
-		return announced;
+			// Then receive updates
+			for (;;) {
+				const announce = await Announce.decodeMaybe(stream.reader);
+				if (!announce) {
+					break;
+				}
+
+				const name = announce.suffix;
+
+				console.debug(`announced: broadcast=${name} active=${announce.active}`);
+				announced.write({ name, active: announce.active });
+			}
+
+			announced.close();
+		} catch (err: unknown) {
+			announced.close(error(err));
+		}
 	}
 
 	/**
@@ -120,9 +118,10 @@ export class Subscriber {
 			await SubscribeOk.decode(stream.reader);
 			console.debug(`subscribe ok: id=${id} broadcast=${broadcast} track=${request.track.name}`);
 
-			await Promise.race([stream.reader.closed(), request.track.closed]);
+			await Promise.race([stream.reader.closed, request.track.closed]);
 
 			request.track.close();
+			stream.close();
 			console.debug(`subscribe close: id=${id} broadcast=${broadcast} track=${request.track.name}`);
 		} catch (err) {
 			const e = error(err);
@@ -130,9 +129,9 @@ export class Subscriber {
 			console.warn(
 				`subscribe error: id=${id} broadcast=${broadcast} track=${request.track.name} error=${e.message}`,
 			);
+			stream.abort(e);
 		} finally {
 			this.#subscribes.delete(id);
-			stream.close();
 		}
 	}
 
@@ -169,8 +168,11 @@ export class Subscriber {
 			}
 
 			producer.close();
+			stream.stop(new Error("cancel"));
 		} catch (err: unknown) {
-			producer.close(error(err));
+			const e = error(err);
+			producer.close(e);
+			stream.stop(e);
 		}
 	}
 

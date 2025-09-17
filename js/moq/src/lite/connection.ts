@@ -1,7 +1,7 @@
 import type { Announced } from "../announced.ts";
 import type { Broadcast } from "../broadcast.ts";
 import type { Connection as ConnectionInterface } from "../connection.ts";
-import * as Path from "../path.ts";
+import type * as Path from "../path.ts";
 import { type Reader, Readers, Stream } from "../stream.ts";
 import { AnnounceInterest } from "./announce.ts";
 import { Group } from "./group.ts";
@@ -90,12 +90,10 @@ export class Connection implements ConnectionInterface {
 	}
 
 	/**
-	 * Gets an announced reader for the specified prefix.
-	 * @param prefix - The prefix for announcements
-	 * @returns An AnnounceConsumer instance
+	 * Gets the next announced broadcast.
 	 */
-	announced(prefix = Path.empty()): Announced {
-		return this.#subscriber.announced(prefix);
+	async announced(): Promise<Announced | undefined> {
+		return this.#subscriber.announced();
 	}
 
 	/**
@@ -192,7 +190,7 @@ export class Connection implements ConnectionInterface {
 	 * Returns a promise that resolves when the connection is closed.
 	 * @returns A promise that resolves when closed
 	 */
-	async closed(): Promise<void> {
-		await this.#quic.closed;
+	get closed(): Promise<void> {
+		return this.#quic.closed.then(() => undefined);
 	}
 }

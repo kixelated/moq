@@ -214,8 +214,8 @@ export class Reader {
 		this.#reader?.cancel(reason).catch(() => void 0);
 	}
 
-	async closed() {
-		await this.#reader?.closed;
+	get closed(): Promise<void> {
+		return this.#reader?.closed ?? Promise.resolve();
 	}
 }
 
@@ -313,7 +313,7 @@ export class Writer {
 
 		await f(temp);
 		temp.close();
-		await temp.closed();
+		await temp.closed;
 
 		await this.u53(scratch.byteLength);
 		await this.write(scratch);
@@ -331,8 +331,8 @@ export class Writer {
 		this.#writer.close().catch(() => void 0);
 	}
 
-	async closed(): Promise<void> {
-		await this.#writer.closed;
+	get closed(): Promise<void> {
+		return this.#writer.closed;
 	}
 
 	reset(reason: unknown) {

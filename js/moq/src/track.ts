@@ -130,7 +130,7 @@ export class Track {
 			}
 
 			// If there's no groups, wait for a new one.
-			if (groups.length === 1) {
+			if (groups.length === 0) {
 				const closed = this.state.closed.peek();
 				if (closed instanceof Error) throw closed;
 				if (closed) return undefined;

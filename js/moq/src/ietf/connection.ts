@@ -1,7 +1,7 @@
 import type { Announced } from "../announced.ts";
 import type { Broadcast } from "../broadcast.ts";
 import type { Connection as ConnectionInterface } from "../connection.ts";
-import * as Path from "../path.ts";
+import type * as Path from "../path.ts";
 import { type Reader, Readers, type Stream } from "../stream.ts";
 import { unreachable } from "../util/index.ts";
 import { Announce, AnnounceCancel, AnnounceError, AnnounceOk, Unannounce } from "./announce.ts";
@@ -54,12 +54,8 @@ export class Connection implements ConnectionInterface {
 		this.url = url;
 		this.#quic = quic;
 		this.#control = new Control.Stream(control);
-
-		// The root path of the connection, to emulate moq-lite.
-		const root = Path.from(url.pathname);
-
-		this.#publisher = new Publisher(this.#quic, this.#control, root);
-		this.#subscriber = new Subscriber(this.#control, root);
+		this.#publisher = new Publisher(this.#quic, this.#control);
+		this.#subscriber = new Subscriber(this.#control);
 
 		this.#run();
 	}
@@ -102,8 +98,8 @@ export class Connection implements ConnectionInterface {
 	 * @param prefix - The prefix for announcements
 	 * @returns An AnnounceConsumer instance
 	 */
-	announced(): Announced {
-		return this.#subscriber.announced;
+	async announced(): Promise<Announced | undefined> {
+		return this.#subscriber.announced();
 	}
 
 	/**
@@ -258,7 +254,7 @@ export class Connection implements ConnectionInterface {
 	 * Returns a promise that resolves when the connection is closed.
 	 * @returns A promise that resolves when closed
 	 */
-	async closed(): Promise<void> {
-		await this.#quic.closed;
+	get closed(): Promise<void> {
+		return this.#quic.closed.then(() => undefined);
 	}
 }

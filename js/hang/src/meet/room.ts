@@ -1,4 +1,4 @@
-import type { Path } from "@kixelated/moq";
+import { Path } from "@kixelated/moq";
 import { Effect, Signal } from "@kixelated/signals";
 import { type Connection, type Moq, type Publish, Watch } from "..";
 
@@ -89,28 +89,27 @@ export class Room {
 
 		const name = effect.get(this.name);
 
-		const announced = connection.announced(name);
-		effect.cleanup(() => announced.close());
-
-		effect.spawn(this.#runRemotes.bind(this, announced));
+		effect.spawn(this.#runRemotes.bind(this, connection, name));
 	}
 
-	async #runRemotes(announced: Moq.Announced) {
+	async #runRemotes(connection: Moq.Connection, name?: Moq.Path.Valid) {
 		try {
 			for (;;) {
-				const update = await announced.next();
+				const update = await connection.announced();
 
 				// We're donezo.
 				if (!update) break;
 
-				this.#handleUpdate(update);
+				if (!name || Path.hasPrefix(name, update.name)) {
+					this.#handleUpdate(update);
+				}
 			}
 		} finally {
 			this.close();
 		}
 	}
 
-	#handleUpdate(update: Moq.Announce) {
+	#handleUpdate(update: Moq.Announced) {
 		for (const [name, broadcast] of this.locals) {
 			if (update.name === name) {
 				if (update.active) {

@@ -1,4 +1,4 @@
-import { Announced } from "../announced.ts";
+import { type Announced, AnnouncedQueue } from "../announced.ts";
 import { Broadcast, type TrackRequest } from "../broadcast.ts";
 import { Group } from "../group.ts";
 import type * as Path from "../path.ts";
@@ -20,10 +20,6 @@ import type { TrackStatus } from "./track.ts";
 export class Subscriber {
 	#control: Control.Stream;
 
-	// TODO This needs to be used
-	// @ts-expect-error TODO: This is not used yet
-	#root: Path.Valid;
-
 	// Our subscribed tracks - keyed by subscription ID
 	#subscribes = new Map<bigint, Track>();
 	#subscribeNext = 0n;
@@ -37,7 +33,7 @@ export class Subscriber {
 		}
 	>();
 
-	#announced: Announced;
+	#announced: AnnouncedQueue;
 
 	/**
 	 * Creates a new Subscriber instance.
@@ -46,10 +42,9 @@ export class Subscriber {
 	 *
 	 * @internal
 	 */
-	constructor(control: Control.Stream, root: Path.Valid) {
+	constructor(control: Control.Stream) {
 		this.#control = control;
-		this.#root = root;
-		this.#announced = new Announced();
+		this.#announced = new AnnouncedQueue();
 		//void this.#runAnnounced();
 	}
 
@@ -66,8 +61,8 @@ export class Subscriber {
 	 * @param prefix - The prefix for announcements
 	 * @returns An AnnounceConsumer instance
 	 */
-	get announced(): Announced {
-		return this.#announced;
+	async announced(): Promise<Announced | undefined> {
+		return this.#announced.next();
 	}
 
 	/**

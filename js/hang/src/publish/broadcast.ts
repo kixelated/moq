@@ -6,8 +6,8 @@ import * as Audio from "./audio";
 import * as Chat from "./chat";
 import { Location, type LocationProps } from "./location";
 import { Preview, type PreviewProps } from "./preview";
-import * as Video from "./video";
 import { TRACKS } from "./tracks";
+import * as Video from "./video";
 
 export type BroadcastProps = {
 	enabled?: boolean | Signal<boolean>;
@@ -52,23 +52,28 @@ export class Broadcast {
 		this.preview = new Preview(props?.preview);
 		this.user = Signal.from(props?.user);
 
-		this.signals.spawn(this.#runBroadcast.bind(this, this.signals)); // TODO pass effect to spawn
+		this.signals.effect(this.#run.bind(this));
 	}
 
-	async #runBroadcast(effect: Effect): Promise<void> {
-		if (!effect.get(this.enabled)) return;
+	#run(effect: Effect) {
+		const enabled = effect.get(this.enabled);
+		if (!enabled) return;
 
 		const connection = effect.get(this.connection.established);
 		if (!connection) return;
 
 		const name = effect.get(this.name);
-		if (!name) return;
+		if (name === undefined) return;
 
 		const broadcast = new Moq.Broadcast();
 		effect.cleanup(() => broadcast.close());
 
 		connection.publish(name, broadcast);
 
+		effect.spawn(this.#runBroadcast.bind(this, broadcast, effect));
+	}
+
+	async #runBroadcast(broadcast: Moq.Broadcast, effect: Effect) {
 		for (;;) {
 			const request = await broadcast.requested();
 			if (!request) break;
@@ -76,7 +81,7 @@ export class Broadcast {
 			effect.cleanup(() => request.track.close());
 
 			effect.effect((effect) => {
-				if (!effect.get(request.track.state.closed)) return;
+				if (effect.get(request.track.state.closed)) return;
 
 				switch (request.track.name) {
 					case TRACKS.catalog:
@@ -104,6 +109,7 @@ export class Broadcast {
 						this.video.serve(request.track, effect);
 						break;
 					default:
+						console.warn("received subscription for unknown track", request.track.name);
 						request.track.close(new Error(`Unknown track: ${request.track.name}`));
 						break;
 				}
@@ -112,7 +118,11 @@ export class Broadcast {
 	}
 
 	#serveCatalog(track: Moq.Track, effect: Effect): void {
-		if (!effect.get(this.enabled)) return;
+		if (!effect.get(this.enabled)) {
+			// Clear the catalog.
+			track.writeFrame(Catalog.encode({}));
+			return;
+		}
 
 		// Create the new catalog.
 		const audio = effect.get(this.audio.catalog);
@@ -128,11 +138,7 @@ export class Broadcast {
 		};
 
 		const encoded = Catalog.encode(catalog);
-
-		// Encode the catalog.
-		const catalogGroup = track.appendGroup();
-		catalogGroup.writeFrame(encoded);
-		catalogGroup.close();
+		track.writeFrame(encoded);
 	}
 
 	close() {

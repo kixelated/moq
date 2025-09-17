@@ -1,4 +1,4 @@
-import { Announced } from "../announced.ts";
+import { AnnouncedQueue } from "../announced.ts";
 import type { Broadcast } from "../broadcast.ts";
 import type { Group } from "../group.ts";
 import * as Path from "../path.ts";
@@ -19,7 +19,7 @@ export class Publisher {
 
 	// TODO this will store every announce/unannounce message, which will grow unbounded.
 	// We should remove any cached announcements on unannounce, etc.
-	#announced = new Announced();
+	#announced = new AnnouncedQueue();
 
 	// Our published broadcasts.
 	#broadcasts = new Map<Path.Valid, Broadcast>();
@@ -53,8 +53,6 @@ export class Publisher {
 			// Wait until the broadcast is closed, then remove it from the lookup.
 			await broadcast.closed;
 		} finally {
-			broadcast.close();
-
 			this.#broadcasts.delete(name);
 			this.#announced.write({
 				name,
@@ -158,8 +156,13 @@ export class Publisher {
 			}
 
 			console.debug(`publish done: broadcast=${msg.broadcast} track=${track.name}`);
-		} finally {
+			stream.close();
 			track.close();
+		} catch (err: unknown) {
+			const e = error(err);
+			console.warn(`publish error: broadcast=${msg.broadcast} track=${track.name} error=${e.message}`);
+			track.close(e);
+			stream.abort(e);
 		}
 	}
 
@@ -176,7 +179,7 @@ export class Publisher {
 		try {
 			for (;;) {
 				const next = track.nextGroup();
-				const group = await Promise.race([next, stream.closed()]);
+				const group = await Promise.race([next, stream.closed]);
 				if (!group) {
 					next.then((group) => group?.close()).catch(() => {});
 					break;
@@ -186,13 +189,13 @@ export class Publisher {
 			}
 
 			console.debug(`publish close: broadcast=${broadcast} track=${track.name}`);
+			track.close();
 			stream.close();
 		} catch (err: unknown) {
 			const e = error(err);
 			console.warn(`publish error: broadcast=${broadcast} track=${track.name} error=${e.message}`);
+			track.close(e);
 			stream.reset(e);
-		} finally {
-			track.close();
 		}
 	}
 
@@ -212,7 +215,7 @@ export class Publisher {
 
 			try {
 				for (;;) {
-					const frame = await Promise.race([group.readFrame(), stream.closed()]);
+					const frame = await Promise.race([group.readFrame(), stream.closed]);
 					if (!frame) break;
 
 					await stream.u53(frame.byteLength);
@@ -220,11 +223,15 @@ export class Publisher {
 				}
 
 				stream.close();
+				group.close();
 			} catch (err: unknown) {
-				stream.reset(error(err));
+				const e = error(err);
+				stream.reset(e);
+				group.close(e);
 			}
-		} finally {
-			group.close();
+		} catch (err: unknown) {
+			const e = error(err);
+			group.close(e);
 		}
 	}
 
