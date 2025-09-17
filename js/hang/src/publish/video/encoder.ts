@@ -1,11 +1,11 @@
 import * as Moq from "@kixelated/moq";
 import { Effect, type Getter, Signal } from "@kixelated/signals";
-import type * as Catalog from "../../catalog";
-import { u8, u53 } from "../../catalog/integers";
+import * as Catalog from "../../catalog";
+import { u53 } from "../../catalog/integers";
 import * as Frame from "../../frame";
 import * as Time from "../../time";
 import { isFirefox } from "../../util/hacks";
-import * as Hex from "../../util/hex";
+import { TRACKS } from "../tracks";
 import { Detection, type DetectionProps } from "./detection";
 import { VideoTrackProcessor } from "./polyfill";
 import type { Source, VideoTrackSettings } from "./types";
@@ -21,7 +21,6 @@ export type EncoderProps = {
 };
 
 export class Encoder {
-	broadcast: Moq.BroadcastProducer;
 	detection: Detection;
 
 	enabled: Signal<boolean>;
@@ -31,62 +30,47 @@ export class Encoder {
 	#catalog = new Signal<Catalog.Video | undefined>(undefined);
 	readonly catalog: Getter<Catalog.Video | undefined> = this.#catalog;
 
-	#track = new Moq.TrackProducer("video", 1);
-
-	#active = new Signal(false);
-	readonly active: Getter<boolean> = this.#active;
-
 	#encoderConfig = new Signal<VideoEncoderConfig | undefined>(undefined);
-	#decoderConfig = new Signal<VideoDecoderConfig | undefined>(undefined);
+	//#decoderConfig = new Signal<VideoDecoderConfig | undefined>(undefined);
 
 	#signals = new Effect();
 
 	// Store the latest VideoFrame
 	frame = new Signal<VideoFrame | undefined>(undefined);
 
-	constructor(broadcast: Moq.BroadcastProducer, props?: EncoderProps) {
-		this.broadcast = broadcast;
-		this.detection = new Detection(this.broadcast, this.frame.peek.bind(this.frame), props?.detection);
+	constructor(props?: EncoderProps) {
+		this.detection = new Detection(this.frame.peek.bind(this.frame), props?.detection);
 
 		this.source = Signal.from(props?.source);
 		this.enabled = Signal.from(props?.enabled ?? false);
 		this.flip = Signal.from(props?.flip ?? false);
 
-		this.#signals.effect(this.#runEncoder.bind(this));
 		this.#signals.effect(this.#runCatalog.bind(this));
 	}
 
-	#runEncoder(effect: Effect): void {
+	serve(track: Moq.Track, effect: Effect): void {
 		const enabled = effect.get(this.enabled);
 		if (!enabled) return;
 
 		const source = effect.get(this.source);
 		if (!source) return;
 
-		// Insert the track into the broadcast.
-		this.broadcast.insertTrack(this.#track.consume());
-		effect.cleanup(() => this.broadcast.removeTrack(this.#track.name));
-
 		const settings = source.getSettings() as VideoTrackSettings;
 		const processor = VideoTrackProcessor(source);
 		const reader = processor.getReader();
 		effect.cleanup(() => reader.cancel());
 
-		let group: Moq.GroupProducer | undefined;
+		let group: Moq.Group | undefined;
 		effect.cleanup(() => group?.close());
 
 		let groupTimestamp = 0 as Time.Micro;
 
 		const encoder = new VideoEncoder({
-			output: (frame: EncodedVideoChunk, metadata?: EncodedVideoChunkMetadata) => {
-				if (metadata?.decoderConfig) {
-					effect.set(this.#decoderConfig, metadata.decoderConfig);
-				}
-
+			output: (frame: EncodedVideoChunk) => {
 				if (frame.type === "key") {
 					groupTimestamp = frame.timestamp as Time.Micro;
 					group?.close();
-					group = this.#track.appendGroup();
+					group = track.appendGroup();
 				} else if (!group) {
 					throw new Error("no keyframe");
 				}
@@ -96,7 +80,6 @@ export class Encoder {
 			},
 			error: (err: Error) => {
 				group?.close(err);
-				this.#track.close(err);
 			},
 		});
 		effect.cleanup(() => encoder.close());
@@ -104,8 +87,6 @@ export class Encoder {
 		effect.spawn(async () => {
 			let next = await reader.read();
 			if (!next || !next.value) return;
-
-			effect.set(this.#active, true, false);
 
 			let frame = next.value;
 
@@ -306,31 +287,18 @@ export class Encoder {
 		const encoderConfig = effect.get(this.#encoderConfig);
 		if (!encoderConfig) return;
 
-		const decoderConfig = effect.get(this.#decoderConfig);
-		if (!decoderConfig) return;
-
 		const flip = effect.get(this.flip);
 
-		const description = decoderConfig.description
-			? Hex.fromBytes(decoderConfig.description as Uint8Array)
-			: undefined;
-
 		const catalog: Catalog.Video = {
-			track: {
-				name: this.#track.name,
-				priority: u8(this.#track.priority),
-			},
+			track: TRACKS.video,
 			config: {
 				// The order is important here.
-				codec: decoderConfig.codec,
-				description,
-				codedWidth: decoderConfig.codedWidth ? u53(decoderConfig.codedWidth) : undefined,
-				codedHeight: decoderConfig.codedHeight ? u53(decoderConfig.codedHeight) : undefined,
+				codec: encoderConfig.codec,
+				description: undefined, // NOTE: We currently don't support description
 				displayAspectWidth: encoderConfig.displayWidth ? u53(encoderConfig.displayWidth) : undefined,
 				displayAspectHeight: encoderConfig.displayHeight ? u53(encoderConfig.displayHeight) : undefined,
 				framerate: encoderConfig.framerate,
 				bitrate: encoderConfig.bitrate ? u53(encoderConfig.bitrate) : undefined,
-				optimizeForLatency: decoderConfig.optimizeForLatency,
 				flip,
 				rotation: undefined,
 			},
@@ -347,6 +315,5 @@ export class Encoder {
 
 		this.#signals.close();
 		this.detection.close();
-		this.#track.close();
 	}
 }

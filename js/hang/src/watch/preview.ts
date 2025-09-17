@@ -1,22 +1,23 @@
-import type * as Moq from "@kixelated/moq";
+import * as Moq from "@kixelated/moq";
 import * as Zod from "@kixelated/moq/zod";
 import { Effect, Signal } from "@kixelated/signals";
-import type * as Catalog from "../catalog";
+import * as Catalog from "../catalog";
 import { type Info, InfoSchema } from "../preview";
+import { PRIORITY } from "./priority";
 
 export interface PreviewProps {
 	enabled?: boolean | Signal<boolean>;
 }
 
 export class Preview {
-	broadcast: Signal<Moq.BroadcastConsumer | undefined>;
+	broadcast: Signal<Moq.Broadcast | undefined>;
 	enabled: Signal<boolean>;
 	preview = new Signal<Info | undefined>(undefined);
 
 	#signals = new Effect();
 
 	constructor(
-		broadcast: Signal<Moq.BroadcastConsumer | undefined>,
+		broadcast: Signal<Moq.Broadcast | undefined>,
 		_catalog: Signal<Catalog.Root | undefined>,
 		props?: PreviewProps,
 	) {
@@ -30,7 +31,7 @@ export class Preview {
 			if (!broadcast) return;
 
 			// Subscribe to the preview.json track directly
-			const track = broadcast.subscribe("preview.json", 0);
+			const track = broadcast.subscribe("preview.json", PRIORITY.preview);
 			effect.cleanup(() => track.close());
 
 			effect.spawn(async () => {

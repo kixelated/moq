@@ -1,13 +1,14 @@
-import type * as Moq from "@kixelated/moq";
+import * as Moq from "@kixelated/moq";
 import { Effect, type Getter, Signal } from "@kixelated/signals";
-import type * as Catalog from "../../catalog";
+import * as Catalog from "../../catalog";
+import { PRIORITY } from "../priority";
 
 export type CaptionsProps = {
 	enabled?: boolean | Signal<boolean>;
 };
 
 export class Captions {
-	broadcast: Getter<Moq.BroadcastConsumer | undefined>;
+	broadcast: Getter<Moq.Broadcast | undefined>;
 	info: Getter<Catalog.Audio | undefined>;
 	enabled: Signal<boolean>;
 
@@ -18,7 +19,7 @@ export class Captions {
 	#signals = new Effect();
 
 	constructor(
-		broadcast: Getter<Moq.BroadcastConsumer | undefined>,
+		broadcast: Getter<Moq.Broadcast | undefined>,
 		info: Getter<Catalog.Audio | undefined>,
 		props?: CaptionsProps,
 	) {
@@ -41,7 +42,7 @@ export class Captions {
 
 		if (!info.captions) return;
 
-		const sub = broadcast.subscribe(info.captions.track.name, info.captions.track.priority);
+		const sub = broadcast.subscribe(info.captions.track, PRIORITY.captions);
 		effect.cleanup(() => sub.close());
 
 		effect.spawn(async () => {

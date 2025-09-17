@@ -1,10 +1,10 @@
 import * as Moq from "@kixelated/moq";
 import { Effect, Signal } from "@kixelated/signals";
-import type * as Catalog from "../../catalog";
-import { u8 } from "../../catalog";
+import * as Catalog from "../../catalog";
 import CaptureWorklet from "./capture-worklet?worker&url";
 import type { Request, Result } from "./speaking-worker";
 import type { Source } from "./types";
+import { TRACKS } from "../tracks";
 
 export type SpeakingProps = {
 	enabled?: boolean | Signal<boolean>;
@@ -12,7 +12,6 @@ export type SpeakingProps = {
 
 // Detects when the user is speaking.
 export class Speaking {
-	broadcast: Moq.BroadcastProducer;
 	source: Signal<Source | undefined>;
 
 	enabled: Signal<boolean>;
@@ -22,37 +21,33 @@ export class Speaking {
 
 	signals = new Effect();
 
-	#track = new Moq.TrackProducer("speaking.bool", 1);
-
-	constructor(broadcast: Moq.BroadcastProducer, source: Signal<Source | undefined>, props?: SpeakingProps) {
-		this.broadcast = broadcast;
+	constructor(source: Signal<Source | undefined>, props?: SpeakingProps) {
 		this.source = source;
 		this.enabled = Signal.from(props?.enabled ?? false);
-		this.signals.effect(this.#run.bind(this));
+		this.signals.effect(this.#runCatalog.bind(this));
 	}
 
-	#run(effect: Effect): void {
+	#runCatalog(effect: Effect): void {
+		const enabled = effect.get(this.enabled);
+		if (!enabled) return;
+
+		const catalog: Catalog.Speaking = {
+			track: TRACKS.speaking,
+		};
+		effect.set(this.catalog, catalog);
+	}
+
+	serve(track: Moq.Track, effect: Effect): void {
 		const enabled = effect.get(this.enabled);
 		if (!enabled) return;
 
 		const source = effect.get(this.source);
 		if (!source) return;
 
-		this.broadcast.insertTrack(this.#track.consume());
-		effect.cleanup(() => this.broadcast.removeTrack(this.#track.name));
-
-		const catalog: Catalog.Speaking = {
-			track: {
-				name: this.#track.name,
-				priority: u8(this.#track.priority),
-			},
-		};
-		effect.set(this.catalog, catalog);
-
 		// Create a nested effect to avoid recreating the track every time the speaking changes.
 		effect.effect((nested) => {
 			const active = nested.get(this.active);
-			this.#track.writeBool(active);
+			track.writeBool(active);
 		});
 
 		const worker = new Worker(new URL("./speaking-worker", import.meta.url), { type: "module" });
@@ -112,6 +107,5 @@ export class Speaking {
 
 	close() {
 		this.signals.close();
-		this.#track.close();
 	}
 }

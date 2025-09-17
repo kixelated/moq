@@ -39,17 +39,18 @@
 	},
 	"dependencies": {
 		"@huggingface/transformers": "^3.7.2",
+		"@kixelated/libavjs-webcodecs-polyfill": "^0.5.5",
 		"@kixelated/moq": "workspace:^",
 		"@kixelated/signals": "workspace:^",
 		"@libav.js/variant-opus-af": "^6.8.8",
 		"async-mutex": "^0.5.0",
 		"comlink": "^4.4.2",
-		"@kixelated/libavjs-webcodecs-polyfill": "^0.5.5",
-		"zod": "^4.1.0"
+		"zod": "^4.1.5"
 	},
 	"devDependencies": {
 		"@types/audioworklet": "^0.0.77",
 		"@typescript/lib-dom": "npm:@types/web@^0.0.241",
+		"@typescript/native-preview": "7.0.0-dev.20250910.1",
 		"fast-glob": "^3.3.3",
 		"rimraf": "^6.0.1",
 		"typescript": "^5.9.2",

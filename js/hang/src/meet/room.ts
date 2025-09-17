@@ -95,7 +95,7 @@ export class Room {
 		effect.spawn(this.#runRemotes.bind(this, announced));
 	}
 
-	async #runRemotes(announced: Moq.AnnouncedConsumer) {
+	async #runRemotes(announced: Moq.Announced) {
 		try {
 			for (;;) {
 				const update = await announced.next();

@@ -1,14 +1,13 @@
 import * as Moq from "@kixelated/moq";
 import { Effect, Signal } from "@kixelated/signals";
-import type * as Catalog from "../../catalog";
-import { u8 } from "../../catalog/integers";
+import * as Catalog from "../../catalog";
+import { TRACKS } from "../tracks";
 
 export type TypingProps = {
 	enabled?: boolean | Signal<boolean>;
 };
 
 export class Typing {
-	broadcast: Moq.BroadcastProducer;
 	enabled: Signal<boolean>;
 
 	// Whether the user is typing.
@@ -16,13 +15,9 @@ export class Typing {
 
 	catalog = new Signal<Catalog.Track | undefined>(undefined);
 
-	// Always create the tracks, even if we're not publishing it
-	#track = new Moq.TrackProducer("chat.bool", 0);
-
 	#signals = new Effect();
 
-	constructor(broadcast: Moq.BroadcastProducer, props?: TypingProps) {
-		this.broadcast = broadcast;
+	constructor(props?: TypingProps) {
 		this.enabled = Signal.from(props?.enabled ?? false);
 		this.active = new Signal<boolean>(false);
 
@@ -30,26 +25,19 @@ export class Typing {
 			const enabled = effect.get(this.enabled);
 			if (!enabled) return;
 
-			broadcast.insertTrack(this.#track.consume());
-			effect.cleanup(() => broadcast.removeTrack(this.#track.name));
-
-			this.catalog.set({
-				name: this.#track.name,
-				priority: u8(this.#track.priority),
-			});
+			this.catalog.set(TRACKS.typing);
 		});
+	}
 
-		this.#signals.effect((effect) => {
-			const enabled = effect.get(this.enabled);
-			if (!enabled) return;
+	serve(track: Moq.Track, effect: Effect): void {
+		const enabled = effect.get(this.enabled);
+		if (!enabled) return;
 
-			const active = effect.get(this.active);
-			this.#track.writeBool(active);
-		});
+		const active = effect.get(this.active);
+		track.writeBool(active);
 	}
 
 	close() {
 		this.#signals.close();
-		this.#track.close();
 	}
 }

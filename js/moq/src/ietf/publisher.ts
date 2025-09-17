@@ -1,12 +1,12 @@
-import type { BroadcastConsumer } from "../broadcast.ts";
-import type { GroupConsumer } from "../group.ts";
+import type { Broadcast } from "../broadcast.ts";
+import type { Group } from "../group.ts";
 import * as Path from "../path.ts";
 import { Writer } from "../stream.ts";
-import type { TrackConsumer } from "../track.ts";
+import type { Track } from "../track.ts";
 import { error } from "../util/error.ts";
 import { Announce, type AnnounceCancel, type AnnounceError, type AnnounceOk, Unannounce } from "./announce.ts";
 import type * as Control from "./control.ts";
-import { Frame, Group, writeStreamType } from "./object.ts";
+import { Frame, Group as GroupMessage, writeStreamType } from "./object.ts";
 import { type Subscribe, SubscribeDone, SubscribeError, SubscribeOk, type Unsubscribe } from "./subscribe.ts";
 import type { SubscribeAnnounces, UnsubscribeAnnounces } from "./subscribe_announces.ts";
 import { TrackStatus, type TrackStatusRequest } from "./track.ts";
@@ -22,7 +22,7 @@ export class Publisher {
 	#root: Path.Valid;
 
 	// Our published broadcasts.
-	#broadcasts: Map<Path.Valid, BroadcastConsumer> = new Map();
+	#broadcasts: Map<Path.Valid, Broadcast> = new Map();
 
 	/**
 	 * Creates a new Publisher instance.
@@ -41,19 +41,19 @@ export class Publisher {
 	 * Publishes a broadcast with any associated tracks.
 	 * @param name - The broadcast to publish
 	 */
-	publish(name: Path.Valid, broadcast: BroadcastConsumer) {
+	publish(name: Path.Valid, broadcast: Broadcast) {
 		const full = Path.join(this.#root, name);
 		this.#broadcasts.set(full, broadcast);
 		void this.#runPublish(full, broadcast);
 	}
 
-	async #runPublish(full: Path.Valid, broadcast: BroadcastConsumer) {
+	async #runPublish(full: Path.Valid, broadcast: Broadcast) {
 		try {
 			const announce = new Announce(full);
 			await this.#control.write(announce);
 
 			// Wait until the broadcast is closed, then remove it from the lookup.
-			await broadcast.closed();
+			await broadcast.closed;
 
 			const unannounce = new Unannounce(full);
 			await this.#control.write(unannounce);
@@ -107,7 +107,7 @@ export class Publisher {
 	 *
 	 * @internal
 	 */
-	async #runTrack(subscribeId: bigint, trackAlias: bigint, track: TrackConsumer) {
+	async #runTrack(subscribeId: bigint, trackAlias: bigint, track: Track) {
 		try {
 			for (;;) {
 				const group = await track.nextGroup();
@@ -134,7 +134,7 @@ export class Publisher {
 	 *
 	 * @internal
 	 */
-	async #runGroup(subscribeId: bigint, trackAlias: bigint, group: GroupConsumer) {
+	async #runGroup(subscribeId: bigint, trackAlias: bigint, group: Group) {
 		try {
 			// Create a new unidirectional stream for this group
 			const stream = await Writer.open(this.#quic);
@@ -144,7 +144,7 @@ export class Publisher {
 			await writeStreamType(stream);
 
 			// Write STREAM_HEADER_SUBGROUP
-			const header = new Group(
+			const header = new GroupMessage(
 				subscribeId,
 				trackAlias,
 				group.sequence,

@@ -5,6 +5,7 @@ import * as Catalog from "../../catalog";
 import type { DetectionWorker } from "./detection-worker";
 // Vite-specific import for worker
 import WorkerUrl from "./detection-worker?worker&url";
+import { TRACKS } from "../tracks";
 
 export type DetectionProps = {
 	enabled?: boolean | Signal<boolean>;
@@ -13,7 +14,6 @@ export type DetectionProps = {
 };
 
 export class Detection {
-	broadcast: Moq.BroadcastProducer;
 	frame: () => VideoFrame | undefined;
 
 	enabled: Signal<boolean>;
@@ -25,34 +25,28 @@ export class Detection {
 	#catalog = new Signal<Catalog.Detection | undefined>(undefined);
 	readonly catalog: Getter<Catalog.Detection | undefined> = this.#catalog;
 
-	#track: Moq.TrackProducer;
-
 	signals = new Effect();
 
-	constructor(broadcast: Moq.BroadcastProducer, frame: () => VideoFrame | undefined, props?: DetectionProps) {
-		this.broadcast = broadcast;
+	constructor(frame: () => VideoFrame | undefined, props?: DetectionProps) {
 		this.frame = frame;
 		this.enabled = Signal.from(props?.enabled ?? false);
 		this.#interval = props?.interval ?? 1000;
 		this.#threshold = props?.threshold ?? 0.5;
-
-		this.#track = new Moq.TrackProducer(`detection.json`, 1);
-		this.signals.cleanup(() => this.#track.close());
-
-		this.signals.effect(this.#run.bind(this));
+		this.signals.effect(this.#runCatalog.bind(this));
 	}
 
-	#run(effect: Effect): void {
+	#runCatalog(effect: Effect): void {
 		const enabled = effect.get(this.enabled);
 		if (!enabled) return;
 
-		this.broadcast.insertTrack(this.#track.consume());
-		effect.cleanup(() => this.broadcast.removeTrack(this.#track.name));
-
-		// Set the detection catalog
 		this.#catalog.set({
-			track: { name: this.#track.name, priority: Catalog.u8(this.#track.priority) },
+			track: TRACKS.detection,
 		});
+	}
+
+	serve(track: Moq.Track, effect: Effect): void {
+		const enabled = effect.get(this.enabled);
+		if (!enabled) return;
 
 		// Initialize worker
 		const worker = new Worker(WorkerUrl, { type: "module" });
@@ -77,7 +71,7 @@ export class Detection {
 			const result = await api.detect(Comlink.transfer(cloned, [cloned]), this.#threshold);
 
 			this.objects.set(result);
-			this.#track.writeJson(result);
+			track.writeJson(result);
 
 			// Schedule the next detection only after this one is complete.
 			// Otherwise, we're in trouble if it takes >= interval to complete.
@@ -89,6 +83,5 @@ export class Detection {
 
 	close() {
 		this.signals.close();
-		this.#track.close();
 	}
 }

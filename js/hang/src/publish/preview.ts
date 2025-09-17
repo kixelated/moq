@@ -8,41 +8,20 @@ export type PreviewProps = {
 };
 
 export class Preview {
-	broadcast: Moq.BroadcastProducer;
 	enabled: Signal<boolean>;
 	info: Signal<Info | undefined>;
 
-	#track = new Moq.TrackProducer("preview.json", 0);
-	#signals = new Effect();
-
-	constructor(broadcast: Moq.BroadcastProducer, props?: PreviewProps) {
-		this.broadcast = broadcast;
+	constructor(props?: PreviewProps) {
 		this.enabled = Signal.from(props?.enabled ?? false);
 		this.info = Signal.from(props?.info);
-
-		this.#signals.effect((effect) => {
-			const enabled = effect.get(this.enabled);
-			if (!enabled) return;
-
-			broadcast.insertTrack(this.#track.consume());
-			effect.cleanup(() => broadcast.removeTrack(this.#track.name));
-		});
-
-		this.#signals.effect((effect) => {
-			if (!effect.get(this.enabled)) return;
-
-			const info = effect.get(this.info);
-			if (!info) return;
-
-			this.#publish(info);
-		});
 	}
 
-	#publish(preview: Info) {
-		this.#track.writeJson(preview);
-	}
+	serve(track: Moq.Track, effect: Effect): void {
+		if (!effect.get(this.enabled)) return;
 
-	close() {
-		this.#signals.close();
+		const info = effect.get(this.info);
+		if (!info) return;
+
+		track.writeJson(info);
 	}
 }

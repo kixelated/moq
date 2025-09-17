@@ -1,9 +1,10 @@
-import type * as Moq from "@kixelated/moq";
+import * as Moq from "@kixelated/moq";
 import { Effect, type Getter, Signal } from "@kixelated/signals";
-import type * as Catalog from "../../catalog";
+import * as Catalog from "../../catalog";
 import * as Frame from "../../frame";
 import * as Hex from "../../util/hex";
 import { Detection, type DetectionProps } from "./detection";
+import { PRIORITY } from "../priority";
 
 export type SourceProps = {
 	enabled?: boolean | Signal<boolean>;
@@ -12,7 +13,7 @@ export type SourceProps = {
 
 // Responsible for switching between video tracks and buffering frames.
 export class Source {
-	broadcast: Signal<Moq.BroadcastConsumer | undefined>;
+	broadcast: Signal<Moq.Broadcast | undefined>;
 	enabled: Signal<boolean>; // Don't download any longer
 	catalog: Signal<Catalog.Root | undefined>;
 	info = new Signal<Catalog.Video | undefined>(undefined);
@@ -34,7 +35,7 @@ export class Source {
 	#signals = new Effect();
 
 	constructor(
-		broadcast: Signal<Moq.BroadcastConsumer | undefined>,
+		broadcast: Signal<Moq.Broadcast | undefined>,
 		catalog: Signal<Catalog.Root | undefined>,
 		props?: SourceProps,
 	) {
@@ -66,11 +67,8 @@ export class Source {
 		if (!broadcast) return;
 
 		// We don't clear previous frames so we can seamlessly switch tracks.
-		const sub = broadcast.subscribe(info.track.name, info.track.priority);
-		effect.cleanup(() => {
-			console.log("closing sub");
-			sub.close();
-		});
+		const sub = broadcast.subscribe(info.track, PRIORITY.video);
+		effect.cleanup(() => sub.close());
 
 		const decoder = new VideoDecoder({
 			output: (frame) => {
@@ -111,7 +109,7 @@ export class Source {
 		effect.spawn(async () => {
 			console.log("running decoder");
 			for (;;) {
-				const next = await sub.nextFrame();
+				const next = await sub.readFrameSequence();
 				console.log("next frame", next);
 				if (!next) break;
 

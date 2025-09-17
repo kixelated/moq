@@ -1,11 +1,11 @@
 import * as Moq from "@kixelated/moq";
 import { Effect, Signal } from "@kixelated/signals";
-import type * as Catalog from "../../catalog";
-import { u8 } from "../../catalog";
+import * as Catalog from "../../catalog";
 import type * as Time from "../../time";
 import type { Request, Result } from "./captions-worker";
 import CaptureWorklet from "./capture-worklet?worker&url";
 import type { Speaking } from "./speaking";
+import { TRACKS } from "../tracks";
 
 export type CaptionsProps = {
 	enabled?: boolean | Signal<boolean>;
@@ -28,38 +28,35 @@ export class Captions {
 
 	#ttl: Time.Milli;
 
-	#track = new Moq.TrackProducer("captions.txt", 1);
-
 	constructor(speaking: Speaking, props?: CaptionsProps) {
 		this.speaking = speaking;
 		this.#ttl = props?.ttl ?? (10000 as Time.Milli);
 		this.enabled = Signal.from(props?.enabled ?? false);
 
-		this.signals.effect(this.#run.bind(this));
+		this.signals.effect(this.#runCatalog.bind(this));
 	}
 
-	#run(effect: Effect): void {
+	#runCatalog(effect: Effect): void {
+		const enabled = effect.get(this.enabled);
+		if (!enabled) return;
+
+		const catalog: Catalog.Captions = {
+			track: TRACKS.captions,
+		};
+		effect.set(this.catalog, catalog);
+	}
+
+	serve(track: Moq.Track, effect: Effect): void {
 		const enabled = effect.get(this.enabled);
 		if (!enabled) return;
 
 		const source = effect.get(this.speaking.source);
 		if (!source) return;
 
-		this.speaking.broadcast.insertTrack(this.#track.consume());
-		effect.cleanup(() => this.speaking.broadcast.removeTrack(this.#track.name));
-
-		const catalog: Catalog.Captions = {
-			track: {
-				name: this.#track.name,
-				priority: u8(this.#track.priority),
-			},
-		};
-		effect.set(this.catalog, catalog);
-
 		// Create a nested effect to avoid recreating the track every time the caption changes.
 		effect.effect((nested) => {
 			const text = nested.get(this.text) ?? "";
-			this.#track.writeString(text);
+			track.writeString(text);
 
 			// Clear the caption after a timeout. (TODO based on the size)
 			nested.timer(() => this.text.set(undefined), this.#ttl);

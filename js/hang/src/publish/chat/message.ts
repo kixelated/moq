@@ -1,14 +1,13 @@
 import * as Moq from "@kixelated/moq";
 import { Effect, Signal } from "@kixelated/signals";
-import type * as Catalog from "../../catalog";
-import { u8 } from "../../catalog/integers";
+import * as Catalog from "../../catalog";
+import { TRACKS } from "../tracks";
 
 export type MessageProps = {
 	enabled?: boolean | Signal<boolean>;
 };
 
 export class Message {
-	broadcast: Moq.BroadcastProducer;
 	enabled: Signal<boolean>;
 
 	// The latest message to publish.
@@ -16,13 +15,9 @@ export class Message {
 
 	catalog = new Signal<Catalog.Track | undefined>(undefined);
 
-	// Always create the tracks, even if we're not publishing it
-	#track = new Moq.TrackProducer("chat.txt", 0);
-
 	#signals = new Effect();
 
-	constructor(broadcast: Moq.BroadcastProducer, props?: MessageProps) {
-		this.broadcast = broadcast;
+	constructor(props?: MessageProps) {
 		this.enabled = Signal.from(props?.enabled ?? false);
 		this.latest = new Signal<string>("");
 
@@ -30,23 +25,19 @@ export class Message {
 			const enabled = effect.get(this.enabled);
 			if (!enabled) return;
 
-			broadcast.insertTrack(this.#track.consume());
-			effect.cleanup(() => broadcast.removeTrack(this.#track.name));
-
-			this.catalog.set({ name: this.#track.name, priority: u8(this.#track.priority) });
+			this.catalog.set(TRACKS.chat);
 		});
+	}
 
-		this.#signals.effect((effect) => {
-			const enabled = effect.get(this.enabled);
-			if (!enabled) return;
+	serve(track: Moq.Track, effect: Effect): void {
+		const enabled = effect.get(this.enabled);
+		if (!enabled) return;
 
-			const latest = effect.get(this.latest);
-			this.#track.writeString(latest ?? "");
-		});
+		const latest = effect.get(this.latest);
+		track.writeString(latest ?? "");
 	}
 
 	close() {
 		this.#signals.close();
-		this.#track.close();
 	}
 }

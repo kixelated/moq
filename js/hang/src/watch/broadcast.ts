@@ -1,4 +1,4 @@
-import type * as Moq from "@kixelated/moq";
+import * as Moq from "@kixelated/moq";
 import { Effect, type Getter, Signal } from "@kixelated/signals";
 import * as Catalog from "../catalog";
 import type { Connection } from "../connection";
@@ -8,6 +8,7 @@ import { Location, type LocationProps } from "./location";
 import { Preview, type PreviewProps } from "./preview";
 import * as Video from "./video";
 import { Detection, type DetectionProps } from "./video/detection";
+import { PRIORITY } from "./priority";
 
 export interface BroadcastProps {
 	// Whether to start downloading the broadcast.
@@ -46,7 +47,7 @@ export class Broadcast {
 	detection: Detection;
 	preview: Preview;
 
-	#broadcast = new Signal<Moq.BroadcastConsumer | undefined>(undefined);
+	#broadcast = new Signal<Moq.Broadcast | undefined>(undefined);
 
 	#catalog = new Signal<Catalog.Root | undefined>(undefined);
 	readonly catalog: Getter<Catalog.Root | undefined> = this.#catalog;
@@ -135,13 +136,13 @@ export class Broadcast {
 
 		this.status.set("loading");
 
-		const catalog = broadcast.subscribe("catalog.json", 0);
+		const catalog = broadcast.subscribe("catalog.json", PRIORITY.catalog);
 		effect.cleanup(() => catalog.close());
 
 		effect.spawn(this.#fetchCatalog.bind(this, catalog));
 	}
 
-	async #fetchCatalog(catalog: Moq.TrackConsumer): Promise<void> {
+	async #fetchCatalog(catalog: Moq.Track): Promise<void> {
 		try {
 			for (;;) {
 				const update = await Catalog.fetch(catalog);

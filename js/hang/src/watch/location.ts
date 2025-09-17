@@ -1,7 +1,8 @@
-import type * as Moq from "@kixelated/moq";
+import * as Moq from "@kixelated/moq";
 import * as Zod from "@kixelated/moq/zod";
 import { Effect, type Getter, Signal } from "@kixelated/signals";
 import * as Catalog from "../catalog";
+import { PRIORITY } from "./priority";
 
 export interface LocationProps {
 	enabled?: boolean | Signal<boolean>;
@@ -10,7 +11,7 @@ export interface LocationProps {
 export class Location {
 	enabled: Signal<boolean>;
 
-	broadcast: Signal<Moq.BroadcastConsumer | undefined>;
+	broadcast: Signal<Moq.Broadcast | undefined>;
 	catalog = new Signal<Catalog.Location | undefined>(undefined);
 	handle = new Signal<string | undefined>(undefined);
 
@@ -22,7 +23,7 @@ export class Location {
 	#signals = new Effect();
 
 	constructor(
-		broadcast: Signal<Moq.BroadcastConsumer | undefined>,
+		broadcast: Signal<Moq.Broadcast | undefined>,
 		catalog: Signal<Catalog.Root | undefined>,
 		props?: LocationProps,
 	) {
@@ -66,7 +67,7 @@ export class Location {
 			const updates = effect.get(this.#updates);
 			if (!updates) return;
 
-			const track = broadcast.subscribe(updates.name, updates.priority);
+			const track = broadcast.subscribe(updates, PRIORITY.location);
 			effect.cleanup(() => track.close());
 
 			effect.spawn(runConsumer.bind(this, track, this.#current));
@@ -83,7 +84,7 @@ export class Location {
 	}
 }
 
-async function runConsumer(consumer: Moq.TrackConsumer, location: Signal<Catalog.Position | undefined>) {
+async function runConsumer(consumer: Moq.Track, location: Signal<Catalog.Position | undefined>) {
 	try {
 		for (;;) {
 			const position = await Zod.read(consumer, Catalog.PositionSchema);
@@ -103,13 +104,13 @@ async function runConsumer(consumer: Moq.TrackConsumer, location: Signal<Catalog
 export class LocationPeer {
 	handle: Signal<string | undefined>;
 	location: Signal<Catalog.Position | undefined>;
-	broadcast: Signal<Moq.BroadcastConsumer | undefined>;
+	broadcast: Signal<Moq.Broadcast | undefined>;
 
 	#track = new Signal<Catalog.Track | undefined>(undefined);
 	#signals = new Effect();
 
 	constructor(
-		broadcast: Signal<Moq.BroadcastConsumer | undefined>,
+		broadcast: Signal<Moq.Broadcast | undefined>,
 		catalog: Getter<Catalog.Location | undefined>,
 		handle?: string,
 	) {
@@ -142,7 +143,7 @@ export class LocationPeer {
 		const track = effect.get(this.#track);
 		if (!track) return;
 
-		const sub = broadcast.subscribe(track.name, track.priority);
+		const sub = broadcast.subscribe(track, PRIORITY.location);
 		effect.cleanup(() => sub.close());
 
 		effect.spawn(runConsumer.bind(this, sub, this.location));

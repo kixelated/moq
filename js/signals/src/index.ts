@@ -72,9 +72,10 @@ export class Signal<T> implements Getter<T>, Setter<T> {
 	}
 
 	// Mutate the current value and notify subscribers unless notify is false.
-	mutate(fn: (value: T) => void, notify = true): void {
-		fn(this.#value);
+	mutate<R>(fn: (value: T) => R, notify = true): R {
+		const r = fn(this.#value);
 		this.set(this.#value, notify);
+		return r;
 	}
 
 	// Receive a notification each time the value changes.
@@ -99,17 +100,19 @@ export class Signal<T> implements Getter<T>, Setter<T> {
 		return dispose;
 	}
 
-	// Keep watching until the predicate is true, then resolve with the value.
-	// NOTE: Make sure the predicate eventually resolves to true otherwise you have a leak.
-	until(predicate: (value: T) => boolean): Promise<T> {
-		return new Promise((resolve) => {
-			const dispose = this.subscribe((value) => {
-				if (predicate(value)) {
-					resolve(value);
-					dispose();
-				}
-			});
+	static async race<T extends readonly unknown[]>(
+		...sigs: { [K in keyof T]: Signal<T[K]> }
+	): Promise<Awaited<T[number]>> {
+		const dispose: Dispose[] = [];
+
+		const result: Awaited<T[number]> = await new Promise((resolve) => {
+			for (const sig of sigs) {
+				dispose.push(sig.changed(resolve));
+			}
 		});
+
+		for (const fn of dispose) fn();
+		return result;
 	}
 }
 

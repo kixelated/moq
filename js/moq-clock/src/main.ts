@@ -3,7 +3,7 @@
 // @ts-ignore Deno import.
 import { parseArgs } from "jsr:@std/cli/parse-args";
 
-import { BroadcastProducer, connect, Path } from "@kixelated/moq";
+import { Broadcast, connect, Path, type Track } from "@kixelated/moq";
 
 interface Config {
 	url: string;
@@ -73,25 +73,33 @@ async function publish(config: Config) {
 	console.log("✅ Connected to relay:", config.url);
 
 	// Create a new "broadcast", which is a collection of tracks.
-	const broadcastProducer = new BroadcastProducer();
-	connection.publish(Path.from(config.broadcast), broadcastProducer.consume());
+	const broadcast = new Broadcast();
+	connection.publish(Path.from(config.broadcast), broadcast);
 
 	console.log("✅ Published broadcast:", config.broadcast);
 
-	// Within our broadcast, create a single track.
-	const trackProducer = broadcastProducer.createTrack(config.track);
+	// Wait until we get a subscription for the track
+	for (;;) {
+		const request = await broadcast.requested();
+		if (!request) break;
 
+		if (request.track.name === config.track) {
+			publishTrack(request.track);
+		} else {
+			request.track.close(new Error("not found"));
+		}
+	}
+}
+
+async function publishTrack(track: Track) {
 	// Send timestamps over the wire, matching the Rust implementation format
-	console.log("✅ Publishing clock data on track:", config.track);
-
-	// NOTE: No data flows over the network until there's an active subscription
-	// You can think of trackProducer as a cache, storing data until needed.
+	console.log("✅ Publishing clock data on track:", track.name);
 
 	for (;;) {
 		const now = new Date();
 
 		// Create a new group for each minute (matching Rust implementation)
-		const group = trackProducer.appendGroup();
+		const group = track.appendGroup();
 
 		// Send the base timestamp (everything but seconds) - matching Rust format
 		const base = `${now.toISOString().slice(0, 16).replace("T", " ")}:`;

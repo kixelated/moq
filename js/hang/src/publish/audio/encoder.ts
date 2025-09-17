@@ -1,7 +1,7 @@
 import * as Moq from "@kixelated/moq";
 import { Effect, type Getter, Signal } from "@kixelated/signals";
-import type * as Catalog from "../../catalog";
-import { u8, u53 } from "../../catalog/integers";
+import * as Catalog from "../../catalog";
+import { u53 } from "../../catalog/integers";
 import * as Frame from "../../frame";
 import * as Time from "../../time";
 import * as libav from "../../util/libav";
@@ -15,6 +15,7 @@ const FADE_TIME = 0.2;
 // Unfortunately, we need to use a Vite-exclusive import for now.
 import CaptureWorklet from "./capture-worklet?worker&url";
 import { Speaking, type SpeakingProps } from "./speaking";
+import { TRACKS } from "../tracks";
 
 // The initial values for our signals.
 export type EncoderProps = {
@@ -32,7 +33,6 @@ export type EncoderProps = {
 };
 
 export class Encoder {
-	broadcast: Moq.BroadcastProducer;
 	enabled: Signal<boolean>;
 
 	muted: Signal<boolean>;
@@ -54,15 +54,12 @@ export class Encoder {
 	#gain = new Signal<GainNode | undefined>(undefined);
 	readonly root: Getter<AudioNode | undefined> = this.#gain;
 
-	#track = new Moq.TrackProducer("audio", 1);
-
 	#signals = new Effect();
 
-	constructor(broadcast: Moq.BroadcastProducer, props?: EncoderProps) {
-		this.broadcast = broadcast;
+	constructor(props?: EncoderProps) {
 		this.source = Signal.from(props?.source);
 		this.enabled = Signal.from(props?.enabled ?? false);
-		this.speaking = new Speaking(this.broadcast, this.source, props?.speaking);
+		this.speaking = new Speaking(this.source, props?.speaking);
 		this.captions = new Captions(this.speaking, props?.captions);
 		this.muted = Signal.from(props?.muted ?? false);
 		this.volume = Signal.from(props?.volume ?? 1);
@@ -70,7 +67,6 @@ export class Encoder {
 
 		this.#signals.effect(this.#runSource.bind(this));
 		this.#signals.effect(this.#runGain.bind(this));
-		this.#signals.effect(this.#runEncoder.bind(this));
 		this.#signals.effect(this.#runCatalog.bind(this));
 	}
 
@@ -134,7 +130,7 @@ export class Encoder {
 		}
 	}
 
-	#runEncoder(effect: Effect): void {
+	serve(track: Moq.Track, effect: Effect): void {
 		if (!effect.get(this.enabled)) return;
 
 		const source = effect.get(this.source);
@@ -153,7 +149,7 @@ export class Encoder {
 			// TODO there's a bunch of advanced Opus settings that we should use.
 		};
 
-		let group: Moq.GroupProducer = this.#track.appendGroup();
+		let group: Moq.Group = track.appendGroup();
 		effect.cleanup(() => group.close());
 
 		let groupTimestamp = 0 as Time.Micro;
@@ -170,7 +166,7 @@ export class Encoder {
 
 					if (frame.timestamp - groupTimestamp >= Time.Micro.fromMilli(this.maxLatency)) {
 						group.close();
-						group = this.#track.appendGroup();
+						group = track.appendGroup();
 						groupTimestamp = frame.timestamp as Time.Micro;
 					}
 
@@ -221,18 +217,11 @@ export class Encoder {
 		const config = effect.get(this.#config);
 		if (!config) return;
 
-		// Insert the track into the broadcast before returning the catalog referencing it.
-		this.broadcast.insertTrack(this.#track.consume());
-		effect.cleanup(() => this.broadcast.removeTrack(this.#track.name));
-
 		const captions = effect.get(this.captions.catalog);
 		const speaking = effect.get(this.speaking.catalog);
 
 		const catalog: Catalog.Audio = {
-			track: {
-				name: this.#track.name,
-				priority: u8(this.#track.priority),
-			},
+			track: TRACKS.audio,
 			config,
 			captions,
 			speaking,
@@ -245,6 +234,5 @@ export class Encoder {
 		this.#signals.close();
 		this.captions.close();
 		this.speaking.close();
-		this.#track.close();
 	}
 }

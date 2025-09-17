@@ -49,6 +49,9 @@ importers:
       '@typescript/lib-dom':
         specifier: npm:@types/web@^0.0.241
         version: '@types/web@0.0.241'
+      '@typescript/native-preview':
+        specifier: 7.0.0-dev.20250910.1
+        version: 7.0.0-dev.20250910.1
       fast-glob:
         specifier: ^3.3.3
         version: 3.3.3
@@ -1048,6 +1051,53 @@ packages:
   '@typescript-eslint/visitor-keys@8.43.0':
     resolution: {integrity: sha512-T+S1KqRD4sg/bHfLwrpF/K3gQLBM1n7Rp7OjjikjTEssI2YJzQpi5WXoynOaQ93ERIuq3O8RBTOUYDKszUCEHw==}
     engines: {node: ^18.18.0 || ^20.9.0 || >=21.1.0}
+
+  '@typescript/native-preview-darwin-arm64@7.0.0-dev.20250910.1':
+    resolution: {integrity: sha512-PcSdX+LDNSAsBCPcbLx01sE8kyNv48WAGlxtRptrXvgnY61O64FzqCr755pteGIGrEEEQ9qsmm5b68EdyMbqJQ==}
+    engines: {node: '>=20.6.0'}
+    cpu: [arm64]
+    os: [darwin]
+
+  '@typescript/native-preview-darwin-x64@7.0.0-dev.20250910.1':
+    resolution: {integrity: sha512-iz4T7SmwoLczNxfIlEfb3WQSD/cpcybT27s0S/HOAJbrZRRDRT/RvNWLT9PI0aEVM7EGxHrPOExjWGErItGP/w==}
+    engines: {node: '>=20.6.0'}
+    cpu: [x64]
+    os: [darwin]
+
+  '@typescript/native-preview-linux-arm64@7.0.0-dev.20250910.1':
+    resolution: {integrity: sha512-ezy44eOONVCTKBbMNuswVXQJDH96vZz1UttTzCWoLjnxa5YLPoSxtdXLzqLDXFm9mznFkO55dq5brFc0yEcytQ==}
+    engines: {node: '>=20.6.0'}
+    cpu: [arm64]
+    os: [linux]
+
+  '@typescript/native-preview-linux-arm@7.0.0-dev.20250910.1':
+    resolution: {integrity: sha512-LfxNhRNuxBjfGWsOn/aQ3j76E+ZyyvMcQOVYYyr/+5BG/2bCtKtKtLI+xZzxeaPL6yz3a+TTdO1RtT79z7IKGw==}
+    engines: {node: '>=20.6.0'}
+    cpu: [arm]
+    os: [linux]
+
+  '@typescript/native-preview-linux-x64@7.0.0-dev.20250910.1':
+    resolution: {integrity: sha512-pBmxFR9+C74QGzhDS8PRRBswQcnVFp2XD2J6oFfDcMmtsq8gFIlggAx3+k3fLysoH5gJDISsgjZr43IIcncpzQ==}
+    engines: {node: '>=20.6.0'}
+    cpu: [x64]
+    os: [linux]
+
+  '@typescript/native-preview-win32-arm64@7.0.0-dev.20250910.1':
+    resolution: {integrity: sha512-qCJYqZ/utGR9OPGx0871Ov1djUZ9MAFtGKrtbgUwrwjfXLLGZHUDOmI9brfYQ2ruCxTKENk6IfWIAtY+zV6C2A==}
+    engines: {node: '>=20.6.0'}
+    cpu: [arm64]
+    os: [win32]
+
+  '@typescript/native-preview-win32-x64@7.0.0-dev.20250910.1':
+    resolution: {integrity: sha512-RPjV+ZypHeSz1Ky6wys52tXTYpYQ4fAqovC5ZZC+j+Lf8gEEcWXcmuJMEBN6vhTCvx1c6QdRtBBIYRrUHh/JEA==}
+    engines: {node: '>=20.6.0'}
+    cpu: [x64]
+    os: [win32]
+
+  '@typescript/native-preview@7.0.0-dev.20250910.1':
+    resolution: {integrity: sha512-d4i1kHxvWfYDGIjah8PHkBdY+pts4jzEJ2g0xqqW6oz3eDmuwx3aeDwmcEXgqw/ClDLtdy0t3NjFSE4ysqGO1g==}
+    engines: {node: '>=20.6.0'}
+    hasBin: true
 
   '@ungap/global-this@0.4.4':
     resolution: {integrity: sha512-mHkm6FvepJECMNthFuIgpAEFmPOk71UyXuIxYfjytvFTnSDBIz7jmViO+LfHI/AjrazWije0PnSP3+/NlwzqtA==}
@@ -3071,6 +3121,37 @@ snapshots:
     dependencies:
       '@typescript-eslint/types': 8.43.0
       eslint-visitor-keys: 4.2.1
+
+  '@typescript/native-preview-darwin-arm64@7.0.0-dev.20250910.1':
+    optional: true
+
+  '@typescript/native-preview-darwin-x64@7.0.0-dev.20250910.1':
+    optional: true
+
+  '@typescript/native-preview-linux-arm64@7.0.0-dev.20250910.1':
+    optional: true
+
+  '@typescript/native-preview-linux-arm@7.0.0-dev.20250910.1':
+    optional: true
+
+  '@typescript/native-preview-linux-x64@7.0.0-dev.20250910.1':
+    optional: true
+
+  '@typescript/native-preview-win32-arm64@7.0.0-dev.20250910.1':
+    optional: true
+
+  '@typescript/native-preview-win32-x64@7.0.0-dev.20250910.1':
+    optional: true
+
+  '@typescript/native-preview@7.0.0-dev.20250910.1':
+    optionalDependencies:
+      '@typescript/native-preview-darwin-arm64': 7.0.0-dev.20250910.1
+      '@typescript/native-preview-darwin-x64': 7.0.0-dev.20250910.1
+      '@typescript/native-preview-linux-arm': 7.0.0-dev.20250910.1
+      '@typescript/native-preview-linux-arm64': 7.0.0-dev.20250910.1
+      '@typescript/native-preview-linux-x64': 7.0.0-dev.20250910.1
+      '@typescript/native-preview-win32-arm64': 7.0.0-dev.20250910.1
+      '@typescript/native-preview-win32-x64': 7.0.0-dev.20250910.1
 
   '@ungap/global-this@0.4.4': {}
 

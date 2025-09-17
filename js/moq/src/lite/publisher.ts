@@ -1,12 +1,12 @@
-import { AnnouncedProducer } from "../announced.ts";
-import type { BroadcastConsumer } from "../broadcast.ts";
-import type { GroupConsumer } from "../group.ts";
+import { Announced } from "../announced.ts";
+import type { Broadcast } from "../broadcast.ts";
+import type { Group } from "../group.ts";
 import * as Path from "../path.ts";
 import { type Stream, Writer } from "../stream.ts";
-import type { TrackConsumer } from "../track.ts";
+import type { Track } from "../track.js";
 import { error } from "../util/error.ts";
 import { Announce, AnnounceInit, type AnnounceInterest } from "./announce.ts";
-import { Group } from "./group.ts";
+import { Group as GroupMessage } from "./group.ts";
 import { type Subscribe, SubscribeOk, SubscribeUpdate } from "./subscribe.ts";
 
 /**
@@ -19,10 +19,10 @@ export class Publisher {
 
 	// TODO this will store every announce/unannounce message, which will grow unbounded.
 	// We should remove any cached announcements on unannounce, etc.
-	#announced = new AnnouncedProducer();
+	#announced = new Announced();
 
 	// Our published broadcasts.
-	#broadcasts = new Map<Path.Valid, BroadcastConsumer>();
+	#broadcasts = new Map<Path.Valid, Broadcast>();
 
 	/**
 	 * Creates a new Publisher instance.
@@ -38,12 +38,12 @@ export class Publisher {
 	 * Publishes a broadcast with any associated tracks.
 	 * @param name - The broadcast to publish
 	 */
-	publish(name: Path.Valid, broadcast: BroadcastConsumer) {
+	publish(name: Path.Valid, broadcast: Broadcast) {
 		this.#broadcasts.set(name, broadcast);
 		void this.#runPublish(name, broadcast);
 	}
 
-	async #runPublish(name: Path.Valid, broadcast: BroadcastConsumer) {
+	async #runPublish(name: Path.Valid, broadcast: Broadcast) {
 		try {
 			this.#announced.write({
 				name,
@@ -51,7 +51,7 @@ export class Publisher {
 			});
 
 			// Wait until the broadcast is closed, then remove it from the lookup.
-			await broadcast.closed();
+			await broadcast.closed;
 		} finally {
 			broadcast.close();
 
@@ -71,8 +71,6 @@ export class Publisher {
 	 * @internal
 	 */
 	async runAnnounce(msg: AnnounceInterest, stream: Stream) {
-		const consumer = this.#announced.consume(msg.prefix);
-
 		// Send ANNOUNCE_INIT as the first message with all currently active paths
 		const activePaths: Path.Valid[] = [];
 
@@ -80,7 +78,7 @@ export class Publisher {
 		// This abuses the fact that Promise.race will prioritize the first resolved promise.
 		const timeout = Promise.resolve();
 
-		let next = consumer.next();
+		let next = this.#announced.next();
 
 		for (;;) {
 			const announcement = await Promise.race([next, timeout]);
@@ -100,7 +98,7 @@ export class Publisher {
 				activePaths.splice(index, 1);
 			}
 
-			next = consumer.next();
+			next = this.#announced.next();
 		}
 
 		const init = new AnnounceInit(activePaths);
@@ -116,10 +114,10 @@ export class Publisher {
 			const wire = new Announce(announcement.name, announcement.active);
 			await wire.encode(stream.writer);
 
-			next = consumer.next();
+			next = this.#announced.next();
 		}
 
-		consumer.close();
+		this.#announced.close();
 	}
 
 	/**
@@ -138,8 +136,9 @@ export class Publisher {
 		}
 
 		const track = broadcast.subscribe(msg.track, msg.priority);
+
 		try {
-			const info = new SubscribeOk(track.priority);
+			const info = new SubscribeOk(msg.priority);
 			await info.encode(stream.writer);
 
 			console.debug(`publish ok: broadcast=${msg.broadcast} track=${track.name}`);
@@ -173,7 +172,7 @@ export class Publisher {
 	 *
 	 * @internal
 	 */
-	async #runTrack(sub: bigint, broadcast: Path.Valid, track: TrackConsumer, stream: Writer) {
+	async #runTrack(sub: bigint, broadcast: Path.Valid, track: Track, stream: Writer) {
 		try {
 			for (;;) {
 				const next = track.nextGroup();
@@ -204,8 +203,8 @@ export class Publisher {
 	 *
 	 * @internal
 	 */
-	async #runGroup(sub: bigint, group: GroupConsumer) {
-		const msg = new Group(sub, group.sequence);
+	async #runGroup(sub: bigint, group: Group) {
+		const msg = new GroupMessage(sub, group.sequence);
 		try {
 			const stream = await Writer.open(this.#quic);
 			await stream.u8(0);

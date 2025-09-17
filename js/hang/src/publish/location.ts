@@ -1,7 +1,7 @@
 import * as Moq from "@kixelated/moq";
 import { Effect, Signal } from "@kixelated/signals";
-import type * as Catalog from "../catalog";
-import { u8 } from "../catalog/integers";
+import * as Catalog from "../catalog";
+import { TRACKS } from "./tracks";
 
 export type LocationProps = {
 	// If true, then we'll publish our position to the broadcast.
@@ -15,14 +15,10 @@ export type LocationProps = {
 };
 
 export class Location {
-	broadcast: Moq.BroadcastProducer;
-
 	enabled: Signal<boolean>;
 
 	current: Signal<Catalog.Position | undefined>;
 	handle: Signal<string | undefined>; // Allow other peers to request position updates via this handle.
-
-	#track = new Moq.TrackProducer("location.json", 0);
 
 	catalog = new Signal<Catalog.Location | undefined>(undefined);
 
@@ -30,9 +26,7 @@ export class Location {
 
 	#signals = new Effect();
 
-	constructor(broadcast: Moq.BroadcastProducer, props?: LocationProps) {
-		this.broadcast = broadcast;
-
+	constructor(props?: LocationProps) {
 		this.enabled = Signal.from(props?.enabled ?? false);
 		this.current = Signal.from(props?.current ?? undefined);
 		this.handle = Signal.from(props?.handle ?? undefined);
@@ -43,55 +37,48 @@ export class Location {
 				return;
 			}
 
-			broadcast.insertTrack(this.#track.consume());
-			effect.cleanup(() => broadcast.removeTrack(this.#track.name));
-
 			effect.set(
 				this.catalog,
 				{
 					initial: this.current.peek(), // Doesn't trigger a re-render
-					updates: { name: this.#track.name, priority: u8(this.#track.priority) },
+					updates: TRACKS.location,
 					handle: effect.get(this.handle),
 					peers: effect.get(this.#peers),
 				},
 				undefined,
 			);
 		});
-
-		this.#signals.effect((effect) => {
-			const position = effect.get(this.current);
-			if (!position) return;
-			this.#track.writeJson(position);
-		});
 	}
 
-	// Request that a peer update their position via their handle.
-	peer(handle?: string): LocationPeer {
-		return new LocationPeer(this.broadcast, this.#peers, handle);
+	serve(track: Moq.Track, effect: Effect): void {
+		const enabled = effect.get(this.enabled);
+		if (!enabled) return;
+
+		const position = effect.get(this.current);
+		if (!position) return;
+
+		track.writeJson(position);
 	}
 
 	close() {
 		this.#signals.close();
-		this.#track.close();
 	}
 }
 
+/*
 export class LocationPeer {
 	handle: Signal<string | undefined>;
 	catalog: Signal<Record<string, Catalog.Track> | undefined>;
-	broadcast: Moq.BroadcastProducer;
-	producer = new Signal<Moq.TrackProducer | undefined>(undefined);
+	producer = new Signal<Moq.Track | undefined>(undefined);
 
 	#signals = new Effect();
 
 	constructor(
-		broadcast: Moq.BroadcastProducer,
 		catalog: Signal<Record<string, Catalog.Track> | undefined>,
 		handle?: string,
 	) {
 		this.handle = Signal.from(handle);
 		this.catalog = catalog;
-		this.broadcast = broadcast;
 
 		this.#signals.effect((effect) => {
 			const handle = effect.get(this.handle);
@@ -99,7 +86,7 @@ export class LocationPeer {
 				return;
 			}
 
-			const track = new Moq.TrackProducer(`peer/${handle}/location.json`, 0);
+			const track = new Moq.Track(`peer/${handle}/location.json`, 0);
 			effect.cleanup(() => track.close());
 
 			broadcast.insertTrack(track.consume());
@@ -132,3 +119,4 @@ export class LocationPeer {
 		this.#signals.close();
 	}
 }
+*/

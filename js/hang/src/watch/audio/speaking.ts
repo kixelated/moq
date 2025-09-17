@@ -1,13 +1,14 @@
-import type * as Moq from "@kixelated/moq";
+import * as Moq from "@kixelated/moq";
 import { Effect, type Getter, Signal } from "@kixelated/signals";
-import type * as Catalog from "../../catalog";
+import * as Catalog from "../../catalog";
+import { PRIORITY } from "../priority";
 
 export type SpeakingProps = {
 	enabled?: boolean | Signal<boolean>;
 };
 
 export class Speaking {
-	broadcast: Getter<Moq.BroadcastConsumer | undefined>;
+	broadcast: Getter<Moq.Broadcast | undefined>;
 	info: Getter<Catalog.Audio | undefined>;
 	enabled: Signal<boolean>;
 
@@ -18,7 +19,7 @@ export class Speaking {
 	#signals = new Effect();
 
 	constructor(
-		broadcast: Getter<Moq.BroadcastConsumer | undefined>,
+		broadcast: Getter<Moq.Broadcast | undefined>,
 		info: Getter<Catalog.Audio | undefined>,
 		props?: SpeakingProps,
 	) {
@@ -41,7 +42,7 @@ export class Speaking {
 
 		if (!info.speaking) return;
 
-		const sub = broadcast.subscribe(info.speaking.track.name, info.speaking.track.priority);
+		const sub = broadcast.subscribe(info.speaking.track, PRIORITY.speaking);
 		effect.cleanup(() => sub.close());
 
 		effect.spawn(async () => {

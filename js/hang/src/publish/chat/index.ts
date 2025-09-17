@@ -1,15 +1,17 @@
-import type * as Moq from "@kixelated/moq";
 import { Effect, type Getter, Signal } from "@kixelated/signals";
 import type * as Catalog from "../../catalog";
 import { Message, type MessageProps } from "./message";
 import { Typing, type TypingProps } from "./typing";
 
-export type ChatProps = {
+export * from "./message";
+export * from "./typing";
+
+export type Props = {
 	message?: MessageProps;
 	typing?: TypingProps;
 };
 
-export class Chat {
+export class Root {
 	message: Message;
 	typing: Typing;
 
@@ -18,17 +20,14 @@ export class Chat {
 
 	#signals = new Effect();
 
-	constructor(broadcast: Moq.BroadcastProducer, props?: ChatProps) {
-		this.message = new Message(broadcast, props?.message);
-		this.typing = new Typing(broadcast, props?.typing);
+	constructor(props?: Props) {
+		this.message = new Message(props?.message);
+		this.typing = new Typing(props?.typing);
 
 		this.#signals.effect((effect) => {
-			const message = effect.get(this.message.catalog);
-			const typing = effect.get(this.typing.catalog);
-
 			this.#catalog.set({
-				message,
-				typing,
+				message: effect.get(this.message.catalog),
+				typing: effect.get(this.typing.catalog),
 			});
 		});
 	}

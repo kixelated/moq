@@ -1,6 +1,7 @@
-import type * as Moq from "@kixelated/moq";
+import * as Moq from "@kixelated/moq";
 import { Effect, type Getter, Signal } from "@kixelated/signals";
-import type * as Catalog from "../../catalog";
+import * as Catalog from "../../catalog";
+import { PRIORITY } from "../priority";
 
 export interface MessageProps {
 	// Whether to start downloading the chat.
@@ -9,7 +10,7 @@ export interface MessageProps {
 }
 
 export class Message {
-	broadcast: Signal<Moq.BroadcastConsumer | undefined>;
+	broadcast: Signal<Moq.Broadcast | undefined>;
 	enabled: Signal<boolean>;
 
 	// Empty string is a valid message.
@@ -22,7 +23,7 @@ export class Message {
 	#signals = new Effect();
 
 	constructor(
-		broadcast: Signal<Moq.BroadcastConsumer | undefined>,
+		broadcast: Signal<Moq.Broadcast | undefined>,
 		catalog: Signal<Catalog.Root | undefined>,
 		props?: MessageProps,
 	) {
@@ -47,7 +48,7 @@ export class Message {
 		const broadcast = effect.get(this.broadcast);
 		if (!broadcast) return;
 
-		const track = broadcast.subscribe(catalog.name, catalog.priority);
+		const track = broadcast.subscribe(catalog, PRIORITY.chat);
 		effect.cleanup(() => track.close());
 
 		// Undefined is only when we're not subscribed to the track.

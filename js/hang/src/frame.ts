@@ -36,10 +36,10 @@ export function decode(buffer: Uint8Array): { data: Uint8Array; timestamp: Time.
 }
 
 export class Producer {
-	#track: Moq.TrackProducer;
-	#group?: Moq.GroupProducer;
+	#track: Moq.Track;
+	#group?: Moq.Group;
 
-	constructor(track: Moq.TrackProducer) {
+	constructor(track: Moq.Track) {
 		this.#track = track;
 	}
 
@@ -66,9 +66,9 @@ export interface ConsumerProps {
 }
 
 export class Consumer {
-	#track: Moq.TrackConsumer;
+	#track: Moq.Track;
 	#latency: Time.Micro;
-	#groups: Moq.GroupConsumer[] = [];
+	#groups: Moq.Group[] = [];
 	#active = 0; // the active group sequence number
 	#frames: Frame[] = [];
 	#prev?: Time.Micro;
@@ -78,7 +78,7 @@ export class Consumer {
 
 	#signals = new Effect();
 
-	constructor(track: Moq.TrackConsumer, props?: ConsumerProps) {
+	constructor(track: Moq.Track, props?: ConsumerProps) {
 		this.#track = track;
 		this.#latency = Time.Micro.fromMilli(props?.latency ?? Time.Milli.zero);
 
@@ -115,7 +115,7 @@ export class Consumer {
 		}
 	}
 
-	async #runGroup(group: Moq.GroupConsumer) {
+	async #runGroup(group: Moq.Group) {
 		try {
 			let keyframe = true;
 

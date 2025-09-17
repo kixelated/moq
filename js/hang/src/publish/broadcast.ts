@@ -1,12 +1,13 @@
 import * as Moq from "@kixelated/moq";
-import { Effect, type Getter, Signal } from "@kixelated/signals";
+import { Effect, Signal } from "@kixelated/signals";
 import * as Catalog from "../catalog";
 import type { Connection } from "../connection";
 import * as Audio from "./audio";
-import { Chat, type ChatProps } from "./chat";
+import * as Chat from "./chat";
 import { Location, type LocationProps } from "./location";
 import { Preview, type PreviewProps } from "./preview";
 import * as Video from "./video";
+import { TRACKS } from "./tracks";
 
 export type BroadcastProps = {
 	enabled?: boolean | Signal<boolean>;
@@ -15,7 +16,7 @@ export type BroadcastProps = {
 	video?: Video.EncoderProps;
 	location?: LocationProps;
 	user?: Catalog.User | Signal<Catalog.User | undefined>;
-	chat?: ChatProps;
+	chat?: Chat.Props;
 	preview?: PreviewProps;
 
 	// You can disable reloading if you want to save a round trip when you know the broadcast is already live.
@@ -32,60 +33,85 @@ export class Broadcast {
 
 	location: Location;
 	user: Signal<Catalog.User | undefined>;
-	chat: Chat;
+	chat: Chat.Root;
 
 	// TODO should be a separate broadcast for separate authentication.
 	preview: Preview;
 
-	//catalog: Memo<Catalog.Root>;
-
-	#broadcast = new Moq.BroadcastProducer();
-	#catalog = new Moq.TrackProducer("catalog.json", 0);
 	signals = new Effect();
-
-	#published = new Signal(false);
-	readonly published: Getter<boolean> = this.#published;
 
 	constructor(connection: Connection, props?: BroadcastProps) {
 		this.connection = connection;
 		this.enabled = Signal.from(props?.enabled ?? false);
 		this.name = Signal.from(props?.name);
 
-		this.audio = new Audio.Encoder(this.#broadcast, props?.audio);
-		this.video = new Video.Encoder(this.#broadcast, props?.video);
-		this.location = new Location(this.#broadcast, props?.location);
-		this.chat = new Chat(this.#broadcast, props?.chat);
-		this.preview = new Preview(this.#broadcast, props?.preview);
+		this.audio = new Audio.Encoder(props?.audio);
+		this.video = new Video.Encoder(props?.video);
+		this.location = new Location(props?.location);
+		this.chat = new Chat.Root(props?.chat);
+		this.preview = new Preview(props?.preview);
 		this.user = Signal.from(props?.user);
 
-		this.#broadcast.insertTrack(this.#catalog.consume());
-
-		this.signals.effect((effect) => {
-			if (!effect.get(this.enabled)) return;
-
-			const connection = effect.get(this.connection.established);
-			if (!connection) return;
-
-			const name = effect.get(this.name);
-			if (!name) return;
-
-			// Publish the broadcast to the connection.
-			const consume = this.#broadcast.consume();
-
-			// Unpublish the broadcast by closing the consumer but not the publisher.
-			effect.cleanup(() => consume.close());
-			connection.publish(name, consume);
-
-			effect.set(this.#published, true, false);
-		});
-
-		// These are separate effects because the camera audio/video constraints can be independent.
-		// The screen constraints are needed at the same time.
-		//this.signals.effect(this.#runScreen.bind(this));
-		this.signals.effect(this.#runCatalog.bind(this));
+		this.signals.spawn(this.#runBroadcast.bind(this, this.signals)); // TODO pass effect to spawn
 	}
 
-	#runCatalog(effect: Effect): void {
+	async #runBroadcast(effect: Effect): Promise<void> {
+		if (!effect.get(this.enabled)) return;
+
+		const connection = effect.get(this.connection.established);
+		if (!connection) return;
+
+		const name = effect.get(this.name);
+		if (!name) return;
+
+		const broadcast = new Moq.Broadcast();
+		effect.cleanup(() => broadcast.close());
+
+		connection.publish(name, broadcast);
+
+		for (;;) {
+			const request = await broadcast.requested();
+			if (!request) break;
+
+			effect.cleanup(() => request.track.close());
+
+			effect.effect((effect) => {
+				if (!effect.get(request.track.state.closed)) return;
+
+				switch (request.track.name) {
+					case TRACKS.catalog:
+						this.#serveCatalog(request.track, effect);
+						break;
+					case TRACKS.location:
+						this.location.serve(request.track, effect);
+						break;
+					case TRACKS.preview:
+						this.preview.serve(request.track, effect);
+						break;
+					case TRACKS.typing:
+						this.chat.typing.serve(request.track, effect);
+						break;
+					case TRACKS.chat:
+						this.chat.message.serve(request.track, effect);
+						break;
+					case TRACKS.detection:
+						this.video.detection.serve(request.track, effect);
+						break;
+					case TRACKS.audio:
+						this.audio.serve(request.track, effect);
+						break;
+					case TRACKS.video:
+						this.video.serve(request.track, effect);
+						break;
+					default:
+						request.track.close(new Error(`Unknown track: ${request.track.name}`));
+						break;
+				}
+			});
+		}
+	}
+
+	#serveCatalog(track: Moq.Track, effect: Effect): void {
 		if (!effect.get(this.enabled)) return;
 
 		// Create the new catalog.
@@ -104,11 +130,9 @@ export class Broadcast {
 		const encoded = Catalog.encode(catalog);
 
 		// Encode the catalog.
-		const catalogGroup = this.#catalog.appendGroup();
+		const catalogGroup = track.appendGroup();
 		catalogGroup.writeFrame(encoded);
 		catalogGroup.close();
-
-		console.debug("published catalog", this.name.peek(), catalog);
 	}
 
 	close() {

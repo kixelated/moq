@@ -1,13 +1,14 @@
-import type * as Moq from "@kixelated/moq";
+import * as Moq from "@kixelated/moq";
 import { Effect, type Getter, Signal } from "@kixelated/signals";
-import type * as Catalog from "../../catalog";
+import * as Catalog from "../../catalog";
 import * as Frame from "../../frame";
-import type * as Time from "../../time";
+import * as Time from "../../time";
 import * as Hex from "../../util/hex";
 import * as libav from "../../util/libav";
 import { Captions, type CaptionsProps } from "./captions";
 import type * as Render from "./render";
 import { Speaking, type SpeakingProps } from "./speaking";
+import { PRIORITY } from "../priority";
 
 // We want some extra overhead to avoid starving the render worklet.
 // The default Opus frame duration is 20ms.
@@ -34,7 +35,7 @@ import RenderWorklet from "./render-worklet?worker&url";
 // Downloads audio from a track and emits it to an AudioContext.
 // The user is responsible for hooking up audio to speakers, an analyzer, etc.
 export class Source {
-	broadcast: Getter<Moq.BroadcastConsumer | undefined>;
+	broadcast: Getter<Moq.Broadcast | undefined>;
 	catalog: Getter<Catalog.Root | undefined>;
 	enabled: Signal<boolean>;
 	info = new Signal<Catalog.Audio | undefined>(undefined);
@@ -59,7 +60,7 @@ export class Source {
 	#signals = new Effect();
 
 	constructor(
-		broadcast: Getter<Moq.BroadcastConsumer | undefined>,
+		broadcast: Getter<Moq.Broadcast | undefined>,
 		catalog: Getter<Catalog.Root | undefined>,
 		props?: SourceProps,
 	) {
@@ -148,7 +149,7 @@ export class Source {
 		const broadcast = effect.get(this.broadcast);
 		if (!broadcast) return;
 
-		const sub = broadcast.subscribe(info.track.name, info.track.priority);
+		const sub = broadcast.subscribe(info.track, PRIORITY.audio);
 		effect.cleanup(() => sub.close());
 
 		effect.spawn(async () => {

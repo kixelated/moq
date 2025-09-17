@@ -50,7 +50,7 @@ export class Room {
 		effect.spawn(this.#runMembers.bind(this, conn, announced));
 	}
 
-	async #runMembers(connection: Moq.Connection, announced: Moq.AnnouncedConsumer) {
+	async #runMembers(connection: Moq.Connection, announced: Moq.Announced) {
 		try {
 			for (;;) {
 				const update = await announced.next();

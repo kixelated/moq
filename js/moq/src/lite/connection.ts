@@ -1,5 +1,5 @@
-import type { AnnouncedConsumer } from "../announced.ts";
-import type { BroadcastConsumer } from "../broadcast.ts";
+import type { Announced } from "../announced.ts";
+import type { Broadcast } from "../broadcast.ts";
 import type { Connection as ConnectionInterface } from "../connection.ts";
 import * as Path from "../path.ts";
 import { type Reader, Readers, Stream } from "../stream.ts";
@@ -85,7 +85,7 @@ export class Connection implements ConnectionInterface {
 	 * @param name - The broadcast path to publish
 	 * @param broadcast - The broadcast to publish
 	 */
-	publish(name: Path.Valid, broadcast: BroadcastConsumer) {
+	publish(name: Path.Valid, broadcast: Broadcast) {
 		this.#publisher.publish(name, broadcast);
 	}
 
@@ -94,7 +94,7 @@ export class Connection implements ConnectionInterface {
 	 * @param prefix - The prefix for announcements
 	 * @returns An AnnounceConsumer instance
 	 */
-	announced(prefix = Path.empty()): AnnouncedConsumer {
+	announced(prefix = Path.empty()): Announced {
 		return this.#subscriber.announced(prefix);
 	}
 
@@ -105,9 +105,9 @@ export class Connection implements ConnectionInterface {
 	 * If the broadcast is not found, a "not found" error will be thrown when requesting any tracks.
 	 *
 	 * @param broadcast - The path of the broadcast to consume
-	 * @returns A BroadcastConsumer instance
+	 * @returns A Broadcast instance
 	 */
-	consume(broadcast: Path.Valid): BroadcastConsumer {
+	consume(broadcast: Path.Valid): Broadcast {
 		return this.#subscriber.consume(broadcast);
 	}
 

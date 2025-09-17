@@ -1,7 +1,8 @@
-import type * as Moq from "@kixelated/moq";
+import * as Moq from "@kixelated/moq";
 import * as Zod from "@kixelated/moq/zod";
 import { Effect, Signal } from "@kixelated/signals";
 import * as Catalog from "../../catalog";
+import { PRIORITY } from "../priority";
 
 export interface DetectionProps {
 	// Whether to start downloading the detection data.
@@ -10,7 +11,7 @@ export interface DetectionProps {
 }
 
 export class Detection {
-	broadcast: Signal<Moq.BroadcastConsumer | undefined>;
+	broadcast: Signal<Moq.Broadcast | undefined>;
 
 	enabled: Signal<boolean>;
 	objects = new Signal<Catalog.DetectionObjects | undefined>(undefined);
@@ -20,7 +21,7 @@ export class Detection {
 	#signals = new Effect();
 
 	constructor(
-		broadcast: Signal<Moq.BroadcastConsumer | undefined>,
+		broadcast: Signal<Moq.Broadcast | undefined>,
 		catalog: Signal<Catalog.Root | undefined>,
 		props?: DetectionProps,
 	) {
@@ -40,7 +41,7 @@ export class Detection {
 			const broadcast = effect.get(this.broadcast);
 			if (!broadcast) return;
 
-			const track = broadcast.subscribe(catalog.track.name, catalog.track.priority);
+			const track = broadcast.subscribe(catalog.track, PRIORITY.detection);
 			effect.cleanup(() => track.close());
 
 			effect.spawn(async () => {

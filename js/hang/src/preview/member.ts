@@ -1,6 +1,7 @@
 import type * as Moq from "@kixelated/moq";
 import * as Zod from "@kixelated/moq/zod";
 import { Effect, Signal } from "@kixelated/signals";
+import { PRIORITY } from "../watch/priority";
 import * as Preview from "./info";
 
 export type MemberProps = {
@@ -8,13 +9,13 @@ export type MemberProps = {
 };
 
 export class Member {
-	broadcast: Moq.BroadcastConsumer;
+	broadcast: Moq.Broadcast;
 	enabled: Signal<boolean>;
 	info: Signal<Preview.Info | undefined>;
 
 	signals = new Effect();
 
-	constructor(broadcast: Moq.BroadcastConsumer, props?: MemberProps) {
+	constructor(broadcast: Moq.Broadcast, props?: MemberProps) {
 		this.broadcast = broadcast;
 		this.enabled = Signal.from(props?.enabled ?? false);
 		this.info = new Signal<Preview.Info | undefined>(undefined);
@@ -23,7 +24,7 @@ export class Member {
 			if (!effect.get(this.enabled)) return;
 
 			// Subscribe to the preview.json track directly
-			const track = this.broadcast.subscribe("preview.json", 0);
+			const track = this.broadcast.subscribe("preview.json", PRIORITY.preview);
 			effect.cleanup(() => track.close());
 
 			effect.spawn(async () => {
