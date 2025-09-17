@@ -46,6 +46,33 @@ export class Encoder {
 		bestCodec().then(this.codec.set.bind(this.codec));
 
 		this.#signals.effect(this.#runCatalog.bind(this));
+		this.#signals.effect(this.#runFrame.bind(this));
+	}
+
+	#runFrame(effect: Effect): void {
+		const source = effect.get(this.source);
+		if (!source) return;
+
+		const processor = VideoTrackProcessor(source);
+		const reader = processor.getReader();
+		effect.cleanup(() => reader.cancel());
+
+		effect.spawn(async () => {
+			const next = await reader.read();
+			if (!next || !next.value) return;
+
+			this.frame.update((prev) => {
+				prev?.close();
+				return next.value;
+			});
+		});
+
+		effect.cleanup(() => {
+			this.frame.update((prev) => {
+				prev?.close();
+				return undefined;
+			});
+		});
 	}
 
 	serve(track: Moq.Track, effect: Effect): void {
@@ -63,10 +90,6 @@ export class Encoder {
 
 	async #runEncoder(track: Moq.Track, codec: string, source: VideoStreamTrack, effect: Effect): Promise<void> {
 		const settings = source.getSettings();
-
-		const processor = VideoTrackProcessor(source);
-		const reader = processor.getReader();
-		effect.cleanup(() => reader.cancel());
 
 		let group: Moq.Group | undefined; // TODO close
 		effect.cleanup(() => group?.close());
@@ -92,17 +115,18 @@ export class Encoder {
 		});
 
 		effect.cleanup(() => encoder.close());
-		let next = await reader.read();
-		if (!next || !next.value) return;
 
-		let frame = next.value;
-		let width = frame.codedWidth;
-		let height = frame.codedHeight;
+		let width: number | undefined;
+		let height: number | undefined;
 
-		let configure = true;
+		effect.effect((effect) => {
+			const frame = effect.get(this.frame);
+			if (!frame) return;
 
-		while (frame) {
-			if (configure) {
+			if (frame.codedWidth !== width || frame.codedHeight !== height) {
+				width = frame.codedWidth;
+				height = frame.codedHeight;
+
 				const bitrate = bestBitrate({
 					codec,
 					width,
@@ -124,8 +148,6 @@ export class Encoder {
 				};
 				console.debug("encoding video", config);
 				encoder.configure(config);
-
-				configure = false;
 			}
 
 			// Force a keyframe if this is the first frame (no group yet), or GOP elapsed.
@@ -134,26 +156,8 @@ export class Encoder {
 				groupTimestamp = frame.timestamp as Time.Micro;
 			}
 
-			this.frame.update((prev) => {
-				prev?.close();
-				return frame;
-			});
-
 			encoder.encode(frame, { keyFrame });
-
-			next = await reader.read();
-			if (!next || !next.value) return;
-
-			frame = next.value;
-
-			// Reconfigure the bitrate if the frame size changes.
-			// TODO technically we should re-evaluate the codec too.
-			if (frame.codedWidth !== width || frame.codedHeight !== height) {
-				width = frame.codedWidth;
-				height = frame.codedHeight;
-				configure = true;
-			}
-		}
+		});
 	}
 
 	// Returns the catalog for the configured settings.
@@ -177,7 +181,7 @@ export class Encoder {
 		const flip = effect.get(this.flip);
 
 		const catalog: Catalog.Video = {
-			track: TRACKS.video,
+			track: TRACKS.video.data,
 			config: {
 				codec,
 				flip,

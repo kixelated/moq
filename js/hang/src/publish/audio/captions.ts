@@ -2,10 +2,10 @@ import * as Moq from "@kixelated/moq";
 import { Effect, Signal } from "@kixelated/signals";
 import * as Catalog from "../../catalog";
 import type * as Time from "../../time";
+import { TRACKS } from "../tracks";
 import type { Request, Result } from "./captions-worker";
 import CaptureWorklet from "./capture-worklet?worker&url";
 import type { Speaking } from "./speaking";
-import { TRACKS } from "../tracks";
 
 export type CaptionsProps = {
 	enabled?: boolean | Signal<boolean>;
@@ -41,7 +41,7 @@ export class Captions {
 		if (!enabled) return;
 
 		const catalog: Catalog.Captions = {
-			track: TRACKS.captions,
+			track: TRACKS.audio.captions,
 		};
 		effect.set(this.catalog, catalog);
 	}

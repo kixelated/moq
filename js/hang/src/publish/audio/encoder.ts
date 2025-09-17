@@ -232,7 +232,7 @@ export class Encoder {
 		const speaking = effect.get(this.speaking.catalog);
 
 		const catalog: Catalog.Audio = {
-			track: TRACKS.audio,
+			track: TRACKS.audio.data,
 			config,
 			captions,
 			speaking,

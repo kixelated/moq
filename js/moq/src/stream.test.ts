@@ -33,7 +33,7 @@ test("Writer u8", async () => {
 	await writer.u8(255);
 
 	writer.close();
-	await writer.closed();
+	await writer.closed;
 
 	assert.strictEqual(written.length, 2);
 	assert.deepEqual(written[0], new Uint8Array([42]));
@@ -49,7 +49,7 @@ test("Writer i32", async () => {
 	await writer.i32(1000);
 
 	writer.close();
-	await writer.closed();
+	await writer.closed;
 
 	const result = concatChunks(written);
 	assert.strictEqual(result.byteLength, 12); // 3 * 4 bytes
@@ -72,7 +72,7 @@ test("Writer u53", async () => {
 	await writer.u53(16384); // MIN for 4-byte varint
 
 	writer.close();
-	await writer.closed();
+	await writer.closed;
 
 	// Verify the varint encoding sizes
 	assert.strictEqual(written[0].byteLength, 1); // 0 fits in 1 byte
@@ -90,7 +90,7 @@ test("Writer string", async () => {
 	await writer.string("🎉");
 
 	writer.close();
-	await writer.closed();
+	await writer.closed;
 
 	const result = concatChunks(written);
 
@@ -114,7 +114,7 @@ test("Writer message with simple content", async () => {
 	});
 
 	writer.close();
-	await writer.closed();
+	await writer.closed;
 
 	const result = concatChunks(written);
 
@@ -145,7 +145,7 @@ test("Writer message buffer length bug test", async () => {
 	});
 
 	writer.close();
-	await writer.closed();
+	await writer.closed;
 
 	const result = concatChunks(written);
 
@@ -235,7 +235,7 @@ test("Reader u53 varint decoding", async () => {
 	}
 
 	testWriter.close();
-	await testWriter.closed();
+	await testWriter.closed;
 
 	const data = concatChunks(written);
 	const reader = new Reader(undefined, data);
@@ -259,7 +259,7 @@ test("Reader u62 varint decoding", async () => {
 	}
 
 	testWriter.close();
-	await testWriter.closed();
+	await testWriter.closed;
 
 	const data = concatChunks(written);
 	const reader = new Reader(undefined, data);
@@ -283,7 +283,7 @@ test("Reader string decoding", async () => {
 	}
 
 	writer.close();
-	await writer.closed();
+	await writer.closed;
 
 	const data = concatChunks(written);
 	const reader = new Reader(undefined, data);
@@ -308,7 +308,7 @@ test("Reader message decoding", async () => {
 	});
 
 	writer.close();
-	await writer.closed();
+	await writer.closed;
 
 	const data = concatChunks(written);
 	const reader = new Reader(undefined, data);
@@ -334,7 +334,7 @@ test("Reader message exact consumption", async () => {
 	});
 
 	writer.close();
-	await writer.closed();
+	await writer.closed;
 
 	const data = concatChunks(written);
 	const reader = new Reader(undefined, data);
@@ -358,7 +358,7 @@ test("Reader messageMaybe with data", async () => {
 	});
 
 	writer.close();
-	await writer.closed();
+	await writer.closed;
 
 	const data = concatChunks(written);
 	const reader = new Reader(undefined, data);

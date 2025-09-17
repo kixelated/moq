@@ -32,7 +32,7 @@ export class Speaking {
 		if (!enabled) return;
 
 		const catalog: Catalog.Speaking = {
-			track: TRACKS.speaking,
+			track: TRACKS.audio.speaking,
 		};
 		effect.set(this.catalog, catalog);
 	}

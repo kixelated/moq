@@ -15,7 +15,7 @@ export const PositionSchema = z.object({
 	z: z.number().optional(),
 
 	// The scale of the broadcast, where 1 is 100%
-	scale: z.number().optional(),
+	s: z.number().optional(),
 });
 
 export const LocationSchema = z.object({
@@ -27,16 +27,19 @@ export const LocationSchema = z.object({
 	// If provided, then updates to the position are done via a separate Moq track.
 	// This is used to avoid a full catalog update every time we want to update a few bytes.
 	// TODO: These updates currently use JSON for simplicity, but we should use a binary format.
-	updates: TrackSchema.optional(),
+	track: TrackSchema.optional(),
 
 	// If set, then this broadcaster allows other peers to request position updates via this handle.
 	// We will have to discover and subscribe to their position updates.
 	handle: z.string().optional(),
 
 	// If provided, this broadcaster is signaling the location of other peers.
-	// The key is the handle of the broadcast, and the value is the track that contains the position updates.
-	peers: z.record(z.string(), TrackSchema).optional(),
+	// The payload is a JSON blob keyed by handle for each peer.
+	peers: TrackSchema.optional(),
 });
 
 export type Location = z.infer<typeof LocationSchema>;
 export type Position = z.infer<typeof PositionSchema>;
+
+export const PeersSchema = z.record(z.string(), PositionSchema);
+export type Peers = z.infer<typeof PeersSchema>;

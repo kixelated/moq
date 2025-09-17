@@ -4,7 +4,7 @@ import * as Catalog from "../catalog";
 import type { Connection } from "../connection";
 import * as Audio from "./audio";
 import { Chat, type ChatProps } from "./chat";
-import { Location, type LocationProps } from "./location";
+import * as Location from "./location";
 import { Preview, type PreviewProps } from "./preview";
 import { PRIORITY } from "./priority";
 import * as Video from "./video";
@@ -23,7 +23,7 @@ export interface BroadcastProps {
 
 	video?: Video.SourceProps;
 	audio?: Audio.SourceProps;
-	location?: LocationProps;
+	location?: Location.Props;
 	chat?: ChatProps;
 	detection?: DetectionProps;
 	preview?: PreviewProps;
@@ -42,7 +42,7 @@ export class Broadcast {
 
 	audio: Audio.Source;
 	video: Video.Source;
-	location: Location;
+	location: Location.Root;
 	chat: Chat;
 	detection: Detection;
 	preview: Preview;
@@ -65,7 +65,7 @@ export class Broadcast {
 		this.reload = Signal.from(props?.reload ?? true);
 		this.audio = new Audio.Source(this.#broadcast, this.#catalog, props?.audio);
 		this.video = new Video.Source(this.#broadcast, this.#catalog, props?.video);
-		this.location = new Location(this.#broadcast, this.#catalog, props?.location);
+		this.location = new Location.Root(this.#broadcast, this.#catalog, props?.location);
 		this.chat = new Chat(this.#broadcast, this.#catalog, props?.chat);
 		this.detection = new Detection(this.#broadcast, this.#catalog, props?.detection);
 		this.preview = new Preview(this.#broadcast, this.#catalog, props?.preview);

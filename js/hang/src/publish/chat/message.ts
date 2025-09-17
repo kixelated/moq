@@ -25,7 +25,7 @@ export class Message {
 			const enabled = effect.get(this.enabled);
 			if (!enabled) return;
 
-			this.catalog.set(TRACKS.chat);
+			this.catalog.set(TRACKS.chat.message);
 		});
 	}
 

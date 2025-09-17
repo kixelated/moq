@@ -25,7 +25,7 @@ export class Typing {
 			const enabled = effect.get(this.enabled);
 			if (!enabled) return;
 
-			this.catalog.set(TRACKS.typing);
+			this.catalog.set(TRACKS.chat.typing);
 		});
 	}
 

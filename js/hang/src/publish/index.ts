@@ -1,7 +1,7 @@
 export * as Audio from "./audio";
 export * from "./broadcast";
-export * from "./chat";
-export * from "./location";
+export * as Chat from "./chat";
+export * as Location from "./location";
 export * from "./preview";
 export * as Source from "./source";
 export * as Video from "./video";

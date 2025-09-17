@@ -4,7 +4,7 @@ import * as Catalog from "../catalog";
 import type { Connection } from "../connection";
 import * as Audio from "./audio";
 import * as Chat from "./chat";
-import { Location, type LocationProps } from "./location";
+import * as Location from "./location";
 import { Preview, type PreviewProps } from "./preview";
 import { TRACKS } from "./tracks";
 import * as Video from "./video";
@@ -14,7 +14,7 @@ export type BroadcastProps = {
 	name?: Moq.Path.Valid | Signal<Moq.Path.Valid | undefined>;
 	audio?: Audio.EncoderProps;
 	video?: Video.EncoderProps;
-	location?: LocationProps;
+	location?: Location.Props;
 	user?: Catalog.User | Signal<Catalog.User | undefined>;
 	chat?: Chat.Props;
 	preview?: PreviewProps;
@@ -31,7 +31,7 @@ export class Broadcast {
 	audio: Audio.Encoder;
 	video: Video.Encoder;
 
-	location: Location;
+	location: Location.Root;
 	user: Signal<Catalog.User | undefined>;
 	chat: Chat.Root;
 
@@ -47,7 +47,7 @@ export class Broadcast {
 
 		this.audio = new Audio.Encoder(props?.audio);
 		this.video = new Video.Encoder(props?.video);
-		this.location = new Location(props?.location);
+		this.location = new Location.Root(props?.location);
 		this.chat = new Chat.Root(props?.chat);
 		this.preview = new Preview(props?.preview);
 		this.user = Signal.from(props?.user);
@@ -87,25 +87,28 @@ export class Broadcast {
 					case TRACKS.catalog:
 						this.#serveCatalog(request.track, effect);
 						break;
-					case TRACKS.location:
-						this.location.serve(request.track, effect);
+					case TRACKS.location.window:
+						this.location.window.serve(request.track, effect);
+						break;
+					case TRACKS.location.peers:
+						this.location.peers.serve(request.track, effect);
 						break;
 					case TRACKS.preview:
 						this.preview.serve(request.track, effect);
 						break;
-					case TRACKS.typing:
+					case TRACKS.chat.typing:
 						this.chat.typing.serve(request.track, effect);
 						break;
-					case TRACKS.chat:
+					case TRACKS.chat.message:
 						this.chat.message.serve(request.track, effect);
 						break;
-					case TRACKS.detection:
+					case TRACKS.video.detection:
 						this.video.detection.serve(request.track, effect);
 						break;
-					case TRACKS.audio:
+					case TRACKS.audio.data:
 						this.audio.serve(request.track, effect);
 						break;
-					case TRACKS.video:
+					case TRACKS.video.data:
 						this.video.serve(request.track, effect);
 						break;
 					default:

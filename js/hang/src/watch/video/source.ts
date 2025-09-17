@@ -17,7 +17,6 @@ export class Source {
 	enabled: Signal<boolean>; // Don't download any longer
 	catalog: Signal<Catalog.Root | undefined>;
 	info = new Signal<Catalog.Video | undefined>(undefined);
-	active = new Signal<boolean>(false);
 
 	// Helper that is populated from the catalog.
 	#flip = new Signal<boolean | undefined>(undefined);
@@ -49,7 +48,6 @@ export class Source {
 			// NOTE: Not gated based on enabled
 			const info = effect.get(this.catalog)?.video?.[0];
 			effect.set(this.info, info);
-			effect.set(this.active, info !== undefined, false);
 			effect.set(this.#flip, info?.config.flip, undefined);
 		});
 
@@ -121,6 +119,16 @@ export class Source {
 
 				decoder.decode(chunk);
 			}
+		});
+
+		effect.cleanup(() => {
+			this.frame.update((frame) => {
+				frame?.close();
+				return undefined;
+			});
+
+			this.#next?.close();
+			this.#next = undefined;
 		});
 	}
 

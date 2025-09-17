@@ -1,12 +1,21 @@
 export const TRACKS = {
 	catalog: "catalog.json",
-	chat: "chat.txt",
-	audio: "audio",
-	captions: "captions.txt",
-	video: "video",
-	speaking: "speaking.bool",
-	typing: "typing.bool",
-	detection: "detection.json",
-	location: "location.json",
+	audio: {
+		data: "audio/data",
+		captions: "audio/captions.txt",
+		speaking: "audio/speaking.bool",
+	},
+	chat: {
+		message: "chat/message.txt",
+		typing: "chat/typing.bool",
+	},
+	video: {
+		data: "video/data",
+		detection: "video/detection.json",
+	},
+	location: {
+		window: "location/window.json",
+		peers: "location/peers.json",
+	},
 	preview: "preview.json",
 } as const;
