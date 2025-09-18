@@ -105,6 +105,9 @@ export class Broadcast {
 					case Audio.Encoder.TRACK:
 						this.audio.serve(request.track, effect);
 						break;
+					case Audio.Speaking.TRACK:
+						this.audio.speaking.serve(request.track, effect);
+						break;
 					case Video.Encoder.TRACK:
 						this.video.serve(request.track, effect);
 						break;

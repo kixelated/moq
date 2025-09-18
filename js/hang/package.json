@@ -48,7 +48,6 @@
 	"devDependencies": {
 		"@types/audioworklet": "^0.0.77",
 		"@typescript/lib-dom": "npm:@types/web@^0.0.241",
-		"@typescript/native-preview": "7.0.0-dev.20250910.1",
 		"fast-glob": "^3.3.3",
 		"rimraf": "^6.0.1",
 		"typescript": "^5.9.2",

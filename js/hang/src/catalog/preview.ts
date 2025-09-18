@@ -1,13 +1,16 @@
 import { z } from "zod";
 
 export const PreviewSchema = z.object({
-	name: z.string().optional(),
-	avatar: z.string().optional(),
-	audio: z.boolean().optional(),
-	video: z.boolean().optional(),
-	chat: z.boolean().optional(),
-	speaking: z.boolean().optional(),
-	typing: z.boolean().optional(),
+	name: z.string().optional(), // name
+	avatar: z.string().optional(), // avatar
+
+	audio: z.boolean().optional(), // audio enabled
+	video: z.boolean().optional(), // video enabled
+
+	speaking: z.boolean().optional(), // actively speaking
+	typing: z.boolean().optional(), // actively typing
+	chat: z.boolean().optional(), // chatted recently
+	screen: z.boolean().optional(), // screen sharing
 });
 
 export type Preview = z.infer<typeof PreviewSchema>;
