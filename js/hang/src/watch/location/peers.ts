@@ -1,6 +1,6 @@
 import * as Moq from "@kixelated/moq";
 import * as Zod from "@kixelated/moq/zod";
-import { Effect, Signal } from "@kixelated/signals";
+import { Effect, Getter, Signal } from "@kixelated/signals";
 import * as Catalog from "../../catalog";
 import { PRIORITY } from "../priority";
 
@@ -13,7 +13,7 @@ export class Peers {
 	broadcast: Signal<Moq.Broadcast | undefined>;
 
 	#catalog = new Signal<Catalog.Track | undefined>(undefined);
-	positions = new Signal<Record<string, Catalog.Position> | undefined>(undefined);
+	#positions = new Signal<Record<string, Catalog.Position> | undefined>(undefined);
 
 	signals = new Effect();
 
@@ -33,7 +33,8 @@ export class Peers {
 	}
 
 	#run(effect: Effect) {
-		if (!effect.get(this.enabled)) return;
+		const enabled = effect.get(this.enabled);
+		if (!enabled) return;
 
 		const catalog = effect.get(this.#catalog);
 		if (!catalog) return;
@@ -53,12 +54,16 @@ export class Peers {
 				const frame = await Zod.read(track, Catalog.PeersSchema);
 				if (!frame) break;
 
-				this.positions.set(frame);
+				this.#positions.set(frame);
 			}
 		} finally {
-			this.positions.set(undefined);
+			this.#positions.set(undefined);
 			track.close();
 		}
+	}
+
+	get positions(): Getter<Record<string, Catalog.Position> | undefined> {
+		return this.#positions;
 	}
 
 	close() {

@@ -142,8 +142,6 @@ export class Broadcast {
 	}
 
 	async #fetchCatalog(catalog: Moq.Track): Promise<void> {
-		console.log("fetching catalog", this.name.peek());
-
 		try {
 			for (;;) {
 				const update = await Catalog.fetch(catalog);

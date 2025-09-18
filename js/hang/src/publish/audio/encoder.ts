@@ -99,7 +99,12 @@ export class Encoder {
 
 		// Async because we need to wait for the worklet to be registered.
 		effect.spawn(async () => {
-			await context.audioWorklet.addModule(CaptureWorklet);
+			const ready = await Promise.race([
+				context.audioWorklet.addModule(CaptureWorklet).then(() => true),
+				effect.cancel,
+			]);
+			if (!ready) return;
+
 			const worklet = new AudioWorkletNode(context, "capture", {
 				numberOfInputs: 1,
 				numberOfOutputs: 0,

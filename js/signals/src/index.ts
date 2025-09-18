@@ -45,23 +45,51 @@ export class Signal<T> implements Getter<T>, Setter<T> {
 	}
 
 	// Set the current value, by default notifying subscribers if the value is different.
+	// If notify is undefined, we'll check if the value has changed after the microtask.
 	set(value: T, notify?: boolean): void {
-		// NOTE: This uses a more expensive dequal check to avoid spurious updates.
-		// Other libraries use === but it's a massive footgun.
-		notify = notify ?? !dequal(value, this.#value);
+		const old = this.#value;
 		this.#value = value;
 
-		if (!notify) return;
+		// If notify is false, don't notify.
+		if (notify === false) return;
 
-		for (const subscriber of this.#subscribers) {
-			queueMicrotask(() => subscriber(value));
-		}
+		// Don't even queue a microtask if the value is the EXACT same.
+		// We don't use dequal here because we don't want to run it twice, only when it matters.
+		if (notify === undefined && old === this.#value) return;
 
-		for (const changed of this.#changed) {
-			queueMicrotask(() => changed(value));
-		}
+		// If there are no subscribers, don't queue a microtask.
+		if (this.#subscribers.size === 0 && this.#changed.size === 0) return;
 
-		this.#changed.clear();
+		const subscribers = this.#subscribers;
+		const changed = this.#changed;
+		this.#changed = new Set();
+
+		queueMicrotask(() => {
+			// After the microtask, check if the value has changed if we didn't explicitly notify.
+			if (notify === undefined && dequal(old, this.#value)) {
+				// No change, add back the changed subscribers.
+				for (const fn of changed) {
+					this.#changed.add(fn);
+				}
+				return;
+			}
+
+			for (const fn of subscribers) {
+				try {
+					fn(value);
+				} catch (error) {
+					console.error("signal subscriber error", error);
+				}
+			}
+
+			for (const fn of changed) {
+				try {
+					fn(value);
+				} catch (error) {
+					console.error("signal changed error", error);
+				}
+			}
+		});
 	}
 
 	// Mutate the current value and notify subscribers unless notify is false.
