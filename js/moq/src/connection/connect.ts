@@ -1,9 +1,9 @@
 import WebTransportWs from "@kixelated/web-transport-ws";
-import type { Connection } from "./connection.ts";
-import * as Ietf from "./ietf/index.ts";
-import * as Lite from "./lite/index.ts";
-import { Stream } from "./stream.ts";
-import * as Hex from "./util/hex.ts";
+import * as Ietf from "../ietf/index.ts";
+import * as Lite from "../lite/index.ts";
+import { Stream } from "../stream.ts";
+import * as Hex from "../util/hex.ts";
+import type { Established } from "./established.ts";
 
 export interface WebSocketOptions {
 	// If true (default), enable the WebSocket fallback.
@@ -35,7 +35,7 @@ const websocketWon = new Set<string>();
  * @param url - The URL of the server to connect to
  * @returns A promise that resolves to a Connection instance
  */
-export async function connect(url: URL, props?: ConnectProps): Promise<Connection> {
+export async function connect(url: URL, props?: ConnectProps): Promise<Established> {
 	// Create a cancel promise to kill whichever is still connecting.
 	let done: (() => void) | undefined;
 	const cancel = new Promise<void>((resolve) => {

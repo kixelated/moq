@@ -10,7 +10,7 @@ import * as Video from "./video";
 import { Detection, type DetectionProps } from "./video/detection";
 
 export interface BroadcastProps {
-	connection?: Moq.Connection | Signal<Moq.Connection | undefined>;
+	connection?: Moq.Connection.Established | Signal<Moq.Connection.Established | undefined>;
 
 	// Whether to start downloading the broadcast.
 	// Defaults to false so you can make sure everything is ready before starting.
@@ -32,7 +32,7 @@ export interface BroadcastProps {
 
 // A broadcast that (optionally) reloads automatically when live/offline.
 export class Broadcast {
-	connection: Signal<Moq.Connection | undefined>;
+	connection: Signal<Moq.Connection.Established | undefined>;
 
 	enabled: Signal<boolean>;
 	name: Signal<Moq.Path.Valid | undefined>;

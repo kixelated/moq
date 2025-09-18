@@ -1,8 +1,7 @@
-import { Path } from "@kixelated/moq";
+import * as Moq from "@kixelated/moq";
 import { Effect, Signal } from "@kixelated/signals";
 import * as DOM from "@kixelated/signals/dom";
 import { type Publish, Watch } from "..";
-import { Connection } from "../connection";
 import HangPublish from "../publish/element";
 import { Room } from "./room";
 
@@ -11,7 +10,7 @@ type Observed = (typeof OBSERVED)[number];
 
 export interface HangMeetSignals {
 	url: Signal<URL | undefined>;
-	name: Signal<Path.Valid | undefined>;
+	name: Signal<Moq.Path.Valid | undefined>;
 }
 
 // NOTE: This element is more of an example of how to use the library.
@@ -22,7 +21,7 @@ export default class HangMeet extends HTMLElement {
 
 	signals: HangMeetSignals = {
 		url: new Signal<URL | undefined>(undefined),
-		name: new Signal<Path.Valid | undefined>(undefined),
+		name: new Signal<Moq.Path.Valid | undefined>(undefined),
 	};
 
 	active = new Signal<HangMeetInstance | undefined>(undefined);
@@ -62,20 +61,20 @@ export default class HangMeet extends HTMLElement {
 	}
 
 	set name(name: string | undefined) {
-		this.signals.name.set(name ? Path.from(name) : undefined);
+		this.signals.name.set(name ? Moq.Path.from(name) : undefined);
 	}
 }
 
 class HangMeetInstance {
 	parent: HangMeet;
 
-	connection: Connection;
+	connection: Moq.Connection.Reload;
 	room: Room;
 
 	#container: HTMLDivElement;
 
 	// Save a reference to the <video> tag used to render the local broadcast.
-	#locals = new Map<Path.Valid, { video: HTMLVideoElement; cleanup: () => void }>();
+	#locals = new Map<Moq.Path.Valid, { video: HTMLVideoElement; cleanup: () => void }>();
 
 	// We have to save a reference to the Video/Audio renderers so we can close them.
 	#remotes = new Map<
@@ -88,8 +87,8 @@ class HangMeetInstance {
 	constructor(parent: HangMeet) {
 		this.parent = parent;
 
-		this.connection = new Connection({ url: this.parent.signals.url });
-		this.room = new Room(this.connection, { name: this.parent.signals.name });
+		this.connection = new Moq.Connection.Reload({ url: this.parent.signals.url, enabled: true });
+		this.room = new Room({ connection: this.connection.established, name: this.parent.signals.name });
 
 		this.#container = DOM.create("div", {
 			style: {
@@ -148,7 +147,7 @@ class HangMeetInstance {
 		}
 	}
 
-	#onLocal(name: Path.Valid, broadcast?: Publish.Broadcast) {
+	#onLocal(name: Moq.Path.Valid, broadcast?: Publish.Broadcast) {
 		if (!broadcast) {
 			const existing = this.#locals.get(name);
 			if (!existing) return;
@@ -179,7 +178,7 @@ class HangMeetInstance {
 		this.#container.appendChild(video);
 	}
 
-	#onRemote(name: Path.Valid, broadcast?: Watch.Broadcast) {
+	#onRemote(name: Moq.Path.Valid, broadcast?: Watch.Broadcast) {
 		if (!broadcast) {
 			const existing = this.#remotes.get(name);
 			if (!existing) return;

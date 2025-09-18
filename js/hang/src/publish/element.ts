@@ -1,7 +1,6 @@
 import * as Moq from "@kixelated/moq";
 import { Effect, Signal } from "@kixelated/signals";
 import * as DOM from "@kixelated/signals/dom";
-import { Connection } from "../connection";
 import { Broadcast } from "./broadcast";
 import * as Source from "./source";
 
@@ -144,7 +143,7 @@ export default class HangPublish extends HTMLElement {
 
 class HangPublishInstance {
 	parent: HangPublish;
-	connection: Connection;
+	connection: Moq.Connection.Reload;
 	broadcast: Broadcast;
 
 	#preview: Signal<HTMLVideoElement | undefined>;
@@ -164,9 +163,11 @@ class HangPublishInstance {
 		observer.observe(this.parent, { childList: true, subtree: true });
 		this.#signals.cleanup(() => observer.disconnect());
 
-		this.connection = new Connection({
+		this.connection = new Moq.Connection.Reload({
+			enabled: true,
 			url: this.parent.signals.url,
 		});
+
 		this.broadcast = new Broadcast({
 			connection: this.connection.established,
 			enabled: true, // TODO allow configuring this

@@ -1,7 +1,6 @@
 import * as Moq from "@kixelated/moq";
 import { Effect, Signal } from "@kixelated/signals";
 import * as DOM from "@kixelated/signals/dom";
-import { Connection } from "../connection";
 import * as Audio from "./audio";
 import { Broadcast } from "./broadcast";
 import * as Video from "./video";
@@ -170,7 +169,7 @@ class HangWatchInstance {
 
 	// You can construct these manually if you want to use the library without the web component.
 	// However be warned that the API is still in flux and may change.
-	connection: Connection;
+	connection: Moq.Connection.Reload;
 	broadcast: Broadcast;
 	video: Video.Renderer;
 	audio: Audio.Emitter;
@@ -178,8 +177,9 @@ class HangWatchInstance {
 
 	constructor(parent: HangWatch) {
 		this.parent = parent;
-		this.connection = new Connection({
+		this.connection = new Moq.Connection.Reload({
 			url: this.parent.signals.url,
+			enabled: true,
 		});
 
 		this.broadcast = new Broadcast({

@@ -1,17 +1,17 @@
 import { Path } from "@kixelated/moq";
 import { Effect, Signal } from "@kixelated/signals";
-import { type Connection, type Moq, type Publish, Watch } from "..";
+import { type Moq, type Publish, Watch } from "..";
 
 export type Broadcast = Watch.Broadcast | Publish.Broadcast;
 
 export type RoomProps = {
+	connection: Moq.Connection.Established | Signal<Moq.Connection.Established | undefined>;
 	name?: Path.Valid | Signal<Path.Valid | undefined>;
 };
 
 export class Room {
 	// The connection to the server.
-	// This is reactive; it may still be pending.
-	connection: Connection;
+	connection: Signal<Moq.Connection.Established | undefined>;
 
 	// An optional prefix to filter broadcasts by.
 	name: Signal<Path.Valid | undefined>;
@@ -34,8 +34,8 @@ export class Room {
 
 	#signals = new Effect();
 
-	constructor(connection: Connection, props?: RoomProps) {
-		this.connection = connection;
+	constructor(props?: RoomProps) {
+		this.connection = Signal.from(props?.connection);
 		this.name = Signal.from(props?.name);
 
 		this.#signals.effect(this.#init.bind(this));
@@ -81,11 +81,11 @@ export class Room {
 	}
 
 	#init(effect: Effect) {
-		const url = effect.get(this.connection.url);
-		if (!url) return;
-
-		const connection = effect.get(this.connection.established);
+		const connection = effect.get(this.connection);
 		if (!connection) return;
+
+		const url = connection.url;
+		if (!url) return;
 
 		const name = effect.get(this.name);
 
@@ -121,7 +121,7 @@ export class Room {
 		if (update.active) {
 			// NOTE: If you were implementing this yourself, you could use the <hang-watch> element instead.
 			const watch = new Watch.Broadcast({
-				connection: this.connection.established,
+				connection: this.connection,
 				// NOTE: You're responsible for setting enabled to true if you want to download the broadcast.
 				enabled: false,
 				name: update.name,

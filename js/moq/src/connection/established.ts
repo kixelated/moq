@@ -1,9 +1,9 @@
-import type { Announced } from "./announced.ts";
-import type { Broadcast } from "./broadcast.ts";
-import type * as Path from "./path.ts";
+import type { Announced } from "../announced.ts";
+import type { Broadcast } from "../broadcast.ts";
+import type * as Path from "../path.ts";
 
 // Both moq-lite and moq-ietf implement this.
-export interface Connection {
+export interface Established {
 	readonly url: URL;
 
 	announced(prefix?: Path.Valid): Announced;

@@ -3,7 +3,7 @@
 // @ts-ignore Deno import.
 import { parseArgs } from "jsr:@std/cli/parse-args";
 
-import { Broadcast, connect, Path, type Track } from "@kixelated/moq";
+import * as Moq from "@kixelated/moq";
 
 interface Config {
 	url: string;
@@ -69,12 +69,12 @@ ENVIRONMENT VARIABLES:
 }
 
 async function publish(config: Config) {
-	const connection = await connect(new URL(config.url));
+	const connection = await Moq.Connection.connect(new URL(config.url));
 	console.log("✅ Connected to relay:", config.url);
 
 	// Create a new "broadcast", which is a collection of tracks.
-	const broadcast = new Broadcast();
-	connection.publish(Path.from(config.broadcast), broadcast);
+	const broadcast = new Moq.Broadcast();
+	connection.publish(Moq.Path.from(config.broadcast), broadcast);
 
 	console.log("✅ Published broadcast:", config.broadcast);
 
@@ -91,7 +91,7 @@ async function publish(config: Config) {
 	}
 }
 
-async function publishTrack(track: Track) {
+async function publishTrack(track: Moq.Track) {
 	// Send timestamps over the wire, matching the Rust implementation format
 	console.log("✅ Publishing clock data on track:", track.name);
 
@@ -134,10 +134,10 @@ async function publishTrack(track: Track) {
 }
 
 async function subscribe(config: Config) {
-	const connection = await connect(new URL(config.url));
+	const connection = await Moq.Connection.connect(new URL(config.url));
 	console.log("✅ Connected to relay:", config.url);
 
-	const broadcast = connection.consume(Path.from(config.broadcast));
+	const broadcast = connection.consume(Moq.Path.from(config.broadcast));
 	const track = broadcast.subscribe(config.track, 0);
 
 	console.log("✅ Subscribed to track:", config.track);

@@ -8,7 +8,7 @@ import { Preview, type PreviewProps } from "./preview";
 import * as Video from "./video";
 
 export type BroadcastProps = {
-	connection?: Moq.Connection | Signal<Moq.Connection | undefined>;
+	connection?: Moq.Connection.Established | Signal<Moq.Connection.Established | undefined>;
 	enabled?: boolean | Signal<boolean>;
 	name?: Moq.Path.Valid | Signal<Moq.Path.Valid | undefined>;
 	audio?: Audio.EncoderProps;
@@ -22,7 +22,7 @@ export type BroadcastProps = {
 export class Broadcast {
 	static readonly CATALOG_TRACK = "catalog.json";
 
-	connection: Signal<Moq.Connection | undefined>;
+	connection: Signal<Moq.Connection.Established | undefined>;
 	enabled: Signal<boolean>;
 	name: Signal<Moq.Path.Valid | undefined>;
 
