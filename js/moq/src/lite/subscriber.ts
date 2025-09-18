@@ -41,6 +41,7 @@ export class Subscriber {
 	}
 
 	async #runAnnounced(announced: Announced, prefix: Path.Valid): Promise<void> {
+		console.debug(`announced: prefix=${prefix}`);
 		const msg = new AnnounceInterest(prefix);
 
 		try {

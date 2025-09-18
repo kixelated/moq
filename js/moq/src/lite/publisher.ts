@@ -57,6 +57,8 @@ export class Publisher {
 	 * @internal
 	 */
 	async runAnnounce(msg: AnnounceInterest, stream: Stream) {
+		console.debug(`announce: prefix=${msg.prefix}`);
+
 		// Send ANNOUNCE_INIT as the first message with all currently active paths
 		let active = new Set<Path.Valid>();
 

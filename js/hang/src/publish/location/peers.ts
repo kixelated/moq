@@ -24,9 +24,6 @@ export class Peers {
 			const enabled = effect.get(this.enabled);
 			if (!enabled) return;
 
-			const positions = effect.get(this.positions);
-			if (!positions) return;
-
 			this.catalog.set(Peers.TRACK);
 		});
 	}

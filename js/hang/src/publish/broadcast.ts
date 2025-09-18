@@ -5,6 +5,7 @@ import * as Audio from "./audio";
 import * as Chat from "./chat";
 import * as Location from "./location";
 import { Preview, type PreviewProps } from "./preview";
+import * as User from "./user";
 import * as Video from "./video";
 
 export type BroadcastProps = {
@@ -14,7 +15,7 @@ export type BroadcastProps = {
 	audio?: Audio.EncoderProps;
 	video?: Video.EncoderProps;
 	location?: Location.Props;
-	user?: Catalog.User | Signal<Catalog.User | undefined>;
+	user?: User.Props;
 	chat?: Chat.Props;
 	preview?: PreviewProps;
 };
@@ -30,9 +31,9 @@ export class Broadcast {
 	video: Video.Encoder;
 
 	location: Location.Root;
-	user: Signal<Catalog.User | undefined>;
 	chat: Chat.Root;
 	preview: Preview;
+	user: User.Info;
 
 	signals = new Effect();
 
@@ -46,7 +47,7 @@ export class Broadcast {
 		this.location = new Location.Root(props?.location);
 		this.chat = new Chat.Root(props?.chat);
 		this.preview = new Preview(props?.preview);
-		this.user = Signal.from(props?.user);
+		this.user = new User.Info(props?.user);
 
 		this.signals.effect(this.#run.bind(this));
 	}
@@ -131,7 +132,7 @@ export class Broadcast {
 			video: video ? [video] : [],
 			audio: audio ? [audio] : [],
 			location: effect.get(this.location.catalog),
-			user: effect.get(this.user),
+			user: effect.get(this.user.catalog),
 			chat: effect.get(this.chat.catalog),
 			detection: effect.get(this.video.detection.catalog),
 			preview: effect.get(this.preview.catalog),
@@ -148,5 +149,6 @@ export class Broadcast {
 		this.location.close();
 		this.chat.close();
 		this.preview.close();
+		this.user.close();
 	}
 }

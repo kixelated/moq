@@ -58,10 +58,18 @@ export class Connection implements Established {
 	 * Closes the connection.
 	 */
 	close() {
+		if (this.#closed) return;
+
 		this.#closed = true;
 		this.#publisher.close();
 		this.#subscriber.close();
-		this.#quic.close();
+
+		try {
+			// TODO: For whatever reason, this try/catch doesn't seem to work..?
+			this.#quic.close();
+		} catch {
+			// ignore
+		}
 	}
 
 	async #run(): Promise<void> {

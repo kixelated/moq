@@ -31,12 +31,10 @@ export class Window {
 
 		this.signals.effect((effect) => {
 			const enabled = effect.get(this.enabled);
-			if (!enabled) {
-				return;
-			}
+			if (!enabled) return;
 
 			effect.set(this.catalog, {
-				initial: effect.get(this.position),
+				initial: this.position.peek(),
 				track: Window.TRACK,
 				handle: effect.get(this.handle),
 			});

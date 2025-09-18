@@ -6,6 +6,7 @@ import { Chat, type ChatProps } from "./chat";
 import * as Location from "./location";
 import { Preview, type PreviewProps } from "./preview";
 import { PRIORITY } from "./priority";
+import * as User from "./user";
 import * as Video from "./video";
 import { Detection, type DetectionProps } from "./video/detection";
 
@@ -28,6 +29,7 @@ export interface BroadcastProps {
 	chat?: ChatProps;
 	detection?: DetectionProps;
 	preview?: PreviewProps;
+	user?: User.Props;
 }
 
 // A broadcast that (optionally) reloads automatically when live/offline.
@@ -37,7 +39,6 @@ export class Broadcast {
 	enabled: Signal<boolean>;
 	name: Signal<Moq.Path.Valid | undefined>;
 	status = new Signal<"offline" | "loading" | "live">("offline");
-	user = new Signal<Catalog.User | undefined>(undefined);
 	reload: Signal<boolean>;
 
 	audio: Audio.Source;
@@ -46,6 +47,7 @@ export class Broadcast {
 	chat: Chat;
 	detection: Detection;
 	preview: Preview;
+	user: User.Info;
 
 	#broadcast = new Signal<Moq.Broadcast | undefined>(undefined);
 
@@ -69,10 +71,7 @@ export class Broadcast {
 		this.chat = new Chat(this.#broadcast, this.#catalog, props?.chat);
 		this.detection = new Detection(this.#broadcast, this.#catalog, props?.detection);
 		this.preview = new Preview(this.#broadcast, this.#catalog, props?.preview);
-
-		this.signals.effect((effect) => {
-			this.user.set(effect.get(this.#catalog)?.user);
-		});
+		this.user = new User.Info(this.#catalog, props?.user);
 
 		this.signals.effect(this.#runReload.bind(this));
 		this.signals.effect(this.#runBroadcast.bind(this));
@@ -143,6 +142,8 @@ export class Broadcast {
 	}
 
 	async #fetchCatalog(catalog: Moq.Track): Promise<void> {
+		console.log("fetching catalog", this.name.peek());
+
 		try {
 			for (;;) {
 				const update = await Catalog.fetch(catalog);
@@ -170,5 +171,6 @@ export class Broadcast {
 		this.chat.close();
 		this.detection.close();
 		this.preview.close();
+		this.user.close();
 	}
 }
