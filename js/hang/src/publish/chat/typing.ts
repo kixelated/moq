@@ -1,13 +1,13 @@
 import * as Moq from "@kixelated/moq";
 import { Effect, Signal } from "@kixelated/signals";
 import * as Catalog from "../../catalog";
-import { TRACKS } from "../tracks";
 
 export type TypingProps = {
 	enabled?: boolean | Signal<boolean>;
 };
 
 export class Typing {
+	static readonly TRACK = "chat/typing.bool";
 	enabled: Signal<boolean>;
 
 	// Whether the user is typing.
@@ -25,7 +25,7 @@ export class Typing {
 			const enabled = effect.get(this.enabled);
 			if (!enabled) return;
 
-			this.catalog.set(TRACKS.chat.typing);
+			this.catalog.set(Typing.TRACK);
 		});
 	}
 

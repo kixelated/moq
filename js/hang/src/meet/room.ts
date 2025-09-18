@@ -127,7 +127,8 @@ export class Room {
 
 		if (update.active) {
 			// NOTE: If you were implementing this yourself, you could use the <hang-watch> element instead.
-			const watch = new Watch.Broadcast(this.connection, {
+			const watch = new Watch.Broadcast({
+				connection: this.connection.established,
 				// NOTE: You're responsible for setting enabled to true if you want to download the broadcast.
 				enabled: false,
 				name: update.name,

@@ -1,7 +1,6 @@
 import * as Moq from "@kixelated/moq";
 import { Effect, type Getter, Signal } from "@kixelated/signals";
 import * as Catalog from "../catalog";
-import type { Connection } from "../connection";
 import * as Audio from "./audio";
 import { Chat, type ChatProps } from "./chat";
 import * as Location from "./location";
@@ -11,6 +10,8 @@ import * as Video from "./video";
 import { Detection, type DetectionProps } from "./video/detection";
 
 export interface BroadcastProps {
+	connection?: Moq.Connection | Signal<Moq.Connection | undefined>;
+
 	// Whether to start downloading the broadcast.
 	// Defaults to false so you can make sure everything is ready before starting.
 	enabled?: boolean | Signal<boolean>;
@@ -30,9 +31,8 @@ export interface BroadcastProps {
 }
 
 // A broadcast that (optionally) reloads automatically when live/offline.
-// TODO rename to Catalog?
 export class Broadcast {
-	connection: Connection;
+	connection: Signal<Moq.Connection | undefined>;
 
 	enabled: Signal<boolean>;
 	name: Signal<Moq.Path.Valid | undefined>;
@@ -58,8 +58,8 @@ export class Broadcast {
 
 	signals = new Effect();
 
-	constructor(connection: Connection, props?: BroadcastProps) {
-		this.connection = connection;
+	constructor(props?: BroadcastProps) {
+		this.connection = Signal.from(props?.connection);
 		this.name = Signal.from(props?.name);
 		this.enabled = Signal.from(props?.enabled ?? false);
 		this.reload = Signal.from(props?.reload ?? true);
@@ -90,7 +90,7 @@ export class Broadcast {
 			return;
 		}
 
-		const conn = effect.get(this.connection.established);
+		const conn = effect.get(this.connection);
 		if (!conn) return;
 
 		const name = effect.get(this.name);
@@ -113,7 +113,7 @@ export class Broadcast {
 	}
 
 	#runBroadcast(effect: Effect): void {
-		const conn = effect.get(this.connection.established);
+		const conn = effect.get(this.connection);
 		const enabled = effect.get(this.enabled);
 		const name = effect.get(this.name);
 		const active = effect.get(this.#active);

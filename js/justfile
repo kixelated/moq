@@ -15,11 +15,25 @@ web url='http://localhost:4443/anon':
 install:
 	bun install
 
-# Run the CI checks
+# Run static checks
 check:
+	#!/usr/bin/env bash
 	bun install --frozen-lockfile
-	bun run --filter='*' check
-	bun run --filter='*' test
+	if tty -s; then
+		bun run --filter='*' --elide-lines=0 check
+	else
+		bun run --filter='*' check
+	fi
+
+# Run the unit tests
+test:
+	#!/usr/bin/env bash
+	bun install --frozen-lockfile
+	if tty -s; then
+		bun run --filter='*' --elide-lines=0 test
+	else
+		bun run --filter='*' test
+	fi
 
 # Automatically fix some issues.
 fix:

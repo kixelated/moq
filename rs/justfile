@@ -136,7 +136,7 @@ clock action url="http://localhost:4443/anon":
 
 # Run the CI checks
 check:
-	cargo test --all-targets --all-features
+	cargo check --all-targets --all-features
 	cargo clippy --all-targets --all-features -- -D warnings
 	cargo fmt --all --check
 
@@ -145,6 +145,10 @@ check:
 
 	# requires: cargo install cargo-sort
 	cargo sort --workspace --check
+
+# Run the unit tests
+test:
+	cargo test --all-targets --all-features
 
 # Automatically fix some issues.
 fix:

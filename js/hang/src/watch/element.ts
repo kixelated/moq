@@ -182,7 +182,8 @@ class HangWatchInstance {
 			url: this.parent.signals.url,
 		});
 
-		this.broadcast = new Broadcast(this.connection, {
+		this.broadcast = new Broadcast({
+			connection: this.connection.established,
 			name: this.parent.signals.name,
 			enabled: true,
 			reload: this.parent.signals.reload,
@@ -417,8 +418,8 @@ class HangWatchInstance {
 		const container = DOM.create("div");
 
 		effect.effect((effect) => {
-			const url = effect.get(this.broadcast.connection.url);
-			const connection = effect.get(this.broadcast.connection.status);
+			const url = effect.get(this.connection.url);
+			const connection = effect.get(this.connection.status);
 			const broadcast = effect.get(this.broadcast.status);
 
 			if (!url) {

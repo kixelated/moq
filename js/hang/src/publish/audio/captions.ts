@@ -2,7 +2,6 @@ import * as Moq from "@kixelated/moq";
 import { Effect, Signal } from "@kixelated/signals";
 import * as Catalog from "../../catalog";
 import type * as Time from "../../time";
-import { TRACKS } from "../tracks";
 import type { Request, Result } from "./captions-worker";
 import CaptureWorklet from "./capture-worklet?worker&url";
 import type { Speaking } from "./speaking";
@@ -16,6 +15,7 @@ export type CaptionsProps = {
 };
 
 export class Captions {
+	static readonly TRACK = "audio/captions.txt";
 	speaking: Speaking;
 
 	// Enable caption generation via an on-device model (whisper).
@@ -41,7 +41,7 @@ export class Captions {
 		if (!enabled) return;
 
 		const catalog: Catalog.Captions = {
-			track: TRACKS.audio.captions,
+			track: Captions.TRACK,
 		};
 		effect.set(this.catalog, catalog);
 	}

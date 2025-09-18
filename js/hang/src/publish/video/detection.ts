@@ -5,7 +5,6 @@ import * as Catalog from "../../catalog";
 import type { DetectionWorker } from "./detection-worker";
 // Vite-specific import for worker
 import WorkerUrl from "./detection-worker?worker&url";
-import { TRACKS } from "../tracks";
 
 export type DetectionProps = {
 	enabled?: boolean | Signal<boolean>;
@@ -14,6 +13,7 @@ export type DetectionProps = {
 };
 
 export class Detection {
+	static readonly TRACK = "video/detection.json";
 	frame: () => VideoFrame | undefined;
 
 	enabled: Signal<boolean>;
@@ -40,7 +40,7 @@ export class Detection {
 		if (!enabled) return;
 
 		this.#catalog.set({
-			track: TRACKS.detection,
+			track: Detection.TRACK,
 		});
 	}
 

@@ -91,10 +91,8 @@ import * as Moq from "@kixelated/moq";
 
 const connection = await Moq.connect("https://relay.moq.dev/anon");
 
-// Discover streams with an optional prefix
-const announced = connection.announced("");
-
-let announcement = await announced.next();
+// Discover broadcasts announced by the server
+let announcement = await connection.announced();
 while (announcement) {
     console.log("New stream available:", announcement.name);
 

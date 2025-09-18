@@ -3,8 +3,6 @@ import * as Zod from "@kixelated/moq/zod";
 import { Effect, Signal } from "@kixelated/signals";
 import * as Catalog from "../../catalog";
 
-import { TRACKS } from "../tracks";
-
 export type WindowProps = {
 	// If true, then we'll publish our position to the broadcast.
 	enabled?: boolean | Signal<boolean>;
@@ -17,6 +15,7 @@ export type WindowProps = {
 };
 
 export class Window {
+	static readonly TRACK = "location/window.json";
 	enabled: Signal<boolean>;
 	position: Signal<Catalog.Position | undefined>;
 	handle: Signal<string | undefined>; // Allow other peers to request position updates via this handle.
@@ -38,7 +37,7 @@ export class Window {
 
 			effect.set(this.catalog, {
 				initial: effect.get(this.position),
-				track: TRACKS.location.window,
+				track: Window.TRACK,
 				handle: effect.get(this.handle),
 			});
 		});

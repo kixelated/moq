@@ -5,7 +5,6 @@ import { u53 } from "../../catalog";
 import * as Frame from "../../frame";
 import * as Time from "../../time";
 import { isFirefox } from "../../util/hacks";
-import { TRACKS } from "../tracks";
 import { Detection, type DetectionProps } from "./detection";
 import { VideoTrackProcessor } from "./polyfill";
 import type { Source, VideoStreamTrack } from "./types";
@@ -21,6 +20,7 @@ export type EncoderProps = {
 };
 
 export class Encoder {
+	static readonly TRACK = "video/data";
 	detection: Detection;
 
 	enabled: Signal<boolean>;
@@ -58,13 +58,15 @@ export class Encoder {
 		effect.cleanup(() => reader.cancel());
 
 		effect.spawn(async () => {
-			const next = await reader.read();
-			if (!next || !next.value) return;
+			for (;;) {
+				const next = await reader.read();
+				if (!next || !next.value) return;
 
-			this.frame.update((prev) => {
-				prev?.close();
-				return next.value;
-			});
+				this.frame.update((prev) => {
+					prev?.close();
+					return next.value;
+				});
+			}
 		});
 
 		effect.cleanup(() => {
@@ -181,7 +183,7 @@ export class Encoder {
 		const flip = effect.get(this.flip);
 
 		const catalog: Catalog.Video = {
-			track: TRACKS.video.data,
+			track: Encoder.TRACK,
 			config: {
 				codec,
 				flip,
@@ -328,7 +330,6 @@ async function bestCodec(): Promise<string> {
 
 			const { supported, config: hardwareConfig } = await VideoEncoder.isConfigSupported(config);
 			if (supported && hardwareConfig) {
-				console.debug("using hardware encoding: ", hardwareConfig);
 				return codec;
 			}
 		}
@@ -348,7 +349,6 @@ async function bestCodec(): Promise<string> {
 
 		const { supported, config: softwareConfig } = await VideoEncoder.isConfigSupported(config);
 		if (supported && softwareConfig) {
-			console.debug("using software encoding: ", softwareConfig);
 			return codec;
 		}
 	}

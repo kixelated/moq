@@ -14,11 +14,9 @@
 		"./meet": "./src/meet/index.ts",
 		"./meet/element": "./src/meet/element.ts",
 		"./catalog": "./src/catalog/index.ts",
-		"./container": "./src/container/index.ts",
 		"./support": "./src/support/index.ts",
 		"./support/element": "./src/support/element.ts",
-		"./connection": "./src/connection.ts",
-		"./preview": "./src/preview/index.ts"
+		"./connection": "./src/connection.ts"
 	},
 	"sideEffects": [
 		"./src/publish/element.ts",
@@ -34,8 +32,8 @@
 	"scripts": {
 		"build": "rimraf dist && tsc -b && bun ../scripts/package.ts",
 		"check": "tsc --noEmit",
-		"release": "bun ../scripts/release.ts",
-		"test": "vitest"
+		"test": "vitest",
+		"release": "bun ../scripts/release.ts"
 	},
 	"dependencies": {
 		"@huggingface/transformers": "^3.7.2",

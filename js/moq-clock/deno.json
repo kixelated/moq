@@ -2,6 +2,5 @@
 	"compilerOptions": {
 		"lib": ["esnext", "dom", "deno.ns"],
 		"strict": true
-	},
-	"unstable": ["sloppy-imports", "net"]
+	}
 }

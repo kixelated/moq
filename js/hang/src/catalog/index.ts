@@ -6,6 +6,7 @@ export * from "./chat";
 export * from "./detection";
 export * from "./integers";
 export * from "./location";
+export * from "./preview";
 export * from "./root";
 export * from "./track";
 export * from "./user";

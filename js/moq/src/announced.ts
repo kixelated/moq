@@ -42,6 +42,7 @@ export class AnnouncedQueue {
 	 */
 	write(announcement: Announced) {
 		if (this.state.closed.peek()) throw new Error("announced is closed");
+		console.error("writing announcement", announcement);
 		this.state.queue.mutate((queue) => {
 			queue.push(announcement);
 		});
@@ -64,12 +65,14 @@ export class AnnouncedQueue {
 	async next(): Promise<Announced | undefined> {
 		for (;;) {
 			const announce = this.state.queue.peek().shift();
+			console.error("next", announce);
 			if (announce) return announce;
 
 			const closed = this.state.closed.peek();
 			if (closed instanceof Error) throw closed;
 			if (closed) return undefined;
 
+			console.error("waiting queue or closed");
 			await Signal.race(this.state.queue, this.state.closed);
 		}
 	}

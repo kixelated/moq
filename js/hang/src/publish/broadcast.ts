@@ -1,15 +1,14 @@
 import * as Moq from "@kixelated/moq";
 import { Effect, Signal } from "@kixelated/signals";
 import * as Catalog from "../catalog";
-import type { Connection } from "../connection";
 import * as Audio from "./audio";
 import * as Chat from "./chat";
 import * as Location from "./location";
 import { Preview, type PreviewProps } from "./preview";
-import { TRACKS } from "./tracks";
 import * as Video from "./video";
 
 export type BroadcastProps = {
+	connection?: Moq.Connection | Signal<Moq.Connection | undefined>;
 	enabled?: boolean | Signal<boolean>;
 	name?: Moq.Path.Valid | Signal<Moq.Path.Valid | undefined>;
 	audio?: Audio.EncoderProps;
@@ -18,13 +17,12 @@ export type BroadcastProps = {
 	user?: Catalog.User | Signal<Catalog.User | undefined>;
 	chat?: Chat.Props;
 	preview?: PreviewProps;
-
-	// You can disable reloading if you want to save a round trip when you know the broadcast is already live.
-	reload?: boolean;
 };
 
 export class Broadcast {
-	connection: Connection;
+	static readonly CATALOG_TRACK = "catalog.json";
+
+	connection: Signal<Moq.Connection | undefined>;
 	enabled: Signal<boolean>;
 	name: Signal<Moq.Path.Valid | undefined>;
 
@@ -34,14 +32,12 @@ export class Broadcast {
 	location: Location.Root;
 	user: Signal<Catalog.User | undefined>;
 	chat: Chat.Root;
-
-	// TODO should be a separate broadcast for separate authentication.
 	preview: Preview;
 
 	signals = new Effect();
 
-	constructor(connection: Connection, props?: BroadcastProps) {
-		this.connection = connection;
+	constructor(props?: BroadcastProps) {
+		this.connection = Signal.from(props?.connection);
 		this.enabled = Signal.from(props?.enabled ?? false);
 		this.name = Signal.from(props?.name);
 
@@ -59,7 +55,7 @@ export class Broadcast {
 		const enabled = effect.get(this.enabled);
 		if (!enabled) return;
 
-		const connection = effect.get(this.connection.established);
+		const connection = effect.get(this.connection);
 		if (!connection) return;
 
 		const name = effect.get(this.name);
@@ -84,31 +80,31 @@ export class Broadcast {
 				if (effect.get(request.track.state.closed)) return;
 
 				switch (request.track.name) {
-					case TRACKS.catalog:
+					case Broadcast.CATALOG_TRACK:
 						this.#serveCatalog(request.track, effect);
 						break;
-					case TRACKS.location.window:
+					case Location.Window.TRACK:
 						this.location.window.serve(request.track, effect);
 						break;
-					case TRACKS.location.peers:
+					case Location.Peers.TRACK:
 						this.location.peers.serve(request.track, effect);
 						break;
-					case TRACKS.preview:
+					case Preview.TRACK:
 						this.preview.serve(request.track, effect);
 						break;
-					case TRACKS.chat.typing:
+					case Chat.Typing.TRACK:
 						this.chat.typing.serve(request.track, effect);
 						break;
-					case TRACKS.chat.message:
+					case Chat.Message.TRACK:
 						this.chat.message.serve(request.track, effect);
 						break;
-					case TRACKS.video.detection:
+					case Video.Detection.TRACK:
 						this.video.detection.serve(request.track, effect);
 						break;
-					case TRACKS.audio.data:
+					case Audio.Encoder.TRACK:
 						this.audio.serve(request.track, effect);
 						break;
-					case TRACKS.video.data:
+					case Video.Encoder.TRACK:
 						this.video.serve(request.track, effect);
 						break;
 					default:
@@ -138,6 +134,7 @@ export class Broadcast {
 			user: effect.get(this.user),
 			chat: effect.get(this.chat.catalog),
 			detection: effect.get(this.video.detection.catalog),
+			preview: effect.get(this.preview.catalog),
 		};
 
 		const encoded = Catalog.encode(catalog);
@@ -150,5 +147,6 @@ export class Broadcast {
 		this.video.close();
 		this.location.close();
 		this.chat.close();
+		this.preview.close();
 	}
 }

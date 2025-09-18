@@ -12,7 +12,6 @@ import type { Source } from "./types";
 const GAIN_MIN = 0.001;
 const FADE_TIME = 0.2;
 
-import { TRACKS } from "../tracks";
 // Unfortunately, we need to use a Vite-exclusive import for now.
 import CaptureWorklet from "./capture-worklet?worker&url";
 import { Speaking, type SpeakingProps } from "./speaking";
@@ -33,6 +32,7 @@ export type EncoderProps = {
 };
 
 export class Encoder {
+	static readonly TRACK = "audio/data";
 	enabled: Signal<boolean>;
 
 	muted: Signal<boolean>;
@@ -232,7 +232,7 @@ export class Encoder {
 		const speaking = effect.get(this.speaking.catalog);
 
 		const catalog: Catalog.Audio = {
-			track: TRACKS.audio.data,
+			track: Encoder.TRACK,
 			config,
 			captions,
 			speaking,

@@ -99,6 +99,11 @@ check:
 	cd rs && just check
 	cd js && just check
 
+# Run the unit tests
+test:
+	cd rs && just test
+	cd js && just test
+
 # Automatically fix some issues.
 fix:
 	cd rs && just fix

@@ -5,7 +5,6 @@ export * as Moq from "@kixelated/moq";
 export * as Catalog from "./catalog";
 export * from "./connection";
 export * as Frame from "./frame";
-export * as Preview from "./preview";
 export * as Publish from "./publish";
 export * as Support from "./support";
 export * as Watch from "./watch";

@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-export const InfoSchema = z.object({
+export const PreviewSchema = z.object({
 	name: z.string().optional(),
 	avatar: z.string().optional(),
 	audio: z.boolean().optional(),
@@ -10,4 +10,4 @@ export const InfoSchema = z.object({
 	typing: z.boolean().optional(),
 });
 
-export type Info = z.infer<typeof InfoSchema>;
+export type Preview = z.infer<typeof PreviewSchema>;

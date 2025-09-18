@@ -1,13 +1,13 @@
 import * as Moq from "@kixelated/moq";
 import { Effect, Signal } from "@kixelated/signals";
 import * as Catalog from "../../catalog";
-import { TRACKS } from "../tracks";
 
 export type MessageProps = {
 	enabled?: boolean | Signal<boolean>;
 };
 
 export class Message {
+	static readonly TRACK = "chat/message.txt";
 	enabled: Signal<boolean>;
 
 	// The latest message to publish.
@@ -25,7 +25,7 @@ export class Message {
 			const enabled = effect.get(this.enabled);
 			if (!enabled) return;
 
-			this.catalog.set(TRACKS.chat.message);
+			this.catalog.set(Message.TRACK);
 		});
 	}
 

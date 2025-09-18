@@ -4,7 +4,6 @@ import * as Catalog from "../../catalog";
 import CaptureWorklet from "./capture-worklet?worker&url";
 import type { Request, Result } from "./speaking-worker";
 import type { Source } from "./types";
-import { TRACKS } from "../tracks";
 
 export type SpeakingProps = {
 	enabled?: boolean | Signal<boolean>;
@@ -12,6 +11,7 @@ export type SpeakingProps = {
 
 // Detects when the user is speaking.
 export class Speaking {
+	static readonly TRACK = "audio/speaking.bool";
 	source: Signal<Source | undefined>;
 
 	enabled: Signal<boolean>;
@@ -32,7 +32,7 @@ export class Speaking {
 		if (!enabled) return;
 
 		const catalog: Catalog.Speaking = {
-			track: TRACKS.audio.speaking,
+			track: Speaking.TRACK,
 		};
 		effect.set(this.catalog, catalog);
 	}

@@ -2,7 +2,6 @@ import * as Moq from "@kixelated/moq";
 import * as Zod from "@kixelated/moq/zod";
 import { Effect, Signal } from "@kixelated/signals";
 import * as Catalog from "../../catalog";
-import { TRACKS } from "../tracks";
 
 export interface PeersProps {
 	enabled?: boolean | Signal<boolean>;
@@ -10,6 +9,7 @@ export interface PeersProps {
 }
 
 export class Peers {
+	static readonly TRACK = "location/peers.json";
 	enabled: Signal<boolean>;
 	positions = new Signal<Record<string, Catalog.Position>>({});
 
@@ -27,7 +27,7 @@ export class Peers {
 			const positions = effect.get(this.positions);
 			if (!positions) return;
 
-			this.catalog.set(TRACKS.location.peers);
+			this.catalog.set(Peers.TRACK);
 		});
 	}
 
