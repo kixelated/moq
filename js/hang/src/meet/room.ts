@@ -89,27 +89,20 @@ export class Room {
 
 		const name = effect.get(this.name);
 
-		effect.spawn(this.#runRemotes.bind(this, connection, name));
-	}
+		const announced = connection.announced(name);
+		effect.cleanup(() => announced.close());
 
-	async #runRemotes(connection: Moq.Connection, name?: Moq.Path.Valid) {
-		try {
+		effect.spawn(async () => {
 			for (;;) {
-				const update = await connection.announced();
-
-				// We're donezo.
+				const update = await announced.next();
 				if (!update) break;
 
-				if (!name || Path.hasPrefix(name, update.name)) {
-					this.#handleUpdate(update);
-				}
+				this.#handleUpdate(update);
 			}
-		} finally {
-			this.close();
-		}
+		});
 	}
 
-	#handleUpdate(update: Moq.Announced) {
+	#handleUpdate(update: Moq.AnnouncedEntry) {
 		for (const [name, broadcast] of this.locals) {
 			if (update.name === name) {
 				if (update.active) {

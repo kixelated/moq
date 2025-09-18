@@ -167,7 +167,8 @@ class HangPublishInstance {
 		this.connection = new Connection({
 			url: this.parent.signals.url,
 		});
-		this.broadcast = new Broadcast(this.connection, {
+		this.broadcast = new Broadcast({
+			connection: this.connection.established,
 			enabled: true, // TODO allow configuring this
 			name: this.parent.signals.name,
 
@@ -578,8 +579,8 @@ class HangPublishInstance {
 		const container = DOM.create("div");
 
 		effect.effect((effect) => {
-			const url = effect.get(this.broadcast.connection.url);
-			const status = effect.get(this.broadcast.connection.status);
+			const url = effect.get(this.connection.url);
+			const status = effect.get(this.connection.status);
 			const audio = effect.get(this.broadcast.audio.source);
 			const video = effect.get(this.broadcast.video.source);
 

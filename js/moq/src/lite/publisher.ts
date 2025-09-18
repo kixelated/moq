@@ -1,4 +1,4 @@
-import { AnnouncedQueue } from "../announced.ts";
+import { Signal } from "@kixelated/signals";
 import type { Broadcast } from "../broadcast.ts";
 import type { Group } from "../group.ts";
 import * as Path from "../path.ts";
@@ -17,12 +17,9 @@ import { type Subscribe, SubscribeOk, SubscribeUpdate } from "./subscribe.ts";
 export class Publisher {
 	#quic: WebTransport;
 
-	// TODO this will store every announce/unannounce message, which will grow unbounded.
-	// We should remove any cached announcements on unannounce, etc.
-	#announced = new AnnouncedQueue();
-
 	// Our published broadcasts.
-	#broadcasts = new Map<Path.Valid, Broadcast>();
+	// It's a signal so we can live update any announce streams.
+	#broadcasts = new Signal<Map<Path.Valid, Broadcast> | undefined>(new Map());
 
 	/**
 	 * Creates a new Publisher instance.
@@ -39,26 +36,17 @@ export class Publisher {
 	 * @param name - The broadcast to publish
 	 */
 	publish(name: Path.Valid, broadcast: Broadcast) {
-		this.#broadcasts.set(name, broadcast);
-		void this.#runPublish(name, broadcast);
-	}
+		this.#broadcasts.mutate((broadcasts) => {
+			if (!broadcasts) throw new Error("closed");
+			broadcasts.set(name, broadcast);
+		});
 
-	async #runPublish(name: Path.Valid, broadcast: Broadcast) {
-		try {
-			this.#announced.write({
-				name,
-				active: true,
+		// Remove the broadcast from the lookup when it's closed.
+		void broadcast.closed.finally(() => {
+			this.#broadcasts.mutate((broadcasts) => {
+				broadcasts?.delete(name);
 			});
-
-			// Wait until the broadcast is closed, then remove it from the lookup.
-			await broadcast.closed;
-		} finally {
-			this.#broadcasts.delete(name);
-			this.#announced.write({
-				name,
-				active: false,
-			});
-		}
+		});
 	}
 
 	/**
@@ -70,52 +58,61 @@ export class Publisher {
 	 */
 	async runAnnounce(msg: AnnounceInterest, stream: Stream) {
 		// Send ANNOUNCE_INIT as the first message with all currently active paths
-		const activePaths: Path.Valid[] = [];
+		let active = new Set<Path.Valid>();
 
-		// Make a resolved promise so we can avoid blocking.
-		// This abuses the fact that Promise.race will prioritize the first resolved promise.
-		const timeout = Promise.resolve();
+		const broadcasts = this.#broadcasts.peek();
+		if (!broadcasts) return; // closed
 
-		let next = this.#announced.next();
-
-		for (;;) {
-			const announcement = await Promise.race([next, timeout]);
-			if (!announcement) break;
-
-			console.debug(`announce: broadcast=${announcement.name} active=${announcement.active} init=true`);
-
-			const suffix = Path.stripPrefix(msg.prefix, announcement.name);
-			if (suffix === null) throw new Error("invalid suffix");
-
-			const index = activePaths.indexOf(suffix);
-			if (announcement.active) {
-				if (index !== -1) throw new Error("duplicate announce");
-				activePaths.push(suffix);
-			} else {
-				if (index === -1) throw new Error("unknown announce");
-				activePaths.splice(index, 1);
-			}
-
-			next = this.#announced.next();
+		for (const name of broadcasts.keys()) {
+			const suffix = Path.stripPrefix(msg.prefix, name);
+			if (suffix === null) continue;
+			console.debug(`announce: broadcast=${name} active=true`);
+			active.add(suffix);
 		}
 
-		const init = new AnnounceInit(activePaths);
+		const init = new AnnounceInit(active.values().toArray());
 		await init.encode(stream.writer);
 
-		// Then send updates as they occur
+		// Wait for updates to the broadcasts.
 		for (;;) {
-			const announcement = await next;
-			if (!announcement) break;
+			// TODO Make a better helper within Signals.
+			const changed = new Promise<Map<Path.Valid, Broadcast> | undefined>((resolve) => {
+				const dispose = this.#broadcasts.changed(resolve);
+				return () => dispose();
+			});
 
-			console.debug(`announce: broadcast=${announcement.name} active=${announcement.active} init=false`);
+			// Wait until the map of broadcasts changes.
+			const broadcasts = await Promise.race([changed, stream.reader.closed]);
+			if (!broadcasts) break;
 
-			const wire = new Announce(announcement.name, announcement.active);
-			await wire.encode(stream.writer);
+			// Create a new set of active broadcasts.
+			// This is SLOW, but it's not worth optimizing because we often have just 1 broadcast anyway.
+			const newActive = new Set<Path.Valid>();
+			for (const name of broadcasts.keys()) {
+				const suffix = Path.stripPrefix(msg.prefix, name);
+				if (suffix === null) continue; // Not our prefix.
+				newActive.add(suffix);
+			}
 
-			next = this.#announced.next();
+			// Announce any new broadcasts.
+			for (const added of newActive.difference(active)) {
+				console.debug(`announce: broadcast=${added} active=true`);
+				const wire = new Announce(added, true);
+				await wire.encode(stream.writer);
+			}
+
+			// Announce any removed broadcasts.
+			for (const removed of active.difference(newActive)) {
+				console.debug(`announce: broadcast=${removed} active=false`);
+				const wire = new Announce(removed, false);
+				await wire.encode(stream.writer);
+			}
+
+			// NOTE: This is kind of a hack that won't work with a rapid UNANNOUNCE/ANNOUNCE cycle.
+			// However, our client doesn't do that anyway.
+
+			active = newActive;
 		}
-
-		this.#announced.close();
 	}
 
 	/**
@@ -126,7 +123,7 @@ export class Publisher {
 	 * @internal
 	 */
 	async runSubscribe(msg: Subscribe, stream: Stream) {
-		const broadcast = this.#broadcasts.get(msg.broadcast);
+		const broadcast = this.#broadcasts.peek()?.get(msg.broadcast);
 		if (!broadcast) {
 			console.debug(`publish unknown: broadcast=${msg.broadcast}`);
 			stream.writer.reset(new Error("not found"));
@@ -236,12 +233,11 @@ export class Publisher {
 	}
 
 	close() {
-		this.#announced.close();
-
-		for (const broadcast of this.#broadcasts.values()) {
-			broadcast.close();
-		}
-
-		this.#broadcasts.clear();
+		this.#broadcasts.update((broadcasts) => {
+			for (const broadcast of broadcasts?.values() ?? []) {
+				broadcast.close();
+			}
+			return undefined;
+		});
 	}
 }

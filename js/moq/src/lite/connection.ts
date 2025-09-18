@@ -1,7 +1,7 @@
 import type { Announced } from "../announced.ts";
 import type { Broadcast } from "../broadcast.ts";
 import type { Connection as ConnectionInterface } from "../connection.ts";
-import type * as Path from "../path.ts";
+import * as Path from "../path.js";
 import { type Reader, Readers, Stream } from "../stream.ts";
 import { AnnounceInterest } from "./announce.ts";
 import { Group } from "./group.ts";
@@ -92,8 +92,8 @@ export class Connection implements ConnectionInterface {
 	/**
 	 * Gets the next announced broadcast.
 	 */
-	async announced(): Promise<Announced | undefined> {
-		return this.#subscriber.announced();
+	announced(prefix = Path.empty()): Announced {
+		return this.#subscriber.announced(prefix);
 	}
 
 	/**

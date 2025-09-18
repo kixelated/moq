@@ -1,4 +1,4 @@
-export type { Announced } from "./announced.ts";
+export * from "./announced.ts";
 export * from "./broadcast.ts";
 export * from "./connect.ts";
 export * from "./connection.ts";

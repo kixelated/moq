@@ -1,4 +1,4 @@
-import { type Announced, AnnouncedQueue } from "../announced.ts";
+import { Announced } from "../announced.ts";
 import { Broadcast, type TrackRequest } from "../broadcast.ts";
 import { Group } from "../group.ts";
 import * as Path from "../path.ts";
@@ -18,8 +18,6 @@ import { Subscribe, SubscribeOk } from "./subscribe.ts";
 export class Subscriber {
 	#quic: WebTransport;
 
-	#announced: AnnouncedQueue;
-
 	// Our subscribed tracks.
 	#subscribes = new Map<bigint, Track>();
 	#subscribeNext = 0n;
@@ -32,19 +30,18 @@ export class Subscriber {
 	 */
 	constructor(quic: WebTransport) {
 		this.#quic = quic;
-
-		this.#announced = new AnnouncedQueue();
-		void this.#runAnnounced(this.#announced);
 	}
 
 	/**
 	 */
-	async announced(): Promise<Announced | undefined> {
-		return this.#announced.next();
+	announced(prefix = Path.empty()): Announced {
+		const announced = new Announced();
+		void this.#runAnnounced(announced, prefix);
+		return announced;
 	}
 
-	async #runAnnounced(announced: AnnouncedQueue): Promise<void> {
-		const msg = new AnnounceInterest(Path.empty());
+	async #runAnnounced(announced: Announced, prefix: Path.Valid): Promise<void> {
+		const msg = new AnnounceInterest(prefix);
 
 		try {
 			// Open a stream and send the announce interest.
@@ -56,22 +53,22 @@ export class Subscriber {
 			const init = await AnnounceInit.decode(stream.reader);
 
 			// Process initial announcements
-			for (const name of init.suffixes) {
+			for (const suffix of init.suffixes) {
+				const name = Path.join(prefix, suffix);
 				console.debug(`announced: broadcast=${name} active=true`);
-				announced.write({ name, active: true });
+				announced.append({ name, active: true });
 			}
 
 			// Then receive updates
 			for (;;) {
-				const announce = await Announce.decodeMaybe(stream.reader);
-				if (!announce) {
-					break;
-				}
+				const announce = await Promise.race([Announce.decodeMaybe(stream.reader), announced.closed]);
+				if (!announce) break;
+				if (announce instanceof Error) throw announce;
 
-				const name = announce.suffix;
+				const name = Path.join(prefix, announce.suffix);
 
 				console.debug(`announced: broadcast=${name} active=${announce.active}`);
-				announced.write({ name, active: announce.active });
+				announced.append({ name, active: announce.active });
 			}
 
 			announced.close();

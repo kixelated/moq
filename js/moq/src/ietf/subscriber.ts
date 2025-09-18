@@ -1,7 +1,7 @@
-import { type Announced, AnnouncedQueue } from "../announced.ts";
+import { Announced } from "../announced.ts";
 import { Broadcast, type TrackRequest } from "../broadcast.ts";
 import { Group } from "../group.ts";
-import type * as Path from "../path.ts";
+import * as Path from "../path.js";
 import type { Reader } from "../stream.ts";
 import type { Track } from "../track.ts";
 import { error } from "../util/error.ts";
@@ -33,8 +33,6 @@ export class Subscriber {
 		}
 	>();
 
-	#announced: AnnouncedQueue;
-
 	/**
 	 * Creates a new Subscriber instance.
 	 * @param quic - The WebTransport session to use
@@ -44,25 +42,25 @@ export class Subscriber {
 	 */
 	constructor(control: Control.Stream) {
 		this.#control = control;
-		this.#announced = new AnnouncedQueue();
 		//void this.#runAnnounced();
 	}
-
-	/* TODO once the remote server actually supports it
-	async #runAnnounced() {
-		// Send me everything at the root.
-		const msg = new SubscribeAnnounces(this.#root);
-		await Control.write(this.#control, msg);
-	}
-	*/
 
 	/**
 	 * Gets an announced reader for the specified prefix.
 	 * @param prefix - The prefix for announcements
 	 * @returns An AnnounceConsumer instance
 	 */
-	async announced(): Promise<Announced | undefined> {
-		return this.#announced.next();
+	announced(_prefix = Path.empty()): Announced {
+		const announced = new Announced();
+		return announced;
+
+		/* TODO once the remote server actually supports it
+		async #runAnnounced() {
+			// Send me everything at the root.
+			const msg = new SubscribeAnnounces(this.#root);
+			await Control.write(this.#control, msg);
+		}
+		*/
 	}
 
 	/**
@@ -196,22 +194,16 @@ export class Subscriber {
 	 * Handles an ANNOUNCE control message received on the control stream.
 	 * @param msg - The ANNOUNCE message
 	 */
-	async handleAnnounce(msg: Announce) {
-		this.#announced.write({
-			name: msg.trackNamespace,
-			active: true,
-		});
+	async handleAnnounce(_msg: Announce) {
+		// TODO implement once Cloudflare supports it
 	}
 
 	/**
 	 * Handles an UNANNOUNCE control message received on the control stream.
 	 * @param msg - The UNANNOUNCE message
 	 */
-	async handleUnannounce(msg: Unannounce) {
-		this.#announced.write({
-			name: msg.trackNamespace,
-			active: false,
-		});
+	async handleUnannounce(_msg: Unannounce) {
+		// TODO implement once Cloudflare supports it
 	}
 
 	async handleSubscribeAnnouncesOk(_msg: SubscribeAnnouncesOk) {

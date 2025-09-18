@@ -96,9 +96,12 @@ export class Broadcast {
 		const name = effect.get(this.name);
 		if (!name) return;
 
+		const announced = conn.announced(name);
+		effect.cleanup(() => announced.close());
+
 		effect.spawn(async () => {
 			for (;;) {
-				const update = await conn.announced();
+				const update = await announced.next();
 				if (!update) break;
 
 				// Require full equality

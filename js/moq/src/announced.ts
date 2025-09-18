@@ -6,13 +6,13 @@ import type * as Path from "./path.ts";
  *
  * @public
  */
-export interface Announced {
+export interface AnnouncedEntry {
 	name: Path.Valid;
 	active: boolean;
 }
 
 export class AnnouncedState {
-	queue = new Signal<Announced[]>([]);
+	queue = new Signal<AnnouncedEntry[]>([]);
 	closed = new Signal<boolean | Error>(false);
 }
 
@@ -21,7 +21,7 @@ export class AnnouncedState {
  *
  * @public
  */
-export class AnnouncedQueue {
+export class Announced {
 	state = new AnnouncedState();
 
 	readonly closed: Promise<Error | undefined>;
@@ -40,9 +40,8 @@ export class AnnouncedQueue {
 	 * Writes an announcement to the queue.
 	 * @param announcement - The announcement to write
 	 */
-	write(announcement: Announced) {
+	append(announcement: AnnouncedEntry) {
 		if (this.state.closed.peek()) throw new Error("announced is closed");
-		console.error("writing announcement", announcement);
 		this.state.queue.mutate((queue) => {
 			queue.push(announcement);
 		});
@@ -62,17 +61,15 @@ export class AnnouncedQueue {
 	/**
 	 * Returns the next announcement.
 	 */
-	async next(): Promise<Announced | undefined> {
+	async next(): Promise<AnnouncedEntry | undefined> {
 		for (;;) {
 			const announce = this.state.queue.peek().shift();
-			console.error("next", announce);
 			if (announce) return announce;
 
 			const closed = this.state.closed.peek();
 			if (closed instanceof Error) throw closed;
 			if (closed) return undefined;
 
-			console.error("waiting queue or closed");
 			await Signal.race(this.state.queue, this.state.closed);
 		}
 	}

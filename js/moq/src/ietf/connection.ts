@@ -1,7 +1,7 @@
 import type { Announced } from "../announced.ts";
 import type { Broadcast } from "../broadcast.ts";
 import type { Connection as ConnectionInterface } from "../connection.ts";
-import type * as Path from "../path.ts";
+import * as Path from "../path.js";
 import { type Reader, Readers, type Stream } from "../stream.ts";
 import { unreachable } from "../util/index.ts";
 import { Announce, AnnounceCancel, AnnounceError, AnnounceOk, Unannounce } from "./announce.ts";
@@ -98,8 +98,8 @@ export class Connection implements ConnectionInterface {
 	 * @param prefix - The prefix for announcements
 	 * @returns An AnnounceConsumer instance
 	 */
-	async announced(): Promise<Announced | undefined> {
-		return this.#subscriber.announced();
+	announced(prefix = Path.empty()): Announced {
+		return this.#subscriber.announced(prefix);
 	}
 
 	/**
