@@ -168,7 +168,7 @@ export class Encoder {
 		let group: Moq.Group = track.appendGroup();
 		effect.cleanup(() => group.close());
 
-		let groupTimestamp = 0 as Time.Micro;
+		let groupTimestamp: Time.Micro | undefined;
 
 		effect.spawn(async () => {
 			// We're using an async polyfill temporarily for Safari support.
@@ -180,7 +180,9 @@ export class Encoder {
 						throw new Error("only key frames are supported");
 					}
 
-					if (frame.timestamp - groupTimestamp >= Time.Micro.fromMilli(this.maxLatency)) {
+					if (!groupTimestamp) {
+						groupTimestamp = frame.timestamp as Time.Micro;
+					} else if (frame.timestamp - groupTimestamp >= Time.Micro.fromMilli(this.maxLatency)) {
 						group.close();
 						group = track.appendGroup();
 						groupTimestamp = frame.timestamp as Time.Micro;

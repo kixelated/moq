@@ -23,7 +23,6 @@
             "npm:@libav.js/variant-opus-af@^6.8.8",
             "npm:@types/audioworklet@^0.0.77",
             "npm:@types/web@^0.0.241",
-            "npm:@typescript/native-preview@7.0.0-dev.20250910.1",
             "npm:async-mutex@0.5",
             "npm:comlink@^4.4.2",
             "npm:fast-glob@^3.3.3",

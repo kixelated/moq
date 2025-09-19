@@ -15,8 +15,7 @@
 		"./meet/element": "./src/meet/element.ts",
 		"./catalog": "./src/catalog/index.ts",
 		"./support": "./src/support/index.ts",
-		"./support/element": "./src/support/element.ts",
-		"./connection": "./src/connection.ts"
+		"./support/element": "./src/support/element.ts"
 	},
 	"sideEffects": [
 		"./src/publish/element.ts",

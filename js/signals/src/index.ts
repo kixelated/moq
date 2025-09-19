@@ -109,7 +109,7 @@ export class Signal<T> implements Getter<T>, Setter<T> {
 	// Receive a notification each time the value changes.
 	subscribe(fn: Subscriber<T>): Dispose {
 		this.#subscribers.add(fn);
-		if (DEV && this.#subscribers.size >= 100 && Math.log10(this.#subscribers.size) % 1 === 1) {
+		if (DEV && this.#subscribers.size >= 100 && Number.isInteger(Math.log10(this.#subscribers.size))) {
 			throw new Error("signal has too many subscribers; may be leaking");
 		}
 		return () => this.#subscribers.delete(fn);

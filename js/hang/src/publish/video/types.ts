@@ -11,9 +11,10 @@ export interface VideoTrackSettings {
 	deviceId: string;
 	groupId: string;
 
+	// I'm not sure what fields are always present.
 	aspectRatio: number;
 	facingMode: "user" | "environment" | "left" | "right";
-	frameRate: number;
+	frameRate?: number;
 	height: number;
 	resizeMode: "none" | "crop-and-scale";
 	width: number;

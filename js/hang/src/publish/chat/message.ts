@@ -25,7 +25,7 @@ export class Message {
 			const enabled = effect.get(this.enabled);
 			if (!enabled) return;
 
-			this.catalog.set(Message.TRACK);
+			effect.set(this.catalog, Message.TRACK);
 		});
 	}
 

@@ -1,4 +1,4 @@
-import { Signal } from "@kixelated/signals";
+import { type Dispose, Signal } from "@kixelated/signals";
 import type { Broadcast } from "../broadcast.ts";
 import type { Group } from "../group.ts";
 import * as Path from "../path.ts";
@@ -78,13 +78,14 @@ export class Publisher {
 		// Wait for updates to the broadcasts.
 		for (;;) {
 			// TODO Make a better helper within Signals.
+			let dispose!: Dispose;
 			const changed = new Promise<Map<Path.Valid, Broadcast> | undefined>((resolve) => {
-				const dispose = this.#broadcasts.changed(resolve);
-				return () => dispose();
+				dispose = this.#broadcasts.changed(resolve);
 			});
 
 			// Wait until the map of broadcasts changes.
 			const broadcasts = await Promise.race([changed, stream.reader.closed]);
+			dispose();
 			if (!broadcasts) break;
 
 			// Create a new set of active broadcasts.

@@ -25,7 +25,7 @@ export class Typing {
 			const enabled = effect.get(this.enabled);
 			if (!enabled) return;
 
-			this.catalog.set(Typing.TRACK);
+			effect.set(this.catalog, Typing.TRACK);
 		});
 	}
 

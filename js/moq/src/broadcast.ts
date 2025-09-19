@@ -36,7 +36,8 @@ export class Broadcast {
 	 */
 	async requested(): Promise<TrackRequest | undefined> {
 		for (;;) {
-			const track = this.state.requested.peek().shift();
+			// We use pop instead of shift because it's slightly more efficient.
+			const track = this.state.requested.peek().pop();
 			if (track) return track;
 
 			const closed = this.state.closed.peek();
@@ -58,6 +59,8 @@ export class Broadcast {
 		}
 		this.state.requested.mutate((requested) => {
 			requested.push({ track, priority });
+			// Sort the tracks by priority in ascending order (we will pop)
+			requested.sort((a, b) => a.priority - b.priority);
 		});
 
 		return track;

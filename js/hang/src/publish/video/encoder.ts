@@ -210,7 +210,7 @@ export class Encoder {
 	}
 }
 
-function bestBitrate(props: { codec: string; width: number; height: number; framerate: number }): number {
+function bestBitrate(props: { codec: string; width: number; height: number; framerate?: number }): number {
 	// TARGET BITRATE CALCULATION (h264)
 	// 480p@30 = 1.0mbps
 	// 480p@60 = 1.5mbps
@@ -223,7 +223,7 @@ function bestBitrate(props: { codec: string; width: number; height: number; fram
 	// 30fps is the baseline, applying a multiplier for higher framerates.
 	// Framerate does not cause a multiplicative increase in bitrate because of delta encoding.
 	// TODO Make this better.
-	const framerateFactor = 30.0 + (props.framerate - 30) / 2;
+	const framerateFactor = 30.0 + (props.framerate ?? 30 - 30) / 2;
 	let bitrate = Math.round(pixels * 0.07 * framerateFactor);
 
 	// ACTUAL BITRATE CALCULATION
