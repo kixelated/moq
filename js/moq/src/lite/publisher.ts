@@ -35,16 +35,16 @@ export class Publisher {
 	 * Publishes a broadcast with any associated tracks.
 	 * @param name - The broadcast to publish
 	 */
-	publish(name: Path.Valid, broadcast: Broadcast) {
+	publish(path: Path.Valid, broadcast: Broadcast) {
 		this.#broadcasts.mutate((broadcasts) => {
 			if (!broadcasts) throw new Error("closed");
-			broadcasts.set(name, broadcast);
+			broadcasts.set(path, broadcast);
 		});
 
 		// Remove the broadcast from the lookup when it's closed.
 		void broadcast.closed.finally(() => {
 			this.#broadcasts.mutate((broadcasts) => {
-				broadcasts?.delete(name);
+				broadcasts?.delete(path);
 			});
 		});
 	}

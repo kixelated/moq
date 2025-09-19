@@ -8,9 +8,9 @@ export { HangSupport, HangWatch };
 const watch = document.querySelector("hang-watch") as HangWatch | undefined;
 if (!watch) throw new Error("unable to find <hang-watch> element");
 
-// If query params are provided, use it as the broadcast name.
+// If query params are provided, use it as the broadcast path.
 const urlParams = new URLSearchParams(window.location.search);
-const name = urlParams.get("name");
-if (name) {
-	watch.setAttribute("name", name);
+const path = urlParams.get("path");
+if (path) {
+	watch.setAttribute("path", path);
 }

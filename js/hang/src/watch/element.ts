@@ -5,12 +5,12 @@ import * as Audio from "./audio";
 import { Broadcast } from "./broadcast";
 import * as Video from "./video";
 
-const OBSERVED = ["url", "name", "paused", "volume", "muted", "controls", "captions", "reload"] as const;
+const OBSERVED = ["url", "name", "path", "paused", "volume", "muted", "controls", "captions", "reload"] as const;
 type Observed = (typeof OBSERVED)[number];
 
 export interface HangWatchSignals {
 	url: Signal<URL | undefined>;
-	name: Signal<Moq.Path.Valid | undefined>;
+	path: Signal<Moq.Path.Valid | undefined>;
 	paused: Signal<boolean>;
 	volume: Signal<number>;
 	muted: Signal<boolean>;
@@ -29,8 +29,8 @@ export default class HangWatch extends HTMLElement {
 		// The URL of the moq-relay server
 		url: new Signal<URL | undefined>(undefined),
 
-		// The name of the broadcast, which may be "" or undefined if the URL is fully scoped.
-		name: new Signal<Moq.Path.Valid | undefined>(undefined),
+		// The path of the broadcast relative to the URL (may be empty).
+		path: new Signal<Moq.Path.Valid | undefined>(undefined),
 
 		// Whether audio/video playback is paused.
 		paused: new Signal(false),
@@ -75,8 +75,9 @@ export default class HangWatch extends HTMLElement {
 
 		if (name === "url") {
 			this.url = newValue ? new URL(newValue) : undefined;
-		} else if (name === "name") {
-			this.name = newValue ?? undefined;
+		} else if (name === "name" || name === "path") {
+			// TODO remove backwards compatibility
+			this.path = newValue ?? undefined;
 		} else if (name === "paused") {
 			this.paused = newValue !== null;
 		} else if (name === "volume") {
@@ -105,12 +106,21 @@ export default class HangWatch extends HTMLElement {
 		this.signals.url.set(url);
 	}
 
+	// TODO remove backwards compatibility
 	get name(): string | undefined {
-		return this.signals.name.peek()?.toString();
+		return this.path;
 	}
 
 	set name(name: string | undefined) {
-		this.signals.name.set(name ? Moq.Path.from(name) : undefined);
+		this.path = name;
+	}
+
+	get path(): string | undefined {
+		return this.signals.path.peek()?.toString();
+	}
+
+	set path(name: string | undefined) {
+		this.signals.path.set(name ? Moq.Path.from(name) : undefined);
 	}
 
 	get paused(): boolean {
@@ -184,7 +194,7 @@ class HangWatchInstance {
 
 		this.broadcast = new Broadcast({
 			connection: this.connection.established,
-			name: this.parent.signals.name,
+			path: this.parent.signals.path,
 			enabled: true,
 			reload: this.parent.signals.reload,
 			audio: {
@@ -228,11 +238,11 @@ class HangWatchInstance {
 		});
 
 		this.#signals.effect((effect) => {
-			const broadcast = effect.get(this.parent.signals.name);
+			const broadcast = effect.get(this.parent.signals.path);
 			if (broadcast) {
-				this.parent.setAttribute("name", broadcast.toString());
+				this.parent.setAttribute("path", broadcast.toString());
 			} else {
-				this.parent.removeAttribute("name");
+				this.parent.removeAttribute("path");
 			}
 		});
 

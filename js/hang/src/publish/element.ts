@@ -5,14 +5,15 @@ import { Broadcast } from "./broadcast";
 import * as Source from "./source";
 
 // TODO: remove device; it's a backwards compatible alias for source.
-const OBSERVED = ["url", "name", "device", "audio", "video", "controls", "captions", "source"] as const;
+// TODO remove name; it's a backwards compatible alias for path.
+const OBSERVED = ["url", "name", "path", "device", "audio", "video", "controls", "captions", "source"] as const;
 type Observed = (typeof OBSERVED)[number];
 
 type SourceType = "camera" | "screen";
 
 export interface HangPublishSignals {
 	url: Signal<URL | undefined>;
-	name: Signal<Moq.Path.Valid | undefined>;
+	path: Signal<Moq.Path.Valid | undefined>;
 	device: Signal<SourceType | undefined>;
 	audio: Signal<boolean>;
 	video: Signal<boolean>;
@@ -26,7 +27,7 @@ export default class HangPublish extends HTMLElement {
 
 	signals: HangPublishSignals = {
 		url: new Signal<URL | undefined>(undefined),
-		name: new Signal<Moq.Path.Valid | undefined>(undefined),
+		path: new Signal<Moq.Path.Valid | undefined>(undefined),
 		device: new Signal<SourceType | undefined>(undefined),
 		audio: new Signal<boolean>(false),
 		video: new Signal<boolean>(false),
@@ -53,8 +54,8 @@ export default class HangPublish extends HTMLElement {
 
 		if (name === "url") {
 			this.url = newValue ? new URL(newValue) : undefined;
-		} else if (name === "name") {
-			this.name = newValue ?? undefined;
+		} else if (name === "name" || name === "path") {
+			this.path = newValue ?? undefined;
 		} else if (name === "device" || name === "source") {
 			if (newValue === "camera" || newValue === "screen" || newValue === null) {
 				this.source = newValue ?? undefined;
@@ -84,11 +85,19 @@ export default class HangPublish extends HTMLElement {
 	}
 
 	get name(): string | undefined {
-		return this.signals.name.peek()?.toString();
+		return this.path;
 	}
 
 	set name(name: string | undefined) {
-		this.signals.name.set(name ? Moq.Path.from(name) : undefined);
+		this.path = name;
+	}
+
+	get path(): string | undefined {
+		return this.signals.path.peek()?.toString();
+	}
+
+	set path(name: string | undefined) {
+		this.signals.path.set(name ? Moq.Path.from(name) : undefined);
 	}
 
 	// TODO: remove device; it's a backwards compatible alias for source.
@@ -171,7 +180,7 @@ class HangPublishInstance {
 		this.broadcast = new Broadcast({
 			connection: this.connection.established,
 			enabled: true, // TODO allow configuring this
-			name: this.parent.signals.name,
+			path: this.parent.signals.path,
 
 			audio: {
 				enabled: this.parent.signals.audio,

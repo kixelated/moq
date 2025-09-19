@@ -11,9 +11,9 @@ const watch = document.getElementById("watch") as HTMLAnchorElement;
 const watchName = document.getElementById("watch-name") as HTMLSpanElement;
 
 const urlParams = new URLSearchParams(window.location.search);
-const name = urlParams.get("name");
-if (name) {
-	publish.setAttribute("name", name);
-	watch.href = `index.html?name=${name}`;
-	watchName.textContent = name;
+const path = urlParams.get("path");
+if (path) {
+	publish.setAttribute("path", path);
+	watch.href = `index.html?path=${path}`;
+	watchName.textContent = path;
 }

@@ -7,7 +7,7 @@ export interface Established {
 	readonly url: URL;
 
 	announced(prefix?: Path.Valid): Announced;
-	publish(name: Path.Valid, broadcast: Broadcast): void;
+	publish(path: Path.Valid, broadcast: Broadcast): void;
 	consume(broadcast: Path.Valid): Broadcast;
 	close(): void;
 	closed: Promise<void>;

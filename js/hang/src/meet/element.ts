@@ -5,12 +5,12 @@ import { type Publish, Watch } from "..";
 import HangPublish from "../publish/element";
 import { Room } from "./room";
 
-const OBSERVED = ["url", "name"] as const;
+const OBSERVED = ["url", "name", "path"] as const;
 type Observed = (typeof OBSERVED)[number];
 
 export interface HangMeetSignals {
 	url: Signal<URL | undefined>;
-	name: Signal<Moq.Path.Valid | undefined>;
+	path: Signal<Moq.Path.Valid | undefined>;
 }
 
 // NOTE: This element is more of an example of how to use the library.
@@ -21,7 +21,7 @@ export default class HangMeet extends HTMLElement {
 
 	signals: HangMeetSignals = {
 		url: new Signal<URL | undefined>(undefined),
-		name: new Signal<Moq.Path.Valid | undefined>(undefined),
+		path: new Signal<Moq.Path.Valid | undefined>(undefined),
 	};
 
 	active = new Signal<HangMeetInstance | undefined>(undefined);
@@ -40,8 +40,8 @@ export default class HangMeet extends HTMLElement {
 	attributeChangedCallback(name: Observed, _oldValue: string | null, newValue: string | null) {
 		if (name === "url") {
 			this.url = newValue ? new URL(newValue) : undefined;
-		} else if (name === "name") {
-			this.name = newValue ?? undefined;
+		} else if (name === "name" || name === "path") {
+			this.path = newValue ?? undefined;
 		} else {
 			const exhaustive: never = name;
 			throw new Error(`Invalid attribute: ${exhaustive}`);
@@ -57,11 +57,19 @@ export default class HangMeet extends HTMLElement {
 	}
 
 	get name(): string | undefined {
-		return this.signals.name.peek()?.toString();
+		return this.path;
 	}
 
 	set name(name: string | undefined) {
-		this.signals.name.set(name ? Moq.Path.from(name) : undefined);
+		this.path = name;
+	}
+
+	get path(): string | undefined {
+		return this.signals.path.peek()?.toString();
+	}
+
+	set path(path: string | undefined) {
+		this.signals.path.set(path ? Moq.Path.from(path) : undefined);
 	}
 }
 
@@ -88,7 +96,7 @@ class HangMeetInstance {
 		this.parent = parent;
 
 		this.connection = new Moq.Connection.Reload({ url: this.parent.signals.url, enabled: true });
-		this.room = new Room({ connection: this.connection.established, name: this.parent.signals.name });
+		this.room = new Room({ connection: this.connection.established, path: this.parent.signals.path });
 
 		this.#container = DOM.create("div", {
 			style: {
@@ -132,11 +140,11 @@ class HangMeetInstance {
 				const active = effect.get(publish.active);
 				if (!active) return;
 
-				const name = effect.get(active.broadcast.name);
-				if (!name) return;
+				const path = effect.get(active.broadcast.path);
+				if (!path) return;
 
-				this.room.preview(name, active.broadcast);
-				effect.cleanup(() => this.room.unpreview(name));
+				this.room.preview(path, active.broadcast);
+				effect.cleanup(() => this.room.unpreview(path));
 			});
 
 			// Copy the connection URL to the publish element so they're the same.

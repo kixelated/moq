@@ -93,8 +93,8 @@ export class Connection implements Established {
 	 * @param name - The broadcast path to publish
 	 * @param broadcast - The broadcast to publish
 	 */
-	publish(name: Path.Valid, broadcast: Broadcast) {
-		this.#publisher.publish(name, broadcast);
+	publish(path: Path.Valid, broadcast: Broadcast) {
+		this.#publisher.publish(path, broadcast);
 	}
 
 	/**

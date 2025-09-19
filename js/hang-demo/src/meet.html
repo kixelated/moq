@@ -17,7 +17,7 @@
 	<!--
 	 	This is a simple element to render each broadcast in a grid.
 		It will discover any published broadcasts and render them.
-		You can also use `name=meeting-abc` to only match broadcasts matching that prefix.
+		You can also use `path=meeting-abc` to only match broadcasts matching that prefix.
 
 		The relay url is loaded from an environment as it contains a generated JWT authentication token.
 		Feel free to hard-code it if you have public access configured, like `url="https://relay.moq.dev/anon"`
@@ -29,7 +29,7 @@
 			It also won't be downloaded, instead rendered in the grid if `preview` is set.
 			This is rather limited but so is this Web Component; use the JS API for more control.
 		-->
-		<hang-publish name="me" audio video controls preview></hang-publish>
+		<hang-publish path="me" audio video controls preview></hang-publish>
 	</hang-meet>
 
 	<h3>Other demos:</h3>
@@ -48,7 +48,7 @@
 	<p>
 		A "room" of broadcasts is little more than a shared prefix.
 		If you publish to <code>demo/foo</code> and <code>demo/bar</code>, then using <code>demo</code> will render both.
-		You can provide the name of the broadcast via the <code>name</code> attribute.
+		You can provide the path of the broadcast via the <code>path</code> attribute.
 	</p>
 	<hr />
 	<p>

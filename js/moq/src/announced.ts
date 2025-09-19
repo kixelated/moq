@@ -7,7 +7,7 @@ import type * as Path from "./path.ts";
  * @public
  */
 export interface AnnouncedEntry {
-	name: Path.Valid;
+	path: Path.Valid;
 	active: boolean;
 }
 

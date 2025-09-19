@@ -39,27 +39,27 @@ export class Publisher {
 	 * Publishes a broadcast with any associated tracks.
 	 * @param name - The broadcast to publish
 	 */
-	publish(name: Path.Valid, broadcast: Broadcast) {
-		this.#broadcasts.set(name, broadcast);
-		void this.#runPublish(name, broadcast);
+	publish(path: Path.Valid, broadcast: Broadcast) {
+		this.#broadcasts.set(path, broadcast);
+		void this.#runPublish(path, broadcast);
 	}
 
-	async #runPublish(name: Path.Valid, broadcast: Broadcast) {
+	async #runPublish(path: Path.Valid, broadcast: Broadcast) {
 		try {
-			const announce = new Announce(name);
+			const announce = new Announce(path);
 			await this.#control.write(announce);
 
 			// Wait until the broadcast is closed, then remove it from the lookup.
 			await broadcast.closed;
 
-			const unannounce = new Unannounce(name);
+			const unannounce = new Unannounce(path);
 			await this.#control.write(unannounce);
 		} catch (err: unknown) {
 			const e = error(err);
-			console.warn(`announce failed: broadcast=${name} error=${e.message}`);
+			console.warn(`announce failed: broadcast=${path} error=${e.message}`);
 		} finally {
 			broadcast.close();
-			this.#broadcasts.delete(name);
+			this.#broadcasts.delete(path);
 		}
 	}
 

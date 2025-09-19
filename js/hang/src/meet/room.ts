@@ -6,7 +6,7 @@ export type Broadcast = Watch.Broadcast | Publish.Broadcast;
 
 export type RoomProps = {
 	connection: Moq.Connection.Established | Signal<Moq.Connection.Established | undefined>;
-	name?: Path.Valid | Signal<Path.Valid | undefined>;
+	path?: Path.Valid | Signal<Path.Valid | undefined>;
 };
 
 export class Room {
@@ -14,7 +14,7 @@ export class Room {
 	connection: Signal<Moq.Connection.Established | undefined>;
 
 	// An optional prefix to filter broadcasts by.
-	name: Signal<Path.Valid | undefined>;
+	path: Signal<Path.Valid | undefined>;
 
 	// The active broadcasts, sorted by announcement time.
 	active = new Map<Path.Valid, Broadcast>();
@@ -28,15 +28,15 @@ export class Room {
 	// Optional callbacks to learn when individual broadcasts are added/removed.
 	// We avoid using signals because we don't want to re-render everything on every update.
 	// One day I'll figure out how to handle collections elegantly.
-	#onActive?: (name: Path.Valid, broadcast: Broadcast | undefined) => void;
-	#onRemote?: (name: Path.Valid, broadcast: Watch.Broadcast | undefined) => void;
-	#onLocal?: (name: Path.Valid, broadcast: Publish.Broadcast | undefined) => void;
+	#onActive?: (path: Path.Valid, broadcast: Broadcast | undefined) => void;
+	#onRemote?: (path: Path.Valid, broadcast: Watch.Broadcast | undefined) => void;
+	#onLocal?: (path: Path.Valid, broadcast: Publish.Broadcast | undefined) => void;
 
 	#signals = new Effect();
 
 	constructor(props?: RoomProps) {
 		this.connection = Signal.from(props?.connection);
-		this.name = Signal.from(props?.name);
+		this.path = Signal.from(props?.path);
 
 		this.#signals.effect(this.#init.bind(this));
 	}
@@ -44,16 +44,16 @@ export class Room {
 	// Render a local broadcast instead of downloading a remote broadcast.
 	// This is not a perfect preview, as downloading/decoding is skipped.
 	// NOTE: The broadcast is only published when broadcast.enabled is true.
-	preview(name: Path.Valid, broadcast: Publish.Broadcast) {
-		this.locals.set(name, broadcast);
+	preview(path: Path.Valid, broadcast: Publish.Broadcast) {
+		this.locals.set(path, broadcast);
 	}
 
-	unpreview(name: Path.Valid) {
-		this.locals.delete(name);
+	unpreview(path: Path.Valid) {
+		this.locals.delete(path);
 	}
 
 	// Register a callback when a broadcast has been added/removed.
-	onActive(callback?: (name: Path.Valid, broadcast: Broadcast | undefined) => void) {
+	onActive(callback?: (path: Path.Valid, broadcast: Broadcast | undefined) => void) {
 		this.#onActive = callback;
 		if (!callback) return;
 
@@ -62,7 +62,7 @@ export class Room {
 		}
 	}
 
-	onRemote(callback?: (name: Path.Valid, broadcast: Watch.Broadcast | undefined) => void) {
+	onRemote(callback?: (path: Path.Valid, broadcast: Watch.Broadcast | undefined) => void) {
 		this.#onRemote = callback;
 		if (!callback) return;
 
@@ -71,7 +71,7 @@ export class Room {
 		}
 	}
 
-	onLocal(callback?: (name: Path.Valid, broadcast: Publish.Broadcast | undefined) => void) {
+	onLocal(callback?: (path: Path.Valid, broadcast: Publish.Broadcast | undefined) => void) {
 		this.#onLocal = callback;
 		if (!callback) return;
 
@@ -87,7 +87,7 @@ export class Room {
 		const url = connection.url;
 		if (!url) return;
 
-		const name = effect.get(this.name);
+		const name = effect.get(this.path);
 
 		const announced = connection.announced(name);
 		effect.cleanup(() => announced.close());
@@ -103,16 +103,16 @@ export class Room {
 	}
 
 	#handleUpdate(update: Moq.AnnouncedEntry) {
-		for (const [name, broadcast] of this.locals) {
-			if (update.name === name) {
+		for (const [path, broadcast] of this.locals) {
+			if (update.path === path) {
 				if (update.active) {
-					this.active.set(update.name, broadcast);
-					this.#onLocal?.(update.name, broadcast);
-					this.#onActive?.(update.name, broadcast);
+					this.active.set(update.path, broadcast);
+					this.#onLocal?.(update.path, broadcast);
+					this.#onActive?.(update.path, broadcast);
 				} else {
-					this.active.delete(update.name);
-					this.#onLocal?.(update.name, undefined);
-					this.#onActive?.(update.name, undefined);
+					this.active.delete(update.path);
+					this.#onLocal?.(update.path, undefined);
+					this.#onActive?.(update.path, undefined);
 				}
 				return;
 			}
@@ -124,25 +124,25 @@ export class Room {
 				connection: this.connection,
 				// NOTE: You're responsible for setting enabled to true if you want to download the broadcast.
 				enabled: false,
-				name: update.name,
+				path: update.path,
 				reload: false,
 			});
 
-			this.remotes.set(update.name, watch);
-			this.active.set(update.name, watch);
+			this.remotes.set(update.path, watch);
+			this.active.set(update.path, watch);
 
-			this.#onRemote?.(update.name, watch);
-			this.#onActive?.(update.name, watch);
+			this.#onRemote?.(update.path, watch);
+			this.#onActive?.(update.path, watch);
 		} else {
-			const existing = this.remotes.get(update.name);
-			if (!existing) throw new Error(`broadcast not found: ${update.name}`);
+			const existing = this.remotes.get(update.path);
+			if (!existing) throw new Error(`broadcast not found: ${update.path}`);
 
 			existing.close();
-			this.remotes.delete(update.name);
-			this.active.delete(update.name);
+			this.remotes.delete(update.path);
+			this.active.delete(update.path);
 
-			this.#onRemote?.(update.name, undefined);
-			this.#onActive?.(update.name, undefined);
+			this.#onRemote?.(update.path, undefined);
+			this.#onActive?.(update.path, undefined);
 		}
 	}
 

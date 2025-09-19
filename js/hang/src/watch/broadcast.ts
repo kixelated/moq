@@ -18,7 +18,7 @@ export interface BroadcastProps {
 	enabled?: boolean | Signal<boolean>;
 
 	// The broadcast name.
-	name?: Moq.Path.Valid | Signal<Moq.Path.Valid | undefined>;
+	path?: Moq.Path.Valid | Signal<Moq.Path.Valid | undefined>;
 
 	// You can disable reloading if you don't want to wait for an announcement.
 	reload?: boolean | Signal<boolean>;
@@ -37,7 +37,7 @@ export class Broadcast {
 	connection: Signal<Moq.Connection.Established | undefined>;
 
 	enabled: Signal<boolean>;
-	name: Signal<Moq.Path.Valid | undefined>;
+	path: Signal<Moq.Path.Valid | undefined>;
 	status = new Signal<"offline" | "loading" | "live">("offline");
 	reload: Signal<boolean>;
 
@@ -62,7 +62,7 @@ export class Broadcast {
 
 	constructor(props?: BroadcastProps) {
 		this.connection = Signal.from(props?.connection);
-		this.name = Signal.from(props?.name);
+		this.path = Signal.from(props?.path);
 		this.enabled = Signal.from(props?.enabled ?? false);
 		this.reload = Signal.from(props?.reload ?? true);
 		this.audio = new Audio.Source(this.#broadcast, this.#catalog, props?.audio);
@@ -92,10 +92,10 @@ export class Broadcast {
 		const conn = effect.get(this.connection);
 		if (!conn) return;
 
-		const name = effect.get(this.name);
-		if (!name) return;
+		const path = effect.get(this.path);
+		if (!path) return;
 
-		const announced = conn.announced(name);
+		const announced = conn.announced(path);
 		effect.cleanup(() => announced.close());
 
 		effect.spawn(async () => {
@@ -104,8 +104,8 @@ export class Broadcast {
 				if (!update) break;
 
 				// Require full equality
-				if (update.name !== name) {
-					console.warn("ignoring announce", update.name);
+				if (update.path !== path) {
+					console.warn("ignoring announce", update.path);
 					continue;
 				}
 
@@ -117,11 +117,11 @@ export class Broadcast {
 	#runBroadcast(effect: Effect): void {
 		const conn = effect.get(this.connection);
 		const enabled = effect.get(this.enabled);
-		const name = effect.get(this.name);
+		const path = effect.get(this.path);
 		const active = effect.get(this.#active);
-		if (!conn || !enabled || !name || !active) return;
+		if (!conn || !enabled || !path || !active) return;
 
-		const broadcast = conn.consume(name);
+		const broadcast = conn.consume(path);
 		effect.cleanup(() => broadcast.close());
 
 		effect.set(this.#broadcast, broadcast);
@@ -147,13 +147,13 @@ export class Broadcast {
 				const update = await Catalog.fetch(catalog);
 				if (!update) break;
 
-				console.debug("received catalog", this.name.peek(), update);
+				console.debug("received catalog", this.path.peek(), update);
 
 				this.#catalog.set(update);
 				this.status.set("live");
 			}
 		} catch (err) {
-			console.warn("error fetching catalog", this.name.peek(), err);
+			console.warn("error fetching catalog", this.path.peek(), err);
 		} finally {
 			this.#catalog.set(undefined);
 			this.status.set("offline");

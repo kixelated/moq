@@ -55,9 +55,9 @@ export class Subscriber {
 
 			// Process initial announcements
 			for (const suffix of init.suffixes) {
-				const name = Path.join(prefix, suffix);
-				console.debug(`announced: broadcast=${name} active=true`);
-				announced.append({ name, active: true });
+				const path = Path.join(prefix, suffix);
+				console.debug(`announced: broadcast=${path} active=true`);
+				announced.append({ path, active: true });
 			}
 
 			// Then receive updates
@@ -66,10 +66,10 @@ export class Subscriber {
 				if (!announce) break;
 				if (announce instanceof Error) throw announce;
 
-				const name = Path.join(prefix, announce.suffix);
+				const path = Path.join(prefix, announce.suffix);
 
-				console.debug(`announced: broadcast=${name} active=${announce.active}`);
-				announced.append({ name, active: announce.active });
+				console.debug(`announced: broadcast=${path} active=${announce.active}`);
+				announced.append({ path, active: announce.active });
 			}
 
 			announced.close();
