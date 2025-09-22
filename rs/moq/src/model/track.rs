@@ -103,6 +103,13 @@ impl TrackProducer {
 		self.create_group(group).unwrap()
 	}
 
+	/// Create a group with a single frame.
+	pub fn write_frame<B: Into<bytes::Bytes>>(&mut self, frame: B) {
+		let mut group = self.append_group();
+		group.write_frame(frame.into());
+		group.close();
+	}
+
 	pub fn close(self) {
 		self.state.send_modify(|state| state.closed = Some(Ok(())));
 	}

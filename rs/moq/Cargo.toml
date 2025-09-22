@@ -30,3 +30,9 @@ tokio = { workspace = true, features = [
 tracing = "0.1"
 web-async = { workspace = true }
 web-transport-trait = { workspace = true }
+
+[dev-dependencies]
+anyhow = "1"
+moq-native = { workspace = true }
+tokio = { workspace = true, features = ["rt-multi-thread"] }
+url = "2"

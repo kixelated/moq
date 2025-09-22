@@ -1,7 +1,9 @@
 use super::{Error, Result};
-use crate::catalog::{Audio, AudioCodec, AudioConfig, Video, VideoCodec, VideoConfig, AAC, AV1, H264, H265, VP9};
-use crate::model::{Frame, Timestamp, TrackProducer};
-use crate::{Catalog, CatalogProducer};
+use crate::catalog;
+use crate::catalog::{
+	Audio, AudioCodec, AudioConfig, Video, VideoCodec, VideoConfig, VideoConfigOptional, AAC, AV1, H264, H265, VP9,
+};
+use crate::model::{CatalogProducer, Frame, Timestamp, TrackProducer};
 use bytes::{Bytes, BytesMut};
 use moq_lite::{BroadcastProducer, Track};
 use mp4_atom::{Any, AsyncReadFrom, Atom, DecodeMaybe, Mdat, Moof, Moov, Tfdt, Trak, Trun};
@@ -55,7 +57,7 @@ impl Import {
 	/// The broadcast will be populated with tracks as they're discovered in the
 	/// fMP4 file and the catalog will be automatically generated.
 	pub fn new(mut broadcast: BroadcastProducer) -> Self {
-		let catalog = Catalog::default().produce();
+		let catalog = catalog::Root::default().produce();
 		broadcast.insert_track(catalog.consumer.track);
 
 		Self {
@@ -165,23 +167,18 @@ impl Import {
 				Video {
 					track,
 					config: VideoConfig {
-						coded_width: Some(avc1.visual.width as _),
-						coded_height: Some(avc1.visual.height as _),
 						codec: H264 {
 							profile: avcc.avc_profile_indication,
 							constraints: avcc.profile_compatibility,
 							level: avcc.avc_level_indication,
 						}
 						.into(),
-						description: Some(description.freeze()),
-						// TODO: populate these fields
-						framerate: None,
-						bitrate: None,
-						rotation: None,
-						flip: None,
-						display_ratio_width: None,
-						display_ratio_height: None,
-						optimize_for_latency: None,
+						optional: VideoConfigOptional {
+							coded_width: Some(avc1.visual.width as _),
+							coded_height: Some(avc1.visual.height as _),
+							description: Some(description.freeze()),
+							..Default::default()
+						},
 					},
 				}
 			}
@@ -191,17 +188,11 @@ impl Import {
 				track,
 				config: VideoConfig {
 					codec: VideoCodec::VP8,
-					description: Default::default(),
-					coded_width: Some(vp08.visual.width as _),
-					coded_height: Some(vp08.visual.height as _),
-					// TODO: populate these fields
-					framerate: None,
-					bitrate: None,
-					rotation: None,
-					flip: None,
-					display_ratio_width: None,
-					display_ratio_height: None,
-					optimize_for_latency: None,
+					optional: VideoConfigOptional {
+						coded_width: Some(vp08.visual.width as _),
+						coded_height: Some(vp08.visual.height as _),
+						..Default::default()
+					},
 				},
 			},
 			mp4_atom::Codec::Vp09(vp09) => {
@@ -222,17 +213,11 @@ impl Import {
 							full_range: vpcc.video_full_range_flag,
 						}
 						.into(),
-						description: Default::default(),
-						coded_width: Some(vp09.visual.width as _),
-						coded_height: Some(vp09.visual.height as _),
-						// TODO: populate these fields
-						display_ratio_width: None,
-						display_ratio_height: None,
-						rotation: None,
-						flip: None,
-						optimize_for_latency: None,
-						bitrate: None,
-						framerate: None,
+						optional: VideoConfigOptional {
+							coded_width: Some(vp09.visual.width as _),
+							coded_height: Some(vp09.visual.height as _),
+							..Default::default()
+						},
 					},
 				}
 			}
@@ -259,17 +244,11 @@ impl Import {
 							..Default::default()
 						}
 						.into(),
-						description: Default::default(),
-						coded_width: Some(av01.visual.width as _),
-						coded_height: Some(av01.visual.height as _),
-						// TODO: populate these fields
-						display_ratio_width: None,
-						display_ratio_height: None,
-						rotation: None,
-						flip: None,
-						optimize_for_latency: None,
-						bitrate: None,
-						framerate: None,
+						optional: VideoConfigOptional {
+							coded_width: Some(av01.visual.width as _),
+							coded_height: Some(av01.visual.height as _),
+							..Default::default()
+						},
 					},
 				}
 			}
@@ -298,17 +277,12 @@ impl Import {
 					constraint_flags: hvcc.general_constraint_indicator_flags,
 				}
 				.into(),
-				description: Some(description.freeze()),
-				coded_width: Some(visual.width as _),
-				coded_height: Some(visual.height as _),
-				// TODO: populate these fields
-				bitrate: None,
-				framerate: None,
-				display_ratio_width: None,
-				display_ratio_height: None,
-				rotation: None,
-				flip: None,
-				optimize_for_latency: None,
+				optional: VideoConfigOptional {
+					description: Some(description.freeze()),
+					coded_width: Some(visual.width as _),
+					coded_height: Some(visual.height as _),
+					..Default::default()
+				},
 			},
 		})
 	}
