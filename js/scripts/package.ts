@@ -38,20 +38,25 @@ if (pkg.files) {
 	pkg.files = pkg.files.map(rewritePath);
 }
 
-// Convert workspace dependencies to published versions
-if (pkg.dependencies) {
-	for (const [name, version] of Object.entries(pkg.dependencies)) {
+function rewriteWorkspaceDependency(dependencies?: Record<string, string>) {
+	if (!dependencies) return;
+	for (const [name, version] of Object.entries(dependencies)) {
 		if (typeof version === "string" && version.startsWith("workspace:")) {
 			// Read the actual version from the workspace package
 			// Handle both scoped (@scope/name) and unscoped (name) packages
 			const packageDir = name.includes("/") ? name.split("/")[1] : name;
 			const workspacePkgPath = `../${packageDir}/package.json`;
 			const workspacePkg = JSON.parse(readFileSync(workspacePkgPath, "utf8"));
-			pkg.dependencies[name] = `^${workspacePkg.version}`;
+			dependencies[name] = `^${workspacePkg.version}`;
 			console.log(`🔗 Converted ${name}: ${version} → ^${workspacePkg.version}`);
 		}
 	}
 }
+
+// Convert workspace dependencies to published versions
+rewriteWorkspaceDependency(pkg.dependencies);
+rewriteWorkspaceDependency(pkg.devDependencies);
+rewriteWorkspaceDependency(pkg.peerDependencies);
 
 pkg.devDependencies = undefined;
 pkg.scripts = undefined;

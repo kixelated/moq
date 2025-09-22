@@ -23,11 +23,6 @@
 		"./src/support/element.ts",
 		"./src/meet/element.ts"
 	],
-	"files": [
-		"./src",
-		"README.md",
-		"tsconfig.json"
-	],
 	"scripts": {
 		"build": "rimraf dist && tsc -b && bun ../scripts/package.ts",
 		"check": "tsc --noEmit",
