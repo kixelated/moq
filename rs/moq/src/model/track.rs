@@ -85,22 +85,26 @@ impl TrackProducer {
 	///
 	/// If the sequence number is not the latest, this method will return None.
 	pub fn create_group(&mut self, info: Group) -> Option<GroupProducer> {
-		let group = Group::produce(info);
+		let group = info.produce();
 		self.insert_group(group.consumer).then_some(group.producer)
 	}
 
 	/// Create a new group with the next sequence number.
 	pub fn append_group(&mut self) -> GroupProducer {
-		// TODO remove this extra lock
-		let sequence = self
-			.state
-			.borrow()
-			.latest
-			.as_ref()
-			.map_or(0, |group| group.info.sequence + 1);
+		let mut producer = None;
 
-		let group = Group { sequence };
-		self.create_group(group).unwrap()
+		self.state.send_if_modified(|state| {
+			assert!(state.closed.is_none());
+
+			let sequence = state.latest.as_ref().map_or(0, |group| group.info.sequence + 1);
+			let group = Group { sequence }.produce();
+			state.latest = Some(group.consumer);
+			producer = Some(group.producer);
+
+			true
+		});
+
+		producer.unwrap()
 	}
 
 	pub fn close(self) {
