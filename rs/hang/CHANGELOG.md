@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.5](https://github.com/kixelated/moq/compare/hang-v0.5.4...hang-v0.5.5) - 2025-09-22
+
+### Other
+
+- Skip erroring groups in TrackConsumer. ([#598](https://github.com/kixelated/moq/pull/598))
+
 ## [0.5.4](https://github.com/kixelated/moq/compare/hang-v0.5.3...hang-v0.5.4) - 2025-09-04
 
 ### Other

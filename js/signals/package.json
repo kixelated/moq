@@ -11,9 +11,6 @@
 		"./react": "./src/react.ts",
 		"./dom": "./src/dom.ts"
 	},
-	"files": [
-		"./src"
-	],
 	"scripts": {
 		"build": "rimraf dist && tsc -b && bun ../scripts/package.ts",
 		"check": "tsc --noEmit && biome check",

@@ -139,14 +139,15 @@ impl TrackConsumer {
 				Some(res) = async { Some(self.current.as_mut()?.read().await) } => {
 					drop(buffering);
 
-					match res? {
+					match res {
 						// Got the next frame.
-						Some(frame) => {
+						Ok(Some(frame)) => {
 							self.max_timestamp = frame.timestamp;
 							return Ok(Some(frame));
 						}
-						None => {
-							// Group ended cleanly, instantly move to the next group.
+						Ok(None) | Err(_) => {
+							// Group ended, instantly move to the next group.
+							// We don't care about errors, which will happen if the group is closed early.
 							self.current = self.pending.pop_front();
 							continue;
 						}

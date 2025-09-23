@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.7.1](https://github.com/kixelated/moq/compare/moq-lite-v0.7.0...moq-lite-v0.7.1) - 2025-09-22
+
+### Other
+
+- Refactor the JS core ([#593](https://github.com/kixelated/moq/pull/593))
+
 ## [0.7.0](https://github.com/kixelated/moq/compare/moq-lite-v0.6.3...moq-lite-v0.7.0) - 2025-09-04
 
 ### Other
