@@ -46,17 +46,6 @@ pub struct VideoConfig {
 	#[serde_as(as = "DisplayFromStr")]
 	pub codec: VideoCodec,
 
-	/// Optional configuration for the video track
-	/// This is a separate struct so we can use ..Default::default()
-	#[serde(default, flatten)]
-	pub optional: VideoConfigOptional,
-}
-
-#[serde_with::serde_as]
-#[serde_with::skip_serializing_none]
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Default)]
-#[serde(rename_all = "camelCase")]
-pub struct VideoConfigOptional {
 	/// Information used to initialize the decoder on a per-codec basis.
 	///
 	/// One of the best examples is H264, which needs the sps/pps to function.
