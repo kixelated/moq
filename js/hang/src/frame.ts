@@ -1,5 +1,5 @@
 import type * as Moq from "@kixelated/moq";
-import { Effect } from "@kixelated/signals";
+import { Effect, Signal } from "@kixelated/signals";
 import * as Time from "./time";
 
 export interface Source {
@@ -62,12 +62,12 @@ export class Producer {
 
 export interface ConsumerProps {
 	// Target latency in milliseconds (default: 0)
-	latency?: Time.Milli;
+	latency?: Signal<Time.Milli> | Time.Milli;
 }
 
 export class Consumer {
 	#track: Moq.Track;
-	#latency: Time.Micro;
+	#latency: Signal<Time.Milli>;
 	#groups: Moq.Group[] = [];
 	#active = 0; // the active group sequence number
 	#frames: Frame[] = [];
@@ -80,7 +80,7 @@ export class Consumer {
 
 	constructor(track: Moq.Track, props?: ConsumerProps) {
 		this.#track = track;
-		this.#latency = Time.Micro.fromMilli(props?.latency ?? Time.Milli.zero);
+		this.#latency = Signal.from(props?.latency ?? Time.Milli.zero);
 
 		this.#signals.spawn(this.#run.bind(this));
 		this.#signals.cleanup(() => {
@@ -123,6 +123,9 @@ export class Consumer {
 				const next = await group.readFrame();
 				if (!next) break;
 
+				// Check if we were skipped already.
+				if (group.sequence < this.#active) break;
+
 				const { data, timestamp } = decode(next);
 				const frame = {
 					data,
@@ -142,7 +145,9 @@ export class Consumer {
 					this.#frames.sort((a, b) => a.timestamp - b.timestamp);
 				}
 
-				if (this.#frames.at(0)?.group === this.#active) {
+				const first = this.#frames.at(0);
+
+				if (first && first.group <= this.#active) {
 					if (this.#notify) {
 						this.#notify();
 						this.#notify = undefined;
@@ -152,8 +157,6 @@ export class Consumer {
 					this.#checkLatency();
 				}
 			}
-
-			group.close();
 		} catch (_err) {
 			// Ignore errors, we close groups on purpose to skip them.
 		} finally {
@@ -167,6 +170,8 @@ export class Consumer {
 					this.#notify = undefined;
 				}
 			}
+
+			group.close();
 		}
 	}
 
@@ -178,7 +183,7 @@ export class Consumer {
 		const last = this.#frames[this.#frames.length - 1];
 
 		const latency = last.timestamp - first.timestamp;
-		if (latency < this.#latency) return;
+		if (latency < Time.Micro.fromMilli(this.#latency.peek())) return;
 
 		// Skip to the next group
 		const nextFrame = this.#frames.find((f) => f.group > this.#active);
@@ -220,7 +225,7 @@ export class Consumer {
 		for (;;) {
 			// Check if we have frames from the active group
 			if (this.#frames.length > 0) {
-				if (this.#frames[0].group === this.#active) {
+				if (this.#frames[0].group <= this.#active) {
 					const next = this.#frames.shift();
 					this.#prev = next?.timestamp;
 					return next;

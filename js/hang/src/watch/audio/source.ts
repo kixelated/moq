@@ -1,8 +1,8 @@
-import * as Moq from "@kixelated/moq";
+import type * as Moq from "@kixelated/moq";
 import { Effect, type Getter, Signal } from "@kixelated/signals";
-import * as Catalog from "../../catalog";
+import type * as Catalog from "../../catalog";
 import * as Frame from "../../frame";
-import * as Time from "../../time";
+import type * as Time from "../../time";
 import * as Hex from "../../util/hex";
 import * as libav from "../../util/libav";
 import { PRIORITY } from "../priority";
@@ -20,7 +20,7 @@ export type SourceProps = {
 	enabled?: boolean | Signal<boolean>;
 
 	// The latency hint to use for the AudioContext.
-	latency?: Time.Milli;
+	latency?: Time.Milli | Signal<Time.Milli>;
 
 	// Enable to download the captions track.
 	captions?: CaptionsProps;
@@ -55,7 +55,7 @@ export class Source {
 	speaking: Speaking;
 
 	// Not a signal because I'm lazy.
-	readonly latency: Time.Milli;
+	readonly latency: Signal<Time.Milli>;
 
 	#signals = new Effect();
 
@@ -67,7 +67,7 @@ export class Source {
 		this.broadcast = broadcast;
 		this.catalog = catalog;
 		this.enabled = Signal.from(props?.enabled ?? false);
-		this.latency = props?.latency ?? (100 as Time.Milli); // TODO Reduce this once fMP4 stuttering is fixed.
+		this.latency = Signal.from(props?.latency ?? (100 as Time.Milli)); // TODO Reduce this once fMP4 stuttering is fixed.
 		this.captions = new Captions(broadcast, this.info, props?.captions);
 		this.speaking = new Speaking(broadcast, this.info, props?.speaking);
 
@@ -119,7 +119,7 @@ export class Source {
 				type: "init",
 				rate: sampleRate,
 				channels: channelCount,
-				latency: this.latency,
+				latency: this.latency.peek(), // TODO make it reactive
 			};
 			worklet.port.postMessage(init);
 
@@ -152,6 +152,12 @@ export class Source {
 		const sub = broadcast.subscribe(info.track, PRIORITY.audio);
 		effect.cleanup(() => sub.close());
 
+		// Create consumer with slightly less latency than the render worklet to avoid underflowing.
+		const consumer = new Frame.Consumer(sub, {
+			latency: Math.max(this.latency.peek() - JITTER_UNDERHEAD, 0) as Time.Milli,
+		});
+		effect.cleanup(() => consumer.close());
+
 		effect.spawn(async () => {
 			const loaded = await libav.polyfill();
 			if (!loaded) return; // cancelled
@@ -162,19 +168,11 @@ export class Source {
 			});
 			effect.cleanup(() => decoder.close());
 
-			const config = info.config;
-			const description = config.description ? Hex.toBytes(config.description) : undefined;
-
+			const description = info.config.description ? Hex.toBytes(info.config.description) : undefined;
 			decoder.configure({
-				...config,
+				...info.config,
 				description,
 			});
-
-			// Create consumer with slightly less latency than the render worklet to avoid underflowing.
-			const consumer = new Frame.Consumer(sub, {
-				latency: Math.max(this.latency - JITTER_UNDERHEAD, 0) as Time.Milli,
-			});
-			effect.cleanup(() => consumer.close());
 
 			for (;;) {
 				const frame = await consumer.decode();

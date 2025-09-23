@@ -1,11 +1,23 @@
 import * as Moq from "@kixelated/moq";
 import { Effect, Signal } from "@kixelated/signals";
 import * as DOM from "@kixelated/signals/dom";
+import type * as Time from "../time";
 import * as Audio from "./audio";
 import { Broadcast } from "./broadcast";
 import * as Video from "./video";
 
-const OBSERVED = ["url", "name", "path", "paused", "volume", "muted", "controls", "captions", "reload"] as const;
+const OBSERVED = [
+	"url",
+	"name",
+	"path",
+	"paused",
+	"volume",
+	"muted",
+	"controls",
+	"captions",
+	"reload",
+	"latency",
+] as const;
 type Observed = (typeof OBSERVED)[number];
 
 export interface HangWatchSignals {
@@ -17,6 +29,7 @@ export interface HangWatchSignals {
 	controls: Signal<boolean>;
 	captions: Signal<boolean>;
 	reload: Signal<boolean>;
+	latency: Signal<Time.Milli>;
 }
 
 // An optional web component that wraps a <canvas>
@@ -50,6 +63,9 @@ export default class HangWatch extends HTMLElement {
 		// Don't automatically reload the broadcast.
 		// TODO: Temporarily defaults to false because Cloudflare doesn't support it yet.
 		reload: new Signal(false),
+
+		// Delay playing audio and video for up to 100ms
+		latency: new Signal(100 as Time.Milli),
 	};
 
 	// An instance of HangWatchInstance once its inserted into the DOM.
@@ -91,6 +107,8 @@ export default class HangWatch extends HTMLElement {
 			this.captions = newValue !== null;
 		} else if (name === "reload") {
 			this.reload = newValue !== null;
+		} else if (name === "latency") {
+			this.latency = newValue ? Number.parseFloat(newValue) : 100;
 		} else {
 			const exhaustive: never = name;
 			throw new Error(`Invalid attribute: ${exhaustive}`);
@@ -170,6 +188,14 @@ export default class HangWatch extends HTMLElement {
 	set reload(reload: boolean) {
 		this.signals.reload.set(reload);
 	}
+
+	get latency(): number {
+		return this.signals.latency.peek();
+	}
+
+	set latency(ms: number) {
+		this.signals.latency.set(ms as Time.Milli);
+	}
 }
 
 // An instance of HangWatch once its inserted into the DOM.
@@ -204,6 +230,10 @@ class HangWatchInstance {
 				speaking: {
 					enabled: this.parent.signals.captions,
 				},
+				latency: this.parent.signals.latency,
+			},
+			video: {
+				latency: this.parent.signals.latency,
 			},
 		});
 
@@ -276,6 +306,11 @@ class HangWatchInstance {
 			} else {
 				this.parent.removeAttribute("controls");
 			}
+		});
+
+		this.#signals.effect((effect) => {
+			const latency = Math.floor(effect.get(this.parent.signals.latency));
+			this.parent.setAttribute("latency", latency.toString());
 		});
 
 		this.#signals.effect(this.#renderControls.bind(this));

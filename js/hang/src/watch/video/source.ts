@@ -1,7 +1,8 @@
-import * as Moq from "@kixelated/moq";
+import type * as Moq from "@kixelated/moq";
 import { Effect, type Getter, Signal } from "@kixelated/signals";
-import * as Catalog from "../../catalog";
+import type * as Catalog from "../../catalog";
 import * as Frame from "../../frame";
+import * as Time from "../../time";
 import * as Hex from "../../util/hex";
 import { PRIORITY } from "../priority";
 import { Detection, type DetectionProps } from "./detection";
@@ -9,6 +10,7 @@ import { Detection, type DetectionProps } from "./detection";
 export type SourceProps = {
 	enabled?: boolean | Signal<boolean>;
 	detection?: DetectionProps;
+	latency?: Time.Milli | Signal<Time.Milli>;
 };
 
 // Responsible for switching between video tracks and buffering frames.
@@ -24,12 +26,9 @@ export class Source {
 
 	detection: Detection;
 
-	// Unfortunately, browsers don't let us hold on to multiple VideoFrames.
-	// TODO To support higher latencies, keep around the encoded data and decode on demand.
-	// ex. Firefox only allows 2 outstanding VideoFrames at a time.
-	// We hold a second frame buffered as a crude way to introduce latency to sync with audio.
 	frame = new Signal<VideoFrame | undefined>(undefined);
-	#next?: VideoFrame;
+
+	latency: Signal<Time.Milli>;
 
 	#signals = new Effect();
 
@@ -40,6 +39,7 @@ export class Source {
 	) {
 		this.broadcast = broadcast;
 		this.catalog = catalog;
+		this.latency = Signal.from(props?.latency ?? (100 as Time.Milli));
 		this.enabled = Signal.from(props?.enabled ?? false);
 		this.detection = new Detection(this.broadcast, this.catalog, props?.detection);
 
@@ -68,24 +68,18 @@ export class Source {
 		const sub = broadcast.subscribe(info.track, PRIORITY.video);
 		effect.cleanup(() => sub.close());
 
+		// Create consumer that reorders groups/frames up to the provided latency.
+		const consumer = new Frame.Consumer(sub, {
+			latency: this.latency,
+		});
+		effect.cleanup(() => consumer.close());
+
 		const decoder = new VideoDecoder({
 			output: (frame) => {
-				if (!this.frame.peek()) {
-					this.frame.set(frame);
-					return;
-				}
-
-				if (!this.#next) {
-					this.#next = frame;
-					return;
-				}
-
 				this.frame.update((prev) => {
 					prev?.close();
-					return this.#next;
+					return frame;
 				});
-
-				this.#next = frame;
 			},
 			// TODO bubble up error
 			error: (error) => {
@@ -105,30 +99,33 @@ export class Source {
 		});
 
 		effect.spawn(async () => {
+			let reference: DOMHighResTimeStamp | undefined;
+
 			for (;;) {
-				const next = await sub.readFrameSequence();
+				const next = await consumer.decode();
 				if (!next) break;
 
-				const decoded = Frame.decode(next.data);
+				const ref = performance.now() - Time.Milli.fromMicro(next.timestamp);
+				if (!reference || ref < reference) {
+					reference = ref;
+				} else {
+					const sleep = reference - ref + this.latency.peek();
+					await new Promise((resolve) => setTimeout(resolve, sleep));
+				}
+
+				if (decoder.state === "closed") {
+					// Closed during the sleep
+					break;
+				}
 
 				const chunk = new EncodedVideoChunk({
-					type: next.frame === 0 ? "key" : "delta",
-					data: decoded.data,
-					timestamp: decoded.timestamp,
+					type: next.keyframe ? "key" : "delta",
+					data: next.data,
+					timestamp: next.timestamp,
 				});
 
 				decoder.decode(chunk);
 			}
-		});
-
-		effect.cleanup(() => {
-			this.frame.update((frame) => {
-				frame?.close();
-				return undefined;
-			});
-
-			this.#next?.close();
-			this.#next = undefined;
 		});
 	}
 
@@ -138,8 +135,6 @@ export class Source {
 			return undefined;
 		});
 
-		this.#next?.close();
-		this.#next = undefined;
 		this.#signals.close();
 
 		this.detection.close();
