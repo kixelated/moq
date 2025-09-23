@@ -63,23 +63,25 @@ fn create_track(broadcast: &mut moq_lite::BroadcastProducer) -> hang::TrackProdu
 				level: 0x28, // Level 4.0
 			}
 			.into(),
-			optional: hang::catalog::VideoConfigOptional {
-				// Codec-specific data (e.g., SPS/PPS for H.264)
-				// Not needed if you're using annex.b
-				description: None,
-				// There are optional but good to have.
-				coded_width: Some(1920),
-				coded_height: Some(1080),
-				bitrate: Some(5_000_000), // 5 Mbps
-				framerate: Some(30.0),
-				..Default::default()
-			},
+			// Codec-specific data (e.g., SPS/PPS for H.264)
+			// Not needed if you're using annex.b
+			description: None,
+			// There are optional but good to have.
+			coded_width: Some(1920),
+			coded_height: Some(1080),
+			bitrate: Some(5_000_000), // 5 Mbps
+			framerate: Some(30.0),
+			display_ratio_width: None,
+			display_ratio_height: None,
+			optimize_for_latency: None,
+			rotation: None,
+			flip: None,
 		},
 	};
 
 	// Create a producer/consumer pair for the catalog.
 	// This JSON encodes the catalog as a "catalog.json" track.
-	let catalog = hang::catalog::Root {
+	let catalog = hang::catalog::Catalog {
 		video: vec![video],
 		..Default::default()
 	}
