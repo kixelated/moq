@@ -86,14 +86,14 @@ export class AudioRingBuffer {
 		// Write the actual samples
 		for (let channel = 0; channel < this.channels; channel++) {
 			let src = data[channel];
-			src = src.slice(src.length - samples);
+			src = src.subarray(src.length - samples);
 
 			const dst = this.#buffer[channel];
 			if (src.length !== samples) throw new Error("mismatching number of samples");
 
 			for (let i = 0; i < samples; i++) {
 				const writePos = (start + i) % dst.length;
-				dst[writePos] = src[offset + i];
+				dst[writePos] = src[i];
 			}
 		}
 
