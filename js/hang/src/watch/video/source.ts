@@ -10,6 +10,7 @@ import { Detection, type DetectionProps } from "./detection";
 export type SourceProps = {
 	enabled?: boolean | Signal<boolean>;
 	detection?: DetectionProps;
+	// Jitter buffer size in milliseconds (default: 100ms)
 	latency?: Time.Milli | Signal<Time.Milli>;
 };
 

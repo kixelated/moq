@@ -19,7 +19,7 @@ export type SourceProps = {
 	// Enable to download the audio track.
 	enabled?: boolean | Signal<boolean>;
 
-	// The latency hint to use for the AudioContext.
+	// Jitter buffer size in milliseconds (default: 100ms)
 	latency?: Time.Milli | Signal<Time.Milli>;
 
 	// Enable to download the captions track.
