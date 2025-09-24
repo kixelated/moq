@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.11](https://github.com/kixelated/moq/compare/hang-cli-v0.2.10...hang-cli-v0.2.11) - 2025-09-24
+
+### Other
+
+- update Cargo.lock dependencies
+
 ## [0.2.10](https://github.com/kixelated/moq/compare/hang-cli-v0.2.9...hang-cli-v0.2.10) - 2025-09-05
 
 ### Added
