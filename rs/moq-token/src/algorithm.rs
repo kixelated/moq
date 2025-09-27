@@ -31,7 +31,7 @@ impl FromStr for Algorithm {
 			"HS256" => Ok(Algorithm::HS256),
 			"HS384" => Ok(Algorithm::HS384),
 			"HS512" => Ok(Algorithm::HS512),
-			_ => anyhow::bail!("invalid algorithm: {}", s),
+			_ => anyhow::bail!("invalid algorithm: {s}"),
 		}
 	}
 }

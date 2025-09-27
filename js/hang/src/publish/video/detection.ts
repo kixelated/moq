@@ -5,6 +5,8 @@ import * as Catalog from "../../catalog";
 import type { DetectionWorker } from "./detection-worker";
 // Vite-specific import for worker
 import WorkerUrl from "./detection-worker?worker&url";
+import { TrackProcessor } from "./polyfill";
+import { Source } from "./types";
 
 export type DetectionProps = {
 	enabled?: boolean | Signal<boolean>;
@@ -13,10 +15,10 @@ export type DetectionProps = {
 };
 
 export class Detection {
-	static readonly TRACK = "video/detection.json";
-	frame: () => VideoFrame | undefined;
+	static readonly TRACK: Catalog.Track = "video/detection.json";
 
 	enabled: Signal<boolean>;
+	source: Signal<Source | undefined>;
 	objects = new Signal<Catalog.DetectionObjects | undefined>(undefined);
 
 	#interval: number;
@@ -27,8 +29,8 @@ export class Detection {
 
 	signals = new Effect();
 
-	constructor(frame: () => VideoFrame | undefined, props?: DetectionProps) {
-		this.frame = frame;
+	constructor(source: Signal<Source | undefined>, props?: DetectionProps) {
+		this.source = source;
 		this.enabled = Signal.from(props?.enabled ?? false);
 		this.#interval = props?.interval ?? 1000;
 		this.#threshold = props?.threshold ?? 0.5;
@@ -48,35 +50,44 @@ export class Detection {
 		const enabled = effect.get(this.enabled);
 		if (!enabled) return;
 
+		const source = effect.get(this.source);
+		if (!source) return;
+
 		// Initialize worker
 		const worker = new Worker(WorkerUrl, { type: "module" });
 		effect.cleanup(() => worker.terminate());
 
 		const api = Comlink.wrap<DetectionWorker>(worker);
 
-		let timeout: ReturnType<typeof setTimeout>;
-		effect.cleanup(() => clearTimeout(timeout));
+		const reader = TrackProcessor(source).getReader();
+		effect.cleanup(() => reader.cancel());
 
 		effect.spawn(async () => {
 			const ready = await api.ready();
 			if (!ready) return;
-			process();
-		});
 
-		const process = async () => {
-			const frame = this.frame();
+			let { value: frame } = await reader.read();
 			if (!frame) return;
 
-			const cloned = frame.clone();
-			const result = await api.detect(Comlink.transfer(cloned, [cloned]), this.#threshold);
+			effect.interval(async () => {
+				if (!frame) return;
 
-			this.objects.set(result);
-			track.writeJson(result);
+				const cloned = frame.clone();
+				const result = await api.detect(Comlink.transfer(cloned, [cloned]), this.#threshold);
 
-			// Schedule the next detection only after this one is complete.
-			// Otherwise, we're in trouble if it takes >= interval to complete.
-			timeout = setTimeout(process, this.#interval);
-		};
+				this.objects.set(result);
+				track.writeJson(result);
+			}, this.#interval);
+
+			while (frame) {
+				frame.close();
+
+				const next = await Promise.race([reader.read(), effect.cancel]);
+				if (!next) break;
+
+				frame = next.value;
+			}
+		});
 
 		effect.cleanup(() => this.objects.set(undefined));
 	}

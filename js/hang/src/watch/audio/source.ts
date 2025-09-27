@@ -38,7 +38,6 @@ export class Source {
 	broadcast: Getter<Moq.Broadcast | undefined>;
 	catalog: Getter<Catalog.Root | undefined>;
 	enabled: Signal<boolean>;
-	info = new Signal<Catalog.Audio | undefined>(undefined);
 
 	#context = new Signal<AudioContext | undefined>(undefined);
 	readonly context: Getter<AudioContext | undefined> = this.#context;
@@ -50,6 +49,9 @@ export class Source {
 
 	#sampleRate = new Signal<number | undefined>(undefined);
 	readonly sampleRate: Getter<number | undefined> = this.#sampleRate;
+
+	#catalog = new Signal<Catalog.Audio | undefined>(undefined);
+	config = new Signal<Catalog.AudioConfig | undefined>(undefined);
 
 	captions: Captions;
 	speaking: Speaking;
@@ -68,11 +70,12 @@ export class Source {
 		this.catalog = catalog;
 		this.enabled = Signal.from(props?.enabled ?? false);
 		this.latency = props?.latency ?? (100 as Time.Milli); // TODO Reduce this once fMP4 stuttering is fixed.
-		this.captions = new Captions(broadcast, this.info, props?.captions);
-		this.speaking = new Speaking(broadcast, this.info, props?.speaking);
+		this.captions = new Captions(broadcast, this.#catalog, props?.captions);
+		this.speaking = new Speaking(broadcast, this.#catalog, props?.speaking);
 
 		this.#signals.effect((effect) => {
-			this.info.set(effect.get(this.catalog)?.audio?.[0]);
+			this.#catalog.set(effect.get(this.catalog)?.audio);
+			this.config.set(this.#catalog.peek()?.config);
 		});
 
 		this.#signals.effect(this.#runWorklet.bind(this));
@@ -87,11 +90,11 @@ export class Source {
 		//const enabled = effect.get(this.enabled);
 		//if (!enabled) return;
 
-		const info = effect.get(this.info);
-		if (!info) return;
+		const config = effect.get(this.config);
+		if (!config) return;
 
-		const sampleRate = info.config.sampleRate;
-		const channelCount = info.config.numberOfChannels;
+		const sampleRate = config.sampleRate;
+		const channelCount = config.numberOfChannels;
 
 		// NOTE: We still create an AudioContext even when muted.
 		// This way we can process the audio for visualizations.
@@ -143,7 +146,7 @@ export class Source {
 		const enabled = effect.get(this.enabled);
 		if (!enabled) return;
 
-		const info = effect.get(this.info);
+		const info = effect.get(this.#catalog);
 		if (!info) return;
 
 		const broadcast = effect.get(this.broadcast);

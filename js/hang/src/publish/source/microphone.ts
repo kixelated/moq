@@ -1,11 +1,11 @@
-import { Effect, Signal } from "@kixelated/signals";
-import type { AudioConstraints, AudioStreamTrack } from "../audio";
+import { Effect, Getter, Signal } from "@kixelated/signals";
+import type * as Audio from "../audio";
 import { Device, type DeviceProps } from "./device";
 
 export interface MicrophoneProps {
 	enabled?: boolean | Signal<boolean>;
 	device?: DeviceProps;
-	constraints?: AudioConstraints | Signal<AudioConstraints | undefined>;
+	constraints?: Audio.Constraints | Signal<Audio.Constraints | undefined>;
 }
 
 export class Microphone {
@@ -13,8 +13,9 @@ export class Microphone {
 
 	device: Device<"audio">;
 
-	constraints: Signal<AudioConstraints | undefined>;
-	stream = new Signal<AudioStreamTrack | undefined>(undefined);
+	constraints: Signal<Audio.Constraints | undefined>;
+
+	source = new Signal<Audio.Source | undefined>(undefined);
 
 	signals = new Effect();
 
@@ -57,7 +58,7 @@ export class Microphone {
 			// Success, we can enumerate devices now.
 			this.device.permission.set(true);
 
-			const track = stream.getAudioTracks()[0] as AudioStreamTrack | undefined;
+			const track = stream.getAudioTracks()[0] as Audio.StreamTrack | undefined;
 			if (!track) return;
 
 			const settings = track.getSettings();
@@ -68,7 +69,7 @@ export class Microphone {
 			}
 
 			effect.set(this.device.active, settings.deviceId);
-			effect.set(this.stream, track);
+			effect.set(this.source, track);
 		});
 	}
 

@@ -214,7 +214,7 @@ impl Server {
 				Ok(Request::WebTransport(request))
 			}
 			moq_lite::ALPN => Ok(Request::Quic(QuicRequest::accept(conn))),
-			_ => anyhow::bail!("unsupported ALPN: {}", alpn),
+			_ => anyhow::bail!("unsupported ALPN: {alpn}"),
 		}
 	}
 

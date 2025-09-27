@@ -1,20 +1,21 @@
-import { Effect, Signal } from "@kixelated/signals";
-import type { AudioConstraints, AudioStreamTrack } from "../audio";
-import type { VideoConstraints, VideoStreamTrack } from "../video";
+import { Effect, Getter, Signal } from "@kixelated/signals";
+import type * as Audio from "../audio";
+import * as Video from "../video";
 
 export interface ScreenProps {
 	enabled?: boolean | Signal<boolean>;
-	video?: VideoConstraints | boolean | Signal<VideoConstraints | boolean | undefined>;
-	audio?: AudioConstraints | boolean | Signal<AudioConstraints | boolean | undefined>;
+	video?: Video.Constraints | boolean | Signal<Video.Constraints | boolean | undefined>;
+	audio?: Audio.Constraints | boolean | Signal<Audio.Constraints | boolean | undefined>;
 }
 
 export class Screen {
 	enabled: Signal<boolean>;
 
-	video: Signal<VideoConstraints | boolean | undefined>;
-	audio: Signal<AudioConstraints | boolean | undefined>;
+	video: Signal<Video.Constraints | boolean | undefined>;
+	audio: Signal<Audio.Constraints | boolean | undefined>;
 
-	stream = new Signal<{ audio?: AudioStreamTrack; video?: VideoStreamTrack } | undefined>(undefined);
+	source = new Signal<{ audio?: Audio.Source; video?: Video.Source } | undefined>(undefined);
+
 	signals = new Effect();
 
 	constructor(props?: ScreenProps) {
@@ -61,12 +62,13 @@ export class Screen {
 			]);
 			if (!media) return;
 
-			const v = media.getVideoTracks().at(0) as VideoStreamTrack | undefined;
-			const a = media.getAudioTracks().at(0) as AudioStreamTrack | undefined;
+			const v = media.getVideoTracks().at(0) as Video.StreamTrack | undefined;
+			const a = media.getAudioTracks().at(0) as Audio.StreamTrack | undefined;
 
 			effect.cleanup(() => v?.stop());
 			effect.cleanup(() => a?.stop());
-			effect.set(this.stream, { video: v, audio: a }, undefined);
+
+			effect.set(this.source, { video: v, audio: a });
 		});
 	}
 

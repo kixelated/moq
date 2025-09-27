@@ -5,96 +5,79 @@ import { u53 } from "../../catalog";
 import * as Frame from "../../frame";
 import * as Time from "../../time";
 import { isFirefox } from "../../util/hacks";
-import { Detection, type DetectionProps } from "./detection";
-import { VideoTrackProcessor } from "./polyfill";
-import type { Source, VideoStreamTrack } from "./types";
+import { TrackProcessor } from "./polyfill";
+import type { Source, TrackSettings } from "./types";
 
 // Create a group every 2 seconds
 const GOP_DURATION = Time.Micro.fromSecond(2 as Time.Second);
 
-export type EncoderProps = {
+export interface EncoderProps {
 	enabled?: boolean | Signal<boolean>;
-	source?: Source | Signal<Source | undefined>;
-	flip?: boolean | Signal<boolean>;
-	detection?: DetectionProps;
-};
+	config?: EncoderConfig | Signal<EncoderConfig | undefined>;
+}
+
+// TODO support signals?
+export interface EncoderConfig {
+	// If not provided, the encoder will select the best codec.
+	codec?: string;
+
+	// Constrain the encoded width/height in pixels.
+	maxPixels?: number;
+
+	// The interval at which to insert keyframes. (default: 2 seconds)
+	keyframeInterval?: number;
+
+	// If not provided, the encoder will use the best bitrate for the given width, height, and framerate.
+	maxBitrate?: number;
+
+	// Multiply the number of pixels by this value to get the bitrate. (default: 0.07)
+	// NOTE: This is multiplied by the codecScale (1.0 for h264) to get the final scale.
+	bitrateScale?: number;
+
+	// TODO actually enforce this
+	frameRate?: number;
+}
 
 export class Encoder {
-	static readonly TRACK = "video/data";
-	detection: Detection;
-
 	enabled: Signal<boolean>;
-	flip: Signal<boolean>;
 	source: Signal<Source | undefined>;
-	codec = new Signal<string | undefined>(undefined);
 
-	#catalog = new Signal<Catalog.Video | undefined>(undefined);
-	readonly catalog: Getter<Catalog.Video | undefined> = this.#catalog;
+	#catalog = new Signal<Catalog.VideoConfig | undefined>(undefined);
+	readonly catalog: Getter<Catalog.VideoConfig | undefined> = this.#catalog;
 
 	#signals = new Effect();
 
-	// Store the latest VideoFrame
-	frame = new Signal<VideoFrame | undefined>(undefined);
+	config: Signal<EncoderConfig | undefined>;
+	#config = new Signal<Required<EncoderConfig> | undefined>(undefined);
 
-	constructor(props?: EncoderProps) {
-		this.detection = new Detection(this.frame.peek.bind(this.frame), props?.detection);
-
-		this.source = Signal.from(props?.source);
+	constructor(source: Signal<Source | undefined>, props?: EncoderProps) {
+		this.source = source;
 		this.enabled = Signal.from(props?.enabled ?? false);
-		this.flip = Signal.from(props?.flip ?? false);
-
-		bestCodec().then(this.codec.set.bind(this.codec));
+		this.config = Signal.from(props?.config);
 
 		this.#signals.effect(this.#runCatalog.bind(this));
-		this.#signals.effect(this.#runFrame.bind(this));
-	}
-
-	#runFrame(effect: Effect): void {
-		const source = effect.get(this.source);
-		if (!source) return;
-
-		const processor = VideoTrackProcessor(source);
-		const reader = processor.getReader();
-		effect.cleanup(() => reader.cancel());
-
-		effect.spawn(async () => {
-			for (;;) {
-				const next = await reader.read();
-				if (!next || !next.value) return;
-
-				this.frame.update((prev) => {
-					prev?.close();
-					return next.value;
-				});
-			}
-		});
-
-		effect.cleanup(() => {
-			this.frame.update((prev) => {
-				prev?.close();
-				return undefined;
-			});
-		});
+		this.#signals.effect(this.#runConfig.bind(this));
 	}
 
 	serve(track: Moq.Track, effect: Effect): void {
 		const enabled = effect.get(this.enabled);
 		if (!enabled) return;
 
+		const config = effect.get(this.#config);
+		if (!config) return;
+
+		effect.spawn(this.#runEncoder.bind(this, track, config, effect));
+	}
+
+	async #runEncoder(track: Moq.Track, config: Required<EncoderConfig>, effect: Effect): Promise<void> {
 		const source = effect.get(this.source);
 		if (!source) return;
 
-		const codec = effect.get(this.codec);
-		if (!codec) return;
-
-		effect.spawn(this.#runEncoder.bind(this, track, codec, source, effect));
-	}
-
-	async #runEncoder(track: Moq.Track, codec: string, source: VideoStreamTrack, effect: Effect): Promise<void> {
-		const settings = source.getSettings();
-
 		let group: Moq.Group | undefined; // TODO close
 		effect.cleanup(() => group?.close());
+
+		const reader = TrackProcessor(source).getReader();
+		effect.cleanup(() => reader.cancel());
 
 		let groupTimestamp = 0 as Time.Micro;
 
@@ -118,48 +101,59 @@ export class Encoder {
 
 		effect.cleanup(() => encoder.close());
 
-		let width: number | undefined;
-		let height: number | undefined;
+		let prevWidth: number | undefined;
+		let prevHeight: number | undefined;
 
-		effect.effect((effect) => {
-			const frame = effect.get(this.frame);
-			if (!frame) return;
+		try {
+			for (;;) {
+				const { value: frame } = await reader.read();
+				if (!frame) break;
 
-			if (frame.codedWidth !== width || frame.codedHeight !== height) {
-				width = frame.codedWidth;
-				height = frame.codedHeight;
-
-				const bitrate = bestBitrate({
-					codec,
-					width,
-					height,
-					framerate: settings.frameRate,
+				const { width, height } = scaleDimensions({
+					width: frame.codedWidth,
+					height: frame.codedHeight,
+					maxPixels: config.maxPixels,
 				});
 
-				const config: VideoEncoderConfig = {
-					codec,
-					width,
-					height,
-					framerate: settings.frameRate,
-					bitrate,
-					avc: codec.startsWith("avc1") ? { format: "annexb" } : undefined,
-					// @ts-expect-error Typescript needs to be updated.
-					hevc: codec.startsWith("hev1") ? { format: "annexb" } : undefined,
-					latencyMode: "realtime",
-					hardwareAcceleration: "prefer-hardware",
-				};
-				console.debug("encoding video", config);
-				encoder.configure(config);
+				if (prevWidth !== width || prevHeight !== height) {
+					const bitrate = bestBitrate(config);
+
+					const encoderConfig: VideoEncoderConfig = {
+						codec: config.codec,
+						width,
+						height,
+						framerate: config.frameRate,
+						bitrate,
+						avc: config.codec.startsWith("avc1") ? { format: "annexb" } : undefined,
+						// @ts-expect-error Typescript needs to be updated.
+						hevc: config.codec.startsWith("hev1") ? { format: "annexb" } : undefined,
+						latencyMode: "realtime",
+						hardwareAcceleration: "prefer-hardware",
+						flip: source.flip,
+					};
+
+					console.debug("encoding video", encoderConfig);
+					encoder.configure(encoderConfig);
+
+					prevWidth = width;
+					prevHeight = height;
+				}
+
+				// Force a keyframe if this is the first frame (no group yet), or GOP elapsed.
+				const keyFrame = !group || groupTimestamp + GOP_DURATION <= frame.timestamp;
+				if (keyFrame) {
+					groupTimestamp = frame.timestamp as Time.Micro;
+				}
+
+				encoder.encode(frame, { keyFrame });
 			}
 
-			// Force a keyframe if this is the first frame (no group yet), or GOP elapsed.
-			const keyFrame = !group || groupTimestamp + GOP_DURATION <= frame.timestamp;
-			if (keyFrame) {
-				groupTimestamp = frame.timestamp as Time.Micro;
-			}
-
-			encoder.encode(frame, { keyFrame });
-		});
+			track.close();
+		} catch (e) {
+			track.close(e instanceof Error ? e : new Error(String(e)));
+		} finally {
+			group?.close();
+		}
 	}
 
 	// Returns the catalog for the configured settings.
@@ -167,50 +161,70 @@ export class Encoder {
 		const source = effect.get(this.source);
 		if (!source) return;
 
-		const codec = effect.get(this.codec);
-		if (!codec) return;
+		const config = effect.get(this.#config);
+		if (!config) return;
 
-		// NOTE: These settings are notoriously unreliable and do not update.
-		// We only guestimate the bitrate but it may be updated in real-time.
 		const settings = source.getSettings();
-		const bitrate = bestBitrate({
-			codec,
+
+		const { width, height } = scaleDimensions({
 			width: settings.width,
 			height: settings.height,
-			framerate: settings.frameRate,
+			maxPixels: config.maxPixels,
 		});
 
-		const flip = effect.get(this.flip);
+		const bitrate = bestBitrate(config);
 
-		const catalog: Catalog.Video = {
-			track: Encoder.TRACK,
-			config: {
-				codec,
-				flip,
+		const catalog: Catalog.VideoConfig = {
+			codec: config.codec,
 
-				bitrate: u53(bitrate),
-				displayAspectWidth: u53(settings.width),
-				displayAspectHeight: u53(settings.height),
+			codedWidth: u53(width),
+			codedHeight: u53(height),
 
-				framerate: settings.frameRate,
-			},
+			bitrate: u53(bitrate),
+			framerate: config.frameRate,
 		};
 
 		effect.set(this.#catalog, catalog);
 	}
 
-	close() {
-		this.frame.update((prev) => {
-			prev?.close();
-			return undefined;
-		});
+	#runConfig(effect: Effect): void {
+		const source = effect.get(this.source);
+		if (!source) return;
 
+		const config = effect.get(this.config);
+		if (!config) return;
+
+		const settings = source.getSettings();
+		effect.spawn(async () => {
+			const required = await applyDefaults(config, settings);
+			effect.set(this.#config, required);
+		});
+	}
+
+	close() {
 		this.#signals.close();
-		this.detection.close();
 	}
 }
 
-function bestBitrate(props: { codec: string; width: number; height: number; framerate?: number }): number {
+async function applyDefaults(config: EncoderConfig, settings: TrackSettings): Promise<Required<EncoderConfig>> {
+	const required: Required<EncoderConfig> = {
+		...config,
+		maxPixels: config.maxPixels ?? settings.width * settings.height,
+		frameRate: config.frameRate ?? settings.frameRate ?? 30,
+		keyframeInterval: config.keyframeInterval ?? 2,
+		bitrateScale: config.bitrateScale ?? 0.07,
+		// Set later is falsy
+		maxBitrate: config.maxBitrate ?? 0,
+		codec: config.codec ?? "",
+	};
+
+	required.codec = await bestCodec(required, settings);
+	required.maxBitrate = config.maxBitrate ?? 0;
+
+	return required;
+}
+
+function bestBitrate(config: Required<EncoderConfig>): number {
 	// TARGET BITRATE CALCULATION (h264)
 	// 480p@30 = 1.0mbps
 	// 480p@60 = 1.5mbps
@@ -218,13 +232,12 @@ function bestBitrate(props: { codec: string; width: number; height: number; fram
 	// 720p@60 = 3.5mpbs
 	// 1080p@30 = 4.5mbps
 	// 1080p@60 = 6.0mbps
-	const pixels = props.width * props.height;
 
 	// 30fps is the baseline, applying a multiplier for higher framerates.
 	// Framerate does not cause a multiplicative increase in bitrate because of delta encoding.
 	// TODO Make this better.
-	const framerateFactor = 30.0 + (props.framerate ?? 30 - 30) / 2;
-	let bitrate = Math.round(pixels * 0.07 * framerateFactor);
+	const framerateFactor = 30.0 + ((config.frameRate ?? 30) - 30) / 2;
+	let bitrate = Math.round(config.maxPixels * config.bitrateScale * framerateFactor);
 
 	// ACTUAL BITRATE CALCULATION
 	// 480p@30 = 409920 * 30 * 0.07 = 0.9 Mb/s
@@ -236,26 +249,32 @@ function bestBitrate(props: { codec: string; width: number; height: number; fram
 
 	// We scale the bitrate for more efficient codecs.
 	// TODO This shouldn't be linear, as the efficiency is very similar at low bitrates.
-	if (props.codec.startsWith("avc1")) {
+	if (config.codec.startsWith("avc1")) {
 		bitrate *= 1.0; // noop
-	} else if (props.codec.startsWith("hev1")) {
+	} else if (config.codec.startsWith("hev1")) {
 		bitrate *= 0.7;
-	} else if (props.codec.startsWith("vp09")) {
+	} else if (config.codec.startsWith("vp09")) {
 		bitrate *= 0.8;
-	} else if (props.codec.startsWith("av01")) {
+	} else if (config.codec.startsWith("av01")) {
 		bitrate *= 0.6;
-	} else if (props.codec === "vp8") {
+	} else if (config.codec === "vp8") {
 		// Worse than H.264 but it's a backup plan.
 		bitrate *= 1.1;
 	} else {
-		throw new Error(`unknown codec: ${props.codec}`);
+		throw new Error(`unknown codec: ${config.codec}`);
 	}
 
-	return bitrate;
+	return Math.min(bitrate, config.maxBitrate || bitrate);
 }
 
 // Try to determine the best config for the given settings.
-async function bestCodec(): Promise<string> {
+async function bestCodec(config: Required<EncoderConfig>, settings: TrackSettings): Promise<string> {
+	const { width, height } = scaleDimensions({
+		width: settings.width,
+		height: settings.height,
+		maxPixels: config.maxPixels,
+	});
+
 	// A list of codecs to try, in order of preference.
 	const HARDWARE_CODECS = [
 		// VP9
@@ -317,10 +336,12 @@ async function bestCodec(): Promise<string> {
 	// We can't reliably detect hardware encoding on Firefox: https://github.com/w3c/webcodecs/issues/896
 	if (!isFirefox) {
 		for (const codec of HARDWARE_CODECS) {
-			const config: VideoEncoderConfig = {
+			if (!codec.startsWith(config.codec)) continue;
+
+			const hardware: VideoEncoderConfig = {
 				codec,
-				width: 1280,
-				height: 720,
+				width,
+				height,
 				latencyMode: "realtime",
 				hardwareAcceleration: "prefer-hardware",
 				avc: codec.startsWith("avc1") ? { format: "annexb" } : undefined,
@@ -328,10 +349,11 @@ async function bestCodec(): Promise<string> {
 				hevc: codec.startsWith("hev1") ? { format: "annexb" } : undefined,
 			};
 
-			const { supported, config: hardwareConfig } = await VideoEncoder.isConfigSupported(config);
-			if (supported && hardwareConfig) {
+			const { supported } = await VideoEncoder.isConfigSupported(hardware);
+			if (supported) {
 				return codec;
 			}
+			console.warn("not supported");
 		}
 	} else {
 		console.warn("Cannot detect hardware encoding on Firefox.");
@@ -339,19 +361,38 @@ async function bestCodec(): Promise<string> {
 
 	// Try software encoding.
 	for (const codec of SOFTWARE_CODECS) {
-		const config: VideoEncoderConfig = {
+		if (!codec.startsWith(config.codec)) continue;
+
+		const software: VideoEncoderConfig = {
 			codec,
-			width: 1280,
-			height: 720,
+			width,
+			height,
 			latencyMode: "realtime",
 			hardwareAcceleration: "prefer-software",
+			avc: codec.startsWith("avc1") ? { format: "annexb" } : undefined,
+			// @ts-expect-error Typescript needs to be updated.
+			hevc: codec.startsWith("hev1") ? { format: "annexb" } : undefined,
 		};
 
-		const { supported, config: softwareConfig } = await VideoEncoder.isConfigSupported(config);
-		if (supported && softwareConfig) {
+		const { supported } = await VideoEncoder.isConfigSupported(software);
+		if (supported) {
 			return codec;
 		}
 	}
 
 	throw new Error("no supported codec");
+}
+
+function scaleDimensions(props: { width: number; height: number; maxPixels: number }): {
+	width: number;
+	height: number;
+} {
+	const ratio = Math.min(Math.sqrt(props.maxPixels / (props.width * props.height)), 1);
+
+	// Make sure width/height is a power of 16
+	// TODO should this be on a per-codec basis?
+	const width = 16 * Math.floor((props.width * ratio) / 16);
+	const height = 16 * Math.floor((props.height * ratio) / 16);
+
+	return { width, height };
 }

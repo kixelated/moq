@@ -1,7 +1,8 @@
 import { z } from "zod";
 
-import { u53Schema } from "./integers";
-import { TrackSchema } from "./track";
+import { u53Schema } from "../integers";
+import { TrackSchema } from "../track";
+import { DetectionSchema } from "./detection";
 
 // Based on VideoDecoderConfig
 export const VideoConfigSchema = z.object({
@@ -16,12 +17,6 @@ export const VideoConfigSchema = z.object({
 	// The width and height of the video in pixels
 	codedWidth: u53Schema.optional(),
 	codedHeight: u53Schema.optional(),
-
-	// Ratio of display width/height to coded width/height
-	// Allows stretching/squishing individual "pixels" of the video
-	// If not provided, the display ratio is 1:1
-	displayAspectWidth: u53Schema.optional(),
-	displayAspectHeight: u53Schema.optional(),
 
 	// The frame rate of the video in frames per second
 	framerate: z.number().optional(),
@@ -46,11 +41,19 @@ export const VideoConfigSchema = z.object({
 // Mirrors VideoDecoderConfig
 // https://w3c.github.io/webcodecs/#video-decoder-config
 export const VideoSchema = z.object({
-	// The MoQ track information.
-	track: TrackSchema,
+	// Each video track available.
+	tracks: z.record(TrackSchema, VideoConfigSchema),
 
-	// The configuration of the video track
-	config: VideoConfigSchema,
+	// The display dimensions of the video in pixels.
+	// This is not the same as the coded dimensions, allowing for stretching/squishing.
+	// Just put the original dimensions of the media here.
+	display: z.object({
+		width: u53Schema,
+		height: u53Schema,
+	}),
+
+	// AI object detection.
+	detection: DetectionSchema.optional(),
 });
 
 export type Video = z.infer<typeof VideoSchema>;

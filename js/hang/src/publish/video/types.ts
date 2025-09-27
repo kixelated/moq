@@ -1,13 +1,15 @@
-export type Source = VideoStreamTrack;
+export type Source = StreamTrack & {
+	flip?: boolean;
+};
 
 // Stronger typing for the MediaStreamTrack interface.
-export interface VideoStreamTrack extends MediaStreamTrack {
+export interface StreamTrack extends MediaStreamTrack {
 	kind: "video";
-	clone(): VideoStreamTrack;
-	getSettings(): VideoTrackSettings;
+	clone(): StreamTrack;
+	getSettings(): TrackSettings;
 }
 
-export interface VideoTrackSettings {
+export interface TrackSettings {
 	deviceId: string;
 	groupId: string;
 
@@ -20,7 +22,7 @@ export interface VideoTrackSettings {
 	width: number;
 }
 
-export type VideoConstraints = Omit<
+export type Constraints = Omit<
 	MediaTrackConstraints,
 	"autoGainControl" | "channelCount" | "echoCancellation" | "noiseSuppression" | "sampleRate" | "sampleSize"
 > & {

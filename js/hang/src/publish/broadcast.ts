@@ -13,7 +13,7 @@ export type BroadcastProps = {
 	enabled?: boolean | Signal<boolean>;
 	path?: Moq.Path.Valid | Signal<Moq.Path.Valid | undefined>;
 	audio?: Audio.EncoderProps;
-	video?: Video.EncoderProps;
+	video?: Video.Props;
 	location?: Location.Props;
 	user?: User.Props;
 	chat?: Chat.Props;
@@ -28,7 +28,7 @@ export class Broadcast {
 	path: Signal<Moq.Path.Valid | undefined>;
 
 	audio: Audio.Encoder;
-	video: Video.Encoder;
+	video: Video.Root;
 
 	location: Location.Root;
 	chat: Chat.Root;
@@ -43,7 +43,7 @@ export class Broadcast {
 		this.path = Signal.from(props?.path);
 
 		this.audio = new Audio.Encoder(props?.audio);
-		this.video = new Video.Encoder(props?.video);
+		this.video = new Video.Root(props?.video);
 		this.location = new Location.Root(props?.location);
 		this.chat = new Chat.Root(props?.chat);
 		this.preview = new Preview(props?.preview);
@@ -108,11 +108,14 @@ export class Broadcast {
 					case Audio.Speaking.TRACK:
 						this.audio.speaking.serve(request.track, effect);
 						break;
-					case Video.Encoder.TRACK:
-						this.video.serve(request.track, effect);
+					case Video.Root.TRACK_HD:
+						this.video.hd.serve(request.track, effect);
+						break;
+					case Video.Root.TRACK_SD:
+						this.video.sd.serve(request.track, effect);
 						break;
 					default:
-						console.warn("received subscription for unknown track", request.track.name);
+						console.error("received subscription for unknown track", request.track.name);
 						request.track.close(new Error(`Unknown track: ${request.track.name}`));
 						break;
 				}
@@ -128,16 +131,12 @@ export class Broadcast {
 		}
 
 		// Create the new catalog.
-		const audio = effect.get(this.audio.catalog);
-		const video = effect.get(this.video.catalog);
-
 		const catalog: Catalog.Root = {
-			video: video ? [video] : [],
-			audio: audio ? [audio] : [],
+			video: effect.get(this.video.catalog),
+			audio: effect.get(this.audio.catalog),
 			location: effect.get(this.location.catalog),
 			user: effect.get(this.user.catalog),
 			chat: effect.get(this.chat.catalog),
-			detection: effect.get(this.video.detection.catalog),
 			preview: effect.get(this.preview.catalog),
 		};
 

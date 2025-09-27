@@ -192,7 +192,9 @@ class HangPublishInstance {
 				},
 			},
 			video: {
-				enabled: this.parent.signals.video,
+				hd: {
+					enabled: this.parent.signals.video,
+				},
 			},
 		});
 
@@ -200,13 +202,13 @@ class HangPublishInstance {
 			const preview = effect.get(this.#preview);
 			if (!preview) return;
 
-			const media = effect.get(this.broadcast.video.source);
-			if (!media) {
+			const source = effect.get(this.broadcast.video.source);
+			if (!source) {
 				preview.style.display = "none";
 				return;
 			}
 
-			preview.srcObject = new MediaStream([media]);
+			preview.srcObject = new MediaStream([source]);
 			preview.style.display = "block";
 
 			effect.cleanup(() => {
@@ -229,16 +231,16 @@ class HangPublishInstance {
 		const source = effect.get(this.parent.signals.source);
 
 		if (source === "camera") {
-			const video = new Source.Camera({ enabled: this.broadcast.video.enabled });
+			const video = new Source.Camera({ enabled: this.broadcast.video.hd.enabled });
 			video.signals.effect((effect) => {
-				const stream = effect.get(video.stream);
-				effect.set(this.broadcast.video.source, stream);
+				const source = effect.get(video.source);
+				effect.set(this.broadcast.video.source, source);
 			});
 
 			const audio = new Source.Microphone({ enabled: this.broadcast.audio.enabled });
 			audio.signals.effect((effect) => {
-				const stream = effect.get(audio.stream);
-				effect.set(this.broadcast.audio.source, stream);
+				const source = effect.get(audio.source);
+				effect.set(this.broadcast.audio.source, source);
 			});
 
 			effect.set(this.#video, video);
@@ -256,16 +258,16 @@ class HangPublishInstance {
 			const screen = new Source.Screen();
 
 			screen.signals.effect((effect) => {
-				const stream = effect.get(screen.stream);
-				if (!stream) return;
+				const source = effect.get(screen.source);
+				if (!source) return;
 
-				effect.set(this.broadcast.video.source, stream.video);
-				effect.set(this.broadcast.audio.source, stream.audio);
+				effect.set(this.broadcast.video.source, source.video);
+				effect.set(this.broadcast.audio.source, source.audio);
 			});
 
 			screen.signals.effect((effect) => {
 				const audio = effect.get(this.broadcast.audio.enabled);
-				const video = effect.get(this.broadcast.video.enabled);
+				const video = effect.get(this.broadcast.video.hd.enabled);
 				effect.set(screen.enabled, audio || video, false);
 			});
 
@@ -485,7 +487,7 @@ class HangPublishInstance {
 
 		effect.effect((effect) => {
 			const selected = effect.get(this.parent.signals.source);
-			const video = effect.get(this.broadcast.video.enabled);
+			const video = effect.get(this.broadcast.video.hd.enabled);
 			camera.style.opacity = selected === "camera" && video ? "1" : "0.5";
 		});
 
@@ -494,7 +496,7 @@ class HangPublishInstance {
 			const video = effect.get(this.#video);
 			if (!(video instanceof Source.Camera)) return;
 
-			const enabled = effect.get(this.broadcast.video.enabled);
+			const enabled = effect.get(this.broadcast.video.hd.enabled);
 			if (!enabled) return;
 
 			const devices = effect.get(video.device.available);

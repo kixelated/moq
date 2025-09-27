@@ -1,10 +1,10 @@
 import * as Time from "../../time";
-import type { VideoStreamTrack } from "./types";
+import type { StreamTrack } from "./types";
 
 // Firefox doesn't support MediaStreamTrackProcessor so we need to use a polyfill.
 // Based on: https://jan-ivar.github.io/polyfills/mediastreamtrackprocessor.js
 // Thanks Jan-Ivar
-export function VideoTrackProcessor(track: VideoStreamTrack): ReadableStream<VideoFrame> {
+export function TrackProcessor(track: StreamTrack): ReadableStream<VideoFrame> {
 	// @ts-expect-error No typescript types yet.
 	if (self.MediaStreamTrackProcessor) {
 		// @ts-expect-error No typescript types yet.
