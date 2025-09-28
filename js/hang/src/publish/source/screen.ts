@@ -1,4 +1,4 @@
-import { Effect, Getter, Signal } from "@kixelated/signals";
+import { Effect, Signal } from "@kixelated/signals";
 import type * as Audio from "../audio";
 import * as Video from "../video";
 

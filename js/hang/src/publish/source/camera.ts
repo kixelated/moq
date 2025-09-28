@@ -1,4 +1,4 @@
-import { Effect, Getter, Signal } from "@kixelated/signals";
+import { Effect, Signal } from "@kixelated/signals";
 import * as Video from "../video";
 import { Device, type DeviceProps } from "./device";
 

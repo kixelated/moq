@@ -5,7 +5,6 @@ import { u53 } from "../../catalog";
 import * as Frame from "../../frame";
 import * as Time from "../../time";
 import { isFirefox } from "../../util/hacks";
-import { TrackProcessor } from "./polyfill";
 import type { Source, TrackSettings } from "./types";
 
 // Create a group every 2 seconds
@@ -41,6 +40,7 @@ export interface EncoderConfig {
 export class Encoder {
 	enabled: Signal<boolean>;
 	source: Signal<Source | undefined>;
+	frame: Getter<VideoFrame | undefined>;
 
 	#catalog = new Signal<Catalog.VideoConfig | undefined>(undefined);
 	readonly catalog: Getter<Catalog.VideoConfig | undefined> = this.#catalog;
@@ -50,7 +50,8 @@ export class Encoder {
 	config: Signal<EncoderConfig | undefined>;
 	#config = new Signal<Required<EncoderConfig> | undefined>(undefined);
 
-	constructor(source: Signal<Source | undefined>, props?: EncoderProps) {
+	constructor(frame: Getter<VideoFrame | undefined>, source: Signal<Source | undefined>, props?: EncoderProps) {
+		this.frame = frame;
 		this.source = source;
 		this.enabled = Signal.from(props?.enabled ?? false);
 		this.config = Signal.from(props?.config);
@@ -76,9 +77,6 @@ export class Encoder {
 		let group: Moq.Group | undefined; // TODO close
 		effect.cleanup(() => group?.close());
 
-		const reader = TrackProcessor(source).getReader();
-		effect.cleanup(() => reader.cancel());
-
 		let groupTimestamp = 0 as Time.Micro;
 
 		const encoder = new VideoEncoder({
@@ -95,6 +93,7 @@ export class Encoder {
 				group?.writeFrame(buffer);
 			},
 			error: (err: Error) => {
+				track.close(err);
 				group?.close(err);
 			},
 		});
@@ -104,57 +103,48 @@ export class Encoder {
 		let prevWidth: number | undefined;
 		let prevHeight: number | undefined;
 
-		try {
-			for (;;) {
-				const { value: frame } = await reader.read();
-				if (!frame) break;
+		effect.effect((effect) => {
+			const frame = effect.get(this.frame);
+			if (!frame) return;
 
-				const { width, height } = scaleDimensions({
-					width: frame.codedWidth,
-					height: frame.codedHeight,
-					maxPixels: config.maxPixels,
-				});
+			const { width, height } = scaleDimensions({
+				width: frame.codedWidth,
+				height: frame.codedHeight,
+				maxPixels: config.maxPixels,
+			});
 
-				if (prevWidth !== width || prevHeight !== height) {
-					const bitrate = bestBitrate(config);
+			if (prevWidth !== width || prevHeight !== height) {
+				const bitrate = bestBitrate(config);
 
-					const encoderConfig: VideoEncoderConfig = {
-						codec: config.codec,
-						width,
-						height,
-						framerate: config.frameRate,
-						bitrate,
-						avc: config.codec.startsWith("avc1") ? { format: "annexb" } : undefined,
-						// @ts-expect-error Typescript needs to be updated.
-						hevc: config.codec.startsWith("hev1") ? { format: "annexb" } : undefined,
-						latencyMode: "realtime",
-						hardwareAcceleration: "prefer-hardware",
-						flip: source.flip,
-					};
+				const encoderConfig: VideoEncoderConfig = {
+					codec: config.codec,
+					width,
+					height,
+					framerate: config.frameRate,
+					bitrate,
+					avc: config.codec.startsWith("avc1") ? { format: "annexb" } : undefined,
+					// @ts-expect-error Typescript needs to be updated.
+					hevc: config.codec.startsWith("hev1") ? { format: "annexb" } : undefined,
+					latencyMode: "realtime",
+					hardwareAcceleration: "prefer-hardware",
+					flip: source.flip,
+				};
 
-					console.debug("encoding video", encoderConfig);
-					encoder.configure(encoderConfig);
+				console.debug("encoding video", encoderConfig);
+				encoder.configure(encoderConfig);
 
-					prevWidth = width;
-					prevHeight = height;
-				}
-
-				// Force a keyframe if this is the first frame (no group yet), or GOP elapsed.
-				const keyFrame = !group || groupTimestamp + GOP_DURATION <= frame.timestamp;
-				if (keyFrame) {
-					groupTimestamp = frame.timestamp as Time.Micro;
-				}
-
-				encoder.encode(frame, { keyFrame });
-				frame.close();
+				prevWidth = width;
+				prevHeight = height;
 			}
 
-			track.close();
-		} catch (e) {
-			track.close(e instanceof Error ? e : new Error(String(e)));
-		} finally {
-			group?.close();
-		}
+			// Force a keyframe if this is the first frame (no group yet), or GOP elapsed.
+			const keyFrame = !group || groupTimestamp + GOP_DURATION <= frame.timestamp;
+			if (keyFrame) {
+				groupTimestamp = frame.timestamp as Time.Micro;
+			}
+
+			encoder.encode(frame, { keyFrame });
+		});
 	}
 
 	// Returns the catalog for the configured settings.

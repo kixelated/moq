@@ -3,12 +3,11 @@ import * as Catalog from "../../catalog";
 import { u53 } from "../../catalog";
 import { Detection, DetectionProps } from "./detection";
 import { Encoder, EncoderProps } from "./encoder";
-import { TrackProcessor } from "./polyfill";
 import { Source } from "./types";
+import { TrackProcessor } from "./polyfill";
 
 export * from "./detection";
 export * from "./encoder";
-export * from "./polyfill";
 export * from "./types";
 
 export type Props = {
@@ -35,9 +34,9 @@ export class Root {
 	constructor(props?: Props) {
 		this.source = Signal.from(props?.source);
 
-		this.detection = new Detection(this.source, props?.detection);
-		this.hd = new Encoder(this.source, props?.hd);
-		this.sd = new Encoder(this.source, props?.sd);
+		this.detection = new Detection(this.frame, props?.detection);
+		this.hd = new Encoder(this.frame, this.source, props?.hd);
+		this.sd = new Encoder(this.frame, this.source, props?.sd);
 
 		this.signals.effect(this.#runCatalog.bind(this));
 		this.signals.effect(this.#runFrame.bind(this));
