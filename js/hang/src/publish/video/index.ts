@@ -51,16 +51,22 @@ export class Root {
 		effect.cleanup(() => reader.cancel());
 
 		effect.spawn(async () => {
-			try {
-				for (;;) {
-					const next = await Promise.race([reader.read(), effect.cancel]);
-					if (!next || !next.value) break;
+			for (;;) {
+				const next = await Promise.race([reader.read(), effect.cancel]);
+				if (!next || !next.value) break;
 
-					this.frame.set(next.value);
-				}
-			} finally {
-				this.frame.set(undefined);
+				this.frame.update((prev) => {
+					prev?.close();
+					return next.value;
+				});
 			}
+		});
+
+		effect.cleanup(() => {
+			this.frame.update((prev) => {
+				prev?.close();
+				return undefined;
+			});
 		});
 	}
 
@@ -83,7 +89,7 @@ export class Root {
 				height: u53(source.getSettings().height),
 			},
 		};
-		this.catalog.set(catalog);
+		effect.set(this.catalog, catalog);
 	}
 
 	close() {

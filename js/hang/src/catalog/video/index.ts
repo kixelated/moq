@@ -4,6 +4,8 @@ import { u53Schema } from "../integers";
 import { TrackSchema } from "../track";
 import { DetectionSchema } from "./detection";
 
+export * from "./detection";
+
 // Based on VideoDecoderConfig
 export const VideoConfigSchema = z.object({
 	// See: https://w3c.github.io/webcodecs/codec_registry.html

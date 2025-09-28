@@ -3,7 +3,6 @@ export * from "./audio/captions";
 export * from "./audio/speaking";
 export * from "./capabilities";
 export * from "./chat";
-export * from "./detection";
 export * from "./integers";
 export * from "./location";
 export * from "./preview";

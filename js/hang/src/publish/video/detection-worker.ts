@@ -46,6 +46,7 @@ export class DetectionWorker {
 		const buffer = new Uint8Array(this.#buffer, 0, size);
 		this.#buffer = new ArrayBuffer(0); // We're borrowing the buffer.
 		frame.copyTo(buffer, copyTo);
+		frame.close();
 
 		const image = new RawImage(buffer, frame.displayWidth, frame.displayHeight, 4);
 

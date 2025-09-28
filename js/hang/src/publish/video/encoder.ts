@@ -146,6 +146,7 @@ export class Encoder {
 				}
 
 				encoder.encode(frame, { keyFrame });
+				frame.close();
 			}
 
 			track.close();
@@ -350,13 +351,8 @@ async function bestCodec(config: Required<EncoderConfig>, settings: TrackSetting
 			};
 
 			const { supported } = await VideoEncoder.isConfigSupported(hardware);
-			if (supported) {
-				return codec;
-			}
-			console.warn("not supported");
+			if (supported) return codec;
 		}
-	} else {
-		console.warn("Cannot detect hardware encoding on Firefox.");
 	}
 
 	// Try software encoding.
@@ -375,9 +371,7 @@ async function bestCodec(config: Required<EncoderConfig>, settings: TrackSetting
 		};
 
 		const { supported } = await VideoEncoder.isConfigSupported(software);
-		if (supported) {
-			return codec;
-		}
+		if (supported) return codec;
 	}
 
 	throw new Error("no supported codec");
