@@ -249,15 +249,16 @@ mod test {
 			"audio": {
 				"renditions": [
 					{
-					"track": {
-						"name": "audio",
-						"priority": 2
-					},
-					"config": {
-						"codec": "opus",
-						"sampleRate": 48000,
-						"numberOfChannels": 2,
-						"bitrate": 128000
+						"track": {
+							"name": "audio",
+							"priority": 2
+						},
+						"config": {
+							"codec": "opus",
+							"sampleRate": 48000,
+							"numberOfChannels": 2,
+							"bitrate": 128000
+						}
 					}
 				]
 			}
