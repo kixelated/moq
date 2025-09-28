@@ -38,11 +38,7 @@ export class Renderer {
 			const canvas = effect.get(this.canvas);
 			if (!canvas) return;
 
-			const catalog = effect.get(this.source.available);
-			if (!catalog) return;
-
 			const selected = effect.get(this.source.selected);
-
 			if (selected) {
 				// Initialize the canvas to the correct size.
 				// NOTE: each frame will resize the canvas, so this is mostly to avoid pop-in.

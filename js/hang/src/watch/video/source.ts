@@ -23,7 +23,7 @@ export class Source {
 	broadcast: Signal<Moq.Broadcast | undefined>;
 	enabled: Signal<boolean>; // Don't download any longer
 
-	available = new Signal<Catalog.Video[] | undefined>(undefined);
+	catalog = new Signal<Catalog.Video[] | undefined>(undefined);
 
 	// The tracks supported by our video decoder.
 	supported = new Signal<Catalog.Video[]>([]);
@@ -60,12 +60,12 @@ export class Source {
 		this.#signals.effect(this.#init.bind(this));
 
 		this.#signals.effect((effect) => {
-			this.available.set(effect.get(catalog)?.video);
+			this.catalog.set(effect.get(catalog)?.video);
 		});
 	}
 
 	#runSupported(effect: Effect): void {
-		const renditions = effect.get(this.available) ?? [];
+		const renditions = effect.get(this.catalog) ?? [];
 
 		effect.spawn(async () => {
 			const supported: Catalog.Video[] = [];

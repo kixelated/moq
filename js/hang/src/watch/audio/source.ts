@@ -36,7 +36,6 @@ import RenderWorklet from "./render-worklet?worker&url";
 // The user is responsible for hooking up audio to speakers, an analyzer, etc.
 export class Source {
 	broadcast: Getter<Moq.Broadcast | undefined>;
-	catalog: Getter<Catalog.Root | undefined>;
 	enabled: Signal<boolean>;
 
 	#context = new Signal<AudioContext | undefined>(undefined);
@@ -50,6 +49,7 @@ export class Source {
 	#sampleRate = new Signal<number | undefined>(undefined);
 	readonly sampleRate: Getter<number | undefined> = this.#sampleRate;
 
+	catalog = new Signal<Catalog.Audio[] | undefined>(undefined);
 	selected = new Signal<Catalog.Audio | undefined>(undefined);
 
 	captions: Captions;
@@ -66,15 +66,15 @@ export class Source {
 		props?: SourceProps,
 	) {
 		this.broadcast = broadcast;
-		this.catalog = catalog;
 		this.enabled = Signal.from(props?.enabled ?? false);
 		this.latency = props?.latency ?? (100 as Time.Milli); // TODO Reduce this once fMP4 stuttering is fixed.
 		this.captions = new Captions(broadcast, this.selected, props?.captions);
 		this.speaking = new Speaking(broadcast, this.selected, props?.speaking);
 
 		this.#signals.effect((effect) => {
-			const catalog = effect.get(this.catalog)?.audio?.at(0);
-			this.selected.set(catalog);
+			const audio = effect.get(catalog)?.audio;
+			this.catalog.set(audio);
+			this.selected.set(audio?.at(0));
 		});
 
 		this.#signals.effect(this.#runWorklet.bind(this));
