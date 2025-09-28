@@ -23,14 +23,14 @@ export class Source {
 	broadcast: Signal<Moq.Broadcast | undefined>;
 	enabled: Signal<boolean>; // Don't download any longer
 
-	catalog = new Signal<Catalog.Video | undefined>(undefined);
+	available = new Signal<Catalog.Video[] | undefined>(undefined);
 
 	// The tracks supported by our video decoder.
-	#supported = new Signal<Catalog.VideoRenditions>([]);
+	supported = new Signal<Catalog.Video[]>([]);
 
 	// The track we chose from the supported tracks.
-	#selected = new Signal<Catalog.VideoRendition | undefined>(undefined);
-	readonly selected: Getter<Catalog.VideoRendition | undefined> = this.#selected;
+	#selected = new Signal<Catalog.Video | undefined>(undefined);
+	readonly selected: Getter<Catalog.Video | undefined> = this.#selected;
 
 	detection: Detection;
 
@@ -53,22 +53,22 @@ export class Source {
 	) {
 		this.broadcast = broadcast;
 		this.enabled = Signal.from(props?.enabled ?? false);
-		this.detection = new Detection(this.broadcast, this.catalog, props?.detection);
+		this.detection = new Detection(this.broadcast, catalog, props?.detection);
 
 		this.#signals.effect(this.#runSupported.bind(this));
 		this.#signals.effect(this.#runSelected.bind(this));
 		this.#signals.effect(this.#init.bind(this));
 
 		this.#signals.effect((effect) => {
-			this.catalog.set(effect.get(catalog)?.video);
+			this.available.set(effect.get(catalog)?.video);
 		});
 	}
 
 	#runSupported(effect: Effect): void {
-		const renditions = effect.get(this.catalog)?.renditions ?? [];
+		const renditions = effect.get(this.available) ?? [];
 
 		effect.spawn(async () => {
-			const supported: Catalog.VideoRendition[] = [];
+			const supported: Catalog.Video[] = [];
 
 			for (const rendition of renditions) {
 				const description = rendition.config.description
@@ -85,24 +85,24 @@ export class Source {
 
 			console.log("setting supported", supported);
 
-			effect.set(this.#supported, supported, []);
+			effect.set(this.supported, supported, []);
 		});
 	}
 
 	#runSelected(effect: Effect): void {
-		const supported = effect.get(this.#supported);
+		const supported = effect.get(this.supported);
 		const target = effect.get(this.target);
 		const closest = this.#selectRendition(supported, target);
 
 		this.#selected.set(closest);
 	}
 
-	#selectRendition(renditions: Catalog.VideoRenditions, target?: Target): Catalog.VideoRendition | undefined {
+	#selectRendition(renditions: Catalog.Video[], target?: Target): Catalog.Video | undefined {
 		// If we have no target, then choose the largest supported rendition.
 		// This is kind of a hack to use MAX_SAFE_INTEGER / 2 - 1 but IF IT WORKS, IT WORKS.
 		const pixels = target?.pixels ?? Number.MAX_SAFE_INTEGER / 2 - 1;
 
-		let closest: Catalog.VideoRendition | undefined;
+		let closest: Catalog.Video | undefined;
 		let minDistance = Number.MAX_SAFE_INTEGER;
 
 		for (const rendition of renditions) {

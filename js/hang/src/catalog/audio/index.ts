@@ -26,25 +26,19 @@ export const AudioConfigSchema = z.object({
 	bitrate: u53Schema.optional(),
 });
 
-/// A single audio rendition, including the track and config.
-/// TODO Add language.
-export const AudioRenditionSchema = z.object({
-	track: TrackSchema,
-	config: AudioConfigSchema,
-});
-
 export const AudioSchema = z.object({
-	// Each audio track available.
-	renditions: z.array(AudioRenditionSchema),
-
 	// The MoQ track information.
-	// TODO This should be part of renditions right?
+	track: TrackSchema,
+
+	// The configuration of the audio track
+	config: AudioConfigSchema,
+
+	// An optional captions track
 	captions: CaptionsSchema.optional(),
 
-	// An optional speaking track.
+	// An optional speaking track
 	speaking: SpeakingSchema.optional(),
 });
 
 export type Audio = z.infer<typeof AudioSchema>;
 export type AudioConfig = z.infer<typeof AudioConfigSchema>;
-export type AudioRendition = z.infer<typeof AudioRenditionSchema>;

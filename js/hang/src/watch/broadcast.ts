@@ -8,7 +8,6 @@ import { Preview, type PreviewProps } from "./preview";
 import { PRIORITY } from "./priority";
 import * as User from "./user";
 import * as Video from "./video";
-import { type DetectionProps } from "./video/detection";
 
 export interface BroadcastProps {
 	connection?: Moq.Connection.Established | Signal<Moq.Connection.Established | undefined>;
@@ -27,7 +26,6 @@ export interface BroadcastProps {
 	audio?: Audio.SourceProps;
 	location?: Location.Props;
 	chat?: ChatProps;
-	detection?: DetectionProps;
 	preview?: PreviewProps;
 	user?: User.Props;
 }

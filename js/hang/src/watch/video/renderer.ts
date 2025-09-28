@@ -38,7 +38,7 @@ export class Renderer {
 			const canvas = effect.get(this.canvas);
 			if (!canvas) return;
 
-			const catalog = effect.get(this.source.catalog);
+			const catalog = effect.get(this.source.available);
 			if (!catalog) return;
 
 			const selected = effect.get(this.source.selected);
@@ -46,8 +46,8 @@ export class Renderer {
 			if (selected) {
 				// Initialize the canvas to the correct size.
 				// NOTE: each frame will resize the canvas, so this is mostly to avoid pop-in.
-				canvas.width = selected.config.displayRatioWidth ?? selected.config.codedWidth ?? 0;
-				canvas.height = selected.config.displayRatioHeight ?? selected.config.codedHeight ?? 0;
+				canvas.width = selected.config.displayAspectWidth ?? selected.config.codedWidth ?? 0;
+				canvas.height = selected.config.displayAspectHeight ?? selected.config.codedHeight ?? 0;
 			} else {
 				// Hide the canvas when no broadcast is selected.
 				const display = canvas.style.display;

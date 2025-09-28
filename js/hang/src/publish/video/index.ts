@@ -27,15 +27,15 @@ export class Root {
 
 	frame = new Signal<VideoFrame | undefined>(undefined);
 
-	catalog = new Signal<Catalog.Video | undefined>(undefined);
+	catalog = new Signal<Catalog.Video[] | undefined>(undefined);
 	signals = new Effect();
 
 	constructor(props?: Props) {
 		this.source = Signal.from(props?.source);
 
-		this.detection = new Detection(this.frame, props?.detection);
 		this.hd = new Encoder(this.frame, this.source, props?.hd);
 		this.sd = new Encoder(this.frame, this.source, props?.sd);
+		this.detection = new Detection(this.frame, props?.detection);
 
 		this.signals.effect(this.#runCatalog.bind(this));
 		this.signals.effect(this.#runFrame.bind(this));
@@ -75,20 +75,15 @@ export class Root {
 		const hdConfig = effect.get(this.hd.catalog);
 		const sdConfig = effect.get(this.sd.catalog);
 
-		const renditions: Catalog.VideoRendition[] = [];
-		if (hdConfig) renditions.push({ track: Root.TRACK_HD, config: hdConfig });
-		if (sdConfig) renditions.push({ track: Root.TRACK_SD, config: sdConfig });
+		const catalog: Catalog.Video[] = [];
+		if (hdConfig) catalog.push({ track: Root.TRACK_HD, config: hdConfig });
+		if (sdConfig) catalog.push({ track: Root.TRACK_SD, config: sdConfig });
 
-		const catalog: Catalog.Video = {
-			renditions,
-			detection: effect.get(this.detection.catalog),
-		};
 		effect.set(this.catalog, catalog);
 	}
 
 	close() {
 		this.signals.close();
-		this.detection.close();
 		this.hd.close();
 		this.sd.close();
 	}

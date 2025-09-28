@@ -4,19 +4,19 @@ import { z } from "zod";
 import { AudioSchema } from "./audio";
 import { CapabilitiesSchema } from "./capabilities";
 import { ChatSchema } from "./chat";
+import { DetectionSchema } from "./detection";
 import { LocationSchema } from "./location";
 import { TrackSchema } from "./track";
 import { UserSchema } from "./user";
-import { VersionSchema } from "./version";
 import { VideoSchema } from "./video";
 
 export const RootSchema = z.object({
-	version: VersionSchema,
-	video: VideoSchema.optional(),
-	audio: AudioSchema.optional(),
+	video: z.array(VideoSchema).optional(),
+	audio: z.array(AudioSchema).optional(),
 	location: LocationSchema.optional(),
 	user: UserSchema.optional(),
 	chat: ChatSchema.optional(),
+	detection: DetectionSchema.optional(),
 	capabilities: CapabilitiesSchema.optional(),
 	preview: TrackSchema.optional(),
 });

@@ -239,7 +239,8 @@ export class Encoder {
 		const speaking = effect.get(this.speaking.catalog);
 
 		const catalog: Catalog.Audio = {
-			renditions: [{ track: Encoder.TRACK, config }],
+			track: Encoder.TRACK,
+			config,
 			captions,
 			speaking,
 		};

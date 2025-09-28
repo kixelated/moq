@@ -50,8 +50,7 @@ export class Source {
 	#sampleRate = new Signal<number | undefined>(undefined);
 	readonly sampleRate: Getter<number | undefined> = this.#sampleRate;
 
-	#catalog = new Signal<Catalog.Audio | undefined>(undefined);
-	selected = new Signal<Catalog.AudioRendition | undefined>(undefined);
+	selected = new Signal<Catalog.Audio | undefined>(undefined);
 
 	captions: Captions;
 	speaking: Speaking;
@@ -70,12 +69,12 @@ export class Source {
 		this.catalog = catalog;
 		this.enabled = Signal.from(props?.enabled ?? false);
 		this.latency = props?.latency ?? (100 as Time.Milli); // TODO Reduce this once fMP4 stuttering is fixed.
-		this.captions = new Captions(broadcast, this.#catalog, props?.captions);
-		this.speaking = new Speaking(broadcast, this.#catalog, props?.speaking);
+		this.captions = new Captions(broadcast, this.selected, props?.captions);
+		this.speaking = new Speaking(broadcast, this.selected, props?.speaking);
 
 		this.#signals.effect((effect) => {
-			this.#catalog.set(effect.get(this.catalog)?.audio);
-			this.selected.set(this.#catalog.peek()?.renditions.at(0));
+			const catalog = effect.get(this.catalog)?.audio?.at(0);
+			this.selected.set(catalog);
 		});
 
 		this.#signals.effect(this.#runWorklet.bind(this));

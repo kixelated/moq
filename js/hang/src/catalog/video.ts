@@ -1,13 +1,9 @@
 import { z } from "zod";
 
-import { u53Schema } from "../integers";
-import { TrackSchema } from "../track";
-import { DetectionSchema } from "./detection";
+import { u53Schema } from "./integers";
+import { TrackSchema } from "./track";
 
-export * from "./detection";
-
-// Mirrors VideoDecoderConfig
-// https://w3c.github.io/webcodecs/#video-decoder-config
+// Based on VideoDecoderConfig
 export const VideoConfigSchema = z.object({
 	// See: https://w3c.github.io/webcodecs/codec_registry.html
 	codec: z.string(),
@@ -21,9 +17,11 @@ export const VideoConfigSchema = z.object({
 	codedWidth: u53Schema.optional(),
 	codedHeight: u53Schema.optional(),
 
-	// The display aspect ratio of the video in pixels.
-	displayRatioWidth: u53Schema.optional(),
-	displayRatioHeight: u53Schema.optional(),
+	// Ratio of display width/height to coded width/height
+	// Allows stretching/squishing individual "pixels" of the video
+	// If not provided, the display ratio is 1:1
+	displayAspectWidth: u53Schema.optional(),
+	displayAspectHeight: u53Schema.optional(),
 
 	// The frame rate of the video in frames per second
 	framerate: z.number().optional(),
@@ -45,20 +43,15 @@ export const VideoConfigSchema = z.object({
 	flip: z.boolean().optional(),
 });
 
-export const VideoRenditionSchema = z.object({
-	track: TrackSchema,
-	config: VideoConfigSchema,
-});
-
+// Mirrors VideoDecoderConfig
+// https://w3c.github.io/webcodecs/#video-decoder-config
 export const VideoSchema = z.object({
-	// Each video track available.
-	renditions: z.array(VideoRenditionSchema),
+	// The MoQ track information.
+	track: TrackSchema,
 
-	// AI object detection.
-	detection: DetectionSchema.optional(),
+	// The configuration of the video track
+	config: VideoConfigSchema,
 });
 
 export type Video = z.infer<typeof VideoSchema>;
 export type VideoConfig = z.infer<typeof VideoConfigSchema>;
-export type VideoRendition = z.infer<typeof VideoRenditionSchema>;
-export type VideoRenditions = VideoRendition[];

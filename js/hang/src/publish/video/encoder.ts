@@ -173,8 +173,8 @@ export class Encoder {
 			codedWidth: u53(width),
 			codedHeight: u53(height),
 
-			displayRatioWidth: u53(settings.width),
-			displayRatioHeight: u53(settings.height),
+			displayAspectWidth: u53(settings.width),
+			displayAspectHeight: u53(settings.height),
 
 			bitrate: u53(bitrate),
 			framerate: config.frameRate,

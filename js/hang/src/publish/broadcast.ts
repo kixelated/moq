@@ -126,18 +126,20 @@ export class Broadcast {
 	#serveCatalog(track: Moq.Track, effect: Effect): void {
 		if (!effect.get(this.enabled)) {
 			// Clear the catalog.
-			track.writeFrame(Catalog.encode({ version: Catalog.VERSION }));
+			track.writeFrame(Catalog.encode({}));
 			return;
 		}
 
 		// Create the new catalog.
+		const audio = effect.get(this.audio.catalog);
+
 		const catalog: Catalog.Root = {
-			version: Catalog.VERSION,
 			video: effect.get(this.video.catalog),
-			audio: effect.get(this.audio.catalog),
+			audio: audio ? [audio] : [],
 			location: effect.get(this.location.catalog),
 			user: effect.get(this.user.catalog),
 			chat: effect.get(this.chat.catalog),
+			detection: effect.get(this.video.detection.catalog), // TODO move into video.catalog
 			preview: effect.get(this.preview.catalog),
 		};
 

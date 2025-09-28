@@ -22,7 +22,7 @@ export class Detection {
 
 	constructor(
 		broadcast: Signal<Moq.Broadcast | undefined>,
-		catalog: Signal<Catalog.Video | undefined>,
+		catalog: Signal<Catalog.Root | undefined>,
 		props?: DetectionProps,
 	) {
 		this.broadcast = broadcast;

@@ -18,20 +18,15 @@ use serde_with::{hex::Hex, DisplayFromStr};
 ///
 /// This struct combines MoQ track information with video-specific configuration
 /// including codec details, resolution, and encoding parameters.
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Default)]
-#[serde(rename_all = "camelCase")]
-pub struct Video {
-	/// An array of interchangeable renditions.
-	pub renditions: Vec<VideoRendition>,
-}
-
+#[serde_with::serde_as]
+#[serde_with::skip_serializing_none]
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 #[serde(rename_all = "camelCase")]
-pub struct VideoRendition {
-	/// The MoQ track that this rendition is associated with.
+pub struct Video {
+	/// MoQ specific track information
 	pub track: moq_lite::Track,
 
-	/// The configuration for this rendition.
+	/// The configuration of the video track
 	pub config: VideoConfig,
 }
 
