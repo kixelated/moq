@@ -11,6 +11,13 @@ export type SourceProps = {
 	detection?: DetectionProps;
 };
 
+export type Target = {
+	// The desired size of the video in pixels.
+	pixels?: number;
+
+	// TODO bitrate
+};
+
 // Responsible for switching between video tracks and buffering frames.
 export class Source {
 	broadcast: Signal<Moq.Broadcast | undefined>;
@@ -27,9 +34,8 @@ export class Source {
 
 	detection: Detection;
 
-	// The desired size of the video in pixels.
 	// Used as a tiebreaker when there are multiple tracks (HD vs SD).
-	targetPixels = new Signal<number | undefined>(undefined);
+	target = new Signal<Target | undefined>(undefined);
 
 	// Unfortunately, browsers don't let us hold on to multiple VideoFrames.
 	// TODO To support higher latencies, keep around the encoded data and decode on demand.
@@ -85,16 +91,16 @@ export class Source {
 
 	#runSelected(effect: Effect): void {
 		const supported = effect.get(this.#supported);
-		const requested = effect.get(this.targetPixels);
-		const closest = this.#selectRendition(supported, requested);
+		const target = effect.get(this.target);
+		const closest = this.#selectRendition(supported, target);
 
 		this.#selected.set(closest);
 	}
 
-	#selectRendition(renditions: Catalog.VideoRenditions, targetPixels?: number): Catalog.VideoRendition | undefined {
+	#selectRendition(renditions: Catalog.VideoRenditions, target?: Target): Catalog.VideoRendition | undefined {
 		// If we have no target, then choose the largest supported rendition.
 		// This is kind of a hack to use MAX_SAFE_INTEGER / 2 - 1 but IF IT WORKS, IT WORKS.
-		if (!targetPixels) targetPixels = Number.MAX_SAFE_INTEGER / 2 - 1;
+		const pixels = target?.pixels ?? Number.MAX_SAFE_INTEGER / 2 - 1;
 
 		let closest: Catalog.VideoRendition | undefined;
 		let minDistance = Number.MAX_SAFE_INTEGER;
@@ -102,7 +108,7 @@ export class Source {
 		for (const rendition of renditions) {
 			if (!rendition.config.codedHeight || !rendition.config.codedWidth) continue;
 
-			const distance = Math.abs(targetPixels - rendition.config.codedHeight * rendition.config.codedWidth);
+			const distance = Math.abs(pixels - rendition.config.codedHeight * rendition.config.codedWidth);
 			if (distance < minDistance) {
 				minDistance = distance;
 				closest = rendition;
