@@ -1,10 +1,9 @@
 import { Effect, Signal } from "@kixelated/signals";
 import * as Catalog from "../../catalog";
-import { u53 } from "../../catalog";
 import { Detection, DetectionProps } from "./detection";
 import { Encoder, EncoderProps } from "./encoder";
-import { Source } from "./types";
 import { TrackProcessor } from "./polyfill";
+import { Source } from "./types";
 
 export * from "./detection";
 export * from "./encoder";
@@ -76,17 +75,13 @@ export class Root {
 		const hdConfig = effect.get(this.hd.catalog);
 		const sdConfig = effect.get(this.sd.catalog);
 
-		const tracks: Record<string, Catalog.VideoConfig> = {};
-		if (hdConfig) tracks[Root.TRACK_HD] = hdConfig;
-		if (sdConfig) tracks[Root.TRACK_SD] = sdConfig;
+		const renditions: Catalog.VideoRendition[] = [];
+		if (hdConfig) renditions.push({ track: Root.TRACK_HD, config: hdConfig });
+		if (sdConfig) renditions.push({ track: Root.TRACK_SD, config: sdConfig });
 
 		const catalog: Catalog.Video = {
-			tracks,
+			renditions,
 			detection: effect.get(this.detection.catalog),
-			display: {
-				width: u53(source.getSettings().width),
-				height: u53(source.getSettings().height),
-			},
 		};
 		effect.set(this.catalog, catalog);
 	}

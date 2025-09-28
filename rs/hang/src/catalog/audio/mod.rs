@@ -17,10 +17,17 @@ use serde_with::{hex::Hex, DisplayFromStr};
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct Audio {
-	// Generic information about the track
+	/// An array of interchangeable renditions.
+	pub renditions: Vec<AudioRendition>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct AudioRendition {
+	/// The MoQ track that this rendition is associated with.
 	pub track: moq_lite::Track,
 
-	// The configuration of the audio track
+	/// Audio decoder configuration.
 	pub config: AudioConfig,
 }
 

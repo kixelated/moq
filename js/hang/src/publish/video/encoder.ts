@@ -35,6 +35,9 @@ export interface EncoderConfig {
 
 	// TODO actually enforce this
 	frameRate?: number;
+
+	// If true, the encoder will flip the video horizontally.
+	flip?: boolean;
 }
 
 export class Encoder {
@@ -127,7 +130,6 @@ export class Encoder {
 					hevc: config.codec.startsWith("hev1") ? { format: "annexb" } : undefined,
 					latencyMode: "realtime",
 					hardwareAcceleration: "prefer-hardware",
-					flip: source.flip,
 				};
 
 				console.debug("encoding video", encoderConfig);
@@ -171,8 +173,13 @@ export class Encoder {
 			codedWidth: u53(width),
 			codedHeight: u53(height),
 
+			displayRatioWidth: u53(settings.width),
+			displayRatioHeight: u53(settings.height),
+
 			bitrate: u53(bitrate),
 			framerate: config.frameRate,
+
+			flip: config.flip,
 		};
 
 		effect.set(this.#catalog, catalog);
@@ -207,6 +214,7 @@ async function applyDefaults(config: EncoderConfig, settings: TrackSettings): Pr
 		// Set later is falsy
 		maxBitrate: config.maxBitrate ?? 0,
 		codec: config.codec ?? "",
+		flip: config.flip ?? false,
 	};
 
 	required.codec = await bestCodec(required, settings);

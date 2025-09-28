@@ -1,5 +1,8 @@
 use super::{Error, Result};
-use crate::catalog::{Audio, AudioCodec, AudioConfig, Video, VideoCodec, VideoConfig, AAC, AV1, H264, H265, VP9};
+use crate::catalog::{
+	Audio, AudioCodec, AudioConfig, AudioRendition, Video, VideoCodec, VideoConfig, VideoRendition, AAC, AV1, H264,
+	H265, VP9,
+};
 use crate::model::{Frame, Timestamp, TrackProducer};
 use crate::{Catalog, CatalogProducer};
 use bytes::{Bytes, BytesMut};
@@ -109,6 +112,8 @@ impl Import {
 	}
 
 	fn init(&mut self, moov: Moov) -> Result<()> {
+		let mut catalog = self.catalog.update();
+
 		// Produce the catalog
 		for trak in &moov.trak {
 			let track_id = trak.tkhd.track_id;
@@ -119,14 +124,27 @@ impl Import {
 					let info = Self::init_video(trak)?;
 					let track = info.track.clone().produce();
 					self.broadcast.insert_track(track.consumer);
-					self.catalog.add_video(info);
+
+					match &mut catalog.video {
+						Some(video) => video.renditions.push(info),
+						None => {
+							catalog.video = Some(Video { renditions: vec![info] });
+						}
+					};
 					track.producer
 				}
 				b"soun" => {
 					let info = Self::init_audio(trak)?;
 					let track = info.track.clone().produce();
 					self.broadcast.insert_track(track.consumer);
-					self.catalog.add_audio(info);
+
+					match &mut catalog.audio {
+						Some(audio) => audio.renditions.push(info),
+						None => {
+							catalog.audio = Some(Audio { renditions: vec![info] });
+						}
+					};
+
 					track.producer
 				}
 				b"sbtl" => return Err(Error::UnsupportedTrack("subtitle")),
@@ -136,6 +154,7 @@ impl Import {
 			self.tracks.insert(track_id, track.into());
 		}
 
+		drop(catalog);
 		self.catalog.publish();
 
 		self.moov = Some(moov);
@@ -143,7 +162,7 @@ impl Import {
 		Ok(())
 	}
 
-	fn init_video(trak: &Trak) -> Result<Video> {
+	fn init_video(trak: &Trak) -> Result<VideoRendition> {
 		let name = format!("video{}", trak.tkhd.track_id);
 		let stsd = &trak.mdia.minf.stbl.stsd;
 
@@ -162,7 +181,7 @@ impl Import {
 				let mut description = BytesMut::new();
 				avcc.encode_body(&mut description)?;
 
-				Video {
+				VideoRendition {
 					track,
 					config: VideoConfig {
 						coded_width: Some(avc1.visual.width as _),
@@ -187,7 +206,7 @@ impl Import {
 			}
 			mp4_atom::Codec::Hev1(hev1) => Self::init_h265(track, true, &hev1.hvcc, &hev1.visual)?,
 			mp4_atom::Codec::Hvc1(hvc1) => Self::init_h265(track, false, &hvc1.hvcc, &hvc1.visual)?,
-			mp4_atom::Codec::Vp08(vp08) => Video {
+			mp4_atom::Codec::Vp08(vp08) => VideoRendition {
 				track,
 				config: VideoConfig {
 					codec: VideoCodec::VP8,
@@ -208,7 +227,7 @@ impl Import {
 				// https://github.com/gpac/mp4box.js/blob/325741b592d910297bf609bc7c400fc76101077b/src/box-codecs.js#L238
 				let vpcc = &vp09.vpcc;
 
-				Video {
+				VideoRendition {
 					track,
 					config: VideoConfig {
 						codec: VP9 {
@@ -239,7 +258,7 @@ impl Import {
 			mp4_atom::Codec::Av01(av01) => {
 				let av1c = &av01.av1c;
 
-				Video {
+				VideoRendition {
 					track,
 					config: VideoConfig {
 						codec: AV1 {
@@ -281,11 +300,16 @@ impl Import {
 	}
 
 	// There's two almost identical hvcc atoms in the wild.
-	fn init_h265(track: Track, in_band: bool, hvcc: &mp4_atom::Hvcc, visual: &mp4_atom::Visual) -> Result<Video> {
+	fn init_h265(
+		track: Track,
+		in_band: bool,
+		hvcc: &mp4_atom::Hvcc,
+		visual: &mp4_atom::Visual,
+	) -> Result<VideoRendition> {
 		let mut description = BytesMut::new();
 		hvcc.encode_body(&mut description)?;
 
-		Ok(Video {
+		Ok(VideoRendition {
 			track,
 			config: VideoConfig {
 				codec: H265 {
@@ -313,7 +337,7 @@ impl Import {
 		})
 	}
 
-	fn init_audio(trak: &Trak) -> Result<Audio> {
+	fn init_audio(trak: &Trak) -> Result<AudioRendition> {
 		let name = format!("audio{}", trak.tkhd.track_id);
 		let stsd = &trak.mdia.minf.stbl.stsd;
 
@@ -336,7 +360,7 @@ impl Import {
 
 				let bitrate = desc.avg_bitrate.max(desc.max_bitrate);
 
-				Audio {
+				AudioRendition {
 					track,
 					config: AudioConfig {
 						codec: AAC {
@@ -351,7 +375,7 @@ impl Import {
 				}
 			}
 			mp4_atom::Codec::Opus(opus) => {
-				Audio {
+				AudioRendition {
 					track,
 					config: AudioConfig {
 						codec: AudioCodec::Opus,

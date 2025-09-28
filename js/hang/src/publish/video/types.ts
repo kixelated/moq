@@ -1,6 +1,4 @@
-export type Source = StreamTrack & {
-	flip?: boolean;
-};
+export type Source = StreamTrack;
 
 // Stronger typing for the MediaStreamTrack interface.
 export interface StreamTrack extends MediaStreamTrack {

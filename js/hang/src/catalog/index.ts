@@ -9,4 +9,5 @@ export * from "./preview";
 export * from "./root";
 export * from "./track";
 export * from "./user";
+export * from "./version";
 export * from "./video";

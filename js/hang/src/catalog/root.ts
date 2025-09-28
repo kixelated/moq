@@ -7,9 +7,11 @@ import { ChatSchema } from "./chat";
 import { LocationSchema } from "./location";
 import { TrackSchema } from "./track";
 import { UserSchema } from "./user";
+import { VersionSchema } from "./version";
 import { VideoSchema } from "./video";
 
 export const RootSchema = z.object({
+	version: VersionSchema,
 	video: VideoSchema.optional(),
 	audio: AudioSchema.optional(),
 	location: LocationSchema.optional(),

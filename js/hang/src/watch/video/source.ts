@@ -18,15 +18,12 @@ export class Source {
 
 	catalog = new Signal<Catalog.Video | undefined>(undefined);
 
-	// Helper that is populated from the catalog.
-	#config = new Signal<Catalog.VideoConfig | undefined>(undefined);
-	readonly config: Getter<Catalog.VideoConfig | undefined> = this.#config;
-
 	// The tracks supported by our video decoder.
-	#supported = new Signal<Record<Catalog.Track, Catalog.VideoConfig>>({});
+	#supported = new Signal<Catalog.VideoRenditions>([]);
 
 	// The track we chose from the supported tracks.
-	#selected = new Signal<[Catalog.Track, Catalog.VideoConfig] | undefined>(undefined);
+	#selected = new Signal<Catalog.VideoRendition | undefined>(undefined);
+	readonly selected: Getter<Catalog.VideoRendition | undefined> = this.#selected;
 
 	detection: Detection;
 
@@ -62,25 +59,27 @@ export class Source {
 	}
 
 	#runSupported(effect: Effect): void {
-		const available = effect.get(this.catalog)?.tracks ?? {};
+		const renditions = effect.get(this.catalog)?.renditions ?? [];
 
 		effect.spawn(async () => {
-			const supported: Record<Catalog.Track, Catalog.VideoConfig> = {};
+			const supported: Catalog.VideoRendition[] = [];
 
-			for (const [track, config] of Object.entries(available)) {
-				const description = config.description ? Hex.toBytes(config.description) : undefined;
+			for (const rendition of renditions) {
+				const description = rendition.config.description
+					? Hex.toBytes(rendition.config.description)
+					: undefined;
 
 				const { supported: valid } = await VideoDecoder.isConfigSupported({
-					...config,
+					...rendition.config,
 					description,
-					optimizeForLatency: config.optimizeForLatency ?? true,
+					optimizeForLatency: rendition.config.optimizeForLatency ?? true,
 				});
-				if (valid) supported[track] = config;
+				if (valid) supported.push(rendition);
 			}
 
 			console.log("setting supported", supported);
 
-			effect.set(this.#supported, supported, {});
+			effect.set(this.#supported, supported, []);
 		});
 	}
 
@@ -90,33 +89,29 @@ export class Source {
 		const closest = this.#selectRendition(supported, requested);
 
 		this.#selected.set(closest);
-		this.#config.set(closest?.[1]);
 	}
 
-	#selectRendition(
-		supported: Record<Catalog.Track, Catalog.VideoConfig>,
-		targetPixels?: number,
-	): [Catalog.Track, Catalog.VideoConfig] | undefined {
+	#selectRendition(renditions: Catalog.VideoRenditions, targetPixels?: number): Catalog.VideoRendition | undefined {
 		// If we have no target, then choose the largest supported rendition.
 		// This is kind of a hack to use MAX_SAFE_INTEGER / 2 - 1 but IF IT WORKS, IT WORKS.
 		if (!targetPixels) targetPixels = Number.MAX_SAFE_INTEGER / 2 - 1;
 
-		let closest: [Catalog.Track, Catalog.VideoConfig] | undefined;
+		let closest: Catalog.VideoRendition | undefined;
 		let minDistance = Number.MAX_SAFE_INTEGER;
 
-		for (const [track, config] of Object.entries(supported)) {
-			if (!config.codedHeight || !config.codedWidth) continue;
+		for (const rendition of renditions) {
+			if (!rendition.config.codedHeight || !rendition.config.codedWidth) continue;
 
-			const distance = Math.abs(targetPixels - config.codedHeight * config.codedWidth);
+			const distance = Math.abs(targetPixels - rendition.config.codedHeight * rendition.config.codedWidth);
 			if (distance < minDistance) {
 				minDistance = distance;
-				closest = [track, config];
+				closest = rendition;
 			}
 		}
 		if (closest) return closest;
 
 		// If we couldn't find a closest, or there's no width/height, then choose the first supported rendition.
-		return Object.entries(supported).at(0);
+		return renditions.at(0);
 	}
 
 	#init(effect: Effect): void {
@@ -129,10 +124,8 @@ export class Source {
 		const broadcast = effect.get(this.broadcast);
 		if (!broadcast) return;
 
-		const [track, config] = selected;
-
 		// We don't clear previous frames so we can seamlessly switch tracks.
-		const sub = broadcast.subscribe(track, PRIORITY.video);
+		const sub = broadcast.subscribe(selected.track, PRIORITY.video);
 		effect.cleanup(() => sub.close());
 
 		const decoder = new VideoDecoder({
@@ -162,12 +155,12 @@ export class Source {
 		});
 		effect.cleanup(() => decoder.close());
 
-		const description = config.description ? Hex.toBytes(config.description) : undefined;
+		const description = selected.config.description ? Hex.toBytes(selected.config.description) : undefined;
 
 		decoder.configure({
-			...config,
+			...selected.config,
 			description,
-			optimizeForLatency: config.optimizeForLatency ?? true,
+			optimizeForLatency: selected.config.optimizeForLatency ?? true,
 		});
 
 		effect.spawn(async () => {

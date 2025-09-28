@@ -27,6 +27,7 @@
             "npm:comlink@^4.4.2",
             "npm:fast-glob@^3.3.3",
             "npm:rimraf@^6.0.1",
+            "npm:semver@^7.7.2",
             "npm:typescript@^5.9.2",
             "npm:vitest@^3.2.4",
             "npm:zod@^4.1.5"

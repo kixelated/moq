@@ -6,7 +6,8 @@ import { DetectionSchema } from "./detection";
 
 export * from "./detection";
 
-// Based on VideoDecoderConfig
+// Mirrors VideoDecoderConfig
+// https://w3c.github.io/webcodecs/#video-decoder-config
 export const VideoConfigSchema = z.object({
 	// See: https://w3c.github.io/webcodecs/codec_registry.html
 	codec: z.string(),
@@ -19,6 +20,10 @@ export const VideoConfigSchema = z.object({
 	// The width and height of the video in pixels
 	codedWidth: u53Schema.optional(),
 	codedHeight: u53Schema.optional(),
+
+	// The display aspect ratio of the video in pixels.
+	displayRatioWidth: u53Schema.optional(),
+	displayRatioHeight: u53Schema.optional(),
 
 	// The frame rate of the video in frames per second
 	framerate: z.number().optional(),
@@ -40,19 +45,14 @@ export const VideoConfigSchema = z.object({
 	flip: z.boolean().optional(),
 });
 
-// Mirrors VideoDecoderConfig
-// https://w3c.github.io/webcodecs/#video-decoder-config
+export const VideoRenditionSchema = z.object({
+	track: TrackSchema,
+	config: VideoConfigSchema,
+});
+
 export const VideoSchema = z.object({
 	// Each video track available.
-	tracks: z.record(TrackSchema, VideoConfigSchema),
-
-	// The display dimensions of the video in pixels.
-	// This is not the same as the coded dimensions, allowing for stretching/squishing.
-	// Just put the original dimensions of the media here.
-	display: z.object({
-		width: u53Schema,
-		height: u53Schema,
-	}),
+	renditions: z.array(VideoRenditionSchema),
 
 	// AI object detection.
 	detection: DetectionSchema.optional(),
@@ -60,3 +60,5 @@ export const VideoSchema = z.object({
 
 export type Video = z.infer<typeof VideoSchema>;
 export type VideoConfig = z.infer<typeof VideoConfigSchema>;
+export type VideoRendition = z.infer<typeof VideoRenditionSchema>;
+export type VideoRenditions = VideoRendition[];

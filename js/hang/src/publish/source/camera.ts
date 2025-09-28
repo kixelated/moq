@@ -6,13 +6,11 @@ export interface CameraProps {
 	enabled?: boolean | Signal<boolean>;
 	device?: DeviceProps;
 	constraints?: Video.Constraints | Signal<Video.Constraints | undefined>;
-	flip?: boolean | Signal<boolean>;
 }
 
 export class Camera {
 	enabled: Signal<boolean>;
 	device: Device<"video">;
-	flip: Signal<boolean>;
 
 	constraints: Signal<Video.Constraints | undefined>;
 
@@ -23,7 +21,6 @@ export class Camera {
 		this.device = new Device("video", props?.device);
 		this.enabled = Signal.from(props?.enabled ?? false);
 		this.constraints = Signal.from(props?.constraints);
-		this.flip = Signal.from(props?.flip ?? false);
 
 		this.signals.effect(this.#run.bind(this));
 	}
@@ -43,7 +40,6 @@ export class Camera {
 
 		effect.spawn(async () => {
 			const media = navigator.mediaDevices.getUserMedia({ video: finalConstraints }).catch(() => undefined);
-			const flip = effect.get(this.flip);
 
 			// If the effect is cancelled for any reason (ex. cancel), stop any media that we got.
 			effect.cleanup(() =>
@@ -65,8 +61,6 @@ export class Camera {
 			const settings = source.getSettings();
 
 			effect.set(this.device.active, settings.deviceId);
-
-			source.flip = flip;
 			effect.set(this.source, source);
 		});
 	}

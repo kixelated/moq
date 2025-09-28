@@ -51,7 +51,7 @@ export class Source {
 	readonly sampleRate: Getter<number | undefined> = this.#sampleRate;
 
 	#catalog = new Signal<Catalog.Audio | undefined>(undefined);
-	config = new Signal<Catalog.AudioConfig | undefined>(undefined);
+	selected = new Signal<Catalog.AudioRendition | undefined>(undefined);
 
 	captions: Captions;
 	speaking: Speaking;
@@ -75,7 +75,7 @@ export class Source {
 
 		this.#signals.effect((effect) => {
 			this.#catalog.set(effect.get(this.catalog)?.audio);
-			this.config.set(this.#catalog.peek()?.config);
+			this.selected.set(this.#catalog.peek()?.renditions.at(0));
 		});
 
 		this.#signals.effect(this.#runWorklet.bind(this));
@@ -90,11 +90,11 @@ export class Source {
 		//const enabled = effect.get(this.enabled);
 		//if (!enabled) return;
 
-		const config = effect.get(this.config);
-		if (!config) return;
+		const selected = effect.get(this.selected);
+		if (!selected) return;
 
-		const sampleRate = config.sampleRate;
-		const channelCount = config.numberOfChannels;
+		const sampleRate = selected.config.sampleRate;
+		const channelCount = selected.config.numberOfChannels;
 
 		// NOTE: We still create an AudioContext even when muted.
 		// This way we can process the audio for visualizations.
@@ -146,13 +146,13 @@ export class Source {
 		const enabled = effect.get(this.enabled);
 		if (!enabled) return;
 
-		const info = effect.get(this.#catalog);
-		if (!info) return;
+		const selected = effect.get(this.selected);
+		if (!selected) return;
 
 		const broadcast = effect.get(this.broadcast);
 		if (!broadcast) return;
 
-		const sub = broadcast.subscribe(info.track, PRIORITY.audio);
+		const sub = broadcast.subscribe(selected.track, PRIORITY.audio);
 		effect.cleanup(() => sub.close());
 
 		effect.spawn(async () => {
@@ -165,7 +165,7 @@ export class Source {
 			});
 			effect.cleanup(() => decoder.close());
 
-			const config = info.config;
+			const config = selected.config;
 			const description = config.description ? Hex.toBytes(config.description) : undefined;
 
 			decoder.configure({

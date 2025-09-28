@@ -41,12 +41,13 @@ export class Renderer {
 			const catalog = effect.get(this.source.catalog);
 			if (!catalog) return;
 
-			const config = effect.get(this.source.config);
-			if (config) {
+			const selected = effect.get(this.source.selected);
+
+			if (selected) {
 				// Initialize the canvas to the correct size.
 				// NOTE: each frame will resize the canvas, so this is mostly to avoid pop-in.
-				canvas.width = catalog.display.width;
-				canvas.height = catalog.display.height;
+				canvas.width = selected.config.displayRatioWidth ?? selected.config.codedWidth ?? 0;
+				canvas.height = selected.config.displayRatioHeight ?? selected.config.codedHeight ?? 0;
 			} else {
 				// Hide the canvas when no broadcast is selected.
 				const display = canvas.style.display;
@@ -129,7 +130,7 @@ export class Renderer {
 			ctx.fillRect(0, 0, ctx.canvas.width, ctx.canvas.height);
 
 			// Apply horizontal flip if specified in the video config
-			const flip = this.source.config.peek()?.flip;
+			const flip = this.source.selected.peek()?.config.flip;
 			if (flip) {
 				ctx.scale(-1, 1);
 				ctx.translate(-ctx.canvas.width, 0);
