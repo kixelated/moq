@@ -88,8 +88,6 @@ export class Source {
 				if (valid) supported.push(rendition);
 			}
 
-			console.log("setting supported", supported);
-
 			effect.set(this.supported, supported, []);
 		});
 	}

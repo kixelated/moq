@@ -137,7 +137,8 @@ export class Encoder {
 			}
 
 			// Force a keyframe if this is the first frame (no group yet), or GOP elapsed.
-			const keyFrame = !group || groupTimestamp + config.keyframeInterval <= frame.timestamp;
+			const keyFrame =
+				!group || groupTimestamp + Time.Micro.fromMilli(config.keyframeInterval) <= frame.timestamp;
 			if (keyFrame) {
 				groupTimestamp = frame.timestamp as Time.Micro;
 			}
@@ -208,14 +209,13 @@ async function applyDefaults(config: EncoderConfig, settings: TrackSettings): Pr
 		frameRate: config.frameRate ?? settings.frameRate ?? 30,
 		keyframeInterval: config.keyframeInterval ?? Time.Milli.fromSecond(2 as Time.Second),
 		bitrateScale: config.bitrateScale ?? 0.07,
-		// Set later is falsy
+		// Set later, apply falsy defaults
 		maxBitrate: config.maxBitrate ?? 0,
 		codec: config.codec ?? "",
 		flip: config.flip ?? false,
 	};
 
 	required.codec = await bestCodec(required, settings);
-	required.maxBitrate = config.maxBitrate ?? 0;
 
 	return required;
 }
