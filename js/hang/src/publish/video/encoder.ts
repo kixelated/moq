@@ -47,7 +47,10 @@ export class Encoder {
 
 	#signals = new Effect();
 
+	// The user provided config.
 	config: Signal<EncoderConfig | undefined>;
+
+	// The final config with defaults applied.
 	#config = new Signal<Required<EncoderConfig> | undefined>(undefined);
 
 	constructor(frame: Getter<VideoFrame | undefined>, source: Signal<Source | undefined>, props?: EncoderProps) {
@@ -77,7 +80,7 @@ export class Encoder {
 		let group: Moq.Group | undefined; // TODO close
 		effect.cleanup(() => group?.close());
 
-		let groupTimestamp = 0 as Time.Micro;
+		let groupTimestamp: Time.Micro | undefined;
 
 		const encoder = new VideoEncoder({
 			output: (frame: EncodedVideoChunk) => {
@@ -138,7 +141,7 @@ export class Encoder {
 
 			// Force a keyframe if this is the first frame (no group yet), or GOP elapsed.
 			const keyFrame =
-				!group || groupTimestamp + Time.Micro.fromMilli(config.keyframeInterval) <= frame.timestamp;
+				!groupTimestamp || groupTimestamp + Time.Micro.fromMilli(config.keyframeInterval) <= frame.timestamp;
 			if (keyFrame) {
 				groupTimestamp = frame.timestamp as Time.Micro;
 			}
@@ -149,6 +152,9 @@ export class Encoder {
 
 	// Returns the catalog for the configured settings.
 	#runCatalog(effect: Effect): void {
+		const enabled = effect.get(this.enabled);
+		if (!enabled) return;
+
 		const source = effect.get(this.source);
 		if (!source) return;
 
@@ -187,8 +193,7 @@ export class Encoder {
 		const source = effect.get(this.source);
 		if (!source) return;
 
-		const config = effect.get(this.config);
-		if (!config) return;
+		const config = effect.get(this.config) ?? {};
 
 		const settings = source.getSettings();
 		effect.spawn(async () => {

@@ -38,19 +38,16 @@ export class Renderer {
 			const canvas = effect.get(this.canvas);
 			if (!canvas) return;
 
-			const selected = effect.get(this.source.selected);
-			if (selected) {
+			const active = effect.get(this.source.active);
+			if (active) {
 				// Initialize the canvas to the correct size.
 				// NOTE: each frame will resize the canvas, so this is mostly to avoid pop-in.
-				canvas.width = selected.config.displayAspectWidth ?? selected.config.codedWidth ?? 0;
-				canvas.height = selected.config.displayAspectHeight ?? selected.config.codedHeight ?? 0;
+				canvas.width = active.config.displayAspectWidth ?? active.config.codedWidth ?? 1;
+				canvas.height = active.config.displayAspectHeight ?? active.config.codedHeight ?? 1;
 			} else {
-				// Hide the canvas when no broadcast is selected.
-				const display = canvas.style.display;
-				canvas.style.display = "none";
-				effect.cleanup(() => {
-					canvas.style.display = display;
-				});
+				// We want at least 1x1 so we can detect if the canvas is hidden.
+				canvas.width = 1;
+				canvas.height = 1;
 			}
 		});
 	}
@@ -126,7 +123,7 @@ export class Renderer {
 			ctx.fillRect(0, 0, ctx.canvas.width, ctx.canvas.height);
 
 			// Apply horizontal flip if specified in the video config
-			const flip = this.source.selected.peek()?.config.flip;
+			const flip = this.source.active.peek()?.config.flip;
 			if (flip) {
 				ctx.scale(-1, 1);
 				ctx.translate(-ctx.canvas.width, 0);

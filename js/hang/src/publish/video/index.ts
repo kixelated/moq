@@ -45,6 +45,8 @@ export class Root {
 		const source = effect.get(this.source);
 		if (!source) return;
 
+		// NOTE: We modify the stock MediaStreamTrackProcessor so timestamps use our wall clock time.
+		// This is so even when the source is changed or encoder reloaded, the timestamps will be consistent.
 		const reader = TrackProcessor(source).getReader();
 		effect.cleanup(() => reader.cancel());
 

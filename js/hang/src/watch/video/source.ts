@@ -1,5 +1,5 @@
 import type * as Moq from "@kixelated/moq";
-import { Effect, type Getter, Signal } from "@kixelated/signals";
+import { Effect, Signal } from "@kixelated/signals";
 import type * as Catalog from "../../catalog";
 import * as Frame from "../../frame";
 import * as Time from "../../time";
@@ -29,11 +29,17 @@ export class Source {
 	catalog = new Signal<Catalog.Video[] | undefined>(undefined);
 
 	// The tracks supported by our video decoder.
-	supported = new Signal<Catalog.Video[]>([]);
+	#supported = new Signal<Catalog.Video[]>([]);
 
 	// The track we chose from the supported tracks.
 	#selected = new Signal<Catalog.Video | undefined>(undefined);
-	readonly selected: Getter<Catalog.Video | undefined> = this.#selected;
+
+	// The track we're currently decoding.
+	active = new Signal<Catalog.Video | undefined>(undefined);
+
+	// The current track running, held so we can cancel it when the new track is ready.
+	#pending?: Effect;
+	#active?: Effect;
 
 	detection: Detection;
 
@@ -47,6 +53,9 @@ export class Source {
 	frame = new Signal<VideoFrame | undefined>(undefined);
 
 	latency: Signal<Time.Milli>;
+
+	// Used to convert PTS to wall time.
+	#reference: DOMHighResTimeStamp | undefined;
 
 	#signals = new Effect();
 
@@ -62,7 +71,7 @@ export class Source {
 
 		this.#signals.effect(this.#runSupported.bind(this));
 		this.#signals.effect(this.#runSelected.bind(this));
-		this.#signals.effect(this.#init.bind(this));
+		this.#signals.effect(this.#runPending.bind(this));
 
 		this.#signals.effect((effect) => {
 			this.catalog.set(effect.get(catalog)?.video);
@@ -88,52 +97,51 @@ export class Source {
 				if (valid) supported.push(rendition);
 			}
 
-			effect.set(this.supported, supported, []);
+			effect.set(this.#supported, supported, []);
 		});
 	}
 
 	#runSelected(effect: Effect): void {
-		const supported = effect.get(this.supported);
-		const target = effect.get(this.target);
-		const closest = this.#selectRendition(supported, target);
-
-		this.#selected.set(closest);
-	}
-
-	#selectRendition(renditions: Catalog.Video[], target?: Target): Catalog.Video | undefined {
-		// If we have no target, then choose the largest supported rendition.
-		// This is kind of a hack to use MAX_SAFE_INTEGER / 2 - 1 but IF IT WORKS, IT WORKS.
-		const pixels = target?.pixels ?? Number.MAX_SAFE_INTEGER / 2 - 1;
-
-		let closest: Catalog.Video | undefined;
-		let minDistance = Number.MAX_SAFE_INTEGER;
-
-		for (const rendition of renditions) {
-			if (!rendition.config.codedHeight || !rendition.config.codedWidth) continue;
-
-			const distance = Math.abs(pixels - rendition.config.codedHeight * rendition.config.codedWidth);
-			if (distance < minDistance) {
-				minDistance = distance;
-				closest = rendition;
-			}
-		}
-		if (closest) return closest;
-
-		// If we couldn't find a closest, or there's no width/height, then choose the first supported rendition.
-		return renditions.at(0);
-	}
-
-	#init(effect: Effect): void {
 		const enabled = effect.get(this.enabled);
 		if (!enabled) return;
 
-		const selected = effect.get(this.#selected);
+		const supported = effect.get(this.#supported);
+		const target = effect.get(this.target);
+
+		const selected = this.#selectRendition(supported, target);
 		if (!selected) return;
 
-		const broadcast = effect.get(this.broadcast);
-		if (!broadcast) return;
+		effect.set(this.#selected, selected);
+	}
 
-		// We don't clear previous frames so we can seamlessly switch tracks.
+	#runPending(effect: Effect): void {
+		const broadcast = effect.get(this.broadcast);
+		const selected = effect.get(this.#selected);
+		const enabled = effect.get(this.enabled);
+
+		if (!broadcast || !selected || !enabled) {
+			// Stop the active track.
+			this.#active?.close();
+			this.#active = undefined;
+
+			this.frame.update((prev) => {
+				prev?.close();
+				return undefined;
+			});
+
+			return;
+		}
+
+		// Start a new pending effect.
+		this.#pending = new Effect();
+
+		// NOTE: If the track catches up in time, it'll remove itself from #pending.
+		effect.cleanup(() => this.#pending?.close());
+
+		this.#runTrack(this.#pending, broadcast, selected);
+	}
+
+	#runTrack(effect: Effect, broadcast: Moq.Broadcast, selected: Catalog.Video): void {
 		const sub = broadcast.subscribe(selected.track, PRIORITY.video);
 		effect.cleanup(() => sub.close());
 
@@ -145,15 +153,21 @@ export class Source {
 
 		const decoder = new VideoDecoder({
 			output: (frame) => {
-				this.frame.update((prev) => {
-					prev?.close();
-					return frame;
-				});
+				// Use the previous frame if it's newer.
+				const prev = this.frame.peek();
+				if (prev && prev.timestamp >= frame.timestamp) {
+					frame.close();
+					return;
+				}
+
+				// Otherwise replace the previous frame.
+				prev?.close();
+				this.frame.set(frame);
 			},
 			// TODO bubble up error
 			error: (error) => {
 				console.error(error);
-				this.close();
+				effect.close();
 			},
 		});
 		effect.cleanup(() => decoder.close());
@@ -167,17 +181,26 @@ export class Source {
 		});
 
 		effect.spawn(async () => {
-			let reference: DOMHighResTimeStamp | undefined;
-
 			for (;;) {
-				const next = await consumer.decode();
+				const next = await Promise.race([consumer.decode(), effect.cancel]);
 				if (!next) break;
 
+				// See if we can upgrade ourselves to the active track once we catch up.
+				// TODO: This is a racey when latency === 0, but I think it's fine.
+				const prev = this.frame.peek();
+				if (this.#pending === effect && (!prev || next.timestamp > prev.timestamp)) {
+					this.#active?.close();
+					this.#active = effect;
+					this.#pending = undefined;
+					effect.set(this.active, selected);
+				}
+
+				// Sleep until it's time to decode the next frame.
 				const ref = performance.now() - Time.Milli.fromMicro(next.timestamp);
-				if (!reference || ref < reference) {
-					reference = ref;
+				if (!this.#reference || ref < this.#reference) {
+					this.#reference = ref;
 				} else {
-					const sleep = reference - ref + this.latency.peek();
+					const sleep = this.#reference - ref + this.latency.peek();
 					await new Promise((resolve) => setTimeout(resolve, sleep));
 				}
 
@@ -195,6 +218,39 @@ export class Source {
 				decoder.decode(chunk);
 			}
 		});
+	}
+
+	#selectRendition(renditions: Catalog.Video[], target?: Target): Catalog.Video | undefined {
+		// If we have no target, then choose the largest supported rendition.
+		// This is kind of a hack to use MAX_SAFE_INTEGER / 2 - 1 but IF IT WORKS, IT WORKS.
+		const pixels = target?.pixels ?? Number.MAX_SAFE_INTEGER / 2 - 1;
+
+		// Round up to the closest rendition.
+		// Also keep track of the 2nd closest, just in case there's nothing larger.
+
+		let larger: Catalog.Video | undefined;
+		let largerSize: number | undefined;
+
+		let smaller: Catalog.Video | undefined;
+		let smallerSize: number | undefined;
+
+		for (const rendition of renditions) {
+			if (!rendition.config.codedHeight || !rendition.config.codedWidth) continue;
+
+			const size = rendition.config.codedHeight * rendition.config.codedWidth;
+			if (size > pixels && (!largerSize || size < largerSize)) {
+				larger = rendition;
+				largerSize = size;
+			} else if (size < pixels && (!smallerSize || size > smallerSize)) {
+				smaller = rendition;
+				smallerSize = size;
+			}
+		}
+		if (larger) return larger;
+		if (smaller) return smaller;
+
+		console.warn("no width/height information, choosing the first supported rendition");
+		return renditions.at(0);
 	}
 
 	close() {

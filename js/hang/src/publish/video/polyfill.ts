@@ -7,10 +7,24 @@ import type { StreamTrack } from "./types";
 export function TrackProcessor(track: StreamTrack): ReadableStream<VideoFrame> {
 	// @ts-expect-error No typescript types yet.
 	if (self.MediaStreamTrackProcessor) {
+		// Rewrite timestamps so they use our wall clock time instead of starting at 0.
+		// TODO verify all browsers actually start at 0.
+		const zero = performance.now() * 1000;
+
+		const rewrite = new TransformStream<VideoFrame>({
+			transform(frame, controller) {
+				const rewrite = new VideoFrame(frame, { timestamp: frame.timestamp + zero });
+				frame.close();
+				controller.enqueue(rewrite);
+			},
+		});
+
 		// @ts-expect-error No typescript types yet.
-		return new self.MediaStreamTrackProcessor({ track }).readable;
+		const input: ReadableStream<VideoFrame> = new self.MediaStreamTrackProcessor({ track }).readable;
+		return input.pipeThrough(rewrite);
 	}
 
+	// TODO Firefox supports this in a background worker.
 	console.warn("Using MediaStreamTrackProcessor polyfill; performance might suffer.");
 
 	const settings = track.getSettings();
