@@ -23,28 +23,5 @@ We most of the implement the [WebCodecs specification](https://www.w3.org/TR/web
 There's also a `cmaf` module that can import fMP4/CMAF files into a hang broadcast.
 It's crude and doesn't support all features, but it's a good starting point to ingest existing content.
 
-## Example
-
-```rust
-use hang::{BroadcastProducer, Frame};
-
-let mut broadcast = BroadcastProducer::new();
-
-// Create a video track
-let video = hang::catalog::Video {
-    track: moq_lite::Track { name: "video".to_string(), priority: 1 },
-	// Decoder configuration.
-    config: Default::default(),
-};
-let mut track = broadcast.create_video(video);
-
-// NOTE: Unlike moq_lite, you don't create a group producer.
-// One will be created automatically when you write a keyframe.
-
-let frame = Frame {
-    timestamp: std::time::Duration::from_secs(1),
-    keyframe: true,
-    payload: b"video data".as_slice().into(),
-};
-track.write(frame);
-```
+## Examples
+- [Publishing a video track](examples/video.rs)

@@ -815,12 +815,14 @@ dependencies = [
 name = "hang"
 version = "0.5.5"
 dependencies = [
+ "anyhow",
  "bytes",
  "derive_more",
  "futures",
  "hex",
  "lazy_static",
  "moq-lite",
+ "moq-native",
  "mp4-atom",
  "regex",
  "serde",
@@ -829,6 +831,7 @@ dependencies = [
  "thiserror 2.0.16",
  "tokio",
  "tracing",
+ "url",
 ]
 
 [[package]]
@@ -1402,14 +1405,17 @@ dependencies = [
 name = "moq-lite"
 version = "0.7.1"
 dependencies = [
+ "anyhow",
  "async-channel",
  "bytes",
  "futures",
+ "moq-native",
  "num_enum",
  "serde",
  "thiserror 2.0.16",
  "tokio",
  "tracing",
+ "url",
  "web-async",
  "web-transport-trait",
 ]
