@@ -7,9 +7,6 @@ import * as Time from "../../time";
 import { isFirefox } from "../../util/hacks";
 import type { Source, TrackSettings } from "./types";
 
-// Create a group every 2 seconds
-const GOP_DURATION = Time.Micro.fromSecond(2 as Time.Second);
-
 export interface EncoderProps {
 	enabled?: boolean | Signal<boolean>;
 	config?: EncoderConfig | Signal<EncoderConfig | undefined>;
@@ -23,8 +20,8 @@ export interface EncoderConfig {
 	// Constrain the encoded width/height in pixels.
 	maxPixels?: number;
 
-	// The interval at which to insert keyframes. (default: 2 seconds)
-	keyframeInterval?: number;
+	// The interval at which to insert keyframes. (default: 2000 milliseconds)
+	keyframeInterval?: Time.Milli;
 
 	// If not provided, the encoder will use the best bitrate for the given width, height, and framerate.
 	maxBitrate?: number;
@@ -140,7 +137,7 @@ export class Encoder {
 			}
 
 			// Force a keyframe if this is the first frame (no group yet), or GOP elapsed.
-			const keyFrame = !group || groupTimestamp + GOP_DURATION <= frame.timestamp;
+			const keyFrame = !group || groupTimestamp + config.keyframeInterval <= frame.timestamp;
 			if (keyFrame) {
 				groupTimestamp = frame.timestamp as Time.Micro;
 			}
@@ -209,7 +206,7 @@ async function applyDefaults(config: EncoderConfig, settings: TrackSettings): Pr
 		...config,
 		maxPixels: config.maxPixels ?? settings.width * settings.height,
 		frameRate: config.frameRate ?? settings.frameRate ?? 30,
-		keyframeInterval: config.keyframeInterval ?? 2,
+		keyframeInterval: config.keyframeInterval ?? Time.Milli.fromSecond(2 as Time.Second),
 		bitrateScale: config.bitrateScale ?? 0.07,
 		// Set later is falsy
 		maxBitrate: config.maxBitrate ?? 0,
