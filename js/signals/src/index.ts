@@ -343,9 +343,8 @@ export class Effect {
 		}
 
 		const effect = new Effect(fn);
-		let timeout: ReturnType<typeof setTimeout> | undefined;
 
-		timeout = setTimeout(() => {
+		let timeout: ReturnType<typeof setTimeout> | undefined = setTimeout(() => {
 			effect.close();
 			timeout = undefined;
 		}, ms);
@@ -355,6 +354,24 @@ export class Effect {
 				clearTimeout(timeout);
 				effect.close();
 			}
+		});
+	}
+
+	// Run the callback on the next animation frame, unless the effect is cleaned up first.
+	animate(fn: () => void) {
+		if (this.#dispose === undefined) {
+			if (DEV) {
+				console.warn("Effect.animate called when closed, ignoring");
+			}
+			return;
+		}
+
+		let animate: number | undefined = requestAnimationFrame(() => {
+			fn();
+			animate = undefined;
+		});
+		this.cleanup(() => {
+			if (animate) cancelAnimationFrame(animate);
 		});
 	}
 
