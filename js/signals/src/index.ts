@@ -358,7 +358,7 @@ export class Effect {
 	}
 
 	// Run the callback on the next animation frame, unless the effect is cleaned up first.
-	animate(fn: () => void) {
+	animate(fn: (now: DOMHighResTimeStamp) => void) {
 		if (this.#dispose === undefined) {
 			if (DEV) {
 				console.warn("Effect.animate called when closed, ignoring");
@@ -366,8 +366,8 @@ export class Effect {
 			return;
 		}
 
-		let animate: number | undefined = requestAnimationFrame(() => {
-			fn();
+		let animate: number | undefined = requestAnimationFrame((now) => {
+			fn(now);
 			animate = undefined;
 		});
 		this.cleanup(() => {
