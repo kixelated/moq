@@ -38,7 +38,7 @@ export class Renderer {
 		const canvas = effect.get(this.canvas);
 		if (!canvas) return;
 
-		const ctx = canvas.getContext("2d");
+		const ctx = effect.get(this.#ctx);
 		if (!ctx) return;
 
 		const active = effect.get(this.source.active);
