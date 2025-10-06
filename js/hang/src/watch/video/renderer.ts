@@ -38,17 +38,51 @@ export class Renderer {
 		const canvas = effect.get(this.canvas);
 		if (!canvas) return;
 
+		const ctx = canvas.getContext("2d");
+		if (!ctx) return;
+
 		const active = effect.get(this.source.active);
-		if (active) {
-			// Initialize the canvas to the correct size.
-			// NOTE: each frame will resize the canvas, so this is mostly to avoid pop-in.
-			canvas.width = active.config.displayAspectWidth ?? active.config.codedWidth ?? 1;
-			canvas.height = active.config.displayAspectHeight ?? active.config.codedHeight ?? 1;
-		} else {
-			// We want at least 1x1 so we can detect if the canvas is hidden.
-			canvas.width = 1;
-			canvas.height = 1;
+		const videoWidth = active?.config.displayAspectWidth ?? active?.config.codedWidth ?? 1;
+		const videoHeight = active?.config.displayAspectHeight ?? active?.config.codedHeight ?? 1;
+
+		const observer = new ResizeObserver((entries) => {
+			for (const entry of entries) {
+				let width: number;
+				let height: number;
+
+				if (entry.devicePixelContentBoxSize) {
+					width = entry.devicePixelContentBoxSize[0].inlineSize;
+					height = entry.devicePixelContentBoxSize[0].blockSize;
+				} else if (entry.contentBoxSize) {
+					const dpr = devicePixelRatio;
+					width = entry.contentBoxSize[0].inlineSize * dpr;
+					height = entry.contentBoxSize[0].blockSize * dpr;
+				} else {
+					width = canvas.clientWidth * devicePixelRatio;
+					height = canvas.clientHeight * devicePixelRatio;
+				}
+
+				// Ensure at least 1x1 so we can detect if the canvas is hidden.
+				canvas.width = Math.max(1, Math.round(width));
+				canvas.height = Math.max(1, Math.round(height));
+
+				// Render immediately to prevent black flash
+				const frame = this.source.frame.peek();
+				this.#render(ctx, frame);
+			}
+		});
+
+		try {
+			observer.observe(canvas, { box: "device-pixel-content-box" });
+		} catch {
+			observer.observe(canvas, { box: "content-box" });
 		}
+
+		// Initialize the canvas to the video aspect ratio to avoid pop-in.
+		canvas.width = videoWidth;
+		canvas.height = videoHeight;
+
+		effect.cleanup(() => observer.disconnect());
 	}
 
 	// Detect when video should be downloaded.
@@ -108,13 +142,6 @@ export class Renderer {
 			ctx.fillStyle = "#000";
 			ctx.fillRect(0, 0, ctx.canvas.width, ctx.canvas.height);
 			return;
-		}
-
-		const w = frame.displayWidth;
-		const h = frame.displayHeight;
-		if (ctx.canvas.width !== w || ctx.canvas.height !== h) {
-			ctx.canvas.width = w;
-			ctx.canvas.height = h;
 		}
 
 		// Prepare background and transformations for this draw
