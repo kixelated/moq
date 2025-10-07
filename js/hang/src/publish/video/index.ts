@@ -88,5 +88,11 @@ export class Root {
 		this.signals.close();
 		this.hd.close();
 		this.sd.close();
+		this.detection.close();
+
+		this.frame.update((prev) => {
+			prev?.close();
+			return undefined;
+		});
 	}
 }
