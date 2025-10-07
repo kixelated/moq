@@ -221,6 +221,8 @@ export class Source {
 	}
 
 	#selectRendition(renditions: Catalog.Video[], target?: Target): Catalog.Video | undefined {
+		if (renditions.length <= 1) return renditions.at(0);
+
 		// If we have no target, then choose the largest supported rendition.
 		// This is kind of a hack to use MAX_SAFE_INTEGER / 2 - 1 but IF IT WORKS, IT WORKS.
 		const pixels = target?.pixels ?? Number.MAX_SAFE_INTEGER / 2 - 1;
