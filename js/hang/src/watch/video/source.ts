@@ -178,6 +178,8 @@ export class Source {
 			...selected.config,
 			description,
 			optimizeForLatency: selected.config.optimizeForLatency ?? true,
+			// @ts-expect-error Only supported by Chrome, so the renderer has to flip manually.
+			flip: false,
 		});
 
 		effect.spawn(async () => {
