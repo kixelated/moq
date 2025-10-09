@@ -488,8 +488,8 @@ impl OriginConsumer {
 		self.updates.try_recv().ok()
 	}
 
-	pub fn consume(&self) -> OriginConsumer {
-		OriginConsumer::new(self.root.clone(), self.nodes.clone())
+	pub fn consume(&self) -> Self {
+		self.clone()
 	}
 
 	/// Get a specific broadcast by path.
@@ -531,6 +531,12 @@ impl Drop for OriginConsumer {
 		for (_, root) in &self.nodes.nodes {
 			root.lock().unconsume(self.id);
 		}
+	}
+}
+
+impl Clone for OriginConsumer {
+	fn clone(&self) -> Self {
+		OriginConsumer::new(self.root.clone(), self.nodes.clone())
 	}
 }
 

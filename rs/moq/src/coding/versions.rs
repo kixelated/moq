@@ -8,19 +8,23 @@ pub struct Version(pub u64);
 
 impl Version {
 	/// <https://www.ietf.org/archive/id/draft-ietf-moq-transport-00.html>
-	pub const DRAFT_00: Version = Version(0xff000000);
+	pub const IETF_00: Version = Version(0xff000000);
 
 	/// <https://www.ietf.org/archive/id/draft-ietf-moq-transport-01.html>
-	pub const DRAFT_01: Version = Version(0xff000001);
+	pub const IETF_01: Version = Version(0xff000001);
 
 	/// <https://www.ietf.org/archive/id/draft-ietf-moq-transport-02.html>
-	pub const DRAFT_02: Version = Version(0xff000002);
+	pub const IETF_02: Version = Version(0xff000002);
 
 	/// <https://www.ietf.org/archive/id/draft-ietf-moq-transport-03.html>
-	pub const DRAFT_03: Version = Version(0xff000003);
+	pub const IETF_03: Version = Version(0xff000003);
 
 	/// <https://www.ietf.org/archive/id/draft-ietf-moq-transport-04.html>
-	pub const DRAFT_04: Version = Version(0xff000004);
+	pub const IETF_04: Version = Version(0xff000004);
+
+	/// <https://www.ietf.org/archive/id/draft-ietf-moq-transport-07.html>
+	pub const IETF_07: Version = Version(0xff000007);
+	pub const IETF_LATEST: Version = Self::IETF_07;
 
 	/// <https://www.ietf.org/archive/id/draft-lcurley-moq-transfork-00.html>
 	pub const FORK_00: Version = Version(0xff0bad00);
@@ -39,8 +43,7 @@ impl Version {
 
 	pub const LITE_00: Version = Version(0xff0dad00);
 	pub const LITE_01: Version = Version(0xff0dad01);
-
-	pub const CURRENT: Version = Version::LITE_01;
+	pub const LITE_LATEST: Version = Self::LITE_01;
 }
 
 /// A version number negotiated during the setup.
@@ -50,7 +53,7 @@ pub struct Alpn(pub &'static str);
 impl Alpn {
 	pub const LITE_00: Alpn = Alpn("moql-00");
 	pub const LITE_01: Alpn = Alpn("moql-01");
-	pub const CURRENT: Alpn = Alpn::LITE_01;
+	pub const LITE_LATEST: Alpn = Self::LITE_01;
 }
 
 impl From<u64> for Version {
