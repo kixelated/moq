@@ -57,10 +57,10 @@ impl Encode for Frame {
 		let size = self.payload.as_ref().map(|p| p.len()).unwrap_or(0);
 		size.encode(w);
 
-		if let Some(payload) = &self.payload {
-			w.put_slice(payload);
-		} else {
-			GROUP_END.encode(w);
+		match &self.payload {
+			Some(payload) if !payload.is_empty() => w.put_slice(payload),
+			Some(_) => 0u8.encode(w),
+			None => GROUP_END.encode(w),
 		}
 	}
 }

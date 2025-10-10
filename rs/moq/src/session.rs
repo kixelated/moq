@@ -34,7 +34,7 @@ impl<S: web_transport_trait::Session + Sync> Session<S> {
 
 		let client = lite::ClientSetup {
 			versions: [coding::Version::LITE_LATEST, coding::Version::IETF_LATEST].into(),
-			extensions: Default::default(),
+			extensions,
 		};
 
 		stream.writer.encode(&client).await?;

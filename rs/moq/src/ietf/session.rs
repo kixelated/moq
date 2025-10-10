@@ -122,7 +122,8 @@ async fn run_control_write<S: web_transport_trait::Session + Sync>(
 	mut rx: tokio::sync::mpsc::UnboundedReceiver<Vec<u8>>,
 ) -> Result<(), Error> {
 	while let Some(msg) = rx.recv().await {
-		control.encode(&msg).await?;
+		let mut buf = std::io::Cursor::new(msg);
+		control.write_all(&mut buf).await?;
 	}
 
 	Ok(())

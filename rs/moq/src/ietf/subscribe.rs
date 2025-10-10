@@ -109,6 +109,8 @@ impl Message for SubscribeOk {
 			let group = u64::decode(r)?;
 			let object = u64::decode(r)?;
 			largest = Some((group, object));
+		} else if content_exists != 0 {
+			return Err(DecodeError::InvalidValue);
 		}
 
 		let num_params = u8::decode(r)?;
@@ -204,6 +206,8 @@ impl<'a> Message for SubscribeDone<'a> {
 			let group = u64::decode(r)?;
 			let object = u64::decode(r)?;
 			final_group_object = Some((group, object));
+		} else if content_exists != 0 {
+			return Err(DecodeError::InvalidValue);
 		}
 
 		Ok(Self {

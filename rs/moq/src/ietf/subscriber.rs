@@ -7,8 +7,7 @@ use crate::{
 	coding::Reader,
 	ietf::{self, Control},
 	model::BroadcastProducer,
-	AsPath, Broadcast, Error, Frame, FrameProducer, Group, GroupProducer, OriginProducer, Path, PathOwned,
-	TrackProducer,
+	Broadcast, Error, Frame, FrameProducer, Group, GroupProducer, OriginProducer, Path, PathOwned, TrackProducer,
 };
 
 use web_async::Lock;
@@ -38,21 +37,24 @@ impl<S: web_transport_trait::Session> Subscriber<S> {
 	}
 
 	pub fn recv_announce(&mut self, msg: ietf::Announce) -> Result<(), Error> {
-		if self.origin.is_none() {
-			self.control.send(
-				ietf::MessageId::AnnounceError,
-				ietf::AnnounceError {
-					track_namespace: msg.track_namespace,
-					error_code: 404,
-					reason_phrase: "Publish only".into(),
-				},
-			)?;
+		let origin = match &self.origin {
+			Some(origin) => origin,
+			None => {
+				self.control.send(
+					ietf::MessageId::AnnounceError,
+					ietf::AnnounceError {
+						track_namespace: msg.track_namespace,
+						error_code: 404,
+						reason_phrase: "Publish only".into(),
+					},
+				)?;
 
-			return Ok(());
-		}
+				return Ok(());
+			}
+		};
 
 		let path = msg.track_namespace.to_owned();
-		tracing::debug!(broadcast = %self.log_path(&path), suffix = %path, "announce");
+		tracing::debug!(broadcast = %origin.absolute(&path), suffix = %path, "announce");
 
 		let broadcast = Broadcast::produce();
 
@@ -81,8 +83,13 @@ impl<S: web_transport_trait::Session> Subscriber<S> {
 	}
 
 	pub fn recv_unannounce(&mut self, msg: ietf::Unannounce) -> Result<(), Error> {
+		let origin = match &self.origin {
+			Some(origin) => origin,
+			None => return Ok(()),
+		};
+
 		let path = msg.track_namespace.to_owned();
-		tracing::debug!(broadcast = %self.log_path(&path), "unannounced");
+		tracing::debug!(broadcast = %origin.absolute(&path), "unannounced");
 
 		// Close the producer.
 		let mut producer = self.producers.lock().remove(&path).ok_or(Error::NotFound)?;
@@ -188,10 +195,10 @@ impl<S: web_transport_trait::Session> Subscriber<S> {
 			)
 			.ok();
 
-		tracing::info!(id, broadcast = %self.log_path(&broadcast), track = %track.info.name, "subscribe started");
+		tracing::info!(id, broadcast = %self.origin.as_ref().unwrap().absolute(&broadcast), track = %track.info.name, "subscribe started");
 
 		track.unused().await;
-		tracing::info!(id, broadcast = %self.log_path(&broadcast), track = %track.info.name, "subscribe cancelled");
+		tracing::info!(id, broadcast = %self.origin.as_ref().unwrap().absolute(&broadcast), track = %track.info.name, "subscribe cancelled");
 
 		track.abort(Error::Cancel);
 	}
@@ -268,9 +275,5 @@ impl<S: web_transport_trait::Session> Subscriber<S> {
 		frame.close();
 
 		Ok(())
-	}
-
-	fn log_path(&self, path: impl AsPath) -> Path {
-		self.origin.as_ref().unwrap().root().join(path)
 	}
 }
