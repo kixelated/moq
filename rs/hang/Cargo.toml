@@ -15,6 +15,7 @@ categories = ["multimedia", "network-programming", "web-programming"]
 [dependencies]
 bytes = "1.10"
 futures = "0.3"
+h264-parser = "0.4.0"
 hex = "0.4"
 lazy_static = "1"
 moq-lite = { workspace = true, features = ["serde"] }
