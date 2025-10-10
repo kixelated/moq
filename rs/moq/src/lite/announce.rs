@@ -17,15 +17,6 @@ pub enum Announce<'a> {
 	},
 }
 
-impl<'a> Announce<'a> {
-	pub fn suffix(&self) -> &Path<'a> {
-		match self {
-			Announce::Active { suffix } => suffix,
-			Announce::Ended { suffix } => suffix,
-		}
-	}
-}
-
 impl<'a> Message for Announce<'a> {
 	fn decode<R: bytes::Buf>(r: &mut R) -> Result<Self, DecodeError> {
 		Ok(match AnnounceStatus::decode(r)? {

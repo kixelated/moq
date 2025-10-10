@@ -4,10 +4,11 @@ use web_async::FuturesExt;
 use web_transport_trait::SendStream;
 
 use crate::{
-	message, model::GroupConsumer, AsPath, BroadcastConsumer, Error, Origin, OriginConsumer, Track, TrackConsumer,
+	coding::{Stream, Writer},
+	lite,
+	model::GroupConsumer,
+	AsPath, BroadcastConsumer, Error, Origin, OriginConsumer, Track, TrackConsumer,
 };
-
-use super::{Stream, Writer};
 
 pub(super) struct Publisher<S: web_transport_trait::Session> {
 	session: S,
@@ -21,12 +22,7 @@ impl<S: web_transport_trait::Session> Publisher<S> {
 		Self { session, origin }
 	}
 
-	pub async fn run(self) -> Result<(), Error> {
-		// TODO block on origin.closed()
-		self.run_bi().await
-	}
-
-	async fn run_bi(mut self) -> Result<(), Error> {
+	pub async fn run(mut self) -> Result<(), Error> {
 		loop {
 			let mut stream = Stream::accept(&self.session).await?;
 
@@ -35,11 +31,11 @@ impl<S: web_transport_trait::Session> Publisher<S> {
 			let kind = stream.reader.decode().await?;
 
 			if let Err(err) = match kind {
-				message::ControlType::Session
-				| message::ControlType::ClientCompat
-				| message::ControlType::ServerCompat => Err(Error::UnexpectedStream(kind)),
-				message::ControlType::Announce => self.recv_announce(stream).await,
-				message::ControlType::Subscribe => self.recv_subscribe(stream).await,
+				lite::ControlType::Session | lite::ControlType::ClientCompat | lite::ControlType::ServerCompat => {
+					Err(Error::UnexpectedStream)
+				}
+				lite::ControlType::Announce => self.recv_announce(stream).await,
+				lite::ControlType::Subscribe => self.recv_subscribe(stream).await,
 			} {
 				tracing::warn!(%err, "control stream error");
 			}
@@ -47,7 +43,7 @@ impl<S: web_transport_trait::Session> Publisher<S> {
 	}
 
 	pub async fn recv_announce(&mut self, mut stream: Stream<S>) -> Result<(), Error> {
-		let interest = stream.reader.decode::<message::AnnouncePlease>().await?;
+		let interest = stream.reader.decode::<lite::AnnouncePlease>().await?;
 		let prefix = interest.prefix.to_owned();
 
 		// For logging, show the full path that we're announcing.
@@ -104,7 +100,7 @@ impl<S: web_transport_trait::Session> Publisher<S> {
 			}
 		}
 
-		let announce_init = message::AnnounceInit { suffixes: init };
+		let announce_init = lite::AnnounceInit { suffixes: init };
 		stream.writer.encode(&announce_init).await?;
 
 		// Flush any synchronously announced paths
@@ -119,11 +115,11 @@ impl<S: web_transport_trait::Session> Publisher<S> {
 
 							if active.is_some() {
 								tracing::debug!(broadcast = %origin.absolute(&path), "announce");
-								let msg = message::Announce::Active { suffix };
+								let msg = lite::Announce::Active { suffix };
 								stream.writer.encode(&msg).await?;
 							} else {
 								tracing::debug!(broadcast = %origin.absolute(&path), "unannounce");
-								let msg = message::Announce::Ended { suffix };
+								let msg = lite::Announce::Ended { suffix };
 								stream.writer.encode(&msg).await?;
 							}
 						},
@@ -135,7 +131,7 @@ impl<S: web_transport_trait::Session> Publisher<S> {
 	}
 
 	pub async fn recv_subscribe(&mut self, mut stream: Stream<S>) -> Result<(), Error> {
-		let subscribe = stream.reader.decode::<message::Subscribe>().await?;
+		let subscribe = stream.reader.decode::<lite::Subscribe>().await?;
 
 		let id = subscribe.id;
 		let track = subscribe.track.clone();
@@ -169,7 +165,7 @@ impl<S: web_transport_trait::Session> Publisher<S> {
 	async fn run_subscribe(
 		session: S,
 		stream: &mut Stream<S>,
-		subscribe: &message::Subscribe<'_>,
+		subscribe: &lite::Subscribe<'_>,
 		consumer: Option<BroadcastConsumer>,
 	) -> Result<(), Error> {
 		let track = Track {
@@ -182,7 +178,7 @@ impl<S: web_transport_trait::Session> Publisher<S> {
 
 		// TODO wait until track.info() to get the *real* priority
 
-		let info = message::SubscribeOk {
+		let info = lite::SubscribeOk {
 			priority: track.info.priority,
 		};
 
@@ -196,7 +192,7 @@ impl<S: web_transport_trait::Session> Publisher<S> {
 		stream.writer.finish().await
 	}
 
-	async fn run_track(session: S, mut track: TrackConsumer, subscribe: &message::Subscribe<'_>) -> Result<(), Error> {
+	async fn run_track(session: S, mut track: TrackConsumer, subscribe: &lite::Subscribe<'_>) -> Result<(), Error> {
 		// TODO use a BTreeMap serve the latest N groups by sequence.
 		// Until then, we'll implement N=2 manually.
 		// Also, this is more complicated because we can't use tokio because of WASM.
@@ -242,7 +238,7 @@ impl<S: web_transport_trait::Session> Publisher<S> {
 			}
 
 			let priority = stream_priority(track.info.priority, sequence);
-			let msg = message::Group {
+			let msg = lite::Group {
 				subscribe: subscribe.id,
 				sequence,
 			};
@@ -272,12 +268,7 @@ impl<S: web_transport_trait::Session> Publisher<S> {
 		}
 	}
 
-	pub async fn serve_group(
-		session: S,
-		msg: message::Group,
-		priority: i32,
-		mut group: GroupConsumer,
-	) -> Result<(), Error> {
+	async fn serve_group(session: S, msg: lite::Group, priority: i32, mut group: GroupConsumer) -> Result<(), Error> {
 		// TODO add a way to open in priority order.
 		let mut stream = session
 			.open_uni()
@@ -286,7 +277,7 @@ impl<S: web_transport_trait::Session> Publisher<S> {
 		stream.set_priority(priority);
 
 		let mut stream = Writer::new(stream);
-		stream.encode(&message::DataType::Group).await?;
+		stream.encode(&lite::DataType::Group).await?;
 		stream.encode(&msg).await?;
 
 		loop {

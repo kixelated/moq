@@ -3,7 +3,7 @@ use std::sync::Arc;
 use crate::{coding::*, Error};
 
 // A wrapper around a SendStream that will reset on Drop
-pub(super) struct Writer<S: web_transport_trait::SendStream> {
+pub struct Writer<S: web_transport_trait::SendStream> {
 	stream: S,
 	buffer: bytes::BytesMut,
 }
