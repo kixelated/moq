@@ -16,6 +16,7 @@
 mod error;
 mod model;
 
+pub mod annexb;
 pub mod catalog;
 pub mod cmaf;
 pub mod feedback;
