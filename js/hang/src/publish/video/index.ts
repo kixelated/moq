@@ -1,5 +1,6 @@
 import { Effect, Signal } from "@kixelated/signals";
 import * as Catalog from "../../catalog";
+import { PRIORITY } from "../priority";
 import { Detection, DetectionProps } from "./detection";
 import { Encoder, EncoderProps } from "./encoder";
 import { TrackProcessor } from "./polyfill";
@@ -17,8 +18,11 @@ export type Props = {
 };
 
 export class Root {
-	static readonly TRACK_HD: Catalog.Track = "video/hd";
-	static readonly TRACK_SD: Catalog.Track = "video/sd";
+	static readonly TRACK_HD = "video/hd";
+	static readonly PRIORITY_HD = PRIORITY.hd;
+
+	static readonly TRACK_SD = "video/sd";
+	static readonly PRIORITY_SD = PRIORITY.sd;
 
 	source: Signal<Source | undefined>;
 	detection: Detection;
@@ -78,8 +82,8 @@ export class Root {
 		const sdConfig = effect.get(this.sd.catalog);
 
 		const catalog: Catalog.Video[] = [];
-		if (hdConfig) catalog.push({ track: Root.TRACK_HD, config: hdConfig });
-		if (sdConfig) catalog.push({ track: Root.TRACK_SD, config: sdConfig });
+		if (hdConfig) catalog.push({ track: { name: Root.TRACK_HD, priority: Root.PRIORITY_HD }, config: hdConfig });
+		if (sdConfig) catalog.push({ track: { name: Root.TRACK_SD, priority: Root.PRIORITY_SD }, config: sdConfig });
 
 		effect.set(this.catalog, catalog);
 	}

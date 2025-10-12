@@ -1,6 +1,7 @@
 import * as Moq from "@kixelated/moq";
 import { Effect, Signal } from "@kixelated/signals";
 import * as Catalog from "../../catalog";
+import { PRIORITY } from "../priority";
 
 export type TypingProps = {
 	enabled?: boolean | Signal<boolean>;
@@ -8,6 +9,8 @@ export type TypingProps = {
 
 export class Typing {
 	static readonly TRACK = "chat/typing.bool";
+	static readonly PRIORITY = PRIORITY.chat;
+
 	enabled: Signal<boolean>;
 
 	// Whether the user is typing.
@@ -25,7 +28,7 @@ export class Typing {
 			const enabled = effect.get(this.enabled);
 			if (!enabled) return;
 
-			effect.set(this.catalog, Typing.TRACK);
+			effect.set(this.catalog, { name: Typing.TRACK, priority: Typing.PRIORITY });
 		});
 	}
 
