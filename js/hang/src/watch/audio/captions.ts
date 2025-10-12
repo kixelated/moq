@@ -1,7 +1,6 @@
 import * as Moq from "@kixelated/moq";
 import { Effect, type Getter, Signal } from "@kixelated/signals";
 import * as Catalog from "../../catalog";
-import { PRIORITY } from "../priority";
 
 export type CaptionsProps = {
 	enabled?: boolean | Signal<boolean>;
@@ -42,7 +41,7 @@ export class Captions {
 
 		if (!info.captions) return;
 
-		const sub = broadcast.subscribe(info.captions.track, PRIORITY.captions);
+		const sub = broadcast.subscribe(info.captions.track.name, info.captions.track.priority);
 		effect.cleanup(() => sub.close());
 
 		effect.spawn(async () => {

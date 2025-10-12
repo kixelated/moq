@@ -1,7 +1,6 @@
 import * as Moq from "@kixelated/moq";
 import { Effect, type Getter, Signal } from "@kixelated/signals";
 import * as Catalog from "../../catalog";
-import { PRIORITY } from "../priority";
 
 export type SpeakingProps = {
 	enabled?: boolean | Signal<boolean>;
@@ -42,7 +41,7 @@ export class Speaking {
 
 		if (!info.speaking) return;
 
-		const sub = broadcast.subscribe(info.speaking.track, PRIORITY.speaking);
+		const sub = broadcast.subscribe(info.speaking.track.name, info.speaking.track.priority);
 		effect.cleanup(() => sub.close());
 
 		effect.spawn(async () => {

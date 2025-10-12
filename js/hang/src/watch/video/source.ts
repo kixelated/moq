@@ -4,7 +4,6 @@ import type * as Catalog from "../../catalog";
 import * as Frame from "../../frame";
 import * as Time from "../../time";
 import * as Hex from "../../util/hex";
-import { PRIORITY } from "../priority";
 import { Detection, type DetectionProps } from "./detection";
 
 export type SourceProps = {
@@ -142,7 +141,7 @@ export class Source {
 	}
 
 	#runTrack(effect: Effect, broadcast: Moq.Broadcast, selected: Catalog.Video): void {
-		const sub = broadcast.subscribe(selected.track, PRIORITY.video);
+		const sub = broadcast.subscribe(selected.track.name, selected.track.priority);
 		effect.cleanup(() => sub.close());
 
 		// Create consumer that reorders groups/frames up to the provided latency.

@@ -5,7 +5,6 @@ import * as Frame from "../../frame";
 import type * as Time from "../../time";
 import * as Hex from "../../util/hex";
 import * as libav from "../../util/libav";
-import { PRIORITY } from "../priority";
 import { Captions, type CaptionsProps } from "./captions";
 import type * as Render from "./render";
 import { Speaking, type SpeakingProps } from "./speaking";
@@ -151,7 +150,7 @@ export class Source {
 		const broadcast = effect.get(this.broadcast);
 		if (!broadcast) return;
 
-		const sub = broadcast.subscribe(selected.track, PRIORITY.audio);
+		const sub = broadcast.subscribe(selected.track.name, selected.track.priority);
 		effect.cleanup(() => sub.close());
 
 		// Create consumer with slightly less latency than the render worklet to avoid underflowing.

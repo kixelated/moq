@@ -2,7 +2,6 @@ import * as Moq from "@kixelated/moq";
 import * as Zod from "@kixelated/moq/zod";
 import { Effect, type Getter, Signal } from "@kixelated/signals";
 import * as Catalog from "../../catalog";
-import { PRIORITY } from "../priority";
 
 export interface WindowProps {
 	enabled?: boolean | Signal<boolean>;
@@ -51,7 +50,7 @@ export class Window {
 			const updates = effect.get(this.#catalog)?.track;
 			if (!updates) return;
 
-			const track = broadcast.subscribe(updates, PRIORITY.location);
+			const track = broadcast.subscribe(updates.name, updates.priority);
 			effect.cleanup(() => track.close());
 
 			effect.spawn(this.#runTrack.bind(this, track));

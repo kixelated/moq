@@ -1,11 +1,11 @@
 import * as Moq from "@kixelated/moq";
 import { Effect, type Getter, Signal } from "@kixelated/signals";
 import * as Catalog from "../catalog";
+import { PRIORITY } from "../publish/priority";
 import * as Audio from "./audio";
 import { Chat, type ChatProps } from "./chat";
 import * as Location from "./location";
 import { Preview, type PreviewProps } from "./preview";
-import { PRIORITY } from "./priority";
 import * as User from "./user";
 import * as Video from "./video";
 
