@@ -9,7 +9,7 @@ export type TypingProps = {
 
 export class Typing {
 	static readonly TRACK = "chat/typing.bool";
-	static readonly PRIORITY = PRIORITY.chat;
+	static readonly PRIORITY = PRIORITY.typing;
 
 	enabled: Signal<boolean>;
 
