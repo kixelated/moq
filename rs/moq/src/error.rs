@@ -1,12 +1,17 @@
 use std::sync::Arc;
 
 use crate::{coding, message};
+use web_transport_trait::{MaybeSend, MaybeSync};
+
+pub trait SendSyncError: std::error::Error + MaybeSend + MaybeSync {}
+
+impl<T> SendSyncError for T where T: std::error::Error + MaybeSend + MaybeSync {}
 
 /// A list of possible errors that can occur during the session.
 #[derive(thiserror::Error, Debug, Clone)]
 pub enum Error {
 	#[error("transport error: {0}")]
-	Transport(Arc<dyn std::error::Error + Send + Sync>),
+	Transport(Arc<dyn SendSyncError>),
 
 	#[error("decode error: {0}")]
 	Decode(#[from] coding::DecodeError),
