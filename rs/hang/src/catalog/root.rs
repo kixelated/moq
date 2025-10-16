@@ -4,41 +4,46 @@ use std::sync::{Arc, Mutex, MutexGuard};
 /// The catalog format is a JSON file that describes the tracks available in a broadcast.
 use serde::{Deserialize, Serialize};
 
-use crate::catalog::{Audio, Video};
+use crate::catalog::{Audio, Chat, Location, Track, User, Video};
 use crate::Result;
 use moq_lite::Produce;
 
-use super::Location;
-
 /// A catalog track, created by a broadcaster to describe the tracks available in a broadcast.
 #[serde_with::serde_as]
+#[serde_with::skip_serializing_none]
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Default)]
 #[serde(default, rename_all = "camelCase")]
 pub struct Catalog {
-	/// A list of video tracks for the same content.
+	/// Video track information with multiple renditions.
 	///
-	/// The viewer is expected to choose one of them based on their preferences, such as:
-	/// - resolution
-	/// - bitrate
-	/// - codec
-	/// - etc
-	#[serde(default, skip_serializing_if = "Vec::is_empty")]
-	pub video: Vec<Video>,
+	/// Contains a map of video track renditions that the viewer can choose from
+	/// based on their preferences (resolution, bitrate, codec, etc).
+	#[serde(default)]
+	pub video: Option<Video>,
 
-	/// A list of audio tracks for the same content.
+	/// Audio track information with multiple renditions.
 	///
-	/// The viewer is expected to choose one of them based on their preferences, such as:
-	/// - codec
-	/// - bitrate
-	/// - language
-	/// - etc
-	#[serde(default, skip_serializing_if = "Vec::is_empty")]
-	pub audio: Vec<Audio>,
+	/// Contains a map of audio track renditions that the viewer can choose from
+	/// based on their preferences (codec, bitrate, language, etc).
+	#[serde(default)]
+	pub audio: Option<Audio>,
 
 	/// A location track, used to indicate the desired position of the broadcaster from -1 to 1.
 	/// This is primarily used for audio panning but can also be used for video.
-	#[serde(default, skip_serializing_if = "Option::is_none")]
+	#[serde(default)]
 	pub location: Option<Location>,
+
+	/// User metadata for the broadcaster
+	#[serde(default)]
+	pub user: Option<User>,
+
+	/// Chat track metadata
+	#[serde(default)]
+	pub chat: Option<Chat>,
+
+	/// Preview information about the broadcast
+	#[serde(default)]
+	pub preview: Option<Track>,
 }
 
 impl Catalog {
@@ -119,16 +124,16 @@ impl CatalogProducer {
 		}
 	}
 
-	/// Add a video track to the catalog.
-	pub fn add_video(&mut self, video: Video) {
+	/// Set the video track information in the catalog.
+	pub fn set_video(&mut self, video: Option<Video>) {
 		let mut current = self.current.lock().unwrap();
-		current.video.push(video);
+		current.video = video;
 	}
 
-	/// Add an audio track to the catalog.
-	pub fn add_audio(&mut self, audio: Audio) {
+	/// Set the audio track information in the catalog.
+	pub fn set_audio(&mut self, audio: Option<Audio>) {
 		let mut current = self.current.lock().unwrap();
-		current.audio.push(audio);
+		current.audio = audio;
 	}
 
 	/// Set the location information in the catalog.
@@ -137,16 +142,22 @@ impl CatalogProducer {
 		current.location = location;
 	}
 
-	/// Remove a video track from the catalog.
-	pub fn remove_video(&mut self, video: &Video) {
+	/// Set the user information in the catalog.
+	pub fn set_user(&mut self, user: Option<User>) {
 		let mut current = self.current.lock().unwrap();
-		current.video.retain(|v| v != video);
+		current.user = user;
 	}
 
-	/// Remove an audio track from the catalog.
-	pub fn remove_audio(&mut self, audio: &Audio) {
+	/// Set the chat track information in the catalog.
+	pub fn set_chat(&mut self, chat: Option<Chat>) {
 		let mut current = self.current.lock().unwrap();
-		current.audio.retain(|a| a != audio);
+		current.chat = chat;
+	}
+
+	/// Set the preview track in the catalog.
+	pub fn set_preview(&mut self, preview: Option<Track>) {
+		let mut current = self.current.lock().unwrap();
+		current.preview = preview;
 	}
 
 	/// Get mutable access to the catalog for manual updates.
@@ -244,85 +255,90 @@ impl From<moq_lite::TrackConsumer> for CatalogConsumer {
 #[cfg(test)]
 mod test {
 	use crate::catalog::{AudioCodec::Opus, AudioConfig, VideoConfig, H264};
-	use moq_lite::Track;
 
 	use super::*;
 
 	#[test]
 	fn simple() {
+		use std::collections::HashMap;
+
 		let mut encoded = r#"{
-			"video": [
-				{
-					"track": {
-						"name": "video",
-						"priority": 1
-					},
-					"config": {
+			"video": {
+				"renditions": {
+					"video": {
 						"codec": "avc1.64001f",
 						"codedWidth": 1280,
 						"codedHeight": 720,
 						"bitrate": 6000000,
 						"framerate": 30.0
 					}
-				}
-			],
-			"audio": [
-				{
-					"track": {
-						"name": "audio",
-						"priority": 2
-					},
-					"config": {
+				},
+				"priority": 1
+			},
+			"audio": {
+				"renditions": {
+					"audio": {
 						"codec": "opus",
 						"sampleRate": 48000,
 						"numberOfChannels": 2,
 						"bitrate": 128000
 					}
-				}
-			]
+				},
+				"priority": 2
+			}
 		}"#
 		.to_string();
 
 		encoded.retain(|c| !c.is_whitespace());
 
+		let mut video_renditions = HashMap::new();
+		video_renditions.insert(
+			"video".to_string(),
+			VideoConfig {
+				codec: H264 {
+					profile: 0x64,
+					constraints: 0x00,
+					level: 0x1f,
+				}
+				.into(),
+				description: None,
+				coded_width: Some(1280),
+				coded_height: Some(720),
+				display_ratio_width: None,
+				display_ratio_height: None,
+				bitrate: Some(6_000_000),
+				framerate: Some(30.0),
+				optimize_for_latency: None,
+			},
+		);
+
+		let mut audio_renditions = HashMap::new();
+		audio_renditions.insert(
+			"audio".to_string(),
+			AudioConfig {
+				codec: Opus,
+				sample_rate: 48_000,
+				channel_count: 2,
+				bitrate: Some(128_000),
+				description: None,
+			},
+		);
+
 		let decoded = Catalog {
-			video: vec![Video {
-				track: Track {
-					name: "video".to_string(),
-					priority: 1,
-				},
-				config: VideoConfig {
-					codec: H264 {
-						profile: 0x64,
-						constraints: 0x00,
-						level: 0x1f,
-					}
-					.into(),
-					description: None,
-					coded_width: Some(1280),
-					coded_height: Some(720),
-					display_ratio_width: None,
-					display_ratio_height: None,
-					bitrate: Some(6_000_000),
-					framerate: Some(30.0),
-					optimize_for_latency: None,
-					rotation: None,
-					flip: None,
-				},
-			}],
-			audio: vec![Audio {
-				track: Track {
-					name: "audio".to_string(),
-					priority: 2,
-				},
-				config: AudioConfig {
-					codec: Opus,
-					sample_rate: 48_000,
-					channel_count: 2,
-					bitrate: Some(128_000),
-					description: None,
-				},
-			}],
+			video: Some(Video {
+				renditions: video_renditions,
+				priority: 1,
+				display: None,
+				rotation: None,
+				flip: None,
+				detection: None,
+			}),
+			audio: Some(Audio {
+				renditions: audio_renditions,
+				priority: 2,
+				captions: None,
+				speaking: None,
+			}),
 			..Default::default()
 		};
 

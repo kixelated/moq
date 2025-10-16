@@ -41,10 +41,6 @@ export class Renderer {
 		const ctx = effect.get(this.#ctx);
 		if (!ctx) return;
 
-		const active = effect.get(this.source.active);
-		const videoWidth = active?.config.displayAspectWidth ?? active?.config.codedWidth ?? 1;
-		const videoHeight = active?.config.displayAspectHeight ?? active?.config.codedHeight ?? 1;
-
 		const observer = new ResizeObserver((entries) => {
 			for (const entry of entries) {
 				let width: number;
@@ -79,8 +75,9 @@ export class Renderer {
 		}
 
 		// Initialize the canvas to the video aspect ratio to avoid pop-in.
-		canvas.width = videoWidth;
-		canvas.height = videoHeight;
+		const display = effect.get(this.source.display);
+		canvas.width = display?.width ?? 1;
+		canvas.height = display?.height ?? 1;
 
 		effect.cleanup(() => observer.disconnect());
 	}
@@ -150,7 +147,7 @@ export class Renderer {
 		ctx.fillRect(0, 0, ctx.canvas.width, ctx.canvas.height);
 
 		// Apply horizontal flip if specified in the video config
-		const flip = this.source.active.peek()?.config.flip;
+		const flip = this.source.catalog.peek()?.flip;
 		if (flip) {
 			ctx.scale(-1, 1);
 			ctx.translate(-ctx.canvas.width, 0);

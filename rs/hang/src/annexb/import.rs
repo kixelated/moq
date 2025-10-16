@@ -62,35 +62,47 @@ impl Import {
 								| ((sps.constraint_set3_flag as u8) << 4)
 								| ((sps.constraint_set4_flag as u8) << 3)
 								| ((sps.constraint_set5_flag as u8) << 2);
-							let video = Video {
-								track: Track {
-									name: String::from("video0"),
-									priority: 2,
-								},
-								config: VideoConfig {
-									coded_width: Some(sps.width),
-									coded_height: Some(sps.height),
-									codec: H264 {
-										profile: sps.profile_idc,
-										constraints: constraint_flags,
-										level: sps.level_idc,
-									}
-									.into(),
-									description: None,
-									// TODO: populate these fields
-									framerate: None,
-									bitrate: None,
-									rotation: None,
-									flip: None,
-									display_ratio_width: None,
-									display_ratio_height: None,
-									optimize_for_latency: None,
-								},
+
+							let track_name = String::from("video0");
+							let track = Track {
+								name: track_name.clone(),
+								priority: 2,
 							};
-							let track = video.track.clone().produce();
-							self.broadcast.insert_track(track.consumer);
-							self.catalog.add_video(video);
-							tp = Some(track.producer.into());
+							let track_produce = track.produce();
+							self.broadcast.insert_track(track_produce.consumer);
+
+							let config = VideoConfig {
+								coded_width: Some(sps.width),
+								coded_height: Some(sps.height),
+								codec: H264 {
+									profile: sps.profile_idc,
+									constraints: constraint_flags,
+									level: sps.level_idc,
+								}
+								.into(),
+								description: None,
+								// TODO: populate these fields
+								framerate: None,
+								bitrate: None,
+								display_ratio_width: None,
+								display_ratio_height: None,
+								optimize_for_latency: None,
+							};
+
+							let mut renditions = std::collections::HashMap::new();
+							renditions.insert(track_name, config);
+
+							let video = Video {
+								renditions,
+								priority: 2,
+								display: None,
+								rotation: None,
+								flip: None,
+								detection: None,
+							};
+
+							self.catalog.set_video(Some(video));
+							tp = Some(track_produce.producer.into());
 							self.catalog.publish();
 						}
 					}

@@ -2,6 +2,7 @@ import type * as Moq from "@kixelated/moq";
 import { Effect, Signal } from "@kixelated/signals";
 import type * as Catalog from "../../catalog";
 import * as Frame from "../../frame";
+import { PRIORITY } from "../../publish/priority";
 import * as Time from "../../time";
 import * as Hex from "../../util/hex";
 import { Detection, type DetectionProps } from "./detection";
@@ -25,16 +26,16 @@ export class Source {
 	broadcast: Signal<Moq.Broadcast | undefined>;
 	enabled: Signal<boolean>; // Don't download any longer
 
-	catalog = new Signal<Catalog.Video[] | undefined>(undefined);
+	catalog = new Signal<Catalog.Video | undefined>(undefined);
 
 	// The tracks supported by our video decoder.
-	#supported = new Signal<Catalog.Video[]>([]);
+	#supported = new Signal<Record<string, Catalog.VideoConfig>>({});
 
 	// The track we chose from the supported tracks.
-	#selected = new Signal<Catalog.Video | undefined>(undefined);
+	#selected = new Signal<[string, Catalog.VideoConfig] | undefined>(undefined);
 
-	// The track we're currently decoding.
-	active = new Signal<Catalog.Video | undefined>(undefined);
+	// The name of the active rendition.
+	active = new Signal<string | undefined>(undefined);
 
 	// The current track running, held so we can cancel it when the new track is ready.
 	#pending?: Effect;
@@ -53,6 +54,12 @@ export class Source {
 
 	latency: Signal<Time.Milli>;
 
+	// The display size of the video in pixels, ideally sourced from the catalog.
+	display = new Signal<{ width: number; height: number } | undefined>(undefined);
+
+	// Whether to flip the video horizontally.
+	flip = new Signal<boolean | undefined>(undefined);
+
 	// Used to convert PTS to wall time.
 	#reference: DOMHighResTimeStamp | undefined;
 
@@ -66,37 +73,38 @@ export class Source {
 		this.broadcast = broadcast;
 		this.latency = Signal.from(props?.latency ?? (100 as Time.Milli));
 		this.enabled = Signal.from(props?.enabled ?? false);
-		this.detection = new Detection(this.broadcast, catalog, props?.detection);
+		this.detection = new Detection(this.broadcast, this.catalog, props?.detection);
+
+		this.#signals.effect((effect) => {
+			const c = effect.get(catalog)?.video;
+			effect.set(this.catalog, c);
+			effect.set(this.flip, c?.flip);
+		});
 
 		this.#signals.effect(this.#runSupported.bind(this));
 		this.#signals.effect(this.#runSelected.bind(this));
 		this.#signals.effect(this.#runPending.bind(this));
-
-		this.#signals.effect((effect) => {
-			this.catalog.set(effect.get(catalog)?.video);
-		});
+		this.#signals.effect(this.#runDisplay.bind(this));
 	}
 
 	#runSupported(effect: Effect): void {
-		const renditions = effect.get(this.catalog) ?? [];
+		const renditions = effect.get(this.catalog)?.renditions ?? {};
 
 		effect.spawn(async () => {
-			const supported: Catalog.Video[] = [];
+			const supported: Record<string, Catalog.VideoConfig> = {};
 
-			for (const rendition of renditions) {
-				const description = rendition.config.description
-					? Hex.toBytes(rendition.config.description)
-					: undefined;
+			for (const [name, rendition] of Object.entries(renditions)) {
+				const description = rendition.description ? Hex.toBytes(rendition.description) : undefined;
 
 				const { supported: valid } = await VideoDecoder.isConfigSupported({
-					...rendition.config,
+					...rendition,
 					description,
-					optimizeForLatency: rendition.config.optimizeForLatency ?? true,
+					optimizeForLatency: rendition.optimizeForLatency ?? true,
 				});
-				if (valid) supported.push(rendition);
+				if (valid) supported[name] = rendition;
 			}
 
-			effect.set(this.#supported, supported, []);
+			this.#supported.set(supported);
 		});
 	}
 
@@ -137,11 +145,11 @@ export class Source {
 		// NOTE: If the track catches up in time, it'll remove itself from #pending.
 		effect.cleanup(() => this.#pending?.close());
 
-		this.#runTrack(this.#pending, broadcast, selected);
+		this.#runTrack(this.#pending, broadcast, selected[0], selected[1]);
 	}
 
-	#runTrack(effect: Effect, broadcast: Moq.Broadcast, selected: Catalog.Video): void {
-		const sub = broadcast.subscribe(selected.track.name, selected.track.priority);
+	#runTrack(effect: Effect, broadcast: Moq.Broadcast, name: string, config: Catalog.VideoConfig): void {
+		const sub = broadcast.subscribe(name, PRIORITY.video); // TODO use priority from catalog
 		effect.cleanup(() => sub.close());
 
 		// Create consumer that reorders groups/frames up to the provided latency.
@@ -171,12 +179,12 @@ export class Source {
 		});
 		effect.cleanup(() => decoder.close());
 
-		const description = selected.config.description ? Hex.toBytes(selected.config.description) : undefined;
+		const description = config.description ? Hex.toBytes(config.description) : undefined;
 
 		decoder.configure({
-			...selected.config,
+			...config,
 			description,
-			optimizeForLatency: selected.config.optimizeForLatency ?? true,
+			optimizeForLatency: config.optimizeForLatency ?? true,
 			// @ts-expect-error Only supported by Chrome, so the renderer has to flip manually.
 			flip: false,
 		});
@@ -193,7 +201,8 @@ export class Source {
 					this.#active?.close();
 					this.#active = effect;
 					this.#pending = undefined;
-					effect.set(this.active, selected);
+					console.log("upgrading to active track", name);
+					effect.set(this.active, name);
 				}
 
 				// Sleep until it's time to decode the next frame.
@@ -221,8 +230,12 @@ export class Source {
 		});
 	}
 
-	#selectRendition(renditions: Catalog.Video[], target?: Target): Catalog.Video | undefined {
-		if (renditions.length <= 1) return renditions.at(0);
+	#selectRendition(
+		renditions: Record<string, Catalog.VideoConfig>,
+		target?: Target,
+	): [string, Catalog.VideoConfig] | undefined {
+		const entries = Object.entries(renditions);
+		if (entries.length <= 1) return entries.at(0);
 
 		// If we have no target, then choose the largest supported rendition.
 		// This is kind of a hack to use MAX_SAFE_INTEGER / 2 - 1 but IF IT WORKS, IT WORKS.
@@ -231,21 +244,21 @@ export class Source {
 		// Round up to the closest rendition.
 		// Also keep track of the 2nd closest, just in case there's nothing larger.
 
-		let larger: Catalog.Video | undefined;
+		let larger: [string, Catalog.VideoConfig] | undefined;
 		let largerSize: number | undefined;
 
-		let smaller: Catalog.Video | undefined;
+		let smaller: [string, Catalog.VideoConfig] | undefined;
 		let smallerSize: number | undefined;
 
-		for (const rendition of renditions) {
-			if (!rendition.config.codedHeight || !rendition.config.codedWidth) continue;
+		for (const [name, rendition] of entries) {
+			if (!rendition.codedHeight || !rendition.codedWidth) continue;
 
-			const size = rendition.config.codedHeight * rendition.config.codedWidth;
+			const size = rendition.codedHeight * rendition.codedWidth;
 			if (size > pixels && (!largerSize || size < largerSize)) {
-				larger = rendition;
+				larger = [name, rendition];
 				largerSize = size;
 			} else if (size < pixels && (!smallerSize || size > smallerSize)) {
-				smaller = rendition;
+				smaller = [name, rendition];
 				smallerSize = size;
 			}
 		}
@@ -253,7 +266,29 @@ export class Source {
 		if (smaller) return smaller;
 
 		console.warn("no width/height information, choosing the first supported rendition");
-		return renditions.at(0);
+		return entries.at(0);
+	}
+
+	#runDisplay(effect: Effect): void {
+		const catalog = effect.get(this.catalog);
+		if (!catalog) return;
+
+		const display = catalog.display;
+		if (display) {
+			effect.set(this.display, {
+				width: display.width,
+				height: display.height,
+			});
+			return;
+		}
+
+		const frame = effect.get(this.frame);
+		if (!frame) return;
+
+		effect.set(this.display, {
+			width: frame.displayWidth,
+			height: frame.displayHeight,
+		});
 	}
 
 	close() {

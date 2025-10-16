@@ -1,7 +1,7 @@
 import { z } from "zod";
 
-import { u53Schema } from "./integers";
-import { TrackSchema } from "./track";
+import { u53Schema } from "../integers";
+import { DetectionSchema } from "./detection";
 
 // Based on VideoDecoderConfig
 export const VideoConfigSchema = z.object({
@@ -13,7 +13,8 @@ export const VideoConfigSchema = z.object({
 	// Otherwise, the initialization information is (repeated) before each key-frame.
 	description: z.string().optional(), // hex encoded TODO use base64
 
-	// The width and height of the video in pixels
+	// The width and height of the video in pixels.
+	// NOTE: formats that don't use a description can adjust these values in-band.
 	codedWidth: u53Schema.optional(),
 	codedHeight: u53Schema.optional(),
 
@@ -33,6 +34,26 @@ export const VideoConfigSchema = z.object({
 	// If true, the decoder will optimize for latency.
 	// Default: true
 	optimizeForLatency: z.boolean().optional(),
+});
+
+// Mirrors VideoDecoderConfig
+// https://w3c.github.io/webcodecs/#video-decoder-config
+export const VideoSchema = z.object({
+	// A map of track name to rendition configuration.
+	// This is not an array in order for it to work with JSON Merge Patch.
+	renditions: z.record(z.string(), VideoConfigSchema),
+
+	// The priority of the video track, relative to other tracks in the broadcast.
+	priority: z.number().int().min(0).max(255),
+
+	// Render the video at this size in pixels.
+	// This is separate from the display aspect ratio because it does not require reinitialization.
+	display: z
+		.object({
+			width: u53Schema,
+			height: u53Schema,
+		})
+		.optional(),
 
 	// The rotation of the video in degrees.
 	// Default: 0
@@ -41,16 +62,9 @@ export const VideoConfigSchema = z.object({
 	// If true, the decoder will flip the video horizontally
 	// Default: false
 	flip: z.boolean().optional(),
-});
 
-// Mirrors VideoDecoderConfig
-// https://w3c.github.io/webcodecs/#video-decoder-config
-export const VideoSchema = z.object({
-	// The MoQ track information.
-	track: TrackSchema,
-
-	// The configuration of the video track
-	config: VideoConfigSchema,
+	// The detection configuration.
+	detection: DetectionSchema.optional(),
 });
 
 export type Video = z.infer<typeof VideoSchema>;

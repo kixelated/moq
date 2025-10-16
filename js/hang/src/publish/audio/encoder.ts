@@ -57,6 +57,8 @@ export class Encoder {
 	#gain = new Signal<GainNode | undefined>(undefined);
 	readonly root: Getter<AudioNode | undefined> = this.#gain;
 
+	active = new Signal<boolean>(false);
+
 	#signals = new Effect();
 
 	constructor(props?: EncoderProps) {
@@ -168,6 +170,8 @@ export class Encoder {
 		const config = effect.get(this.#config);
 		if (!config) return;
 
+		effect.set(this.active, true, false);
+
 		let group: Moq.Group = track.appendGroup();
 		effect.cleanup(() => group.close());
 
@@ -242,11 +246,8 @@ export class Encoder {
 		const speaking = effect.get(this.speaking.catalog);
 
 		const catalog: Catalog.Audio = {
-			track: {
-				name: Encoder.TRACK,
-				priority: Encoder.PRIORITY,
-			},
-			config,
+			renditions: { [Encoder.TRACK]: config },
+			priority: Encoder.PRIORITY,
 			captions,
 			speaking,
 		};
