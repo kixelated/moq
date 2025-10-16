@@ -38,48 +38,9 @@ export class Renderer {
 		const canvas = effect.get(this.canvas);
 		if (!canvas) return;
 
-		const ctx = effect.get(this.#ctx);
-		if (!ctx) return;
-
-		const observer = new ResizeObserver((entries) => {
-			for (const entry of entries) {
-				let width: number;
-				let height: number;
-
-				if (entry.devicePixelContentBoxSize) {
-					width = entry.devicePixelContentBoxSize[0].inlineSize;
-					height = entry.devicePixelContentBoxSize[0].blockSize;
-				} else if (entry.contentBoxSize) {
-					const dpr = devicePixelRatio;
-					width = entry.contentBoxSize[0].inlineSize * dpr;
-					height = entry.contentBoxSize[0].blockSize * dpr;
-				} else {
-					width = canvas.clientWidth * devicePixelRatio;
-					height = canvas.clientHeight * devicePixelRatio;
-				}
-
-				// Ensure at least 1x1 so we can detect if the canvas is hidden.
-				canvas.width = Math.max(1, Math.round(width));
-				canvas.height = Math.max(1, Math.round(height));
-
-				// Render immediately to prevent black flash
-				const frame = this.source.frame.peek();
-				this.#render(ctx, frame);
-			}
-		});
-
-		try {
-			observer.observe(canvas, { box: "device-pixel-content-box" });
-		} catch {
-			observer.observe(canvas, { box: "content-box" });
-		}
-
-		// Initialize the canvas to the video aspect ratio to avoid pop-in.
 		const display = effect.get(this.source.display);
 		canvas.width = display?.width ?? 1;
 		canvas.height = display?.height ?? 1;
-
-		effect.cleanup(() => observer.disconnect());
 	}
 
 	// Detect when video should be downloaded.
