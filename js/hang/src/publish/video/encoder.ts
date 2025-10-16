@@ -234,12 +234,11 @@ export class Encoder {
 
 	#runDimensions(effect: Effect): void {
 		const user = effect.get(this.config);
-		if (!user) return;
 
 		const frame = effect.get(this.frame);
 		if (!frame) return;
 
-		const maxPixels = user.maxPixels ?? frame.codedWidth * frame.codedHeight;
+		const maxPixels = user?.maxPixels ?? frame.codedWidth * frame.codedHeight;
 		const ratio = Math.min(Math.sqrt(maxPixels / (frame.codedWidth * frame.codedHeight)), 1);
 
 		// Make sure width/height is a power of 16
