@@ -298,7 +298,7 @@ impl<S: web_transport_trait::Session> Subscriber<S> {
 		Ok(())
 	}
 
-	fn log_path(&self, path: impl AsPath) -> Path {
+	fn log_path(&self, path: impl AsPath) -> Path<'_> {
 		self.origin.as_ref().unwrap().root().join(path)
 	}
 }
