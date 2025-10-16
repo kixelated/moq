@@ -201,7 +201,6 @@ export class Source {
 					this.#active?.close();
 					this.#active = effect;
 					this.#pending = undefined;
-					console.log("upgrading to active track", name);
 					effect.set(this.active, name);
 				}
 
