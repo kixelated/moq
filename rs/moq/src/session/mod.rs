@@ -23,7 +23,7 @@ pub struct Session<S: web_transport_trait::Session> {
 	transport: S,
 }
 
-impl<S: web_transport_trait::Session + Sync> Session<S> {
+impl<S: web_transport_trait::Session> Session<S> {
 	async fn new(
 		session: S,
 		stream: Stream<S>,
