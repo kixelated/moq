@@ -220,3 +220,179 @@ impl<'a> Message for SubscribeDone<'a> {
 		})
 	}
 }
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+	use bytes::BytesMut;
+
+	fn encode_message<M: Message>(msg: &M) -> Vec<u8> {
+		let mut buf = BytesMut::new();
+		msg.encode(&mut buf);
+		buf.to_vec()
+	}
+
+	fn decode_message<M: Message>(bytes: &[u8]) -> Result<M, DecodeError> {
+		let mut buf = bytes::Bytes::from(bytes.to_vec());
+		M::decode(&mut buf)
+	}
+
+	#[test]
+	fn test_subscribe_round_trip() {
+		let msg = Subscribe {
+			subscribe_id: 1,
+			track_alias: 2,
+			track_namespace: Path::new("test"),
+			track_name: "video".into(),
+			subscriber_priority: 128,
+		};
+
+		let encoded = encode_message(&msg);
+		let decoded: Subscribe = decode_message(&encoded).unwrap();
+
+		assert_eq!(decoded.subscribe_id, 1);
+		assert_eq!(decoded.track_alias, 2);
+		assert_eq!(decoded.track_namespace.as_str(), "test");
+		assert_eq!(decoded.track_name, "video");
+		assert_eq!(decoded.subscriber_priority, 128);
+	}
+
+	#[test]
+	fn test_subscribe_nested_namespace() {
+		let msg = Subscribe {
+			subscribe_id: 100,
+			track_alias: 200,
+			track_namespace: Path::new("conference/room123"),
+			track_name: "audio".into(),
+			subscriber_priority: 255,
+		};
+
+		let encoded = encode_message(&msg);
+		let decoded: Subscribe = decode_message(&encoded).unwrap();
+
+		assert_eq!(decoded.track_namespace.as_str(), "conference/room123");
+	}
+
+	#[test]
+	fn test_subscribe_ok_with_largest() {
+		let msg = SubscribeOk {
+			subscribe_id: 42,
+			largest: Some((10, 20)),
+		};
+
+		let encoded = encode_message(&msg);
+		let decoded: SubscribeOk = decode_message(&encoded).unwrap();
+
+		assert_eq!(decoded.subscribe_id, 42);
+		assert_eq!(decoded.largest, Some((10, 20)));
+	}
+
+	#[test]
+	fn test_subscribe_ok_without_largest() {
+		let msg = SubscribeOk {
+			subscribe_id: 42,
+			largest: None,
+		};
+
+		let encoded = encode_message(&msg);
+		let decoded: SubscribeOk = decode_message(&encoded).unwrap();
+
+		assert_eq!(decoded.subscribe_id, 42);
+		assert_eq!(decoded.largest, None);
+	}
+
+	#[test]
+	fn test_subscribe_error() {
+		let msg = SubscribeError {
+			subscribe_id: 123,
+			error_code: 500,
+			reason_phrase: "Not found".into(),
+			track_alias: 456,
+		};
+
+		let encoded = encode_message(&msg);
+		let decoded: SubscribeError = decode_message(&encoded).unwrap();
+
+		assert_eq!(decoded.subscribe_id, 123);
+		assert_eq!(decoded.error_code, 500);
+		assert_eq!(decoded.reason_phrase, "Not found");
+		assert_eq!(decoded.track_alias, 456);
+	}
+
+	#[test]
+	fn test_unsubscribe() {
+		let msg = Unsubscribe { subscribe_id: 999 };
+
+		let encoded = encode_message(&msg);
+		let decoded: Unsubscribe = decode_message(&encoded).unwrap();
+
+		assert_eq!(decoded.subscribe_id, 999);
+	}
+
+	#[test]
+	fn test_subscribe_done_with_final() {
+		let msg = SubscribeDone {
+			subscribe_id: 10,
+			status_code: 0,
+			reason_phrase: "complete".into(),
+			final_group_object: Some((5, 10)),
+		};
+
+		let encoded = encode_message(&msg);
+		let decoded: SubscribeDone = decode_message(&encoded).unwrap();
+
+		assert_eq!(decoded.subscribe_id, 10);
+		assert_eq!(decoded.status_code, 0);
+		assert_eq!(decoded.reason_phrase, "complete");
+		assert_eq!(decoded.final_group_object, Some((5, 10)));
+	}
+
+	#[test]
+	fn test_subscribe_done_without_final() {
+		let msg = SubscribeDone {
+			subscribe_id: 10,
+			status_code: 1,
+			reason_phrase: "error".into(),
+			final_group_object: None,
+		};
+
+		let encoded = encode_message(&msg);
+		let decoded: SubscribeDone = decode_message(&encoded).unwrap();
+
+		assert_eq!(decoded.final_group_object, None);
+	}
+
+	#[test]
+	fn test_subscribe_rejects_invalid_filter_type() {
+		#[rustfmt::skip]
+		let invalid_bytes = vec![
+			0x01, // subscribe_id
+			0x02, // track_alias
+			0x01, // namespace length
+			0x04, 0x74, 0x65, 0x73, 0x74, // "test"
+			0x05, 0x76, 0x69, 0x64, 0x65, 0x6f, // "video"
+			0x80, // subscriber_priority
+			0x02, // group_order
+			0x99, // INVALID filter_type
+			0x00, // num_params
+		];
+
+		let result: Result<Subscribe, _> = decode_message(&invalid_bytes);
+		assert!(result.is_err());
+	}
+
+	#[test]
+	fn test_subscribe_ok_rejects_non_zero_expires() {
+		#[rustfmt::skip]
+		let invalid_bytes = vec![
+			0x01, // subscribe_id
+			0x05, // INVALID: expires = 5
+			0x02, // group_order
+			0x00, // content_exists
+			0x00, // num_params
+		];
+
+		let result: Result<SubscribeOk, _> = decode_message(&invalid_bytes);
+		assert!(result.is_err());
+	}
+}

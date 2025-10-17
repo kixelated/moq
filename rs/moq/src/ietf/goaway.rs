@@ -20,3 +20,44 @@ impl<'a> Message for GoAway<'a> {
 		Ok(Self { new_session_uri })
 	}
 }
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+	use bytes::BytesMut;
+
+	fn encode_message<M: Message>(msg: &M) -> Vec<u8> {
+		let mut buf = BytesMut::new();
+		msg.encode(&mut buf);
+		buf.to_vec()
+	}
+
+	fn decode_message<M: Message>(bytes: &[u8]) -> Result<M, DecodeError> {
+		let mut buf = bytes::Bytes::from(bytes.to_vec());
+		M::decode(&mut buf)
+	}
+
+	#[test]
+	fn test_goaway_with_url() {
+		let msg = GoAway {
+			new_session_uri: "https://example.com/new".into(),
+		};
+
+		let encoded = encode_message(&msg);
+		let decoded: GoAway = decode_message(&encoded).unwrap();
+
+		assert_eq!(decoded.new_session_uri, "https://example.com/new");
+	}
+
+	#[test]
+	fn test_goaway_empty() {
+		let msg = GoAway {
+			new_session_uri: "".into(),
+		};
+
+		let encoded = encode_message(&msg);
+		let decoded: GoAway = decode_message(&encoded).unwrap();
+
+		assert_eq!(decoded.new_session_uri, "");
+	}
+}

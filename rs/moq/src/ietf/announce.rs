@@ -120,3 +120,101 @@ impl<'a> Message for AnnounceCancel<'a> {
 		})
 	}
 }
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+	use bytes::BytesMut;
+
+	fn encode_message<M: Message>(msg: &M) -> Vec<u8> {
+		let mut buf = BytesMut::new();
+		msg.encode(&mut buf);
+		buf.to_vec()
+	}
+
+	fn decode_message<M: Message>(bytes: &[u8]) -> Result<M, DecodeError> {
+		let mut buf = bytes::Bytes::from(bytes.to_vec());
+		M::decode(&mut buf)
+	}
+
+	#[test]
+	fn test_announce_round_trip() {
+		let msg = Announce {
+			track_namespace: Path::new("test/broadcast"),
+		};
+
+		let encoded = encode_message(&msg);
+		let decoded: Announce = decode_message(&encoded).unwrap();
+
+		assert_eq!(decoded.track_namespace.as_str(), "test/broadcast");
+	}
+
+	#[test]
+	fn test_announce_ok() {
+		let msg = AnnounceOk {
+			track_namespace: Path::new("foo"),
+		};
+
+		let encoded = encode_message(&msg);
+		let decoded: AnnounceOk = decode_message(&encoded).unwrap();
+
+		assert_eq!(decoded.track_namespace.as_str(), "foo");
+	}
+
+	#[test]
+	fn test_announce_error() {
+		let msg = AnnounceError {
+			track_namespace: Path::new("test"),
+			error_code: 404,
+			reason_phrase: "Unauthorized".into(),
+		};
+
+		let encoded = encode_message(&msg);
+		let decoded: AnnounceError = decode_message(&encoded).unwrap();
+
+		assert_eq!(decoded.track_namespace.as_str(), "test");
+		assert_eq!(decoded.error_code, 404);
+		assert_eq!(decoded.reason_phrase, "Unauthorized");
+	}
+
+	#[test]
+	fn test_unannounce() {
+		let msg = Unannounce {
+			track_namespace: Path::new("old/stream"),
+		};
+
+		let encoded = encode_message(&msg);
+		let decoded: Unannounce = decode_message(&encoded).unwrap();
+
+		assert_eq!(decoded.track_namespace.as_str(), "old/stream");
+	}
+
+	#[test]
+	fn test_announce_cancel() {
+		let msg = AnnounceCancel {
+			track_namespace: Path::new("canceled"),
+			error_code: 1,
+			reason_phrase: "Shutdown".into(),
+		};
+
+		let encoded = encode_message(&msg);
+		let decoded: AnnounceCancel = decode_message(&encoded).unwrap();
+
+		assert_eq!(decoded.track_namespace.as_str(), "canceled");
+		assert_eq!(decoded.error_code, 1);
+		assert_eq!(decoded.reason_phrase, "Shutdown");
+	}
+
+	#[test]
+	fn test_announce_rejects_parameters() {
+		#[rustfmt::skip]
+		let invalid_bytes = vec![
+			0x01, // namespace length
+			0x04, 0x74, 0x65, 0x73, 0x74, // "test"
+			0x01, // INVALID: num_params = 1
+		];
+
+		let result: Result<Announce, _> = decode_message(&invalid_bytes);
+		assert!(result.is_err());
+	}
+}
