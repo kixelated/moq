@@ -106,7 +106,6 @@ export class Encoder {
 				if (!config) return;
 
 				encoder.configure(config);
-				console.debug("encoding video", config);
 			});
 
 			effect.effect((effect) => {

@@ -178,7 +178,10 @@ export class Consumer {
 	}
 
 	#checkLatency() {
-		if (this.#groups.length < 1) return;
+		// We can only skip if there are at least two groups.
+		if (this.#groups.length < 2) return;
+
+		const first = this.#groups[0];
 
 		// Check the difference between the earliest known frame and the latest known frame
 		let min: number | undefined;
@@ -188,33 +191,33 @@ export class Consumer {
 			if (!group.latest) continue;
 
 			// Use the earliest unconsumed frame in the group.
-			const first = group.frames.at(0)?.timestamp ?? group.latest;
-			if (!min || first < min) {
-				min = first;
+			const frame = group.frames.at(0)?.timestamp ?? group.latest;
+			if (min === undefined || frame < min) {
+				min = frame;
 			}
 
-			if (!max || group.latest > max) {
+			if (max === undefined || group.latest > max) {
 				max = group.latest;
 			}
 		}
 
-		if (!min || !max) return;
+		if (min === undefined || max === undefined) return;
 
 		const latency = max - min;
 		if (latency < Time.Micro.fromMilli(this.#latency.peek())) return;
 
-		if (this.#active !== undefined && this.#groups[0]?.consumer.sequence <= this.#active) {
-			const group = this.#groups.shift();
-			if (!group) throw new Error("impossible");
+		if (this.#active !== undefined && first.consumer.sequence <= this.#active) {
+			this.#groups.shift();
 
-			console.warn(`skipping slow group: ${group.consumer.sequence} < ${this.#groups[0]?.consumer.sequence}`);
+			console.warn(`skipping slow group: ${first.consumer.sequence} < ${this.#groups[0]?.consumer.sequence}`);
 
-			group.consumer.close();
-			group.frames.length = 0;
+			first.consumer.close();
+			first.frames.length = 0;
 		}
 
 		// Advance to the next known group.
-		this.#active = this.#groups[0].consumer.sequence;
+		// NOTE: Can't be undefined, because we checked above.
+		this.#active = this.#groups[0]?.consumer.sequence;
 
 		// Wake up any consumers waiting for a new frame.
 		this.#notify?.();
