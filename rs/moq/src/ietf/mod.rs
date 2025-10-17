@@ -10,6 +10,7 @@ mod subscribe;
 mod subscribe_announces;
 mod subscriber;
 mod track;
+mod util;
 
 pub use announce::*;
 use control::*;

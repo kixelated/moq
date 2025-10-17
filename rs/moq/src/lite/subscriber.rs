@@ -228,15 +228,13 @@ impl<S: web_transport_trait::Session> Subscriber<S> {
 	}
 
 	pub async fn recv_group(&mut self, stream: &mut Reader<S::RecvStream>) -> Result<(), Error> {
-		let group: lite::Group = stream.decode().await?;
+		let hdr: lite::Group = stream.decode().await?;
 
 		let group = {
 			let mut subs = self.subscribes.lock();
-			let track = subs.get_mut(&group.subscribe).ok_or(Error::Cancel)?;
+			let track = subs.get_mut(&hdr.subscribe).ok_or(Error::Cancel)?;
 
-			let group = Group {
-				sequence: group.sequence,
-			};
+			let group = Group { sequence: hdr.sequence };
 			track.create_group(group).ok_or(Error::Old)?
 		};
 
@@ -288,8 +286,12 @@ impl<S: web_transport_trait::Session> Subscriber<S> {
 
 		tracing::trace!(size = %frame.info.size, "reading frame");
 
+		const MAX_CHUNK: usize = 1024 * 1024; // 1 MiB
 		while remain > 0 {
-			let chunk = stream.read(remain as usize).await?.ok_or(Error::WrongSize)?;
+			let chunk = stream
+				.read(MAX_CHUNK.min(remain as usize))
+				.await?
+				.ok_or(Error::WrongSize)?;
 			remain = remain.checked_sub(chunk.len() as u64).ok_or(Error::WrongSize)?;
 			frame.write_chunk(chunk);
 		}

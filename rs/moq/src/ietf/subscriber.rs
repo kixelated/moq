@@ -65,10 +65,7 @@ impl<S: web_transport_trait::Session> Subscriber<S> {
 		};
 
 		// Run the broadcast in the background until all consumers are dropped.
-		self.origin
-			.as_mut()
-			.unwrap()
-			.publish_broadcast(path.clone(), broadcast.consumer);
+		origin.publish_broadcast(path.clone(), broadcast.consumer);
 
 		self.control.send(
 			ietf::MessageId::AnnounceOk,

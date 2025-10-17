@@ -437,7 +437,8 @@ impl OriginProducer {
 }
 
 /// Consumes announced broadcasts matching against an optional prefix.
-// Not clone because it's expensive; call `consume` instead.
+///
+/// NOTE: Clone is expensive, try to avoid it.
 pub struct OriginConsumer {
 	id: ConsumerId,
 	nodes: OriginNodes,

@@ -273,7 +273,9 @@ impl<S: web_transport_trait::Session> Publisher<S> {
 
 	pub fn recv_unsubscribe(&mut self, msg: ietf::Unsubscribe) -> Result<(), Error> {
 		let mut subscribes = self.subscribes.lock();
-		subscribes.remove(&msg.subscribe_id);
+		if let Some(tx) = subscribes.remove(&msg.subscribe_id) {
+			let _ = tx.send(());
+		}
 		Ok(())
 	}
 

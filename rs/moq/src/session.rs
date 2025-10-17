@@ -9,6 +9,9 @@ pub struct Session<S: web_transport_trait::Session + Sync> {
 	session: S,
 }
 
+/// The versions of MoQ that are supported by this implementation.
+const SUPPORTED: [coding::Version; 2] = [coding::Version::LITE_LATEST, coding::Version::IETF_LATEST];
+
 impl<S: web_transport_trait::Session + Sync> Session<S> {
 	fn new(session: S) -> Self {
 		Self { session }
@@ -33,7 +36,7 @@ impl<S: web_transport_trait::Session + Sync> Session<S> {
 		extensions.set(ietf::Role::Both);
 
 		let client = lite::ClientSetup {
-			versions: [coding::Version::LITE_LATEST, coding::Version::IETF_LATEST].into(),
+			versions: SUPPORTED.into(),
 			extensions,
 		};
 
@@ -51,18 +54,18 @@ impl<S: web_transport_trait::Session + Sync> Session<S> {
 
 		match server.version {
 			coding::Version::LITE_LATEST => {
-				lite::start(session.clone(), stream, publish.into(), subscribe.into()).await?
+				lite::start(session.clone(), stream, publish.into(), subscribe.into()).await?;
 			}
 			coding::Version::IETF_LATEST => {
-				ietf::start(session.clone(), stream, publish.into(), subscribe.into()).await?
+				ietf::start(session.clone(), stream, publish.into(), subscribe.into()).await?;
 			}
-			_ => return Err(Error::Version(client.versions, [coding::Version::LITE_LATEST].into())),
-		};
+			_ => return Err(Error::Version(client.versions, [server.version].into())),
+		}
 
 		Ok(Self::new(session))
 	}
 
-	/// Perform the MoQ handshake as a client.
+	/// Perform the MoQ handshake as a server.
 	///
 	/// Publishing is performed with [OriginConsumer] and subscribing with [OriginProducer].
 	/// The connection remains active until the session is closed.
@@ -79,12 +82,16 @@ impl<S: web_transport_trait::Session + Sync> Session<S> {
 		}
 
 		let client: lite::ClientSetup = stream.reader.decode().await?;
-		if !client.versions.contains(&coding::Version::LITE_LATEST) {
-			return Err(Error::Version(client.versions, [coding::Version::LITE_LATEST].into()));
-		}
+
+		let version = client
+			.versions
+			.iter()
+			.find(|v| SUPPORTED.contains(v))
+			.copied()
+			.ok_or_else(|| Error::Version(client.versions, SUPPORTED.into()))?;
 
 		let server = lite::ServerSetup {
-			version: coding::Version::LITE_LATEST,
+			version,
 			extensions: Default::default(),
 		};
 
@@ -98,7 +105,15 @@ impl<S: web_transport_trait::Session + Sync> Session<S> {
 
 		tracing::debug!(version = ?server.version, "connected");
 
-		lite::start(session.clone(), stream, publish.into(), subscribe.into()).await?;
+		match version {
+			coding::Version::LITE_LATEST => {
+				lite::start(session.clone(), stream, publish.into(), subscribe.into()).await?;
+			}
+			coding::Version::IETF_LATEST => {
+				ietf::start(session.clone(), stream, publish.into(), subscribe.into()).await?;
+			}
+			_ => unreachable!(),
+		}
 
 		Ok(Self::new(session))
 	}
