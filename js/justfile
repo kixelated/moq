@@ -7,7 +7,7 @@ default:
   just --list
 
 # Run the web server
-web url='http://localhost:4443/anon':
+dev url='http://localhost:4443/anon':
 	bun install
 	VITE_RELAY_URL="{{url}}" bun run --filter='*' dev
 

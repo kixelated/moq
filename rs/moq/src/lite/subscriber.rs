@@ -4,14 +4,15 @@ use std::{
 };
 
 use crate::{
-	message, model::BroadcastProducer, AsPath, Broadcast, Error, Frame, FrameProducer, Group, GroupProducer,
-	OriginProducer, Path, PathOwned, TrackProducer,
+	coding::{Reader, Stream},
+	lite,
+	model::BroadcastProducer,
+	AsPath, Broadcast, Error, Frame, FrameProducer, Group, GroupProducer, OriginProducer, Path, PathOwned,
+	TrackProducer,
 };
 
 use tokio::sync::oneshot;
 use web_async::Lock;
-
-use super::{Reader, Stream};
 
 #[derive(Clone)]
 pub(super) struct Subscriber<S: web_transport_trait::Session> {
@@ -63,7 +64,7 @@ impl<S: web_transport_trait::Session> Subscriber<S> {
 		let kind = stream.decode().await?;
 
 		let res = match kind {
-			message::DataType::Group => self.recv_group(&mut stream).await,
+			lite::DataType::Group => self.recv_group(&mut stream).await,
 		};
 
 		if let Err(err) = res {
@@ -80,30 +81,31 @@ impl<S: web_transport_trait::Session> Subscriber<S> {
 			return Ok(());
 		}
 
-		let mut stream = Stream::open(&self.session, message::ControlType::Announce).await?;
+		let mut stream = Stream::open(&self.session).await?;
+		stream.writer.encode(&lite::ControlType::Announce).await?;
 
 		tracing::trace!(root = %self.log_path(""), "announced start");
 
 		// Ask for everything.
 		// TODO This should actually ask for each root.
-		let msg = message::AnnouncePlease { prefix: "".into() };
+		let msg = lite::AnnouncePlease { prefix: "".into() };
 		stream.writer.encode(&msg).await?;
 
 		let mut producers = HashMap::new();
 
-		let msg: message::AnnounceInit = stream.reader.decode().await?;
+		let msg: lite::AnnounceInit = stream.reader.decode().await?;
 		for path in msg.suffixes {
 			self.start_announce(path, &mut producers)?;
 		}
 
 		let _ = init.send(());
 
-		while let Some(announce) = stream.reader.decode_maybe::<message::Announce>().await? {
+		while let Some(announce) = stream.reader.decode_maybe::<lite::Announce>().await? {
 			match announce {
-				message::Announce::Active { suffix: path } => {
+				lite::Announce::Active { suffix: path } => {
 					self.start_announce(path, &mut producers)?;
 				}
-				message::Announce::Ended { suffix: path } => {
+				lite::Announce::Ended { suffix: path } => {
 					tracing::debug!(broadcast = %self.log_path(&path), "unannounced");
 
 					// Close the producer.
@@ -171,7 +173,7 @@ impl<S: web_transport_trait::Session> Subscriber<S> {
 	async fn run_subscribe(&mut self, id: u64, broadcast: Path<'_>, track: TrackProducer) {
 		self.subscribes.lock().insert(id, track.clone());
 
-		let msg = message::Subscribe {
+		let msg = lite::Subscribe {
 			id,
 			broadcast: broadcast.to_owned(),
 			track: (&track.info.name).into(),
@@ -201,8 +203,9 @@ impl<S: web_transport_trait::Session> Subscriber<S> {
 		}
 	}
 
-	async fn run_track(&mut self, msg: message::Subscribe<'_>) -> Result<(), Error> {
-		let mut stream = Stream::open(&self.session, message::ControlType::Subscribe).await?;
+	async fn run_track(&mut self, msg: lite::Subscribe<'_>) -> Result<(), Error> {
+		let mut stream = Stream::open(&self.session).await?;
+		stream.writer.encode(&lite::ControlType::Subscribe).await?;
 
 		if let Err(err) = self.run_track_stream(&mut stream, msg).await {
 			stream.writer.abort(&err);
@@ -212,11 +215,11 @@ impl<S: web_transport_trait::Session> Subscriber<S> {
 		stream.writer.finish().await
 	}
 
-	async fn run_track_stream(&mut self, stream: &mut Stream<S>, msg: message::Subscribe<'_>) -> Result<(), Error> {
+	async fn run_track_stream(&mut self, stream: &mut Stream<S>, msg: lite::Subscribe<'_>) -> Result<(), Error> {
 		stream.writer.encode(&msg).await?;
 
 		// TODO use the response correctly populate the track info
-		let _info: message::SubscribeOk = stream.reader.decode().await?;
+		let _info: lite::SubscribeOk = stream.reader.decode().await?;
 
 		// Wait until the stream is closed
 		stream.reader.closed().await?;
@@ -225,15 +228,13 @@ impl<S: web_transport_trait::Session> Subscriber<S> {
 	}
 
 	pub async fn recv_group(&mut self, stream: &mut Reader<S::RecvStream>) -> Result<(), Error> {
-		let group: message::Group = stream.decode().await?;
+		let hdr: lite::Group = stream.decode().await?;
 
 		let group = {
 			let mut subs = self.subscribes.lock();
-			let track = subs.get_mut(&group.subscribe).ok_or(Error::Cancel)?;
+			let track = subs.get_mut(&hdr.subscribe).ok_or(Error::Cancel)?;
 
-			let group = Group {
-				sequence: group.sequence,
-			};
+			let group = Group { sequence: hdr.sequence };
 			track.create_group(group).ok_or(Error::Old)?
 		};
 
@@ -285,8 +286,12 @@ impl<S: web_transport_trait::Session> Subscriber<S> {
 
 		tracing::trace!(size = %frame.info.size, "reading frame");
 
+		const MAX_CHUNK: usize = 1024 * 1024; // 1 MiB
 		while remain > 0 {
-			let chunk = stream.read(remain as usize).await?.ok_or(Error::WrongSize)?;
+			let chunk = stream
+				.read(MAX_CHUNK.min(remain as usize))
+				.await?
+				.ok_or(Error::WrongSize)?;
 			remain = remain.checked_sub(chunk.len() as u64).ok_or(Error::WrongSize)?;
 			frame.write_chunk(chunk);
 		}

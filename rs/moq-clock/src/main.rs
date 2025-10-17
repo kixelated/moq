@@ -67,7 +67,7 @@ async fn main() -> anyhow::Result<()> {
 			let session = moq_lite::Session::connect(session, origin.consumer, None).await?;
 
 			tokio::select! {
-				res = session.closed() => Err(res.into()),
+				res = session.closed() => res.map_err(Into::into),
 				_ = clock.run() => Ok(()),
 			}
 		}
@@ -84,7 +84,7 @@ async fn main() -> anyhow::Result<()> {
 			let clock = clock::Subscriber::new(track);
 
 			tokio::select! {
-				res = session.closed() => Err(res.into()),
+				res = session.closed() => res.map_err(Into::into),
 				_ = clock.run() => Ok(()),
 			}
 		}

@@ -51,7 +51,7 @@ async fn connect(
 			Ok(())
 		}
 		// Otherwise wait for the session to close.
-		_ = session.closed() => Err(session.closed().await.into()),
+		_ = session.closed() => session.closed().await.map_err(Into::into),
 	}
 }
 

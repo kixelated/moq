@@ -190,7 +190,7 @@ where
 	// Wrap the WebSocket in a WebTransport compatibility layer.
 	let ws = web_transport_ws::Session::new(socket, true);
 	let session = moq_lite::Session::accept(ws, subscribe, publish).await?;
-	Err(session.closed().await.into())
+	session.closed().await.map_err(Into::into)
 }
 
 /// Serve the announced broadcasts for a given prefix.

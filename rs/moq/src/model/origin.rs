@@ -437,7 +437,8 @@ impl OriginProducer {
 }
 
 /// Consumes announced broadcasts matching against an optional prefix.
-// Not clone because it's expensive; call `consume` instead.
+///
+/// NOTE: Clone is expensive, try to avoid it.
 pub struct OriginConsumer {
 	id: ConsumerId,
 	nodes: OriginNodes,
@@ -488,8 +489,8 @@ impl OriginConsumer {
 		self.updates.try_recv().ok()
 	}
 
-	pub fn consume(&self) -> OriginConsumer {
-		OriginConsumer::new(self.root.clone(), self.nodes.clone())
+	pub fn consume(&self) -> Self {
+		self.clone()
 	}
 
 	/// Get a specific broadcast by path.
@@ -531,6 +532,12 @@ impl Drop for OriginConsumer {
 		for (_, root) in &self.nodes.nodes {
 			root.lock().unconsume(self.id);
 		}
+	}
+}
+
+impl Clone for OriginConsumer {
+	fn clone(&self) -> Self {
+		OriginConsumer::new(self.root.clone(), self.nodes.clone())
 	}
 }
 

@@ -59,6 +59,6 @@ impl Connection {
 		let session = moq_lite::Session::accept(session, subscribe, publish).await?;
 
 		// Wait until the session is closed.
-		Err(session.closed().await.into())
+		session.closed().await.map_err(Into::into)
 	}
 }

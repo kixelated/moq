@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use crate::{coding, message};
+use crate::coding;
 use web_transport_trait::{MaybeSend, MaybeSync};
 
 pub trait SendSyncError: std::error::Error + MaybeSend + MaybeSync {}
@@ -18,15 +18,15 @@ pub enum Error {
 
 	// TODO move to a ConnectError
 	#[error("unsupported versions: client={0:?} server={1:?}")]
-	Version(message::Versions, message::Versions),
+	Version(coding::Versions, coding::Versions),
 
 	/// A required extension was not present
 	#[error("extension required: {0}")]
 	RequiredExtension(u64),
 
-	/// An unexpected stream was received
-	#[error("unexpected stream: {0:?}")]
-	UnexpectedStream(message::ControlType),
+	/// An unexpected stream type was received
+	#[error("unexpected stream type")]
+	UnexpectedStream,
 
 	/// Some VarInt was too large and we were too lazy to handle it
 	#[error("varint bounds exceeded")]
@@ -64,6 +64,12 @@ pub enum Error {
 
 	#[error("unauthorized")]
 	Unauthorized,
+
+	#[error("unexpected message")]
+	UnexpectedMessage,
+
+	#[error("unsupported")]
+	Unsupported,
 }
 
 impl Error {
@@ -78,12 +84,14 @@ impl Error {
 			Self::Decode(_) => 5,
 			Self::Unauthorized => 6,
 			Self::Version(..) => 9,
-			Self::UnexpectedStream(_) => 10,
+			Self::UnexpectedStream => 10,
 			Self::BoundsExceeded(_) => 11,
 			Self::Duplicate => 12,
 			Self::NotFound => 13,
 			Self::WrongSize => 14,
 			Self::ProtocolViolation => 15,
+			Self::UnexpectedMessage => 16,
+			Self::Unsupported => 17,
 			Self::App(app) => *app + 64,
 		}
 	}

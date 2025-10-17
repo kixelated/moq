@@ -87,7 +87,7 @@ serve name:
 
 # Run the web server
 web url='http://localhost:4443/anon':
-	cd js && just web {{url}}
+	cd js && just dev {{url}}
 
 # Publish the clock broadcast
 # `action` is either `publish` or `subscribe`

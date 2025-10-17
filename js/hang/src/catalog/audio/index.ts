@@ -1,6 +1,5 @@
 import { z } from "zod";
 import { u53Schema } from "../integers";
-import { TrackSchema } from "../track";
 import { CaptionsSchema } from "./captions";
 import { SpeakingSchema } from "./speaking";
 
@@ -27,11 +26,12 @@ export const AudioConfigSchema = z.object({
 });
 
 export const AudioSchema = z.object({
-	// The MoQ track information.
-	track: TrackSchema,
+	// A map of track name to rendition configuration.
+	// This is not an array so it will work with JSON Merge Patch.
+	renditions: z.record(z.string(), AudioConfigSchema),
 
-	// The configuration of the audio track
-	config: AudioConfigSchema,
+	// The priority of the audio track, relative to other tracks in the broadcast.
+	priority: z.number().int().min(0).max(255),
 
 	// An optional captions track
 	captions: CaptionsSchema.optional(),

@@ -15,17 +15,17 @@
 //! While designed for media, the transport is generic and can handle any live data streams.
 
 mod error;
+mod lite;
 mod model;
 mod path;
 mod session;
 
 pub mod coding;
-pub mod message;
+pub mod ietf;
 
 pub use error::*;
 pub use model::*;
 pub use path::*;
 pub use session::*;
 
-/// The ALPN used when connecting via QUIC directly.
-pub const ALPN: &str = message::Alpn::CURRENT.0;
+pub const ALPN: &str = coding::Alpn::LITE_LATEST.0;

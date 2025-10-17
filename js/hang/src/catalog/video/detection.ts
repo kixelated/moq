@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { TrackSchema } from "./track";
+import { TrackSchema } from "../track";
 
 export const DetectionSchema = z.object({
 	track: TrackSchema,

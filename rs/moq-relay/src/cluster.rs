@@ -266,6 +266,6 @@ impl Cluster {
 			.await
 			.context("failed to establish session")?;
 
-		Err(session.closed().await.into())
+		session.closed().await.map_err(Into::into)
 	}
 }

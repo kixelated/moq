@@ -48,14 +48,17 @@ export class Source {
 	#sampleRate = new Signal<number | undefined>(undefined);
 	readonly sampleRate: Getter<number | undefined> = this.#sampleRate;
 
-	catalog = new Signal<Catalog.Audio[] | undefined>(undefined);
-	selected = new Signal<Catalog.Audio | undefined>(undefined);
+	catalog = new Signal<Catalog.Audio | undefined>(undefined);
+	config = new Signal<Catalog.AudioConfig | undefined>(undefined);
 
 	captions: Captions;
 	speaking: Speaking;
 
 	// Not a signal because I'm lazy.
 	readonly latency: Signal<Time.Milli>;
+
+	// The name of the active rendition.
+	active = new Signal<string | undefined>(undefined);
 
 	#signals = new Effect();
 
@@ -67,13 +70,20 @@ export class Source {
 		this.broadcast = broadcast;
 		this.enabled = Signal.from(props?.enabled ?? false);
 		this.latency = Signal.from(props?.latency ?? (100 as Time.Milli)); // TODO Reduce this once fMP4 stuttering is fixed.
-		this.captions = new Captions(broadcast, this.selected, props?.captions);
-		this.speaking = new Speaking(broadcast, this.selected, props?.speaking);
+		this.captions = new Captions(broadcast, this.catalog, props?.captions);
+		this.speaking = new Speaking(broadcast, this.catalog, props?.speaking);
 
 		this.#signals.effect((effect) => {
 			const audio = effect.get(catalog)?.audio;
 			this.catalog.set(audio);
-			this.selected.set(audio?.at(0));
+
+			if (audio?.renditions) {
+				const first = Object.entries(audio.renditions).at(0);
+				if (first) {
+					effect.set(this.active, first[0]);
+					effect.set(this.config, first[1]);
+				}
+			}
 		});
 
 		this.#signals.effect(this.#runWorklet.bind(this));
@@ -88,11 +98,11 @@ export class Source {
 		//const enabled = effect.get(this.enabled);
 		//if (!enabled) return;
 
-		const selected = effect.get(this.selected);
-		if (!selected) return;
+		const config = effect.get(this.config);
+		if (!config) return;
 
-		const sampleRate = selected.config.sampleRate;
-		const channelCount = selected.config.numberOfChannels;
+		const sampleRate = config.sampleRate;
+		const channelCount = config.numberOfChannels;
 
 		// NOTE: We still create an AudioContext even when muted.
 		// This way we can process the audio for visualizations.
@@ -144,13 +154,19 @@ export class Source {
 		const enabled = effect.get(this.enabled);
 		if (!enabled) return;
 
-		const selected = effect.get(this.selected);
-		if (!selected) return;
+		const catalog = effect.get(this.catalog);
+		if (!catalog) return;
 
 		const broadcast = effect.get(this.broadcast);
 		if (!broadcast) return;
 
-		const sub = broadcast.subscribe(selected.track.name, selected.track.priority);
+		const config = effect.get(this.config);
+		if (!config) return;
+
+		const active = effect.get(this.active);
+		if (!active) return;
+
+		const sub = broadcast.subscribe(active, catalog.priority);
 		effect.cleanup(() => sub.close());
 
 		// Create consumer with slightly less latency than the render worklet to avoid underflowing.
@@ -169,7 +185,6 @@ export class Source {
 			});
 			effect.cleanup(() => decoder.close());
 
-			const config = selected.config;
 			const description = config.description ? Hex.toBytes(config.description) : undefined;
 			decoder.configure({
 				...config,

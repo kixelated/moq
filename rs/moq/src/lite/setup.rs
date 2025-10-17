@@ -1,4 +1,3 @@
-use super::{Extensions, Version, Versions};
 use crate::coding::*;
 
 /// Sent by the client to setup the session.

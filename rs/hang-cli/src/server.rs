@@ -82,7 +82,7 @@ async fn run_session(
 
 	tracing::info!(id, "accepted session");
 
-	Err(session.closed().await.into())
+	session.closed().await.map_err(Into::into)
 }
 
 async fn publish<T: AsyncRead + Unpin>(producer: moq_lite::BroadcastProducer, input: &mut T) -> anyhow::Result<()> {

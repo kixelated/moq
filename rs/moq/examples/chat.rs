@@ -38,7 +38,7 @@ async fn run_session(origin: moq_lite::OriginConsumer) -> anyhow::Result<()> {
 	let session = moq_lite::Session::connect(connection, origin, None).await?;
 
 	// Wait until the session is closed.
-	Err(session.closed().await.into())
+	session.closed().await.map_err(Into::into)
 }
 
 // Produce a broadcast and publish it to the origin.
