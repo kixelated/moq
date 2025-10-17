@@ -1,5 +1,6 @@
 import { Effect, Signal } from "@kixelated/signals";
 import * as Catalog from "../../catalog";
+import { PRIORITY } from "../priority";
 import { Detection, DetectionProps } from "./detection";
 import { Encoder, EncoderProps } from "./encoder";
 import { TrackProcessor } from "./polyfill";
@@ -14,11 +15,13 @@ export type Props = {
 	detection?: DetectionProps;
 	hd?: EncoderProps;
 	sd?: EncoderProps;
+	flip?: boolean | Signal<boolean>;
 };
 
 export class Root {
-	static readonly TRACK_HD: Catalog.Track = "video/hd";
-	static readonly TRACK_SD: Catalog.Track = "video/sd";
+	static readonly TRACK_HD = "video/hd";
+	static readonly TRACK_SD = "video/sd";
+	static readonly PRIORITY = PRIORITY.video;
 
 	source: Signal<Source | undefined>;
 	detection: Detection;
@@ -27,7 +30,10 @@ export class Root {
 
 	frame = new Signal<VideoFrame | undefined>(undefined);
 
-	catalog = new Signal<Catalog.Video[] | undefined>(undefined);
+	catalog = new Signal<Catalog.Video | undefined>(undefined);
+	display = new Signal<{ width: number; height: number } | undefined>(undefined);
+	flip = new Signal<boolean>(false);
+
 	signals = new Effect();
 
 	constructor(props?: Props) {
@@ -36,6 +42,8 @@ export class Root {
 		this.hd = new Encoder(this.frame, this.source, props?.hd);
 		this.sd = new Encoder(this.frame, this.source, props?.sd);
 		this.detection = new Detection(this.frame, props?.detection);
+
+		this.flip = Signal.from(props?.flip ?? false);
 
 		this.signals.effect(this.#runCatalog.bind(this));
 		this.signals.effect(this.#runFrame.bind(this));
@@ -59,6 +67,8 @@ export class Root {
 					prev?.close();
 					return next.value;
 				});
+
+				this.display.set({ width: next.value.codedWidth, height: next.value.codedHeight });
 			}
 		});
 
@@ -67,6 +77,7 @@ export class Root {
 				prev?.close();
 				return undefined;
 			});
+			this.display.set(undefined);
 		});
 	}
 
@@ -74,12 +85,26 @@ export class Root {
 		const source = effect.get(this.source);
 		if (!source) return;
 
+		const display = effect.get(this.display);
+		if (!display) return;
+
 		const hdConfig = effect.get(this.hd.catalog);
 		const sdConfig = effect.get(this.sd.catalog);
 
-		const catalog: Catalog.Video[] = [];
-		if (hdConfig) catalog.push({ track: Root.TRACK_HD, config: hdConfig });
-		if (sdConfig) catalog.push({ track: Root.TRACK_SD, config: sdConfig });
+		const renditions: Record<string, Catalog.VideoConfig> = {};
+		if (hdConfig) renditions[Root.TRACK_HD] = hdConfig;
+		if (sdConfig) renditions[Root.TRACK_SD] = sdConfig;
+
+		const catalog: Catalog.Video = {
+			renditions,
+			priority: Root.PRIORITY,
+			display: {
+				width: Catalog.u53(display.width),
+				height: Catalog.u53(display.height),
+			},
+			detection: effect.get(this.detection.catalog),
+			flip: effect.get(this.flip) ?? undefined,
+		};
 
 		effect.set(this.catalog, catalog);
 	}

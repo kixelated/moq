@@ -422,16 +422,16 @@ impl OriginProducer {
 	}
 
 	/// Returns the root that is automatically stripped from all paths.
-	pub fn root(&self) -> &Path {
+	pub fn root(&self) -> &Path<'_> {
 		&self.root
 	}
 
-	pub fn allowed(&self) -> impl Iterator<Item = &Path> {
+	pub fn allowed(&self) -> impl Iterator<Item = &Path<'_>> {
 		self.nodes.nodes.iter().map(|(root, _)| root)
 	}
 
 	/// Converts a relative path to an absolute path.
-	pub fn absolute(&self, path: impl AsPath) -> Path {
+	pub fn absolute(&self, path: impl AsPath) -> Path<'_> {
 		self.root.join(path)
 	}
 }
@@ -512,16 +512,16 @@ impl OriginConsumer {
 	}
 
 	/// Returns the prefix that is automatically stripped from all paths.
-	pub fn root(&self) -> &Path {
+	pub fn root(&self) -> &Path<'_> {
 		&self.root
 	}
 
-	pub fn allowed(&self) -> impl Iterator<Item = &Path> {
+	pub fn allowed(&self) -> impl Iterator<Item = &Path<'_>> {
 		self.nodes.nodes.iter().map(|(root, _)| root)
 	}
 
 	/// Converts a relative path to an absolute path.
-	pub fn absolute(&self, path: impl AsPath) -> Path {
+	pub fn absolute(&self, path: impl AsPath) -> Path<'_> {
 		self.root.join(path)
 	}
 }

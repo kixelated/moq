@@ -51,38 +51,47 @@ fn create_track(broadcast: &mut moq_lite::BroadcastProducer) -> hang::TrackProdu
 		priority: 1, // Video typically has lower priority than audio
 	};
 
-	// Example catalog configuration
+	// Example video configuration
 	// In a real application, you would get this from the encoder
+	let video_config = hang::catalog::VideoConfig {
+		codec: hang::catalog::H264 {
+			profile: 0x4D, // Main profile
+			constraints: 0,
+			level: 0x28, // Level 4.0
+		}
+		.into(),
+		// Codec-specific data (e.g., SPS/PPS for H.264)
+		// Not needed if you're using annex.b
+		description: None,
+		// There are optional but good to have.
+		coded_width: Some(1920),
+		coded_height: Some(1080),
+		bitrate: Some(5_000_000), // 5 Mbps
+		framerate: Some(30.0),
+		display_ratio_width: None,
+		display_ratio_height: None,
+		optimize_for_latency: None,
+	};
+
+	// Create a map of video renditions
+	// Multiple renditions allow the viewer to choose based on their capabilities
+	let mut renditions = std::collections::HashMap::new();
+	renditions.insert(video_track.name.clone(), video_config);
+
+	// Create the video catalog entry with the renditions
 	let video = hang::catalog::Video {
-		// Tell the viewer about the video track we're producing.
-		track: video_track.clone(),
-		config: hang::catalog::VideoConfig {
-			codec: hang::catalog::H264 {
-				profile: 0x4D, // Main profile
-				constraints: 0,
-				level: 0x28, // Level 4.0
-			}
-			.into(),
-			// Codec-specific data (e.g., SPS/PPS for H.264)
-			// Not needed if you're using annex.b
-			description: None,
-			// There are optional but good to have.
-			coded_width: Some(1920),
-			coded_height: Some(1080),
-			bitrate: Some(5_000_000), // 5 Mbps
-			framerate: Some(30.0),
-			display_ratio_width: None,
-			display_ratio_height: None,
-			optimize_for_latency: None,
-			rotation: None,
-			flip: None,
-		},
+		renditions,
+		priority: 1,
+		display: None,
+		rotation: None,
+		flip: None,
+		detection: None,
 	};
 
 	// Create a producer/consumer pair for the catalog.
 	// This JSON encodes the catalog as a "catalog.json" track.
 	let catalog = hang::catalog::Catalog {
-		video: vec![video],
+		video: Some(video),
 		..Default::default()
 	}
 	.produce();

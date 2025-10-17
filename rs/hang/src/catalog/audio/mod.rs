@@ -1,8 +1,14 @@
 mod aac;
+mod captions;
 mod codec;
+mod speaking;
 
 pub use aac::*;
+pub use captions::*;
 pub use codec::*;
+pub use speaking::*;
+
+use std::collections::HashMap;
 
 use bytes::Bytes;
 
@@ -11,17 +17,27 @@ use serde_with::{hex::Hex, DisplayFromStr};
 
 /// Information about an audio track in the catalog.
 ///
-/// This struct combines MoQ track information with audio-specific configuration
-/// including codec details, sample rate, and channel information.
+/// This struct contains a map of renditions (different quality/codec options)
+/// and optional metadata like captions and speaking indicators.
 #[serde_with::serde_as]
+#[serde_with::skip_serializing_none]
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct Audio {
-	// Generic information about the track
-	pub track: moq_lite::Track,
+	/// A map of track name to rendition configuration.
+	/// This is not an array so it will work with JSON Merge Patch.
+	pub renditions: HashMap<String, AudioConfig>,
 
-	// The configuration of the audio track
-	pub config: AudioConfig,
+	/// The priority of the audio track, relative to other tracks in the broadcast.
+	pub priority: u8,
+
+	/// An optional captions track
+	#[serde(default)]
+	pub captions: Option<Captions>,
+
+	/// An optional speaking track
+	#[serde(default)]
+	pub speaking: Option<Speaking>,
 }
 
 /// Audio decoder configuration based on WebCodecs AudioDecoderConfig.

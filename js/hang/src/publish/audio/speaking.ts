@@ -1,6 +1,7 @@
 import * as Moq from "@kixelated/moq";
 import { Effect, Signal } from "@kixelated/signals";
 import * as Catalog from "../../catalog";
+import { PRIORITY } from "../priority";
 import CaptureWorklet from "./capture-worklet?worker&url";
 import type { Request, Result } from "./speaking-worker";
 import type { Source } from "./types";
@@ -12,6 +13,8 @@ export type SpeakingProps = {
 // Detects when the user is speaking.
 export class Speaking {
 	static readonly TRACK = "audio/speaking.bool";
+	static readonly PRIORITY = PRIORITY.speaking;
+
 	source: Signal<Source | undefined>;
 
 	enabled: Signal<boolean>;
@@ -32,7 +35,10 @@ export class Speaking {
 		if (!enabled) return;
 
 		const catalog: Catalog.Speaking = {
-			track: Speaking.TRACK,
+			track: {
+				name: Speaking.TRACK,
+				priority: Speaking.PRIORITY,
+			},
 		};
 		effect.set(this.catalog, catalog);
 	}

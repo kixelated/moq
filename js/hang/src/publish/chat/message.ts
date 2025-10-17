@@ -1,6 +1,7 @@
 import * as Moq from "@kixelated/moq";
 import { Effect, Signal } from "@kixelated/signals";
 import * as Catalog from "../../catalog";
+import { PRIORITY } from "../priority";
 
 export type MessageProps = {
 	enabled?: boolean | Signal<boolean>;
@@ -8,6 +9,8 @@ export type MessageProps = {
 
 export class Message {
 	static readonly TRACK = "chat/message.txt";
+	static readonly PRIORITY = PRIORITY.chat;
+
 	enabled: Signal<boolean>;
 
 	// The latest message to publish.
@@ -25,7 +28,7 @@ export class Message {
 			const enabled = effect.get(this.enabled);
 			if (!enabled) return;
 
-			effect.set(this.catalog, Message.TRACK);
+			effect.set(this.catalog, { name: Message.TRACK, priority: Message.PRIORITY });
 		});
 	}
 

@@ -65,13 +65,17 @@ export interface ConsumerProps {
 	latency?: Signal<Time.Milli> | Time.Milli;
 }
 
+interface Group {
+	consumer: Moq.Group;
+	frames: Frame[]; // decode order
+	latest?: Time.Micro; // The timestamp of the latest known frame
+}
+
 export class Consumer {
 	#track: Moq.Track;
 	#latency: Signal<Time.Milli>;
-	#groups: Moq.Group[] = [];
-	#active = 0; // the active group sequence number
-	#frames: Frame[] = [];
-	#prev?: Time.Micro;
+	#groups: Group[] = [];
+	#active?: number; // the active group sequence number
 
 	// Wake up the consumer when a new frame is available.
 	#notify?: () => void;
@@ -86,7 +90,7 @@ export class Consumer {
 		this.#signals.cleanup(() => {
 			this.#track.close();
 			for (const group of this.#groups) {
-				group.close();
+				group.consumer.close();
 			}
 			this.#groups.length = 0;
 		});
@@ -95,149 +99,144 @@ export class Consumer {
 	async #run() {
 		// Start fetching groups in the background
 		for (;;) {
-			const group = await this.#track.nextGroup();
-			if (!group) break;
+			const consumer = await this.#track.nextGroup();
+			if (!consumer) break;
 
-			if (group.sequence < this.#active) {
-				console.warn(`skipping old group: ${group.sequence} < ${this.#active}`);
+			// To improve TTV, we always start with the first group.
+			// For higher latencies we might need to figure something else out, as its racey.
+			if (this.#active === undefined) {
+				this.#active = consumer.sequence;
+			}
+
+			if (consumer.sequence < this.#active) {
+				console.warn(`skipping old group: ${consumer.sequence} < ${this.#active}`);
 				// Skip old groups.
-				group.close();
+				consumer.close();
 				continue;
 			}
+
+			const group = {
+				consumer,
+				frames: [],
+			};
 
 			// Insert into #groups based on the group sequence number (ascending).
 			// This is used to cancel old groups.
 			this.#groups.push(group);
-			this.#groups.sort((a, b) => a.sequence - b.sequence);
+			this.#groups.sort((a, b) => a.consumer.sequence - b.consumer.sequence);
 
 			// Start buffering frames from this group
 			this.#signals.spawn(this.#runGroup.bind(this, group));
 		}
 	}
 
-	async #runGroup(group: Moq.Group) {
+	async #runGroup(group: Group) {
 		try {
 			let keyframe = true;
 
 			for (;;) {
-				const next = await group.readFrame();
+				const next = await group.consumer.readFrame();
 				if (!next) break;
-
-				// Check if we were skipped already.
-				if (group.sequence < this.#active) break;
 
 				const { data, timestamp } = decode(next);
 				const frame = {
 					data,
 					timestamp,
 					keyframe,
-					group: group.sequence,
+					group: group.consumer.sequence,
 				};
 
 				keyframe = false;
 
-				// Store frames in buffer in order.
-				if (this.#frames.length === 0 || frame.timestamp >= this.#frames[this.#frames.length - 1].timestamp) {
-					// Already sorted; most of the time we just append to the end.
-					this.#frames.push(frame);
-				} else {
-					this.#frames.push(frame);
-					this.#frames.sort((a, b) => a.timestamp - b.timestamp);
+				group.frames.push(frame);
+
+				if (!group.latest || timestamp > group.latest) {
+					group.latest = timestamp;
 				}
 
-				const first = this.#frames.at(0);
-
-				if (first && first.group <= this.#active) {
-					if (this.#notify) {
-						this.#notify();
-						this.#notify = undefined;
-					}
+				if (group.consumer.sequence === this.#active) {
+					this.#notify?.();
+					this.#notify = undefined;
 				} else {
-					// Check for latency violations
+					// Check for latency violations if this is a newer group.
 					this.#checkLatency();
 				}
 			}
 		} catch (_err) {
 			// Ignore errors, we close groups on purpose to skip them.
 		} finally {
-			if (group.sequence === this.#active) {
+			if (group.consumer.sequence === this.#active) {
 				// Advance to the next group.
-				// We don't use #skipTo because we don't want to drop the last frames.
 				this.#active += 1;
 
-				if (this.#notify && this.#frames.at(0)?.group === this.#active) {
-					this.#notify();
-					this.#notify = undefined;
-				}
+				this.#notify?.();
+				this.#notify = undefined;
 			}
 
-			group.close();
+			group.consumer.close();
 		}
 	}
 
 	#checkLatency() {
-		if (this.#frames.length < 2) return;
+		// We can only skip if there are at least two groups.
+		if (this.#groups.length < 2) return;
 
-		// Check if we have at least #latency frames in the queue.
-		const first = this.#frames[0];
-		const last = this.#frames[this.#frames.length - 1];
+		const first = this.#groups[0];
 
-		const latency = last.timestamp - first.timestamp;
+		// Check the difference between the earliest known frame and the latest known frame
+		let min: number | undefined;
+		let max: number | undefined;
+
+		for (const group of this.#groups) {
+			if (!group.latest) continue;
+
+			// Use the earliest unconsumed frame in the group.
+			const frame = group.frames.at(0)?.timestamp ?? group.latest;
+			if (min === undefined || frame < min) {
+				min = frame;
+			}
+
+			if (max === undefined || group.latest > max) {
+				max = group.latest;
+			}
+		}
+
+		if (min === undefined || max === undefined) return;
+
+		const latency = max - min;
 		if (latency < Time.Micro.fromMilli(this.#latency.peek())) return;
 
-		// Skip to the next group
-		const nextFrame = this.#frames.find((f) => f.group > this.#active);
-		if (!nextFrame) return; // Within the same group, ignore for now
+		if (this.#active !== undefined && first.consumer.sequence <= this.#active) {
+			this.#groups.shift();
 
-		if (this.#prev) {
-			console.warn(`skipping ahead: ${Math.round((nextFrame.timestamp - this.#prev) / 1000)}ms`);
+			console.warn(`skipping slow group: ${first.consumer.sequence} < ${this.#groups[0]?.consumer.sequence}`);
+
+			first.consumer.close();
+			first.frames.length = 0;
 		}
 
-		this.#skipTo(nextFrame.group);
-	}
+		// Advance to the next known group.
+		// NOTE: Can't be undefined, because we checked above.
+		this.#active = this.#groups[0]?.consumer.sequence;
 
-	#skipTo(groupId: number) {
-		this.#active = groupId;
-
-		// Skip old groups.
-		while (this.#groups.length > 0 && this.#groups[0].sequence < this.#active) {
-			this.#groups.shift()?.close();
-		}
-
-		// Skip old frames.
-		let dropped = 0;
-		while (this.#frames.length > 0 && this.#frames[0].group < this.#active) {
-			dropped++;
-			this.#frames.shift();
-		}
-
-		if (dropped > 0) {
-			console.warn(`dropped ${dropped} frames while skipping`);
-		}
-
-		if (this.#notify && this.#frames.at(0)?.group === this.#active) {
-			this.#notify();
-			this.#notify = undefined;
-		}
+		// Wake up any consumers waiting for a new frame.
+		this.#notify?.();
+		this.#notify = undefined;
 	}
 
 	async decode(): Promise<Frame | undefined> {
 		for (;;) {
-			// Check if we have frames from the active group
-			if (this.#frames.length > 0) {
-				if (this.#frames[0].group <= this.#active) {
-					const next = this.#frames.shift();
-					this.#prev = next?.timestamp;
-					return next;
-				}
+			if (
+				this.#groups.length > 0 &&
+				this.#active !== undefined &&
+				this.#groups[0].consumer.sequence <= this.#active
+			) {
+				const frame = this.#groups[0].frames.shift();
+				if (frame) return frame;
 
-				// We have frames but not from the active group
-				// Check if we should move to the next group
-				const nextGroupFrames = this.#frames.filter((f) => f.group > this.#active);
-				if (nextGroupFrames.length > 0) {
-					// Move to the next group
-					const nextGroup = Math.min(...nextGroupFrames.map((f) => f.group));
-					this.#skipTo(nextGroup);
+				// Check if the group is done and then remove it.
+				if (this.#active > this.#groups[0].consumer.sequence) {
+					this.#groups.shift();
 					continue;
 				}
 			}
@@ -262,11 +261,11 @@ export class Consumer {
 		this.#signals.close();
 
 		for (const group of this.#groups) {
-			group.close();
+			group.consumer.close();
+			group.frames.length = 0;
 		}
 
-		this.#groups = [];
-		this.#frames = [];
+		this.#groups.length = 0;
 	}
 }
 

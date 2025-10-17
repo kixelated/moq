@@ -2,7 +2,6 @@ import * as Moq from "@kixelated/moq";
 import * as Zod from "@kixelated/moq/zod";
 import { Effect, Signal } from "@kixelated/signals";
 import * as Catalog from "../catalog";
-import { PRIORITY } from "./priority";
 
 export interface PreviewProps {
 	enabled?: boolean | Signal<boolean>;
@@ -34,11 +33,11 @@ export class Preview {
 			const broadcast = effect.get(this.broadcast);
 			if (!broadcast) return;
 
-			const name = effect.get(this.#catalog);
-			if (!name) return;
+			const catalog = effect.get(this.#catalog);
+			if (!catalog) return;
 
 			// Subscribe to the preview.json track directly
-			const track = broadcast.subscribe(name, PRIORITY.preview);
+			const track = broadcast.subscribe(catalog.name, catalog.priority);
 			effect.cleanup(() => track.close());
 
 			effect.spawn(async () => {

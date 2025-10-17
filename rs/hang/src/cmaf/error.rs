@@ -10,8 +10,8 @@ pub enum Error {
 	Mp4(#[from] mp4_atom::Error),
 
 	/// An error from the hang media library.
-	#[error("karp error: {0}")]
-	Karp(#[from] crate::Error),
+	#[error("hang error: {0}")]
+	Hang(#[from] crate::Error),
 
 	/// The fMP4 file contains no tracks.
 	#[error("missing tracks")]

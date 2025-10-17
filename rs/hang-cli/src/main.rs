@@ -6,7 +6,7 @@ use std::path::PathBuf;
 use client::*;
 use server::*;
 
-use clap::{Parser, Subcommand};
+use clap::{Parser, Subcommand, ValueEnum};
 use url::Url;
 
 #[derive(Parser, Clone)]
@@ -16,6 +16,12 @@ pub struct Cli {
 
 	#[command(subcommand)]
 	command: Command,
+}
+
+#[derive(ValueEnum, Clone)]
+pub enum ImportType {
+	AnnexB,
+	CMAF,
 }
 
 #[derive(Subcommand, Clone)]
@@ -53,6 +59,10 @@ pub enum Command {
 		/// The name of the broadcast to publish.
 		#[arg(long)]
 		name: String,
+
+		/// The format of the input video.
+		#[arg(long, value_enum, default_value_t = ImportType::CMAF)]
+		format: ImportType,
 	},
 }
 
@@ -63,6 +73,11 @@ async fn main() -> anyhow::Result<()> {
 
 	match cli.command {
 		Command::Serve { config, dir, name } => server(config, name, dir, &mut tokio::io::stdin()).await,
-		Command::Publish { config, url, name } => client(config, url, name, &mut tokio::io::stdin()).await,
+		Command::Publish {
+			config,
+			url,
+			name,
+			format,
+		} => client(config, url, name, format, &mut tokio::io::stdin()).await,
 	}
 }

@@ -812,6 +812,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "h264-parser"
+version = "0.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ab2f85be813ce08f0569fcd816f256c6f4287c975d69a9a14ceacc309f1de967"
+
+[[package]]
 name = "hang"
 version = "0.5.5"
 dependencies = [
@@ -819,6 +825,7 @@ dependencies = [
  "bytes",
  "derive_more",
  "futures",
+ "h264-parser",
  "hex",
  "lazy_static",
  "moq-lite",

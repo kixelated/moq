@@ -1,7 +1,6 @@
 import * as Moq from "@kixelated/moq";
 import { Effect, type Getter, Signal } from "@kixelated/signals";
 import * as Catalog from "../../catalog";
-import { PRIORITY } from "../priority";
 
 export type SpeakingProps = {
 	enabled?: boolean | Signal<boolean>;
@@ -9,7 +8,7 @@ export type SpeakingProps = {
 
 export class Speaking {
 	broadcast: Getter<Moq.Broadcast | undefined>;
-	info: Getter<Catalog.Audio | undefined>;
+	catalog = new Signal<Catalog.Speaking | undefined>(undefined);
 	enabled: Signal<boolean>;
 
 	// Toggles true when the user is speaking.
@@ -20,14 +19,17 @@ export class Speaking {
 
 	constructor(
 		broadcast: Getter<Moq.Broadcast | undefined>,
-		info: Getter<Catalog.Audio | undefined>,
+		catalog: Getter<Catalog.Audio | undefined>,
 		props?: SpeakingProps,
 	) {
 		this.broadcast = broadcast;
-		this.info = info;
 
 		this.enabled = Signal.from(props?.enabled ?? false);
 		this.#signals.effect(this.#run.bind(this));
+
+		this.#signals.effect((effect) => {
+			effect.set(this.catalog, effect.get(catalog)?.speaking);
+		});
 	}
 
 	#run(effect: Effect): void {
@@ -37,12 +39,10 @@ export class Speaking {
 		const broadcast = effect.get(this.broadcast);
 		if (!broadcast) return;
 
-		const info = effect.get(this.info);
-		if (!info) return;
+		const catalog = effect.get(this.catalog);
+		if (!catalog) return;
 
-		if (!info.speaking) return;
-
-		const sub = broadcast.subscribe(info.speaking.track, PRIORITY.speaking);
+		const sub = broadcast.subscribe(catalog.track.name, catalog.track.priority);
 		effect.cleanup(() => sub.close());
 
 		effect.spawn(async () => {

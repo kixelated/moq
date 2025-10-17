@@ -2,7 +2,6 @@ import * as Moq from "@kixelated/moq";
 import * as Zod from "@kixelated/moq/zod";
 import { Effect, Getter, Signal } from "@kixelated/signals";
 import * as Catalog from "../../catalog";
-import { PRIORITY } from "../priority";
 
 export interface PeersProps {
 	enabled?: boolean | Signal<boolean>;
@@ -42,7 +41,7 @@ export class Peers {
 		const broadcast = effect.get(this.broadcast);
 		if (!broadcast) return;
 
-		const track = broadcast.subscribe(catalog, PRIORITY.location);
+		const track = broadcast.subscribe(catalog.name, catalog.priority);
 		effect.cleanup(() => track.close());
 
 		effect.spawn(this.#runTrack.bind(this, track));

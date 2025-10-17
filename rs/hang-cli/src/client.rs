@@ -1,5 +1,7 @@
+use crate::ImportType;
 use anyhow::Context;
-use hang::cmaf::Import;
+use hang::annexb;
+use hang::cmaf;
 use hang::moq_lite;
 use tokio::io::AsyncRead;
 use url::Url;
@@ -8,6 +10,7 @@ pub async fn client<T: AsyncRead + Unpin>(
 	config: moq_native::ClientConfig,
 	url: Url,
 	name: String,
+	format: ImportType,
 	input: &mut T,
 ) -> anyhow::Result<()> {
 	let broadcast = moq_lite::Broadcast::produce();
@@ -16,7 +19,7 @@ pub async fn client<T: AsyncRead + Unpin>(
 	// Connect to the remote and start parsing stdin in parallel.
 	tokio::select! {
 		res = connect(client, url, name, broadcast.consumer) => res,
-		res = publish(broadcast.producer, input) => res,
+		res = publish(broadcast.producer, input, format) => res,
 	}
 }
 
@@ -52,17 +55,28 @@ async fn connect(
 	}
 }
 
-async fn publish<T: AsyncRead + Unpin>(producer: moq_lite::BroadcastProducer, input: &mut T) -> anyhow::Result<()> {
-	let mut import = Import::new(producer);
+async fn publish<T: AsyncRead + Unpin>(
+	producer: moq_lite::BroadcastProducer,
+	input: &mut T,
+	format: ImportType,
+) -> anyhow::Result<()> {
+	match format {
+		ImportType::AnnexB => {
+			let mut import = annexb::Import::new(producer);
+			import.read_from(input).await?;
+		}
+		ImportType::CMAF => {
+			let mut import = cmaf::Import::new(producer);
+			import
+				.init_from(input)
+				.await
+				.context("failed to initialize cmaf from input")?;
 
-	import
-		.init_from(input)
-		.await
-		.context("failed to initialize cmaf from input")?;
+			tracing::info!("initialized");
 
-	tracing::info!("initialized");
-
-	import.read_from(input).await?;
+			import.read_from(input).await?;
+		}
+	}
 
 	Ok(())
 }

@@ -2,7 +2,6 @@ import * as Moq from "@kixelated/moq";
 import * as Zod from "@kixelated/moq/zod";
 import { Effect, Signal } from "@kixelated/signals";
 import * as Catalog from "../../catalog";
-import { PRIORITY } from "../priority";
 
 export interface DetectionProps {
 	// Whether to start downloading the detection data.
@@ -22,7 +21,7 @@ export class Detection {
 
 	constructor(
 		broadcast: Signal<Moq.Broadcast | undefined>,
-		catalog: Signal<Catalog.Root | undefined>,
+		catalog: Signal<Catalog.Video | undefined>,
 		props?: DetectionProps,
 	) {
 		this.broadcast = broadcast;
@@ -41,7 +40,7 @@ export class Detection {
 			const broadcast = effect.get(this.broadcast);
 			if (!broadcast) return;
 
-			const track = broadcast.subscribe(catalog.track, PRIORITY.detection);
+			const track = broadcast.subscribe(catalog.track.name, catalog.track.priority);
 			effect.cleanup(() => track.close());
 
 			effect.spawn(async () => {

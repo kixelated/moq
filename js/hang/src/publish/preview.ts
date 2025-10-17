@@ -1,6 +1,7 @@
 import * as Moq from "@kixelated/moq";
 import { Effect, Signal } from "@kixelated/signals";
 import * as Catalog from "../catalog";
+import { PRIORITY } from "./priority";
 
 export type PreviewProps = {
 	enabled?: boolean | Signal<boolean>;
@@ -9,6 +10,7 @@ export type PreviewProps = {
 
 export class Preview {
 	static readonly TRACK = "preview.json";
+	static readonly PRIORITY = PRIORITY.preview;
 
 	enabled: Signal<boolean>;
 	info: Signal<Catalog.Preview | undefined>;
@@ -23,7 +25,7 @@ export class Preview {
 
 		this.signals.effect((effect) => {
 			if (!effect.get(this.enabled)) return;
-			effect.set(this.catalog, Preview.TRACK);
+			effect.set(this.catalog, { name: Preview.TRACK, priority: Preview.PRIORITY });
 		});
 	}
 

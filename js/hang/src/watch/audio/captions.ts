@@ -1,7 +1,6 @@
 import * as Moq from "@kixelated/moq";
 import { Effect, type Getter, Signal } from "@kixelated/signals";
 import * as Catalog from "../../catalog";
-import { PRIORITY } from "../priority";
 
 export type CaptionsProps = {
 	enabled?: boolean | Signal<boolean>;
@@ -9,7 +8,7 @@ export type CaptionsProps = {
 
 export class Captions {
 	broadcast: Getter<Moq.Broadcast | undefined>;
-	info: Getter<Catalog.Audio | undefined>;
+	catalog = new Signal<Catalog.Captions | undefined>(undefined);
 	enabled: Signal<boolean>;
 
 	// The most recent caption downloaded.
@@ -20,14 +19,16 @@ export class Captions {
 
 	constructor(
 		broadcast: Getter<Moq.Broadcast | undefined>,
-		info: Getter<Catalog.Audio | undefined>,
+		catalog: Getter<Catalog.Audio | undefined>,
 		props?: CaptionsProps,
 	) {
 		this.broadcast = broadcast;
-		this.info = info;
 
 		this.enabled = Signal.from(props?.enabled ?? false);
 		this.#signals.effect(this.#run.bind(this));
+		this.#signals.effect((effect) => {
+			effect.set(this.catalog, effect.get(catalog)?.captions);
+		});
 	}
 
 	#run(effect: Effect): void {
@@ -37,12 +38,10 @@ export class Captions {
 		const broadcast = effect.get(this.broadcast);
 		if (!broadcast) return;
 
-		const info = effect.get(this.info);
-		if (!info) return;
+		const catalog = effect.get(this.catalog);
+		if (!catalog) return;
 
-		if (!info.captions) return;
-
-		const sub = broadcast.subscribe(info.captions.track, PRIORITY.captions);
+		const sub = broadcast.subscribe(catalog.track.name, catalog.track.priority);
 		effect.cleanup(() => sub.close());
 
 		effect.spawn(async () => {

@@ -2,6 +2,7 @@ import * as Moq from "@kixelated/moq";
 import { Effect, type Getter, Signal } from "@kixelated/signals";
 import * as Comlink from "comlink";
 import * as Catalog from "../../catalog";
+import { PRIORITY } from "../priority";
 import type { DetectionWorker } from "./detection-worker";
 // Vite-specific import for worker
 import WorkerUrl from "./detection-worker?worker&url";
@@ -13,7 +14,8 @@ export type DetectionProps = {
 };
 
 export class Detection {
-	static readonly TRACK: Catalog.Track = "video/detection.json";
+	static readonly TRACK = "video/detection.json";
+	static readonly PRIORITY = PRIORITY.detection;
 
 	enabled: Signal<boolean>;
 	frame: Getter<VideoFrame | undefined>;
@@ -40,7 +42,7 @@ export class Detection {
 		if (!enabled) return;
 
 		this.#catalog.set({
-			track: Detection.TRACK,
+			track: { name: Detection.TRACK, priority: Detection.PRIORITY },
 		});
 	}
 

@@ -1,7 +1,6 @@
 import * as Moq from "@kixelated/moq";
 import { Effect, type Getter, Signal } from "@kixelated/signals";
 import * as Catalog from "../../catalog";
-import { PRIORITY } from "../priority";
 
 export interface TypingProps {
 	// Whether to start downloading the chat.
@@ -46,7 +45,7 @@ export class Typing {
 		const broadcast = effect.get(this.broadcast);
 		if (!broadcast) return;
 
-		const track = broadcast.subscribe(catalog, PRIORITY.typing);
+		const track = broadcast.subscribe(catalog.name, catalog.priority);
 		effect.cleanup(() => track.close());
 
 		effect.spawn(async () => {

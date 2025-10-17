@@ -5,6 +5,7 @@ import { u53 } from "../../catalog/integers";
 import * as Frame from "../../frame";
 import * as Time from "../../time";
 import * as libav from "../../util/libav";
+import { PRIORITY } from "../priority";
 import { Captions, type CaptionsProps } from "./captions";
 import type * as Capture from "./capture";
 import type { Source } from "./types";
@@ -33,6 +34,8 @@ export type EncoderProps = {
 
 export class Encoder {
 	static readonly TRACK = "audio/data";
+	static readonly PRIORITY = PRIORITY.audio;
+
 	enabled: Signal<boolean>;
 
 	muted: Signal<boolean>;
@@ -53,6 +56,8 @@ export class Encoder {
 
 	#gain = new Signal<GainNode | undefined>(undefined);
 	readonly root: Getter<AudioNode | undefined> = this.#gain;
+
+	active = new Signal<boolean>(false);
 
 	#signals = new Effect();
 
@@ -165,6 +170,8 @@ export class Encoder {
 		const config = effect.get(this.#config);
 		if (!config) return;
 
+		effect.set(this.active, true, false);
+
 		let group: Moq.Group = track.appendGroup();
 		effect.cleanup(() => group.close());
 
@@ -239,8 +246,8 @@ export class Encoder {
 		const speaking = effect.get(this.speaking.catalog);
 
 		const catalog: Catalog.Audio = {
-			track: Encoder.TRACK,
-			config,
+			renditions: { [Encoder.TRACK]: config },
+			priority: Encoder.PRIORITY,
 			captions,
 			speaking,
 		};
