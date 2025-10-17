@@ -1,11 +1,11 @@
 import assert from "node:assert";
 import test from "node:test";
+import * as Path from "../path.ts";
 import { Reader, Writer } from "../stream.ts";
-import * as Subscribe from "./subscribe.ts";
 import * as Announce from "./announce.ts";
 import * as GoAway from "./goaway.ts";
+import * as Subscribe from "./subscribe.ts";
 import * as Track from "./track.ts";
-import * as Path from "../path.ts";
 
 // Helper to create a writable stream that captures written data
 function createTestWritableStream(): { stream: WritableStream<Uint8Array>; written: Uint8Array[] } {
@@ -41,10 +41,7 @@ async function encodeMessage<T extends { encodeMessage(w: Writer): Promise<void>
 }
 
 // Helper to decode a message
-async function decodeMessage<T>(
-	bytes: Uint8Array,
-	decoder: (r: Reader) => Promise<T>,
-): Promise<T> {
+async function decodeMessage<T>(bytes: Uint8Array, decoder: (r: Reader) => Promise<T>): Promise<T> {
 	const reader = new Reader(undefined, bytes);
 	return await decoder(reader);
 }
