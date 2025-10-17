@@ -167,6 +167,7 @@ export class Source {
 		this.#pending = new Effect();
 
 		// NOTE: If the track catches up in time, it'll remove itself from #pending.
+		// We use #pending here on purpose so we only close it when it hasn't caught up yet.
 		effect.cleanup(() => this.#pending?.close());
 
 		this.#runTrack(this.#pending, broadcast, selected, config);
@@ -350,7 +351,8 @@ export class Source {
 
 		// Use the framerate to compute the jitter buffer size.
 		// We always buffer a single frame, so subtract that from the jitter buffer.
-		const delay = 1000 / (config.framerate ?? 30);
+		const fps = config.framerate && config.framerate > 0 ? config.framerate : 30;
+		const delay = 1000 / fps;
 		const latency = effect.get(this.latency);
 
 		const jitter = Math.max(0, latency - delay) as Time.Milli;
