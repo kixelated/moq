@@ -138,7 +138,7 @@ Additional documentation and implementation details:
 ## Protocol
 Read the specifications:
 - [moq-lite](https://kixelated.github.io/moq-drafts/draft-lcurley-moq-lite.html)
-- [hang](https://kixelated.github.io/moq-drafts/draft-lcurley-hang.html)
+- [hang](https://kixelated.github.io/moq-drafts/draft-lcurley-moq-hang.html) 
 - [use-cases](https://kixelated.github.io/moq-drafts/draft-lcurley-moq-use-cases.html)
 
 ## Development
