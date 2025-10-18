@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.0](https://github.com/kixelated/moq/compare/hang-v0.5.5...hang-v0.6.0) - 2025-10-18
+
+### Added
+
+- *(hang)* add support for annexb import ([#611](https://github.com/kixelated/moq/pull/611))
+
+### Other
+
+- Use MaybeSend and MaybeSync for WASM compatibility ([#615](https://github.com/kixelated/moq/pull/615))
+- Update the catalog to better support multiple renditions. ([#616](https://github.com/kixelated/moq/pull/616))
+- Move some examples into code. ([#596](https://github.com/kixelated/moq/pull/596))
+
 ## [0.5.5](https://github.com/kixelated/moq/compare/hang-v0.5.4...hang-v0.5.5) - 2025-09-22
 
 ### Other

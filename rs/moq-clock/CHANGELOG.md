@@ -45,6 +45,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.7.10](https://github.com/kixelated/moq/compare/moq-clock-v0.7.9...moq-clock-v0.7.10) - 2025-10-18
+
+### Other
+
+- Use MaybeSend and MaybeSync for WASM compatibility ([#615](https://github.com/kixelated/moq/pull/615))
+
 ## [0.7.9](https://github.com/kixelated/moq/compare/moq-clock-v0.7.8...moq-clock-v0.7.9) - 2025-09-22
 
 ### Other

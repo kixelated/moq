@@ -64,6 +64,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.9.4](https://github.com/kixelated/moq/compare/moq-relay-v0.9.3...moq-relay-v0.9.4) - 2025-10-18
+
+### Other
+
+- Use MaybeSend and MaybeSync for WASM compatibility ([#615](https://github.com/kixelated/moq/pull/615))
+
 ## [0.8.3](https://github.com/kixelated/moq/compare/moq-relay-v0.8.2...moq-relay-v0.8.3) - 2025-07-22
 
 ### Other
