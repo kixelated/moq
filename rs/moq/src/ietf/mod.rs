@@ -11,6 +11,7 @@ mod subscribe_announces;
 mod subscriber;
 mod track;
 mod util;
+mod version;
 
 pub use announce::*;
 use control::*;
@@ -24,3 +25,4 @@ pub use subscribe::*;
 pub use subscribe_announces::*;
 use subscriber::*;
 pub use track::*;
+pub use version::*;

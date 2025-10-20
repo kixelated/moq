@@ -1,6 +1,6 @@
 import type { Reader, Writer } from "../stream.ts";
+import { CURRENT_VERSION } from "./version.ts";
 
-export const CURRENT_VERSION = 0xff000007;
 const MAX_VERSIONS = 128;
 
 export class Role {

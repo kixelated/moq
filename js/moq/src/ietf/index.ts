@@ -8,3 +8,4 @@ export * from "./setup.ts";
 export * from "./subscribe.ts";
 export * from "./subscriber.ts";
 export * from "./track.ts";
+export * from "./version.ts";
