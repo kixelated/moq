@@ -31,8 +31,6 @@ export class Speaking {
 	}
 
 	#runCatalog(effect: Effect): void {
-		console.log("run catalog", effect.get(this.enabled));
-
 		const enabled = effect.get(this.enabled);
 		if (!enabled) return;
 
