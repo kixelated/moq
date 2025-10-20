@@ -31,30 +31,15 @@ export class Speaking {
 	}
 
 	#runCatalog(effect: Effect): void {
+		console.log("run catalog", effect.get(this.enabled));
+
 		const enabled = effect.get(this.enabled);
 		if (!enabled) return;
 
-		const catalog: Catalog.Speaking = {
-			track: {
-				name: Speaking.TRACK,
-				priority: Speaking.PRIORITY,
-			},
-		};
-		effect.set(this.catalog, catalog);
-	}
-
-	serve(track: Moq.Track, effect: Effect): void {
-		const enabled = effect.get(this.enabled);
-		if (!enabled) return;
-
+		// TODO only run the worker if there's a subscriber
+		// The current API requires we update the active signal, but maybe nobody cares.
 		const source = effect.get(this.source);
 		if (!source) return;
-
-		// Create a nested effect to avoid recreating the track every time the speaking changes.
-		effect.effect((nested) => {
-			const active = nested.get(this.active);
-			track.writeBool(active);
-		});
 
 		const worker = new Worker(new URL("./speaking-worker", import.meta.url), { type: "module" });
 		effect.cleanup(() => worker.terminate());
@@ -109,6 +94,25 @@ export class Speaking {
 			};
 			worker.postMessage(init, [init.worklet]);
 		});
+
+		const catalog: Catalog.Speaking = {
+			track: {
+				name: Speaking.TRACK,
+				priority: Speaking.PRIORITY,
+			},
+		};
+		effect.set(this.catalog, catalog);
+	}
+
+	serve(track: Moq.Track, effect: Effect): void {
+		const enabled = effect.get(this.enabled);
+		if (!enabled) return;
+
+		const source = effect.get(this.source);
+		if (!source) return;
+
+		const active = effect.get(this.active);
+		track.writeBool(active);
 	}
 
 	close() {
