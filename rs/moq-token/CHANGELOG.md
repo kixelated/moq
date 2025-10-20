@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.4](https://github.com/kixelated/moq/compare/moq-token-v0.5.3...moq-token-v0.5.4) - 2025-10-18
+
+### Other
+
+- Fix a potential race with append_group ([#600](https://github.com/kixelated/moq/pull/600))
+
 ## [0.5.3](https://github.com/kixelated/moq/compare/moq-token-v0.5.2...moq-token-v0.5.3) - 2025-08-12
 
 ### Other

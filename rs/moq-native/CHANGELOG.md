@@ -44,6 +44,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.8.4](https://github.com/kixelated/moq/compare/moq-native-v0.8.3...moq-native-v0.8.4) - 2025-10-18
+
+### Other
+
+- Fix a potential race with append_group ([#600](https://github.com/kixelated/moq/pull/600))
+
 ## [0.7.5](https://github.com/kixelated/moq/compare/moq-native-v0.7.4...moq-native-v0.7.5) - 2025-07-22
 
 ### Other
