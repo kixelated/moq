@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.8.1](https://github.com/kixelated/moq/compare/moq-lite-v0.8.0...moq-lite-v0.8.1) - 2025-10-21
+
+### Other
+
+- Remove Sync constraint ([#624](https://github.com/kixelated/moq/pull/624))
+
 ## [0.8.0](https://github.com/kixelated/moq/compare/moq-lite-v0.7.1...moq-lite-v0.8.0) - 2025-10-18
 
 ### Other
