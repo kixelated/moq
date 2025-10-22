@@ -210,27 +210,26 @@ in
         # Server configuration
         MOQ_SERVER_LISTEN = "[::]:${toString cfg.port}";
 
-        # TLS configuration
-        MOQ_SERVER_TLS_GENERATE = lib.optionalString (cfg.tls.generate != [ ]) (
-          lib.concatStringsSep "," cfg.tls.generate
-        );
-        MOQ_SERVER_TLS_CERT = lib.optionalString (cfg.tls.certs != [ ]) (
-          lib.concatMapStringsSep "," (cert: "${cert.chain}:${cert.key}") cfg.tls.certs
-        );
-
-        # Auth configuration
-        MOQ_AUTH_KEY = lib.optionalString cfg.auth.enable (
-          if cfg.auth.keyFile != null then cfg.auth.keyFile else "${cfg.stateDir}/root.jwk"
-        );
-        MOQ_AUTH_PUBLIC = lib.optionalString (cfg.auth.publicPath != null) cfg.auth.publicPath;
-
-        # Cluster configuration
-        MOQ_CLUSTER_CONNECT = lib.optionalString (cfg.cluster.rootUrl != null) cfg.cluster.rootUrl;
-        MOQ_CLUSTER_TOKEN = lib.optionalString (cfg.cluster.mode != "none") (
-          if cfg.cluster.tokenFile != null then cfg.cluster.tokenFile else "${cfg.stateDir}/cluster.jwt"
-        );
-        MOQ_CLUSTER_ADVERTISE = lib.optionalString (cfg.cluster.nodeUrl != null) cfg.cluster.nodeUrl;
         MOQ_CLIENT_TLS_DISABLE_VERIFY = lib.boolToString cfg.cluster.disableTlsVerify;
+      } // lib.optionalAttrs (cfg.tls.generate != [ ]) {
+        # TLS configuration
+        MOQ_SERVER_TLS_GENERATE = lib.concatStringsSep "," cfg.tls.generate;
+      } // lib.optionalAttrs (cfg.tls.certs != [ ]) {
+        MOQ_SERVER_TLS_CERT = lib.concatMapStringsSep "," (cert: "${cert.chain}") cfg.tls.certs;
+      } // lib.optionalAttrs (cfg.tls.certs != [ ]) {
+        MOQ_SERVER_TLS_KEY = lib.concatMapStringsSep "," (cert: "${cert.key}") cfg.tls.certs;
+      } // lib.optionalAttrs cfg.auth.enable {
+        # Auth configuration
+        MOQ_AUTH_KEY = if cfg.auth.keyFile != null then cfg.auth.keyFile else "${cfg.stateDir}/root.jwk";
+      } // lib.optionalAttrs (cfg.auth.publicPath != null) {
+        MOQ_AUTH_PUBLIC = cfg.auth.publicPath;
+      } // lib.optionalAttrs (cfg.cluster.rootUrl != null) {
+        # Cluster configuration
+        MOQ_CLUSTER_CONNECT = cfg.cluster.rootUrl;
+      } // lib.optionalAttrs (cfg.cluster.mode != "none") {
+        MOQ_CLUSTER_TOKEN = if cfg.cluster.tokenFile != null then cfg.cluster.tokenFile else "${cfg.stateDir}/cluster.jwt";
+      } // lib.optionalAttrs (cfg.cluster.nodeUrl != null) {
+        MOQ_CLUSTER_ADVERTISE = cfg.cluster.nodeUrl;
       };
     };
   };
