@@ -41,11 +41,14 @@ impl<S: web_transport_trait::Session> Session<S> {
 			versions: SUPPORTED.into(),
 			extensions: Default::default(),
 		};
+
+		client.encode_size().encode(&mut buf);
 		client.encode(&mut buf);
 		stream.writer.write_all(&mut buf).await?;
 
 		// We expect 0x21 as the response.
 		let server_compat: lite::ControlType = stream.reader.decode().await?;
+
 		if server_compat != lite::ControlType::ServerCompatV14 {
 			return Err(Error::UnexpectedStream);
 		}
@@ -86,21 +89,30 @@ impl<S: web_transport_trait::Session> Session<S> {
 		let mut stream = Stream::accept(&session).await?;
 		let kind: lite::ControlType = stream.reader.decode().await?;
 
-		if kind != lite::ControlType::Session
-			&& kind != lite::ControlType::ServerCompatV7
-			&& kind != lite::ControlType::ClientCompatV14
-		{
-			return Err(Error::UnexpectedStream);
-		}
+		let versions = match kind {
+			lite::ControlType::Session | lite::ControlType::ClientCompatV7 => {
+				let client: lite::ClientSetup = stream.reader.decode().await?;
+				client.versions
+			}
+			// If it's draft-14 client, we need to write back a u16 for the size.
+			lite::ControlType::ClientCompatV14 => {
+				// TODO make this less manual
+				let size: u16 = stream.reader.decode().await?;
+				let mut buf = stream.reader.read_exact(size as usize).await?;
+				let client: ietf::ClientSetup = ietf::ClientSetup::decode(&mut buf)?;
+				if !buf.is_empty() {
+					return Err(Error::WrongSize);
+				}
+				client.versions
+			}
+			_ => return Err(Error::UnexpectedStream),
+		};
 
-		let client: lite::ClientSetup = stream.reader.decode().await?;
-
-		let version = client
-			.versions
+		let version = versions
 			.iter()
 			.find(|v| SUPPORTED.contains(v))
 			.copied()
-			.ok_or_else(|| Error::Version(client.versions, SUPPORTED.into()))?;
+			.ok_or_else(|| Error::Version(versions, SUPPORTED.into()))?;
 
 		// Backwards compatibility with moq-transport-07
 		match kind {
@@ -118,7 +130,7 @@ impl<S: web_transport_trait::Session> Session<S> {
 				setup.encode(&mut buf);
 				stream.writer.write_all(&mut buf).await?;
 			}
-			lite::ControlType::ServerCompatV7 => {
+			lite::ControlType::ClientCompatV7 => {
 				// Encode the ID so it's backwards compatibile.
 				stream.writer.encode(&lite::ControlType::ServerCompatV7).await?;
 
@@ -144,8 +156,6 @@ impl<S: web_transport_trait::Session> Session<S> {
 			_ => unreachable!(),
 		}
 
-		tracing::debug!(?version, "connected");
-
 		match version {
 			coding::Version::LITE_LATEST => {
 				lite::start(session.clone(), stream, publish.into(), subscribe.into()).await?;
@@ -155,6 +165,8 @@ impl<S: web_transport_trait::Session> Session<S> {
 			}
 			_ => unreachable!(),
 		}
+
+		tracing::debug!(?version, "connected");
 
 		Ok(Self::new(session))
 	}
