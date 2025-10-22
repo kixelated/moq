@@ -138,30 +138,17 @@ export class Reader {
 		return new TextDecoder().decode(buffer);
 	}
 
-	// Reads a message with a varint size prefix.
-	async message<T>(f: (r: Reader) => Promise<T>): Promise<T> {
-		const size = await this.u53();
-		const data = await this.read(size);
-
-		const limit = new Reader(undefined, data);
-		const msg = await f(limit);
-
-		// Check that we consumed exactly the right number of bytes
-		if (!(await limit.done())) {
-			throw new Error("Message decoding consumed too few bytes");
-		}
-
-		return msg;
-	}
-
-	async messageMaybe<T>(f: (r: Reader) => Promise<T>): Promise<T | undefined> {
-		if (await this.done()) return;
-		return await this.message(f);
-	}
-
 	async u8(): Promise<number> {
 		await this.#fillTo(1);
 		return this.#slice(1)[0];
+	}
+
+	async u16(): Promise<number> {
+		await this.#fillTo(2);
+		const view = new DataView(this.#buffer.buffer, this.#buffer.byteOffset, 2);
+		const result = view.getUint16(0);
+		this.#slice(2);
+		return result;
 	}
 
 	// Returns a Number using 53-bits, the max Javascript can use for integer math
@@ -228,19 +215,18 @@ export class Writer {
 	// Fixed at 8 bytes.
 	#scratch: ArrayBuffer;
 
-	// Scratch buffer for writing messages.
-	// Starts at 0 bytes, grows as needed.
-	#message: ArrayBuffer;
-
 	constructor(stream: WritableStream<Uint8Array>) {
 		this.#stream = stream;
 		this.#scratch = new ArrayBuffer(8);
-		this.#message = new ArrayBuffer(0);
 		this.#writer = this.#stream.getWriter();
 	}
 
 	async u8(v: number) {
 		await this.write(setUint8(this.#scratch, v));
+	}
+
+	async u16(v: number) {
+		await this.write(setUint16(this.#scratch, v));
 	}
 
 	async i32(v: number) {
@@ -279,46 +265,6 @@ export class Writer {
 
 	async write(v: Uint8Array) {
 		await this.#writer.write(v);
-	}
-
-	// Writes a message with a varint size prefix.
-	async message(f: (w: Writer) => Promise<void>) {
-		let scratch = new Uint8Array(this.#message, 0, 0);
-
-		const temp = new Writer(
-			new WritableStream({
-				write(chunk: Uint8Array) {
-					const needed = scratch.byteLength + chunk.byteLength;
-					if (needed > scratch.buffer.byteLength) {
-						// Resize the buffer to the needed size.
-						const capacity = Math.max(needed, scratch.buffer.byteLength * 2);
-						const newBuffer = new ArrayBuffer(capacity);
-						const newScratch = new Uint8Array(newBuffer, 0, needed);
-
-						// Copy the old data into the new buffer.
-						newScratch.set(scratch);
-
-						// Copy the new chunk into the new buffer.
-						newScratch.set(chunk, scratch.byteLength);
-
-						scratch = newScratch;
-					} else {
-						// Copy chunk data into buffer
-						scratch = new Uint8Array(scratch.buffer, 0, needed);
-						scratch.set(chunk, needed - chunk.byteLength);
-					}
-				},
-			}),
-		);
-
-		await f(temp);
-		temp.close();
-		await temp.closed;
-
-		await this.u53(scratch.byteLength);
-		await this.write(scratch);
-
-		this.#message = scratch.buffer;
 	}
 
 	async string(str: string) {

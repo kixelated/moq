@@ -1,4 +1,5 @@
 import type { Reader, Writer } from "../stream.ts";
+import * as Message from "./message.ts";
 
 export class Group {
 	subscribe: bigint;
@@ -19,15 +20,15 @@ export class Group {
 	}
 
 	async encode(w: Writer): Promise<void> {
-		return w.message(this.#encode.bind(this));
+		Message.encode(w, this.#encode.bind(this));
 	}
 
 	static async decode(r: Reader): Promise<Group> {
-		return r.message(Group.#decode);
+		return Message.decode(r, Group.#decode);
 	}
 
 	static async decodeMaybe(r: Reader): Promise<Group | undefined> {
-		return r.messageMaybe(Group.#decode);
+		return Message.decodeMaybe(r, Group.#decode);
 	}
 }
 
@@ -53,15 +54,15 @@ export class GroupDrop {
 	}
 
 	async encode(w: Writer): Promise<void> {
-		return w.message(this.#encode.bind(this));
+		Message.encode(w, this.#encode.bind(this));
 	}
 
 	static async decode(r: Reader): Promise<GroupDrop> {
-		return r.message(GroupDrop.#decode);
+		return Message.decode(r, GroupDrop.#decode);
 	}
 
 	static async decodeMaybe(r: Reader): Promise<GroupDrop | undefined> {
-		return r.messageMaybe(GroupDrop.#decode);
+		return Message.decodeMaybe(r, GroupDrop.#decode);
 	}
 }
 
@@ -82,10 +83,10 @@ export class Frame {
 	}
 
 	async encode(w: Writer): Promise<void> {
-		return w.message(this.#encode.bind(this));
+		Message.encode(w, this.#encode.bind(this));
 	}
 
 	static async decode(r: Reader): Promise<Frame> {
-		return r.message(Frame.#decode);
+		return Message.decode(r, Frame.#decode);
 	}
 }

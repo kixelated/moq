@@ -1,45 +1,55 @@
 import { Mutex } from "async-mutex";
-import type { Reader, Stream as StreamInner } from "../stream.ts";
-import { Announce, AnnounceCancel, AnnounceError, AnnounceOk, Unannounce } from "./announce.ts";
+import type { Stream as StreamInner } from "../stream.ts";
+import {
+	PublishNamespace,
+	PublishNamespaceCancel,
+	PublishNamespaceDone,
+	PublishNamespaceError,
+	PublishNamespaceOk,
+} from "./announce.ts";
 import { Fetch, FetchCancel, FetchError, FetchOk } from "./fetch.ts";
 import { GoAway } from "./goaway.ts";
+import { Publish, PublishError, PublishOk } from "./publish.ts";
 import * as Setup from "./setup.ts";
-import { Subscribe, SubscribeDone, SubscribeError, SubscribeOk, Unsubscribe } from "./subscribe.ts";
+import { PublishDone, Subscribe, SubscribeError, SubscribeOk, Unsubscribe } from "./subscribe.ts";
 import {
-	SubscribeAnnounces,
-	SubscribeAnnouncesError,
-	SubscribeAnnouncesOk,
-	UnsubscribeAnnounces,
+	SubscribeNamespace,
+	SubscribeNamespaceError,
+	SubscribeNamespaceOk,
+	UnsubscribeNamespace,
 } from "./subscribe_announces.ts";
 import { TrackStatus, TrackStatusRequest } from "./track.ts";
 
 /**
- * Control message types as defined in moq-transport-07
+ * Control message types as defined in moq-transport-14
  */
 const Messages = {
-	[Setup.Client.id]: Setup.Client,
-	[Setup.Server.id]: Setup.Server,
+	[Setup.ClientSetup.id]: Setup.ClientSetup,
+	[Setup.ServerSetup.id]: Setup.ServerSetup,
 	[Subscribe.id]: Subscribe,
 	[SubscribeOk.id]: SubscribeOk,
 	[SubscribeError.id]: SubscribeError,
-	[Announce.id]: Announce,
-	[AnnounceOk.id]: AnnounceOk,
-	[AnnounceError.id]: AnnounceError,
-	[Unannounce.id]: Unannounce,
+	[PublishNamespace.id]: PublishNamespace,
+	[PublishNamespaceOk.id]: PublishNamespaceOk,
+	[PublishNamespaceError.id]: PublishNamespaceError,
+	[PublishNamespaceDone.id]: PublishNamespaceDone,
 	[Unsubscribe.id]: Unsubscribe,
-	[SubscribeDone.id]: SubscribeDone,
-	[AnnounceCancel.id]: AnnounceCancel,
+	[PublishDone.id]: PublishDone,
+	[PublishNamespaceCancel.id]: PublishNamespaceCancel,
 	[TrackStatusRequest.id]: TrackStatusRequest,
 	[TrackStatus.id]: TrackStatus,
 	[GoAway.id]: GoAway,
 	[Fetch.id]: Fetch,
+	[FetchCancel.id]: FetchCancel,
 	[FetchOk.id]: FetchOk,
 	[FetchError.id]: FetchError,
-	[FetchCancel.id]: FetchCancel,
-	[SubscribeAnnounces.id]: SubscribeAnnounces,
-	[SubscribeAnnouncesOk.id]: SubscribeAnnouncesOk,
-	[SubscribeAnnouncesError.id]: SubscribeAnnouncesError,
-	[UnsubscribeAnnounces.id]: UnsubscribeAnnounces,
+	[SubscribeNamespace.id]: SubscribeNamespace,
+	[SubscribeNamespaceOk.id]: SubscribeNamespaceOk,
+	[SubscribeNamespaceError.id]: SubscribeNamespaceError,
+	[UnsubscribeNamespace.id]: UnsubscribeNamespace,
+	[Publish.id]: Publish,
+	[PublishOk.id]: PublishOk,
+	[PublishError.id]: PublishError,
 } as const;
 
 export type MessageId = keyof typeof Messages;
@@ -61,7 +71,7 @@ export class Stream {
 
 	/**
 	 * Writes a control message to the control stream with proper framing.
-	 * Format: Message Type (varint) + Message Length (varint) + Message Payload
+	 * Format: Message Type (varint) + Message Length (u16) + Message Payload
 	 */
 	async write<T extends Message>(message: T): Promise<void> {
 		console.debug("message write", message);
@@ -70,8 +80,8 @@ export class Stream {
 			// Write message type
 			await this.stream.writer.u53((message.constructor as MessageType).id);
 
-			// Write message payload
-			await this.stream.writer.message(message.encodeMessage.bind(message));
+			// Write message payload with u16 size prefix
+			await message.encode(this.stream.writer);
 		});
 	}
 
@@ -87,8 +97,7 @@ export class Stream {
 			}
 
 			try {
-				const f: (r: Reader) => Promise<Message> = Messages[messageType].decodeMessage;
-				const msg = await this.stream.reader.message(f);
+				const msg = await Messages[messageType].decode(this.stream.reader);
 				console.debug("message read", msg);
 				return msg;
 			} catch (err) {

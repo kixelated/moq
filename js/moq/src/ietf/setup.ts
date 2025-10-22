@@ -1,5 +1,5 @@
 import type { Reader, Writer } from "../stream.ts";
-import { CURRENT_VERSION } from "./version.ts";
+import * as Message from "./message.ts";
 
 const MAX_VERSIONS = 128;
 
@@ -11,12 +11,20 @@ export class Role {
 		this.role = role;
 	}
 
-	async encodeMessage(w: Writer): Promise<void> {
+	async #encode(w: Writer): Promise<void> {
 		const value = this.role === "publisher" ? 0x01 : this.role === "subscriber" ? 0x02 : 0x03;
 		await w.u53(value);
 	}
 
-	static async decodeMessage(r: Reader): Promise<Role> {
+	async encode(w: Writer): Promise<void> {
+		return Message.encode(w, this.#encode.bind(this));
+	}
+
+	static async decode(r: Reader): Promise<Role> {
+		return Message.decode(r, Role.#decode);
+	}
+
+	static async #decode(r: Reader): Promise<Role> {
 		const value = await r.u53();
 		switch (value) {
 			case 0x01:
@@ -40,11 +48,19 @@ export class Path {
 		this.path = path;
 	}
 
-	async encodeMessage(w: Writer): Promise<void> {
+	async #encode(w: Writer): Promise<void> {
 		await w.string(this.path);
 	}
 
-	static async decodeMessage(r: Reader): Promise<Path> {
+	async encode(w: Writer): Promise<void> {
+		return Message.encode(w, this.#encode.bind(this));
+	}
+
+	static async decode(r: Reader): Promise<Path> {
+		return Message.decode(r, Path.#decode);
+	}
+
+	static async #decode(r: Reader): Promise<Path> {
 		const path = await r.string();
 		return new Path(path);
 	}
@@ -59,11 +75,19 @@ export class MaxSubscribeId {
 		this.maxSubscribeId = maxSubscribeId;
 	}
 
-	async encodeMessage(w: Writer): Promise<void> {
+	async #encode(w: Writer): Promise<void> {
 		await w.u53(this.maxSubscribeId);
 	}
 
-	static async decodeMessage(r: Reader): Promise<MaxSubscribeId> {
+	async encode(w: Writer): Promise<void> {
+		return Message.encode(w, this.#encode.bind(this));
+	}
+
+	static async decode(r: Reader): Promise<MaxSubscribeId> {
+		return Message.decode(r, MaxSubscribeId.#decode);
+	}
+
+	static async #decode(r: Reader): Promise<MaxSubscribeId> {
 		const maxSubscribeId = await r.u53();
 		return new MaxSubscribeId(maxSubscribeId);
 	}
@@ -82,18 +106,22 @@ export type ParameterType = (typeof Parameters)[keyof typeof Parameters];
 // Type for control message instances (not constructors)
 export type Parameter = InstanceType<ParameterType>;
 
-export class Client {
-	static id = 0x40;
+export class ClientSetup {
+	static id = 0x20;
 
+	versions: number[];
 	parameters: Parameter[];
 
-	constructor(...parameters: Parameter[]) {
+	constructor(versions: number[], ...parameters: Parameter[]) {
+		this.versions = versions;
 		this.parameters = parameters;
 	}
 
-	async encodeMessage(w: Writer): Promise<void> {
-		await w.u8(0x01); // 1 support version
-		await w.u53(CURRENT_VERSION);
+	async #encode(w: Writer): Promise<void> {
+		await w.u53(this.versions.length);
+		for (const v of this.versions) {
+			await w.u53(v);
+		}
 
 		// Number of parameters
 		await w.u53(this.parameters.length);
@@ -101,11 +129,15 @@ export class Client {
 		// Parameters
 		for (const parameter of this.parameters) {
 			await w.u53((parameter.constructor as ParameterType).id);
-			await w.message(parameter.encodeMessage.bind(parameter));
+			await parameter.encode(w);
 		}
 	}
 
-	static async decodeMessage(r: Reader): Promise<Client> {
+	async encode(w: Writer): Promise<void> {
+		return Message.encode(w, this.#encode.bind(this));
+	}
+
+	static async #decode(r: Reader): Promise<ClientSetup> {
 		// Number of supported versions
 		const numVersions = await r.u53();
 		if (numVersions > MAX_VERSIONS) {
@@ -119,10 +151,6 @@ export class Client {
 			supportedVersions.push(version);
 		}
 
-		if (!supportedVersions.some((v) => v === CURRENT_VERSION)) {
-			throw new Error(`unsupported versions: ${supportedVersions.join(", ")}`);
-		}
-
 		// Number of parameters
 		const numParams = await r.u53();
 		const parameters: Parameter[] = [];
@@ -133,25 +161,30 @@ export class Client {
 			if (!f) {
 				throw new Error(`unknown parameter: ${key}`);
 			}
-			parameters.push(await f.decodeMessage(r));
+			parameters.push(await f.decode(r));
 		}
 
-		return new Client(...parameters);
+		return new ClientSetup(supportedVersions, ...parameters);
+	}
+
+	static async decode(r: Reader): Promise<ClientSetup> {
+		return Message.decode(r, ClientSetup.#decode);
 	}
 }
 
-export class Server {
-	static id = 0x41;
+export class ServerSetup {
+	static id = 0x21;
 
+	version: number;
 	parameters: Parameter[];
 
-	constructor(...parameters: Parameter[]) {
+	constructor(version: number, ...parameters: Parameter[]) {
+		this.version = version;
 		this.parameters = parameters;
 	}
 
-	async encodeMessage(w: Writer): Promise<void> {
-		// Selected version
-		await w.u53(CURRENT_VERSION);
+	async #encode(w: Writer): Promise<void> {
+		await w.u53(this.version);
 
 		// Number of parameters
 		await w.u53(this.parameters.length);
@@ -159,16 +192,17 @@ export class Server {
 		// Parameters
 		for (const parameter of this.parameters) {
 			await w.u53((parameter.constructor as ParameterType).id);
-			await w.message(parameter.encodeMessage.bind(parameter));
+			await parameter.encode(w);
 		}
 	}
 
-	static async decodeMessage(r: Reader): Promise<Server> {
+	async encode(w: Writer): Promise<void> {
+		return Message.encode(w, this.#encode.bind(this));
+	}
+
+	static async #decode(r: Reader): Promise<ServerSetup> {
 		// Selected version
 		const selectedVersion = await r.u53();
-		if (selectedVersion !== CURRENT_VERSION) {
-			throw new Error(`unsupported server version: ${selectedVersion.toString(16)}`);
-		}
 
 		// Number of parameters
 		const numParams = await r.u53();
@@ -181,11 +215,14 @@ export class Server {
 				throw new Error(`Unknown parameter type: ${parameterType}`);
 			}
 
-			const f: (r: Reader) => Promise<Parameter> = Parameters[parameterType].decodeMessage;
-			const parameter = await r.message(f);
+			const parameter = await Parameters[parameterType].decode(r);
 			parameters.push(parameter);
 		}
 
-		return new Server(...parameters);
+		return new ServerSetup(selectedVersion, ...parameters);
+	}
+
+	static async decode(r: Reader): Promise<ServerSetup> {
+		return Message.decode(r, ServerSetup.#decode);
 	}
 }

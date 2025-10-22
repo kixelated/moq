@@ -20,4 +20,4 @@ export type Version = (typeof Version)[keyof typeof Version];
 /**
  * The current/default version used by this implementation
  */
-export const CURRENT_VERSION = Version.DRAFT_07;
+export const CURRENT_VERSION = Version.DRAFT_14;

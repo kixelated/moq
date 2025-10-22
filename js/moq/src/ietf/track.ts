@@ -1,5 +1,6 @@
 import type * as Path from "../path.ts";
 import type { Reader, Writer } from "../stream.ts";
+import * as Message from "./message.ts";
 import * as Namespace from "./namespace.ts";
 
 export class TrackStatusRequest {
@@ -13,12 +14,20 @@ export class TrackStatusRequest {
 		this.trackName = trackName;
 	}
 
-	async encodeMessage(w: Writer): Promise<void> {
+	async #encode(w: Writer): Promise<void> {
 		await Namespace.encode(w, this.trackNamespace);
 		await w.string(this.trackName);
 	}
 
-	static async decodeMessage(r: Reader): Promise<TrackStatusRequest> {
+	async encode(w: Writer): Promise<void> {
+		return Message.encode(w, this.#encode.bind(this));
+	}
+
+	static async decode(r: Reader): Promise<TrackStatusRequest> {
+		return Message.decode(r, TrackStatusRequest.#decode);
+	}
+
+	static async #decode(r: Reader): Promise<TrackStatusRequest> {
 		const trackNamespace = await Namespace.decode(r);
 		const trackName = await r.string();
 		return new TrackStatusRequest(trackNamespace, trackName);
@@ -49,7 +58,7 @@ export class TrackStatus {
 		this.lastObjectId = lastObjectId;
 	}
 
-	async encodeMessage(w: Writer): Promise<void> {
+	async #encode(w: Writer): Promise<void> {
 		await Namespace.encode(w, this.trackNamespace);
 		await w.string(this.trackName);
 		await w.u62(BigInt(this.statusCode));
@@ -57,7 +66,15 @@ export class TrackStatus {
 		await w.u62(this.lastObjectId);
 	}
 
-	static async decodeMessage(r: Reader): Promise<TrackStatus> {
+	async encode(w: Writer): Promise<void> {
+		return Message.encode(w, this.#encode.bind(this));
+	}
+
+	static async decode(r: Reader): Promise<TrackStatus> {
+		return Message.decode(r, TrackStatus.#decode);
+	}
+
+	static async #decode(r: Reader): Promise<TrackStatus> {
 		const trackNamespace = await Namespace.decode(r);
 		const trackName = await r.string();
 		const statusCode = Number(await r.u62());

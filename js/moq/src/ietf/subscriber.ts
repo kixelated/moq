@@ -5,11 +5,11 @@ import * as Path from "../path.js";
 import type { Reader } from "../stream.ts";
 import type { Track } from "../track.ts";
 import { error } from "../util/error.ts";
-import type { Announce, Unannounce } from "./announce.ts";
+import type { PublishNamespace, PublishNamespaceDone } from "./announce.ts";
 import type * as Control from "./control.ts";
 import { Frame, type Group as GroupMessage } from "./object.ts";
-import { Subscribe, type SubscribeDone, type SubscribeError, type SubscribeOk, Unsubscribe } from "./subscribe.ts";
-import type { SubscribeAnnouncesError, SubscribeAnnouncesOk } from "./subscribe_announces.ts";
+import { type PublishDone, Subscribe, type SubscribeError, type SubscribeOk, Unsubscribe } from "./subscribe.ts";
+import type { SubscribeNamespaceError, SubscribeNamespaceOk } from "./subscribe_announces.ts";
 import type { TrackStatus } from "./track.ts";
 
 /**
@@ -84,16 +84,16 @@ export class Subscriber {
 	}
 
 	async #runSubscribe(broadcast: Path.Valid, request: TrackRequest) {
-		const subscribeId = this.#subscribeNext++;
+		const requestId = this.#subscribeNext++;
 
 		// Save the writer so we can append groups to it.
-		this.#subscribes.set(subscribeId, request.track);
+		this.#subscribes.set(requestId, request.track);
 
-		const msg = new Subscribe(subscribeId, subscribeId, broadcast, request.track.name, request.priority);
+		const msg = new Subscribe(requestId, broadcast, request.track.name, request.priority);
 
 		// Send SUBSCRIBE message on control stream and wait for response
 		const responsePromise = new Promise<SubscribeOk>((resolve, reject) => {
-			this.#subscribeCallbacks.set(subscribeId, { resolve, reject });
+			this.#subscribeCallbacks.set(requestId, { resolve, reject });
 		});
 
 		await this.#control.write(msg);
@@ -102,14 +102,14 @@ export class Subscriber {
 			await responsePromise;
 			await request.track.closed;
 
-			const msg = new Unsubscribe(subscribeId);
+			const msg = new Unsubscribe(requestId);
 			await this.#control.write(msg);
 		} catch (err) {
 			const e = error(err);
 			request.track.close(e);
 		} finally {
-			this.#subscribes.delete(subscribeId);
-			this.#subscribeCallbacks.delete(subscribeId);
+			this.#subscribes.delete(requestId);
+			this.#subscribeCallbacks.delete(requestId);
 		}
 	}
 
@@ -120,7 +120,7 @@ export class Subscriber {
 	 * @internal
 	 */
 	async handleSubscribeOk(msg: SubscribeOk) {
-		const callback = this.#subscribeCallbacks.get(msg.subscribeId);
+		const callback = this.#subscribeCallbacks.get(msg.requestId);
 		if (callback) {
 			callback.resolve(msg);
 		}
@@ -133,7 +133,7 @@ export class Subscriber {
 	 * @internal
 	 */
 	async handleSubscribeError(msg: SubscribeError) {
-		const callback = this.#subscribeCallbacks.get(msg.subscribeId);
+		const callback = this.#subscribeCallbacks.get(msg.requestId);
 		if (callback) {
 			callback.reject(new Error(`SUBSCRIBE_ERROR: code=${msg.errorCode} reason=${msg.reasonPhrase}`));
 		}
@@ -179,38 +179,38 @@ export class Subscriber {
 	}
 
 	/**
-	 * Handles a SUBSCRIBE_DONE control message received on the control stream.
-	 * @param msg - The SUBSCRIBE_DONE message
+	 * Handles a PUBLISH_DONE control message received on the control stream.
+	 * @param msg - The PUBLISH_DONE message
 	 */
-	async handleSubscribeDone(msg: SubscribeDone) {
+	async handlePublishDone(msg: PublishDone) {
 		// For lite compatibility, we treat this as subscription completion
-		const callback = this.#subscribeCallbacks.get(msg.subscribeId);
+		const callback = this.#subscribeCallbacks.get(msg.requestId);
 		if (callback) {
-			callback.reject(new Error(`SUBSCRIBE_DONE: code=${msg.statusCode} reason=${msg.reasonPhrase}`));
+			callback.reject(new Error(`PUBLISH_DONE: code=${msg.statusCode} reason=${msg.reasonPhrase}`));
 		}
 	}
 
 	/**
-	 * Handles an ANNOUNCE control message received on the control stream.
-	 * @param msg - The ANNOUNCE message
+	 * Handles a PUBLISH_NAMESPACE control message received on the control stream.
+	 * @param msg - The PUBLISH_NAMESPACE message
 	 */
-	async handleAnnounce(_msg: Announce) {
+	async handlePublishNamespace(_msg: PublishNamespace) {
 		// TODO implement once Cloudflare supports it
 	}
 
 	/**
-	 * Handles an UNANNOUNCE control message received on the control stream.
-	 * @param msg - The UNANNOUNCE message
+	 * Handles a PUBLISH_NAMESPACE_DONE control message received on the control stream.
+	 * @param msg - The PUBLISH_NAMESPACE_DONE message
 	 */
-	async handleUnannounce(_msg: Unannounce) {
+	async handlePublishNamespaceDone(_msg: PublishNamespaceDone) {
 		// TODO implement once Cloudflare supports it
 	}
 
-	async handleSubscribeAnnouncesOk(_msg: SubscribeAnnouncesOk) {
+	async handleSubscribeNamespaceOk(_msg: SubscribeNamespaceOk) {
 		// TODO
 	}
 
-	async handleSubscribeAnnouncesError(_msg: SubscribeAnnouncesError) {
+	async handleSubscribeNamespaceError(_msg: SubscribeNamespaceError) {
 		// TODO
 	}
 

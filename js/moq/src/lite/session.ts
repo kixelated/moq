@@ -1,4 +1,5 @@
 import type { Reader, Writer } from "../stream.ts";
+import * as Message from "./message.ts";
 
 export const Version = {
 	DRAFT_00: 0xff000000,
@@ -96,11 +97,11 @@ export class SessionClient {
 	}
 
 	async encode(w: Writer): Promise<void> {
-		return w.message(this.#encode.bind(this));
+		return Message.encode(w, this.#encode.bind(this));
 	}
 
 	static async decode(r: Reader): Promise<SessionClient> {
-		return r.message(SessionClient.#decode);
+		return Message.decode(r, SessionClient.#decode);
 	}
 }
 
@@ -125,11 +126,11 @@ export class SessionServer {
 	}
 
 	async encode(w: Writer): Promise<void> {
-		return w.message(this.#encode.bind(this));
+		return Message.encode(w, this.#encode.bind(this));
 	}
 
 	static async decode(r: Reader): Promise<SessionServer> {
-		return r.message(SessionServer.#decode);
+		return Message.decode(r, SessionServer.#decode);
 	}
 }
 
@@ -150,15 +151,14 @@ export class SessionInfo {
 	}
 
 	async encode(w: Writer): Promise<void> {
-		return w.message(this.#encode.bind(this));
+		return Message.encode(w, this.#encode.bind(this));
 	}
 
 	static async decode(r: Reader): Promise<SessionInfo> {
-		return r.message(SessionInfo.#decode);
+		return Message.decode(r, SessionInfo.#decode);
 	}
 
 	static async decodeMaybe(r: Reader): Promise<SessionInfo | undefined> {
-		if (await r.done()) return;
-		return await SessionInfo.decode(r);
+		return Message.decodeMaybe(r, SessionInfo.#decode);
 	}
 }

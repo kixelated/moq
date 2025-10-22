@@ -4,19 +4,26 @@ import type { Established } from "../connection/established.ts";
 import * as Path from "../path.js";
 import { type Reader, Readers, type Stream } from "../stream.ts";
 import { unreachable } from "../util/index.ts";
-import { Announce, AnnounceCancel, AnnounceError, AnnounceOk, Unannounce } from "./announce.ts";
+import {
+	PublishNamespace,
+	PublishNamespaceCancel,
+	PublishNamespaceDone,
+	PublishNamespaceError,
+	PublishNamespaceOk,
+} from "./announce.ts";
 import * as Control from "./control.ts";
-import { Fetch, FetchError, FetchOk } from "./fetch.ts";
+import { Fetch, FetchCancel, FetchError, FetchOk } from "./fetch.ts";
 import { GoAway } from "./goaway.ts";
 import { Group as GroupMessage, readStreamType } from "./object.ts";
+import { Publish, PublishError, PublishOk } from "./publish.ts";
 import { Publisher } from "./publisher.ts";
 import * as Setup from "./setup.ts";
-import { Subscribe, SubscribeDone, SubscribeError, SubscribeOk, Unsubscribe } from "./subscribe.ts";
+import { PublishDone, Subscribe, SubscribeError, SubscribeOk, Unsubscribe } from "./subscribe.ts";
 import {
-	SubscribeAnnounces,
-	SubscribeAnnouncesError,
-	SubscribeAnnouncesOk,
-	UnsubscribeAnnounces,
+	SubscribeNamespace,
+	SubscribeNamespaceError,
+	SubscribeNamespaceOk,
+	UnsubscribeNamespace,
 } from "./subscribe_announces.ts";
 import { Subscriber } from "./subscriber.ts";
 import { TrackStatus, TrackStatusRequest } from "./track.ts";
@@ -131,48 +138,54 @@ export class Connection implements Established {
 					await this.#publisher.handleUnsubscribe(msg);
 				} else if (msg instanceof TrackStatusRequest) {
 					await this.#publisher.handleTrackStatusRequest(msg);
-				} else if (msg instanceof AnnounceOk) {
-					await this.#publisher.handleAnnounceOk(msg);
-				} else if (msg instanceof AnnounceError) {
-					await this.#publisher.handleAnnounceError(msg);
-				} else if (msg instanceof AnnounceCancel) {
-					await this.#publisher.handleAnnounceCancel(msg);
+				} else if (msg instanceof PublishNamespaceOk) {
+					await this.#publisher.handlePublishNamespaceOk(msg);
+				} else if (msg instanceof PublishNamespaceError) {
+					await this.#publisher.handlePublishNamespaceError(msg);
+				} else if (msg instanceof PublishNamespaceCancel) {
+					await this.#publisher.handlePublishNamespaceCancel(msg);
 					// Messages sent by Publisher, received by Subscriber:
-				} else if (msg instanceof Announce) {
-					await this.#subscriber.handleAnnounce(msg);
-				} else if (msg instanceof Unannounce) {
-					await this.#subscriber.handleUnannounce(msg);
+				} else if (msg instanceof PublishNamespace) {
+					await this.#subscriber.handlePublishNamespace(msg);
+				} else if (msg instanceof PublishNamespaceDone) {
+					await this.#subscriber.handlePublishNamespaceDone(msg);
 				} else if (msg instanceof SubscribeOk) {
 					await this.#subscriber.handleSubscribeOk(msg);
 				} else if (msg instanceof SubscribeError) {
 					await this.#subscriber.handleSubscribeError(msg);
-				} else if (msg instanceof SubscribeDone) {
-					await this.#subscriber.handleSubscribeDone(msg);
+				} else if (msg instanceof PublishDone) {
+					await this.#subscriber.handlePublishDone(msg);
 				} else if (msg instanceof TrackStatus) {
 					await this.#subscriber.handleTrackStatus(msg);
 					// Other messages:
 				} else if (msg instanceof GoAway) {
 					await this.#handleGoAway(msg);
-				} else if (msg instanceof Setup.Client) {
+				} else if (msg instanceof Setup.ClientSetup) {
 					await this.#handleClientSetup(msg);
-				} else if (msg instanceof Setup.Server) {
+				} else if (msg instanceof Setup.ServerSetup) {
 					await this.#handleServerSetup(msg);
-				} else if (msg instanceof SubscribeAnnounces) {
-					await this.#publisher.handleSubscribeAnnounces(msg);
-				} else if (msg instanceof SubscribeAnnouncesOk) {
-					await this.#subscriber.handleSubscribeAnnouncesOk(msg);
-				} else if (msg instanceof SubscribeAnnouncesError) {
-					await this.#subscriber.handleSubscribeAnnouncesError(msg);
-				} else if (msg instanceof UnsubscribeAnnounces) {
-					await this.#publisher.handleUnsubscribeAnnounces(msg);
+				} else if (msg instanceof SubscribeNamespace) {
+					await this.#publisher.handleSubscribeNamespace(msg);
+				} else if (msg instanceof SubscribeNamespaceOk) {
+					await this.#subscriber.handleSubscribeNamespaceOk(msg);
+				} else if (msg instanceof SubscribeNamespaceError) {
+					await this.#subscriber.handleSubscribeNamespaceError(msg);
+				} else if (msg instanceof UnsubscribeNamespace) {
+					await this.#publisher.handleUnsubscribeNamespace(msg);
+				} else if (msg instanceof Publish) {
+					// Publish messages are not yet supported
+				} else if (msg instanceof PublishOk) {
+					// Publish messages are not yet supported
+				} else if (msg instanceof PublishError) {
+					// Publish messages are not yet supported
 				} else if (msg instanceof Fetch) {
-					// no
+					// Fetch messages are not supported
 				} else if (msg instanceof FetchOk) {
-					// no
+					// Fetch messages are not supported
 				} else if (msg instanceof FetchError) {
-					// no
-					// } else if (msg instanceof FetchCancel) {
-					// For some reason Typescript doesn't like FetchCancel?
+					// Fetch messages are not supported
+				} else if (msg instanceof FetchCancel) {
+					// Fetch messages are not supported
 				} else {
 					unreachable(msg);
 				}
@@ -200,7 +213,7 @@ export class Connection implements Established {
 	 * Handles an unexpected CLIENT_SETUP control message.
 	 * @param msg - The CLIENT_SETUP message
 	 */
-	async #handleClientSetup(_msg: Setup.Client) {
+	async #handleClientSetup(_msg: Setup.ClientSetup) {
 		console.error("Unexpected CLIENT_SETUP message received after connection established");
 		this.close();
 	}
@@ -209,7 +222,7 @@ export class Connection implements Established {
 	 * Handles an unexpected SERVER_SETUP control message.
 	 * @param msg - The SERVER_SETUP message
 	 */
-	async #handleServerSetup(_msg: Setup.Server) {
+	async #handleServerSetup(_msg: Setup.ServerSetup) {
 		console.error("Unexpected SERVER_SETUP message received after connection established");
 		this.close();
 	}

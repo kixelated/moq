@@ -1,5 +1,6 @@
 import type * as Path from "../path.ts";
 import type { Reader, Writer } from "../stream.ts";
+import * as Message from "./message.ts";
 
 export class Fetch {
 	static id = 0x16;
@@ -36,11 +37,19 @@ export class Fetch {
 		this.endObject = endObject;
 	}
 
-	async encodeMessage(_w: Writer): Promise<void> {
+	async #encode(_w: Writer): Promise<void> {
 		throw new Error("FETCH messages are not supported");
 	}
 
-	static async decodeMessage(_r: Reader): Promise<Fetch> {
+	async encode(w: Writer): Promise<void> {
+		return Message.encode(w, this.#encode.bind(this));
+	}
+
+	static async decode(r: Reader): Promise<Fetch> {
+		return Message.decode(r, Fetch.#decode);
+	}
+
+	static async #decode(_r: Reader): Promise<Fetch> {
 		throw new Error("FETCH messages are not supported");
 	}
 }
@@ -54,11 +63,19 @@ export class FetchOk {
 		this.subscribeId = subscribeId;
 	}
 
-	async encodeMessage(_w: Writer): Promise<void> {
+	async #encode(_w: Writer): Promise<void> {
 		throw new Error("FETCH_OK messages are not supported");
 	}
 
-	static async decodeMessage(_r: Reader): Promise<FetchOk> {
+	async encode(w: Writer): Promise<void> {
+		return Message.encode(w, this.#encode.bind(this));
+	}
+
+	static async decode(r: Reader): Promise<FetchOk> {
+		return Message.decode(r, FetchOk.#decode);
+	}
+
+	static async #decode(_r: Reader): Promise<FetchOk> {
 		throw new Error("FETCH_OK messages are not supported");
 	}
 }
@@ -76,11 +93,19 @@ export class FetchError {
 		this.reasonPhrase = reasonPhrase;
 	}
 
-	async encodeMessage(_w: Writer): Promise<void> {
+	async #encode(_w: Writer): Promise<void> {
 		throw new Error("FETCH_ERROR messages are not supported");
 	}
 
-	static async decodeMessage(_r: Reader): Promise<FetchError> {
+	async encode(w: Writer): Promise<void> {
+		return Message.encode(w, this.#encode.bind(this));
+	}
+
+	static async decode(r: Reader): Promise<FetchError> {
+		return Message.decode(r, FetchError.#decode);
+	}
+
+	static async #decode(_r: Reader): Promise<FetchError> {
 		throw new Error("FETCH_ERROR messages are not supported");
 	}
 }
@@ -94,11 +119,19 @@ export class FetchCancel {
 		this.subscribeId = subscribeId;
 	}
 
-	async encodeMessage(_w: Writer): Promise<void> {
+	async #encode(_w: Writer): Promise<void> {
 		throw new Error("FETCH_CANCEL messages are not supported");
 	}
 
-	static async decodeMessage(_r: Reader): Promise<FetchCancel> {
+	async encode(w: Writer): Promise<void> {
+		return Message.encode(w, this.#encode.bind(this));
+	}
+
+	static async decode(r: Reader): Promise<FetchCancel> {
+		return Message.decode(r, FetchCancel.#decode);
+	}
+
+	static async #decode(_r: Reader): Promise<FetchCancel> {
 		throw new Error("FETCH_CANCEL messages are not supported");
 	}
 }

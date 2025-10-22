@@ -10,6 +10,6 @@ export const StreamId = {
 	Session: 0,
 	Announce: 1,
 	Subscribe: 2,
-	ClientCompat: 0x40,
-	ServerCompat: 0x41,
+	ClientCompat: 0x20,
+	ServerCompat: 0x21,
 } as const;

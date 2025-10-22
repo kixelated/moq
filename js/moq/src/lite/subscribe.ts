@@ -1,5 +1,6 @@
 import * as Path from "../path.ts";
 import type { Reader, Writer } from "../stream.ts";
+import * as Message from "./message.ts";
 
 export class SubscribeUpdate {
 	priority: number;
@@ -18,16 +19,15 @@ export class SubscribeUpdate {
 	}
 
 	async encode(w: Writer): Promise<void> {
-		return w.message(this.#encode.bind(this));
+		return Message.encode(w, this.#encode.bind(this));
 	}
 
 	static async decode(r: Reader): Promise<SubscribeUpdate> {
-		return r.message(SubscribeUpdate.#decode);
+		return Message.decode(r, SubscribeUpdate.#decode);
 	}
 
 	static async decodeMaybe(r: Reader): Promise<SubscribeUpdate | undefined> {
-		if (await r.done()) return;
-		return SubscribeUpdate.decode(r);
+		return Message.decodeMaybe(r, SubscribeUpdate.#decode);
 	}
 }
 
@@ -60,11 +60,11 @@ export class Subscribe {
 	}
 
 	async encode(w: Writer): Promise<void> {
-		return w.message(this.#encode.bind(this));
+		return Message.encode(w, this.#encode.bind(this));
 	}
 
 	static async decode(r: Reader): Promise<Subscribe> {
-		return r.message(Subscribe.#decode);
+		return Message.decode(r, Subscribe.#decode);
 	}
 }
 
@@ -85,10 +85,10 @@ export class SubscribeOk {
 	}
 
 	async encode(w: Writer): Promise<void> {
-		return w.message(this.#encode.bind(this));
+		return Message.encode(w, this.#encode.bind(this));
 	}
 
 	static async decode(r: Reader): Promise<SubscribeOk> {
-		return r.message(SubscribeOk.#decode);
+		return Message.decode(r, SubscribeOk.#decode);
 	}
 }
