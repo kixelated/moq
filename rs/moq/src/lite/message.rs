@@ -1,6 +1,6 @@
 use bytes::{Buf, BufMut};
 
-use super::{Decode, DecodeError, Encode, Sizer};
+use crate::coding::{Decode, DecodeError, Encode, Sizer};
 
 /// A trait for messages that are automatically size-prefixed during encoding/decoding.
 ///

@@ -70,6 +70,9 @@ pub enum Error {
 
 	#[error("unsupported")]
 	Unsupported,
+
+	#[error("too large")]
+	TooLarge,
 }
 
 impl Error {
@@ -92,6 +95,7 @@ impl Error {
 			Self::ProtocolViolation => 15,
 			Self::UnexpectedMessage => 16,
 			Self::Unsupported => 17,
+			Self::TooLarge => 18,
 			Self::App(app) => *app + 64,
 		}
 	}

@@ -1,7 +1,8 @@
 use std::borrow::Cow;
 
 use crate::{
-	coding::{Decode, DecodeError, Encode, Message},
+	coding::{Decode, DecodeError, Encode},
+	lite::Message,
 	Path,
 };
 

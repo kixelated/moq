@@ -1,6 +1,6 @@
 use num_enum::{IntoPrimitive, TryFromPrimitive};
 
-use crate::{coding::*, Path};
+use crate::{coding::*, lite::Message, Path};
 
 /// Sent by the publisher to announce the availability of a track.
 /// The payload contains the contents of the wildcard.

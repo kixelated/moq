@@ -6,9 +6,21 @@ pub trait Encode: Sized {
 	fn encode<W: bytes::BufMut>(&self, w: &mut W);
 }
 
+impl Encode for bool {
+	fn encode<W: bytes::BufMut>(&self, w: &mut W) {
+		w.put_u8(*self as u8);
+	}
+}
+
 impl Encode for u8 {
 	fn encode<W: bytes::BufMut>(&self, w: &mut W) {
 		w.put_u8(*self);
+	}
+}
+
+impl Encode for u16 {
+	fn encode<W: bytes::BufMut>(&self, w: &mut W) {
+		w.put_u16(*self);
 	}
 }
 

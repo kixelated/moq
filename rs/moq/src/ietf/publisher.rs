@@ -37,16 +37,17 @@ impl<S: web_transport_trait::Session> Publisher<S> {
 
 			if active.is_some() {
 				tracing::debug!(broadcast = %self.origin.absolute(&path), "announce");
-				let msg = ietf::Announce {
+				let request_id = self.control.request_id();
+
+				self.control.send(ietf::PublishNamespace {
+					request_id,
 					track_namespace: suffix,
-				};
-				self.control.send(ietf::MessageId::Announce, msg)?;
+				})?;
 			} else {
 				tracing::debug!(broadcast = %self.origin.absolute(&path), "unannounce");
-				let msg = ietf::Unannounce {
+				self.control.send(ietf::PublishNamespaceDone {
 					track_namespace: suffix,
-				};
-				self.control.send(ietf::MessageId::Unannounce, msg)?;
+				})?;
 			}
 		}
 
@@ -54,25 +55,21 @@ impl<S: web_transport_trait::Session> Publisher<S> {
 	}
 
 	pub fn recv_subscribe(&mut self, msg: ietf::Subscribe<'_>) -> Result<(), Error> {
-		let id = msg.subscribe_id;
+		let request_id = msg.request_id;
 
 		let track = msg.track_name.clone();
 		let absolute = self.origin.absolute(&msg.track_namespace).to_owned();
 
-		tracing::info!(%id, broadcast = %absolute, %track, "subscribed started");
+		tracing::info!(id = %request_id, broadcast = %absolute, %track, "subscribed started");
 
 		let broadcast = match self.origin.consume_broadcast(&msg.track_namespace) {
 			Some(consumer) => consumer,
 			None => {
-				self.control.send(
-					ietf::MessageId::SubscribeError,
-					ietf::SubscribeError {
-						subscribe_id: id,
-						error_code: 404,
-						reason_phrase: "Broadcast not found".into(),
-						track_alias: msg.track_alias,
-					},
-				)?;
+				self.control.send(ietf::SubscribeError {
+					request_id,
+					error_code: 404,
+					reason_phrase: "Broadcast not found".into(),
+				})?;
 				return Ok(());
 			}
 		};
@@ -86,50 +83,35 @@ impl<S: web_transport_trait::Session> Publisher<S> {
 
 		let (tx, rx) = oneshot::channel();
 		let mut subscribes = self.subscribes.lock();
-		subscribes.insert(id, tx);
+		subscribes.insert(request_id, tx);
 
-		self.control.send(
-			ietf::MessageId::SubscribeOk,
-			ietf::SubscribeOk {
-				subscribe_id: id,
-				largest: None,
-			},
-		)?;
+		self.control.send(ietf::SubscribeOk { request_id })?;
 
 		let session = self.session.clone();
 		let control = self.control.clone();
-		let subscribe_id = msg.subscribe_id;
-		let track_alias = msg.track_alias;
+		let request_id = msg.request_id;
 		let subscribes = self.subscribes.clone();
 
 		web_async::spawn(async move {
-			if let Err(err) = Self::run_track(session, track, subscribe_id, track_alias, rx).await {
+			if let Err(err) = Self::run_track(session, track, request_id, rx).await {
 				control
-					.send(
-						ietf::MessageId::SubscribeError,
-						ietf::SubscribeError {
-							subscribe_id,
-							error_code: 500,
-							reason_phrase: err.to_string().into(),
-							track_alias: msg.track_alias,
-						},
-					)
+					.send(ietf::SubscribeError {
+						request_id,
+						error_code: 500,
+						reason_phrase: err.to_string().into(),
+					})
 					.ok();
 			} else {
 				control
-					.send(
-						ietf::MessageId::SubscribeDone,
-						ietf::SubscribeDone {
-							subscribe_id,
-							status_code: 200,
-							reason_phrase: "OK".into(),
-							final_group_object: None,
-						},
-					)
+					.send(ietf::PublishDone {
+						request_id,
+						status_code: 200,
+						reason_phrase: "OK".into(),
+					})
 					.ok();
 			}
 
-			subscribes.lock().remove(&subscribe_id);
+			subscribes.lock().remove(&request_id);
 		});
 
 		Ok(())
@@ -138,8 +120,7 @@ impl<S: web_transport_trait::Session> Publisher<S> {
 	async fn run_track(
 		session: S,
 		mut track: TrackConsumer,
-		subscribe_id: u64,
-		track_alias: u64,
+		request_id: u64,
 		mut cancel: oneshot::Receiver<()>,
 	) -> Result<(), Error> {
 		// TODO use a BTreeMap serve the latest N groups by sequence.
@@ -178,21 +159,25 @@ impl<S: web_transport_trait::Session> Publisher<S> {
 			let sequence = group.info.sequence;
 			let latest = new_sequence.as_ref().unwrap_or(&0);
 
-			tracing::debug!(subscribe = %subscribe_id, track = %track.info.name, sequence, latest, "serving group");
+			tracing::debug!(subscribe = %request_id, track = %track.info.name, sequence, latest, "serving group");
 
 			// If this group is older than the oldest group we're serving, skip it.
 			// We always serve at most two groups, but maybe we should serve only sequence >= MAX-1.
 			if sequence < *old_sequence.as_ref().unwrap_or(&0) {
-				tracing::debug!(subscribe = %subscribe_id, track = %track.info.name, old = %sequence, %latest, "skipping group");
+				tracing::debug!(subscribe = %request_id, track = %track.info.name, old = %sequence, %latest, "skipping group");
 				continue;
 			}
 
 			let priority = stream_priority(track.info.priority, sequence);
 			let msg = ietf::Group {
-				subscribe_id,
-				track_alias,
+				request_id,
 				group_id: sequence,
-				publisher_priority: track.info.priority,
+
+				// All of these flags are dumb
+				has_extensions: false,      // not using extensions
+				has_subgroup: false,        // not using subgroups
+				has_subgroup_object: false, // not using the first object to indicate the subgroup
+				has_end: true,              // no explicit end marker required
 			};
 
 			// Spawn a task to serve this group, ignoring any errors because they don't really matter.
@@ -201,7 +186,7 @@ impl<S: web_transport_trait::Session> Publisher<S> {
 
 			// Terminate the old group if it's still running.
 			if let Some(old_sequence) = old_sequence.take() {
-				tracing::debug!(subscribe = %subscribe_id, track = %track.info.name, old = %old_sequence, %latest, "aborting group");
+				tracing::debug!(subscribe = %request_id, track = %track.info.name, old = %old_sequence, %latest, "aborting group");
 				old_group.take(); // Drop the future to cancel it.
 			}
 
@@ -229,7 +214,6 @@ impl<S: web_transport_trait::Session> Publisher<S> {
 		stream.set_priority(priority);
 
 		let mut stream = Writer::new(stream);
-		stream.encode(&ietf::Group::STREAM_TYPE).await?;
 		stream.encode(&msg).await?;
 
 		loop {
@@ -246,18 +230,33 @@ impl<S: web_transport_trait::Session> Publisher<S> {
 
 			tracing::trace!(size = %frame.info.size, "writing frame");
 
+			// object id is always 0.
+			stream.encode(&0u8).await?;
+
+			// not using extensions.
+			if msg.has_extensions {
+				stream.encode(&0u8).await?;
+			}
+
+			// Write the size of the frame.
 			stream.encode(&frame.info.size).await?;
 
-			loop {
-				let chunk = tokio::select! {
-					biased;
-					_ = stream.closed() => return Err(Error::Cancel),
-					chunk = frame.read_chunk() => chunk,
-				};
+			if frame.info.size == 0 {
+				// Have to write the object status too.
+				stream.encode(&0u8).await?;
+			} else {
+				// Stream each chunk of the frame.
+				loop {
+					let chunk = tokio::select! {
+						biased;
+						_ = stream.closed() => return Err(Error::Cancel),
+						chunk = frame.read_chunk() => chunk,
+					};
 
-				match chunk? {
-					Some(mut chunk) => stream.write_all(&mut chunk).await?,
-					None => break,
+					match chunk? {
+						Some(mut chunk) => stream.write_all(&mut chunk).await?,
+						None => break,
+					}
 				}
 			}
 
@@ -273,25 +272,39 @@ impl<S: web_transport_trait::Session> Publisher<S> {
 
 	pub fn recv_unsubscribe(&mut self, msg: ietf::Unsubscribe) -> Result<(), Error> {
 		let mut subscribes = self.subscribes.lock();
-		if let Some(tx) = subscribes.remove(&msg.subscribe_id) {
+		if let Some(tx) = subscribes.remove(&msg.request_id) {
 			let _ = tx.send(());
 		}
 		Ok(())
 	}
 
-	pub fn recv_announce_ok(&mut self, _msg: ietf::AnnounceOk<'_>) -> Result<(), Error> {
+	pub fn recv_publish_namespace_ok(&mut self, _msg: ietf::PublishNamespaceOk) -> Result<(), Error> {
 		// We don't care.
 		Ok(())
 	}
 
-	pub fn recv_subscribe_announces(&mut self, _msg: ietf::SubscribeAnnounces<'_>) -> Result<(), Error> {
+	pub fn recv_subscribe_namespace(&mut self, _msg: ietf::SubscribeNamespace<'_>) -> Result<(), Error> {
 		// We don't care, we're sending all announcements anyway.
 		Ok(())
 	}
 
-	pub fn recv_unsubscribe_announces(&mut self, _msg: ietf::UnsubscribeAnnounces<'_>) -> Result<(), Error> {
+	pub fn recv_publish_namespace_error(&mut self, msg: ietf::PublishNamespaceError<'_>) -> Result<(), Error> {
+		tracing::warn!(?msg, "publish namespace error");
+		Ok(())
+	}
+
+	pub fn recv_unsubscribe_namespace(&mut self, _msg: ietf::UnsubscribeNamespace) -> Result<(), Error> {
 		// We don't care, we're sending all announcements anyway.
 		Ok(())
+	}
+
+	pub fn recv_publish_namespace_cancel(&mut self, msg: ietf::PublishNamespaceCancel<'_>) -> Result<(), Error> {
+		tracing::warn!(?msg, "publish namespace cancel");
+		Ok(())
+	}
+
+	pub fn recv_track_status_request(&mut self, _msg: ietf::TrackStatusRequest<'_>) -> Result<(), Error> {
+		Err(Error::Unsupported)
 	}
 }
 

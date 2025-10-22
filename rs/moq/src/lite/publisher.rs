@@ -31,11 +31,9 @@ impl<S: web_transport_trait::Session> Publisher<S> {
 			let kind = stream.reader.decode().await?;
 
 			if let Err(err) = match kind {
-				lite::ControlType::Session | lite::ControlType::ClientCompat | lite::ControlType::ServerCompat => {
-					Err(Error::UnexpectedStream)
-				}
 				lite::ControlType::Announce => self.recv_announce(stream).await,
 				lite::ControlType::Subscribe => self.recv_subscribe(stream).await,
+				_ => Err(Error::UnexpectedStream),
 			} {
 				tracing::warn!(%err, "control stream error");
 			}

@@ -1,8 +1,11 @@
 use std::sync::Arc;
 
+use bytes::BytesMut;
+
 use crate::{
-	coding::{self, Stream},
-	ietf, lite, Error, OriginConsumer, OriginProducer,
+	coding::{self, Encode, Stream},
+	ietf::{self, Message},
+	lite, Error, OriginConsumer, OriginProducer,
 };
 
 pub struct Session<S: web_transport_trait::Session> {
@@ -17,7 +20,7 @@ impl<S: web_transport_trait::Session> Session<S> {
 		Self { session }
 	}
 
-	/// Perform the MoQ handshake as a client.
+	/// Perform the MoQ handshake as a client, negotiating the version.
 	///
 	/// Publishing is performed with [OriginConsumer] and subscribing with [OriginProducer].
 	/// The connection remains active until the session is closed.
@@ -28,29 +31,33 @@ impl<S: web_transport_trait::Session> Session<S> {
 	) -> Result<Self, Error> {
 		let mut stream = Stream::open(&session).await?;
 
-		// Encode 0x40 on the wire so it's backwards compatible with moq-transport
-		stream.writer.encode(&lite::ControlType::ClientCompat).await?;
+		let mut buf = BytesMut::new();
 
-		// moq-rs currently requires the ROLE extension to be set.
-		let mut extensions = coding::Extensions::default();
-		extensions.set(ietf::Role::Both);
+		// Encode 0x20 on the wire so it's backwards compatible with moq-transport draft 10+
+		// Unfortunately, we have to choose one value blind as the client.
+		lite::ControlType::ClientCompatV14.encode(&mut buf);
 
-		let client = lite::ClientSetup {
+		let client = ietf::ClientSetup {
 			versions: SUPPORTED.into(),
-			extensions,
+			extensions: Default::default(),
 		};
+		client.encode(&mut buf);
+		stream.writer.write_all(&mut buf).await?;
 
-		stream.writer.encode(&client).await?;
-
-		// We expect 0x41 as the response.
+		// We expect 0x21 as the response.
 		let server_compat: lite::ControlType = stream.reader.decode().await?;
-		if server_compat != lite::ControlType::ServerCompat {
+		if server_compat != lite::ControlType::ServerCompatV14 {
 			return Err(Error::UnexpectedStream);
 		}
 
-		let server: lite::ServerSetup = stream.reader.decode().await?;
+		// This is a little manual, but whatever.
+		let size: u16 = stream.reader.decode().await?;
+		let mut buf = stream.reader.read_exact(size as usize).await?;
 
-		tracing::debug!(version = ?server.version, "connected");
+		let server = ietf::ServerSetup::decode(&mut buf)?;
+		if !buf.is_empty() {
+			return Err(Error::WrongSize);
+		}
 
 		match server.version {
 			coding::Version::LITE_LATEST => {
@@ -61,6 +68,8 @@ impl<S: web_transport_trait::Session> Session<S> {
 			}
 			_ => return Err(Error::Version(client.versions, [server.version].into())),
 		}
+
+		tracing::debug!(version = ?server.version, "connected");
 
 		Ok(Self::new(session))
 	}
@@ -77,7 +86,10 @@ impl<S: web_transport_trait::Session> Session<S> {
 		let mut stream = Stream::accept(&session).await?;
 		let kind: lite::ControlType = stream.reader.decode().await?;
 
-		if kind != lite::ControlType::Session && kind != lite::ControlType::ClientCompat {
+		if kind != lite::ControlType::Session
+			&& kind != lite::ControlType::ServerCompatV7
+			&& kind != lite::ControlType::ClientCompatV14
+		{
 			return Err(Error::UnexpectedStream);
 		}
 
@@ -90,20 +102,49 @@ impl<S: web_transport_trait::Session> Session<S> {
 			.copied()
 			.ok_or_else(|| Error::Version(client.versions, SUPPORTED.into()))?;
 
-		let server = lite::ServerSetup {
-			version,
-			extensions: Default::default(),
-		};
-
 		// Backwards compatibility with moq-transport-07
-		if kind == lite::ControlType::ClientCompat {
-			// Write a 0x41 just to be backwards compatible.
-			stream.writer.encode(&lite::ControlType::ServerCompat).await?;
+		match kind {
+			lite::ControlType::ClientCompatV14 => {
+				stream.writer.encode(&lite::ControlType::ServerCompatV14).await?;
+
+				// This type doesn't implement Encode (yet), so we have to do it manually.
+				let setup = ietf::ServerSetup {
+					version,
+					extensions: Default::default(),
+				};
+
+				let mut buf = BytesMut::new();
+				setup.encode_size().encode(&mut buf);
+				setup.encode(&mut buf);
+				stream.writer.write_all(&mut buf).await?;
+			}
+			lite::ControlType::ServerCompatV7 => {
+				// Encode the ID so it's backwards compatibile.
+				stream.writer.encode(&lite::ControlType::ServerCompatV7).await?;
+
+				// NOTE: This is a lite message, but it's the same encoding as the IETF message.
+				stream
+					.writer
+					.encode(&lite::ServerSetup {
+						version,
+						extensions: Default::default(),
+					})
+					.await?;
+			}
+			lite::ControlType::Session => {
+				// No ID needed for moq-lite responses.
+				stream
+					.writer
+					.encode(&lite::ServerSetup {
+						version,
+						extensions: Default::default(),
+					})
+					.await?;
+			}
+			_ => unreachable!(),
 		}
 
-		stream.writer.encode(&server).await?;
-
-		tracing::debug!(version = ?server.version, "connected");
+		tracing::debug!(?version, "connected");
 
 		match version {
 			coding::Version::LITE_LATEST => {

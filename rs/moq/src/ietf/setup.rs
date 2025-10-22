@@ -1,4 +1,4 @@
-use crate::{coding::*, lite::Message};
+use crate::{coding::*, ietf::Message};
 
 /// Sent by the client to setup the session.
 #[derive(Debug, Clone)]
@@ -11,6 +11,8 @@ pub struct ClientSetup {
 }
 
 impl Message for ClientSetup {
+	const ID: u64 = 0x20;
+
 	/// Decode a client setup message.
 	fn decode<R: bytes::Buf>(r: &mut R) -> Result<Self, DecodeError> {
 		let versions = Versions::decode(r)?;
@@ -37,6 +39,8 @@ pub struct ServerSetup {
 }
 
 impl Message for ServerSetup {
+	const ID: u64 = 0x21;
+
 	fn encode<W: bytes::BufMut>(&self, w: &mut W) {
 		self.version.encode(w);
 		self.extensions.encode(w);

@@ -2,9 +2,9 @@
 
 use std::borrow::Cow;
 
-use crate::{coding::*, Path};
+use crate::{coding::*, ietf::Message, Path};
 
-use super::util::{decode_namespace, encode_namespace};
+use super::namespace::{decode_namespace, encode_namespace};
 
 /// TrackStatusRequest message (0x0d)
 #[derive(Clone, Debug)]
@@ -14,6 +14,8 @@ pub struct TrackStatusRequest<'a> {
 }
 
 impl<'a> Message for TrackStatusRequest<'a> {
+	const ID: u64 = 0x0d;
+
 	fn encode<W: bytes::BufMut>(&self, w: &mut W) {
 		encode_namespace(w, &self.track_namespace);
 		self.track_name.encode(w);
@@ -49,6 +51,8 @@ impl<'a> TrackStatus<'a> {
 }
 
 impl<'a> Message for TrackStatus<'a> {
+	const ID: u64 = 0x0e;
+
 	fn encode<W: bytes::BufMut>(&self, w: &mut W) {
 		encode_namespace(w, &self.track_namespace);
 		self.track_name.encode(w);

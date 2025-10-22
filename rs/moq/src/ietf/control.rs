@@ -1,25 +1,34 @@
-use std::sync::Arc;
+use std::sync::{atomic, Arc};
 
-use crate::{
-	coding::{self, Encode},
-	ietf, Error,
-};
+use crate::{coding::Encode, ietf::Message, Error};
 
 #[derive(Clone)]
 pub(super) struct Control {
 	tx: tokio::sync::mpsc::UnboundedSender<Vec<u8>>,
+	request_id: Arc<atomic::AtomicU64>,
 }
 
 impl Control {
 	pub fn new(tx: tokio::sync::mpsc::UnboundedSender<Vec<u8>>) -> Self {
-		Self { tx }
+		Self {
+			tx,
+			request_id: Default::default(),
+		}
 	}
 
-	pub fn send(&self, id: ietf::MessageId, msg: impl coding::Message) -> Result<(), Error> {
+	pub fn send<T: Message>(&self, msg: T) -> Result<(), Error> {
 		let mut buf = Vec::new();
-		id.encode(&mut buf);
+		T::ID.encode(&mut buf);
+		// TODO Always encode 2 bytes for the size, then go back and populate it later.
+		// That way we can avoid calculating the size upfront.
+		msg.encode_size().encode(&mut buf);
 		msg.encode(&mut buf);
+
 		self.tx.send(buf).map_err(|e| Error::Transport(Arc::new(e)))?;
 		Ok(())
+	}
+
+	pub fn request_id(&self) -> u64 {
+		self.request_id.fetch_add(1, atomic::Ordering::Relaxed)
 	}
 }

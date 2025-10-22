@@ -24,7 +24,11 @@ impl Version {
 
 	/// <https://www.ietf.org/archive/id/draft-ietf-moq-transport-07.html>
 	pub const IETF_07: Version = Version(0xff000007);
-	pub const IETF_LATEST: Version = Self::IETF_07;
+
+	/// <https://www.ietf.org/archive/id/draft-ietf-moq-transport-14.html>
+	pub const IETF_14: Version = Version(0xff00000e);
+
+	pub const IETF_LATEST: Version = Self::IETF_14;
 
 	/// <https://www.ietf.org/archive/id/draft-lcurley-moq-transfork-00.html>
 	pub const FORK_00: Version = Version(0xff0bad00);

@@ -66,6 +66,47 @@ impl<S: web_transport_trait::RecvStream> Reader<S> {
 			.map_err(|e| Error::Transport(Arc::new(e)))
 	}
 
+	pub async fn read_exact(&mut self, size: usize) -> Result<Bytes, Error> {
+		// An optimization to avoid a copy if we have enough data in the buffer
+		if self.buffer.len() >= size {
+			return Ok(self.buffer.split_to(size).freeze());
+		}
+
+		let data = BytesMut::with_capacity(size.min(u16::MAX as usize));
+		let mut buf = data.limit(size);
+
+		let size = cmp::min(buf.remaining_mut(), self.buffer.len());
+		let data = self.buffer.split_to(size);
+		buf.put(data);
+
+		while buf.has_remaining_mut() {
+			self.stream
+				.read_buf(&mut buf)
+				.await
+				.map_err(|e| Error::Transport(Arc::new(e)))?;
+		}
+
+		Ok(buf.into_inner().freeze())
+	}
+
+	pub async fn skip(&mut self, mut size: usize) -> Result<(), Error> {
+		let buffered = self.buffer.len();
+		self.buffer.advance(size.min(buffered));
+		size -= buffered;
+
+		while size > 0 {
+			let chunk = self
+				.stream
+				.read_chunk(size)
+				.await
+				.map_err(|e| Error::Transport(Arc::new(e)))?
+				.ok_or(Error::Decode(DecodeError::Short))?;
+			size -= chunk.len();
+		}
+
+		Ok(())
+	}
+
 	/// Wait until the stream is closed, erroring if there are any additional bytes.
 	pub async fn closed(&mut self) -> Result<(), Error> {
 		if self.buffer.is_empty()

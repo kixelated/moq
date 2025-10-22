@@ -44,12 +44,34 @@ pub enum DecodeError {
 
 	#[error("invalid parameter")]
 	InvalidParameter,
+
+	#[error("unsupported")]
+	Unsupported,
+}
+
+impl Decode for bool {
+	fn decode<R: bytes::Buf>(r: &mut R) -> Result<Self, DecodeError> {
+		match u8::decode(r)? {
+			0 => Ok(false),
+			1 => Ok(true),
+			_ => Err(DecodeError::InvalidValue),
+		}
+	}
 }
 
 impl Decode for u8 {
 	fn decode<R: bytes::Buf>(r: &mut R) -> Result<Self, DecodeError> {
 		match r.has_remaining() {
 			true => Ok(r.get_u8()),
+			false => Err(DecodeError::Short),
+		}
+	}
+}
+
+impl Decode for u16 {
+	fn decode<R: bytes::Buf>(r: &mut R) -> Result<Self, DecodeError> {
+		match r.remaining() >= 2 {
+			true => Ok(r.get_u16()),
 			false => Err(DecodeError::Short),
 		}
 	}

@@ -1,6 +1,7 @@
 mod announce;
 mod group;
 mod info;
+mod message;
 mod publisher;
 mod session;
 mod setup;
@@ -11,8 +12,9 @@ mod subscriber;
 pub use announce::*;
 pub use group::*;
 pub use info::*;
+pub use message::*;
 use publisher::*;
-pub(crate) use session::*;
+pub(super) use session::*;
 pub use setup::*;
 pub use stream::*;
 pub use subscribe::*;
