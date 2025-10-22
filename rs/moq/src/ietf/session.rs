@@ -9,11 +9,12 @@ use super::{Publisher, Subscriber};
 pub(crate) async fn start<S: web_transport_trait::Session + Sync>(
 	session: S,
 	setup: Stream<S>,
+	client: bool,
 	publish: Option<OriginConsumer>,
 	subscribe: Option<OriginProducer>,
 ) -> Result<(), Error> {
 	web_async::spawn(async move {
-		match run(session.clone(), setup, publish, subscribe).await {
+		match run(session.clone(), setup, client, publish, subscribe).await {
 			Err(Error::Transport(_)) => {
 				tracing::info!("session terminated");
 				session.close(1, "");
@@ -35,11 +36,12 @@ pub(crate) async fn start<S: web_transport_trait::Session + Sync>(
 async fn run<S: web_transport_trait::Session + Sync>(
 	session: S,
 	setup: Stream<S>,
+	client: bool,
 	publish: Option<OriginConsumer>,
 	subscribe: Option<OriginProducer>,
 ) -> Result<(), Error> {
 	let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
-	let control = Control::new(tx);
+	let control = Control::new(tx, client);
 	let publisher = Publisher::new(session.clone(), publish, control.clone());
 	let subscriber = Subscriber::new(session.clone(), subscribe, control);
 

@@ -34,10 +34,8 @@ impl<'a> Message for Subscribe<'a> {
 		let track_name = Cow::<str>::decode(r)?;
 		let subscriber_priority = u8::decode(r)?;
 
-		let group_order = u8::decode(r)?;
-		if group_order != 0 && group_order != GROUP_ORDER {
-			return Err(DecodeError::Unsupported);
-		}
+		// Ignore group order, we're sending it descending anyway.
+		let _group_order = u8::decode(r)?;
 
 		let forward = bool::decode(r)?;
 		if !forward {
@@ -49,11 +47,8 @@ impl<'a> Message for Subscribe<'a> {
 			return Err(DecodeError::Unsupported);
 		}
 
-		// TODO decode but discard
-		let num_params = u8::decode(r)?;
-		if num_params != 0 {
-			return Err(DecodeError::Unsupported);
-		}
+		// Ignore parameters, who cares.
+		let _params = Extensions::decode(r)?;
 
 		Ok(Self {
 			request_id,
@@ -69,6 +64,7 @@ impl<'a> Message for Subscribe<'a> {
 		self.track_name.encode(w);
 		self.subscriber_priority.encode(w);
 		GROUP_ORDER.encode(w);
+		true.encode(w); // forward
 		FILTER_TYPE.encode(w);
 		0u8.encode(w); // no parameters
 	}
@@ -106,10 +102,8 @@ impl Message for SubscribeOk {
 			return Err(DecodeError::Unsupported);
 		}
 
-		let group_order = u8::decode(r)?;
-		if group_order != GROUP_ORDER {
-			return Err(DecodeError::Unsupported);
-		}
+		// Ignore group order, who cares.
+		let _group_order = u8::decode(r)?;
 
 		// TODO: We don't support largest group/object yet
 		if bool::decode(r)? {
@@ -117,10 +111,8 @@ impl Message for SubscribeOk {
 			let _object = u64::decode(r)?;
 		}
 
-		let num_params = u8::decode(r)?;
-		if num_params != 0 {
-			return Err(DecodeError::Unsupported);
-		}
+		// Ignore parameters, who cares.
+		let _params = Extensions::decode(r)?;
 
 		Ok(Self { request_id })
 	}

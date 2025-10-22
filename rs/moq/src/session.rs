@@ -64,7 +64,7 @@ impl<S: web_transport_trait::Session> Session<S> {
 				lite::start(session.clone(), stream, publish.into(), subscribe.into()).await?;
 			}
 			coding::Version::IETF_LATEST => {
-				ietf::start(session.clone(), stream, publish.into(), subscribe.into()).await?;
+				ietf::start(session.clone(), stream, true, publish.into(), subscribe.into()).await?;
 			}
 			_ => return Err(Error::Version(client.versions, [server.version].into())),
 		}
@@ -151,7 +151,7 @@ impl<S: web_transport_trait::Session> Session<S> {
 				lite::start(session.clone(), stream, publish.into(), subscribe.into()).await?;
 			}
 			coding::Version::IETF_LATEST => {
-				ietf::start(session.clone(), stream, publish.into(), subscribe.into()).await?;
+				ietf::start(session.clone(), stream, false, publish.into(), subscribe.into()).await?;
 			}
 			_ => unreachable!(),
 		}

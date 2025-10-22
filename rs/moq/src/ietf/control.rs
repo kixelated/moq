@@ -9,10 +9,10 @@ pub(super) struct Control {
 }
 
 impl Control {
-	pub fn new(tx: tokio::sync::mpsc::UnboundedSender<Vec<u8>>) -> Self {
+	pub fn new(tx: tokio::sync::mpsc::UnboundedSender<Vec<u8>>, client: bool) -> Self {
 		Self {
 			tx,
-			request_id: Default::default(),
+			request_id: Arc::new(atomic::AtomicU64::new(if client { 0 } else { 1 })),
 		}
 	}
 
@@ -29,6 +29,6 @@ impl Control {
 	}
 
 	pub fn request_id(&self) -> u64 {
-		self.request_id.fetch_add(1, atomic::Ordering::Relaxed)
+		self.request_id.fetch_add(2, atomic::Ordering::Relaxed)
 	}
 }

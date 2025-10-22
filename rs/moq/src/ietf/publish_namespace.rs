@@ -27,10 +27,8 @@ impl<'a> Message for PublishNamespace<'a> {
 		let request_id = u64::decode(r)?;
 		let track_namespace = decode_namespace(r)?;
 
-		let num_params = u8::decode(r)?;
-		if num_params != 0 {
-			return Err(DecodeError::Unsupported);
-		}
+		// Ignore parameters, who cares.
+		let _params = Extensions::decode(r)?;
 
 		Ok(Self {
 			request_id,

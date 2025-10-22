@@ -26,10 +26,8 @@ impl<'a> Message for SubscribeNamespace<'a> {
 		let namespace = decode_namespace(r)?;
 		let request_id = u64::decode(r)?;
 
-		let num_params = u8::decode(r)?;
-		if num_params != 0 {
-			return Err(DecodeError::Unsupported);
-		}
+		// Ignore parameters, who cares.
+		let _params = Extensions::decode(r)?;
 
 		Ok(Self { namespace, request_id })
 	}
