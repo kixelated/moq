@@ -102,6 +102,9 @@ export class Captions {
 		effect.spawn(async () => {
 			await ctx.audioWorklet.addModule(CaptureWorklet);
 
+			// Ensure the context is running before creating the worklet
+			if (ctx.state === "closed") return;
+
 			// Create the worklet.
 			const worklet = new AudioWorkletNode(ctx, "capture", {
 				numberOfInputs: 1,
