@@ -1,15 +1,15 @@
 import { Mutex } from "async-mutex";
 import type { Stream as StreamInner } from "../stream.ts";
+import { Fetch, FetchCancel, FetchError, FetchOk } from "./fetch.ts";
+import { GoAway } from "./goaway.ts";
+import { Publish, PublishError, PublishOk } from "./publish.ts";
 import {
 	PublishNamespace,
 	PublishNamespaceCancel,
 	PublishNamespaceDone,
 	PublishNamespaceError,
 	PublishNamespaceOk,
-} from "./announce.ts";
-import { Fetch, FetchCancel, FetchError, FetchOk } from "./fetch.ts";
-import { GoAway } from "./goaway.ts";
-import { Publish, PublishError, PublishOk } from "./publish.ts";
+} from "./publish_namespace.ts";
 import * as Setup from "./setup.ts";
 import { PublishDone, Subscribe, SubscribeError, SubscribeOk, Unsubscribe } from "./subscribe.ts";
 import {
@@ -17,7 +17,7 @@ import {
 	SubscribeNamespaceError,
 	SubscribeNamespaceOk,
 	UnsubscribeNamespace,
-} from "./subscribe_announces.ts";
+} from "./subscribe_namespace.ts";
 import { TrackStatus, TrackStatusRequest } from "./track.ts";
 
 /**
@@ -62,6 +62,9 @@ export type Message = InstanceType<MessageType>;
 export class Stream {
 	stream: StreamInner;
 
+	// The client always starts at 0.
+	#requestId = 0;
+
 	#writeLock = new Mutex();
 	#readLock = new Mutex();
 
@@ -105,5 +108,11 @@ export class Stream {
 				throw err;
 			}
 		});
+	}
+
+	requestId(): number {
+		const id = this.#requestId;
+		this.#requestId += 2;
+		return id;
 	}
 }

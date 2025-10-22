@@ -5,11 +5,16 @@ import * as Path from "../path.js";
 import type { Reader } from "../stream.ts";
 import type { Track } from "../track.ts";
 import { error } from "../util/error.ts";
-import type { PublishNamespace, PublishNamespaceDone } from "./announce.ts";
 import type * as Control from "./control.ts";
 import { Frame, type Group as GroupMessage } from "./object.ts";
+import type { PublishNamespace, PublishNamespaceDone } from "./publish_namespace.ts";
 import { type PublishDone, Subscribe, type SubscribeError, type SubscribeOk, Unsubscribe } from "./subscribe.ts";
-import type { SubscribeNamespaceError, SubscribeNamespaceOk } from "./subscribe_announces.ts";
+import {
+	SubscribeNamespace,
+	type SubscribeNamespaceError,
+	type SubscribeNamespaceOk,
+	UnsubscribeNamespace,
+} from "./subscribe_namespace.ts";
 import type { TrackStatus } from "./track.ts";
 
 /**
@@ -20,13 +25,18 @@ import type { TrackStatus } from "./track.ts";
 export class Subscriber {
 	#control: Control.Stream;
 
-	// Our subscribed tracks - keyed by subscription ID
-	#subscribes = new Map<bigint, Track>();
-	#subscribeNext = 0n;
+	// Any currently active announcements.
+	#announced = new Set<Path.Valid>();
 
-	// Track subscription responses - keyed by subscription ID
+	// Any consumers that want each new announcement.
+	#announcedConsumers = new Set<Announced>();
+
+	// Our subscribed tracks - keyed by request ID
+	#subscribes = new Map<number, Track>();
+
+	// Track subscription responses - keyed by request ID
 	#subscribeCallbacks = new Map<
-		bigint,
+		number,
 		{
 			resolve: (msg: SubscribeOk) => void;
 			reject: (msg: Error) => void;
@@ -42,7 +52,6 @@ export class Subscriber {
 	 */
 	constructor(control: Control.Stream) {
 		this.#control = control;
-		//void this.#runAnnounced();
 	}
 
 	/**
@@ -50,17 +59,28 @@ export class Subscriber {
 	 * @param prefix - The prefix for announcements
 	 * @returns An AnnounceConsumer instance
 	 */
-	announced(_prefix = Path.empty()): Announced {
-		const announced = new Announced();
-		return announced;
+	announced(prefix = Path.empty()): Announced {
+		const announced = new Announced(prefix);
+		for (const active of this.#announced) {
+			if (!active.startsWith(prefix)) continue;
 
-		/* TODO once the remote server actually supports it
-		async #runAnnounced() {
-			// Send me everything at the root.
-			const msg = new SubscribeAnnounces(this.#root);
-			await Control.write(this.#control, msg);
+			announced.append({
+				path: active,
+				active: true,
+			});
 		}
-		*/
+
+		const requestId = this.#control.requestId();
+		this.#control.write(new SubscribeNamespace(prefix, requestId));
+
+		this.#announcedConsumers.add(announced);
+
+		announced.closed.finally(() => {
+			this.#announcedConsumers.delete(announced);
+			this.#control.write(new UnsubscribeNamespace(requestId));
+		});
+
+		return announced;
 	}
 
 	/**
@@ -84,7 +104,7 @@ export class Subscriber {
 	}
 
 	async #runSubscribe(broadcast: Path.Valid, request: TrackRequest) {
-		const requestId = this.#subscribeNext++;
+		const requestId = this.#control.requestId();
 
 		// Save the writer so we can append groups to it.
 		this.#subscribes.set(requestId, request.track);
@@ -150,9 +170,9 @@ export class Subscriber {
 		const producer = new Group(group.groupId);
 
 		try {
-			const track = this.#subscribes.get(group.trackAlias);
+			const track = this.#subscribes.get(group.requestId);
 			if (!track) {
-				throw new Error(`unknown track: alias=${group.trackAlias}`);
+				throw new Error(`unknown track: requestId=${group.requestId}`);
 			}
 
 			// Convert to Group (moq-lite equivalent)
@@ -163,7 +183,7 @@ export class Subscriber {
 				const done = await Promise.race([stream.done(), producer.closed, track.closed]);
 				if (done !== false) break;
 
-				const frame = await Frame.decode(stream);
+				const frame = await Frame.decode(stream, group.flags);
 				if (frame.payload === undefined) break;
 
 				// Treat each object payload as a frame
@@ -194,24 +214,48 @@ export class Subscriber {
 	 * Handles a PUBLISH_NAMESPACE control message received on the control stream.
 	 * @param msg - The PUBLISH_NAMESPACE message
 	 */
-	async handlePublishNamespace(_msg: PublishNamespace) {
-		// TODO implement once Cloudflare supports it
+	async handlePublishNamespace(msg: PublishNamespace) {
+		if (this.#announced.has(msg.trackNamespace)) {
+			console.warn("duplicate PUBLISH_NAMESPACE message");
+			return;
+		}
+
+		this.#announced.add(msg.trackNamespace);
+
+		for (const consumer of this.#announcedConsumers) {
+			consumer.append({
+				path: msg.trackNamespace,
+				active: true,
+			});
+		}
 	}
 
 	/**
 	 * Handles a PUBLISH_NAMESPACE_DONE control message received on the control stream.
 	 * @param msg - The PUBLISH_NAMESPACE_DONE message
 	 */
-	async handlePublishNamespaceDone(_msg: PublishNamespaceDone) {
-		// TODO implement once Cloudflare supports it
+	async handlePublishNamespaceDone(msg: PublishNamespaceDone) {
+		if (!this.#announced.has(msg.trackNamespace)) {
+			console.warn("unknown PUBLISH_NAMESPACE_DONE message");
+			return;
+		}
+
+		this.#announced.delete(msg.trackNamespace);
+
+		for (const consumer of this.#announcedConsumers) {
+			consumer.append({
+				path: msg.trackNamespace,
+				active: false,
+			});
+		}
 	}
 
 	async handleSubscribeNamespaceOk(_msg: SubscribeNamespaceOk) {
-		// TODO
+		// Don't care
 	}
 
 	async handleSubscribeNamespaceError(_msg: SubscribeNamespaceError) {
-		// TODO
+		throw new Error("SUBSCRIBE_NAMESPACE_ERROR messages are not supported");
 	}
 
 	/**
@@ -219,6 +263,6 @@ export class Subscriber {
 	 * @param msg - The TRACK_STATUS message
 	 */
 	async handleTrackStatus(_msg: TrackStatus) {
-		// TODO
+		throw new Error("TRACK_STATUS messages are not supported");
 	}
 }

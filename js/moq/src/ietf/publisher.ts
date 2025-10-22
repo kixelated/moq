@@ -4,17 +4,17 @@ import type * as Path from "../path.ts";
 import { Writer } from "../stream.ts";
 import type { Track } from "../track.ts";
 import { error } from "../util/error.ts";
+import type * as Control from "./control.ts";
+import { Frame, Group as GroupMessage } from "./object.ts";
 import {
 	PublishNamespace,
 	type PublishNamespaceCancel,
 	PublishNamespaceDone,
 	type PublishNamespaceError,
 	type PublishNamespaceOk,
-} from "./announce.ts";
-import type * as Control from "./control.ts";
-import { Frame, Group as GroupMessage, writeStreamType } from "./object.ts";
+} from "./publish_namespace.ts";
 import { PublishDone, type Subscribe, SubscribeError, SubscribeOk, type Unsubscribe } from "./subscribe.ts";
-import type { SubscribeNamespace, UnsubscribeNamespace } from "./subscribe_announces.ts";
+import type { SubscribeNamespace, UnsubscribeNamespace } from "./subscribe_namespace.ts";
 import { TrackStatus, type TrackStatusRequest } from "./track.ts";
 
 /**
@@ -52,7 +52,7 @@ export class Publisher {
 
 	async #runPublish(path: Path.Valid, broadcast: Broadcast) {
 		try {
-			const requestId = 0n; // TODO: implement proper request ID tracking
+			const requestId = this.#control.requestId();
 			const announce = new PublishNamespace(requestId, path);
 			await this.#control.write(announce);
 
@@ -108,7 +108,7 @@ export class Publisher {
 	 *
 	 * @internal
 	 */
-	async #runTrack(requestId: bigint, track: Track) {
+	async #runTrack(requestId: number, track: Track) {
 		try {
 			for (;;) {
 				const group = await track.nextGroup();
@@ -134,38 +134,30 @@ export class Publisher {
 	 *
 	 * @internal
 	 */
-	async #runGroup(requestId: bigint, group: Group) {
+	async #runGroup(requestId: number, group: Group) {
 		try {
 			// Create a new unidirectional stream for this group
 			const stream = await Writer.open(this.#quic);
 
-			// Write stream type for STREAM_HEADER_SUBGROUP
-			await writeStreamType(stream);
-
 			// Write STREAM_HEADER_SUBGROUP
-			const header = new GroupMessage(
-				requestId, // subscribeId
-				requestId, // trackAlias (same as requestId)
-				group.sequence,
-				0, // publisherPriority
-			);
+			const header = new GroupMessage(requestId, group.sequence, {
+				hasExtensions: false,
+				hasSubgroup: false,
+				hasSubgroupObject: false,
+				// Automatically end the group on stream FIN
+				hasEnd: true,
+			});
 			await header.encode(stream);
 
 			try {
-				let objectId = 0;
 				for (;;) {
 					const frame = await Promise.race([group.readFrame(), stream.closed]);
 					if (!frame) break;
 
 					// Write each frame as an object
-					const obj = new Frame(objectId, frame);
-					await obj.encode(stream);
-					objectId++;
+					const obj = new Frame(frame);
+					await obj.encode(stream, header.flags);
 				}
-
-				// Send end of group marker via an undefined payload
-				const endOfGroup = new Frame(objectId);
-				await endOfGroup.encode(stream);
 
 				stream.close();
 			} catch (err: unknown) {

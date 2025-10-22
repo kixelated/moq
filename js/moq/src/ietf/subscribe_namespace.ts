@@ -8,16 +8,16 @@ export class SubscribeNamespace {
 	static id = 0x11;
 
 	namespace: Path.Valid;
-	requestId: bigint;
+	requestId: number;
 
-	constructor(namespace: Path.Valid, requestId: bigint) {
+	constructor(namespace: Path.Valid, requestId: number) {
 		this.namespace = namespace;
 		this.requestId = requestId;
 	}
 
 	async #encode(w: Writer): Promise<void> {
 		await Namespace.encode(w, this.namespace);
-		await w.u62(this.requestId);
+		await w.u53(this.requestId);
 		await w.u8(0); // no parameters
 	}
 
@@ -31,7 +31,7 @@ export class SubscribeNamespace {
 
 	static async #decode(r: Reader): Promise<SubscribeNamespace> {
 		const namespace = await Namespace.decode(r);
-		const requestId = await r.u62();
+		const requestId = await r.u53();
 
 		const numParams = await r.u8();
 		if (numParams !== 0) {
@@ -45,14 +45,14 @@ export class SubscribeNamespace {
 export class SubscribeNamespaceOk {
 	static id = 0x12;
 
-	requestId: bigint;
+	requestId: number;
 
-	constructor(requestId: bigint) {
+	constructor(requestId: number) {
 		this.requestId = requestId;
 	}
 
 	async #encode(w: Writer): Promise<void> {
-		await w.u62(this.requestId);
+		await w.u53(this.requestId);
 	}
 
 	async encode(w: Writer): Promise<void> {
@@ -64,7 +64,7 @@ export class SubscribeNamespaceOk {
 	}
 
 	static async #decode(r: Reader): Promise<SubscribeNamespaceOk> {
-		const requestId = await r.u62();
+		const requestId = await r.u53();
 		return new SubscribeNamespaceOk(requestId);
 	}
 }
@@ -72,18 +72,18 @@ export class SubscribeNamespaceOk {
 export class SubscribeNamespaceError {
 	static id = 0x13;
 
-	requestId: bigint;
+	requestId: number;
 	errorCode: number;
 	reasonPhrase: string;
 
-	constructor(requestId: bigint, errorCode: number, reasonPhrase: string) {
+	constructor(requestId: number, errorCode: number, reasonPhrase: string) {
 		this.requestId = requestId;
 		this.errorCode = errorCode;
 		this.reasonPhrase = reasonPhrase;
 	}
 
 	async #encode(w: Writer): Promise<void> {
-		await w.u62(this.requestId);
+		await w.u53(this.requestId);
 		await w.u62(BigInt(this.errorCode));
 		await w.string(this.reasonPhrase);
 	}
@@ -97,7 +97,7 @@ export class SubscribeNamespaceError {
 	}
 
 	static async #decode(r: Reader): Promise<SubscribeNamespaceError> {
-		const requestId = await r.u62();
+		const requestId = await r.u53();
 		const errorCode = Number(await r.u62());
 		const reasonPhrase = await r.string();
 
@@ -108,14 +108,14 @@ export class SubscribeNamespaceError {
 export class UnsubscribeNamespace {
 	static id = 0x14;
 
-	requestId: bigint;
+	requestId: number;
 
-	constructor(requestId: bigint) {
+	constructor(requestId: number) {
 		this.requestId = requestId;
 	}
 
 	async #encode(w: Writer): Promise<void> {
-		await w.u62(this.requestId);
+		await w.u53(this.requestId);
 	}
 
 	async encode(w: Writer): Promise<void> {
@@ -127,7 +127,7 @@ export class UnsubscribeNamespace {
 	}
 
 	static async #decode(r: Reader): Promise<UnsubscribeNamespace> {
-		const requestId = await r.u62();
+		const requestId = await r.u53();
 		return new UnsubscribeNamespace(requestId);
 	}
 }

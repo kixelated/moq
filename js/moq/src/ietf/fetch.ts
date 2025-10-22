@@ -5,7 +5,7 @@ import * as Message from "./message.ts";
 export class Fetch {
 	static id = 0x16;
 
-	subscribeId: bigint;
+	requestId: number;
 	trackNamespace: Path.Valid;
 	trackName: string;
 	subscriberPriority: number;
@@ -16,7 +16,7 @@ export class Fetch {
 	endObject: bigint;
 
 	constructor(
-		subscribeId: bigint,
+		requestId: number,
 		trackNamespace: Path.Valid,
 		trackName: string,
 		subscriberPriority: number,
@@ -26,7 +26,7 @@ export class Fetch {
 		endGroup: bigint,
 		endObject: bigint,
 	) {
-		this.subscribeId = subscribeId;
+		this.requestId = requestId;
 		this.trackNamespace = trackNamespace;
 		this.trackName = trackName;
 		this.subscriberPriority = subscriberPriority;
@@ -57,10 +57,10 @@ export class Fetch {
 export class FetchOk {
 	static id = 0x18;
 
-	subscribeId: bigint;
+	requestId: number;
 
-	constructor(subscribeId: bigint) {
-		this.subscribeId = subscribeId;
+	constructor(requestId: number) {
+		this.requestId = requestId;
 	}
 
 	async #encode(_w: Writer): Promise<void> {
@@ -83,12 +83,12 @@ export class FetchOk {
 export class FetchError {
 	static id = 0x19;
 
-	subscribeId: bigint;
+	requestId: number;
 	errorCode: number;
 	reasonPhrase: string;
 
-	constructor(subscribeId: bigint, errorCode: number, reasonPhrase: string) {
-		this.subscribeId = subscribeId;
+	constructor(requestId: number, errorCode: number, reasonPhrase: string) {
+		this.requestId = requestId;
 		this.errorCode = errorCode;
 		this.reasonPhrase = reasonPhrase;
 	}
@@ -113,10 +113,10 @@ export class FetchError {
 export class FetchCancel {
 	static id = 0x17;
 
-	subscribeId: bigint;
+	requestId: number;
 
-	constructor(subscribeId: bigint) {
-		this.subscribeId = subscribeId;
+	constructor(requestId: number) {
+		this.requestId = requestId;
 	}
 
 	async #encode(_w: Writer): Promise<void> {

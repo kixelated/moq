@@ -1,5 +1,5 @@
 import { Signal } from "@kixelated/signals";
-import type * as Path from "./path.ts";
+import * as Path from "./path.js";
 
 /**
  * The availability of a broadcast.
@@ -23,10 +23,12 @@ export class AnnouncedState {
  */
 export class Announced {
 	state = new AnnouncedState();
+	prefix: Path.Valid;
 
 	readonly closed: Promise<Error | undefined>;
 
-	constructor() {
+	constructor(prefix = Path.empty()) {
+		this.prefix = prefix;
 		this.closed = new Promise((resolve) => {
 			const dispose = this.state.closed.subscribe((closed) => {
 				if (!closed) return;

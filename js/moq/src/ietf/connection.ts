@@ -4,18 +4,18 @@ import type { Established } from "../connection/established.ts";
 import * as Path from "../path.js";
 import { type Reader, Readers, type Stream } from "../stream.ts";
 import { unreachable } from "../util/index.ts";
+import * as Control from "./control.ts";
+import { Fetch, FetchCancel, FetchError, FetchOk } from "./fetch.ts";
+import { GoAway } from "./goaway.ts";
+import { Group } from "./object.ts";
+import { Publish, PublishError, PublishOk } from "./publish.ts";
 import {
 	PublishNamespace,
 	PublishNamespaceCancel,
 	PublishNamespaceDone,
 	PublishNamespaceError,
 	PublishNamespaceOk,
-} from "./announce.ts";
-import * as Control from "./control.ts";
-import { Fetch, FetchCancel, FetchError, FetchOk } from "./fetch.ts";
-import { GoAway } from "./goaway.ts";
-import { Group as GroupMessage, readStreamType } from "./object.ts";
-import { Publish, PublishError, PublishOk } from "./publish.ts";
+} from "./publish_namespace.ts";
 import { Publisher } from "./publisher.ts";
 import * as Setup from "./setup.ts";
 import { PublishDone, Subscribe, SubscribeError, SubscribeOk, Unsubscribe } from "./subscribe.ts";
@@ -24,7 +24,7 @@ import {
 	SubscribeNamespaceError,
 	SubscribeNamespaceOk,
 	UnsubscribeNamespace,
-} from "./subscribe_announces.ts";
+} from "./subscribe_namespace.ts";
 import { Subscriber } from "./subscriber.ts";
 import { TrackStatus, TrackStatusRequest } from "./track.ts";
 
@@ -254,9 +254,8 @@ export class Connection implements Established {
 	 */
 	async #runObjectStream(stream: Reader) {
 		try {
-			await readStreamType(stream);
-
-			const header = await GroupMessage.decode(stream);
+			// we don't support other stream types yet
+			const header = await Group.decode(stream);
 			await this.#subscriber.handleGroup(header, stream);
 		} catch (err) {
 			console.error("error processing object stream", err);
