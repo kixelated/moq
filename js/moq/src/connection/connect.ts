@@ -76,7 +76,13 @@ export async function connect(url: URL, props?: ConnectProps): Promise<Establish
 	// We're encoding 0x20 so it's backwards compatible with moq-transport-10+
 	await stream.writer.u53(Lite.StreamId.ClientCompat);
 
-	const msg = new Ietf.ClientSetup([Lite.CURRENT_VERSION, Ietf.CURRENT_VERSION]);
+	const encoder = new TextEncoder();
+
+	const params = new Ietf.Parameters();
+	params.set(2n, new Uint8Array([63])); // Allow some request_ids without delving into varint encoding.
+	params.set(5n, encoder.encode("moq-lite-js")); // Put the implementation name in the parameters.
+
+	const msg = new Ietf.ClientSetup([Lite.CURRENT_VERSION, Ietf.CURRENT_VERSION], params);
 	await msg.encode(stream.writer);
 
 	// And we expect 0x21 as the response.

@@ -2,7 +2,7 @@
 
 mod decode;
 mod encode;
-mod extensions;
+mod parameters;
 mod reader;
 mod size;
 mod stream;
@@ -12,7 +12,7 @@ mod writer;
 
 pub use decode::*;
 pub use encode::*;
-pub use extensions::*;
+pub use parameters::*;
 pub use reader::*;
 pub use size::*;
 pub use stream::*;

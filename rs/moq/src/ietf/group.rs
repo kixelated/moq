@@ -46,6 +46,10 @@ impl Encode for Group {
 		self.request_id.encode(w);
 		self.group_id.encode(w);
 
+		if self.has_subgroup {
+			SUBGROUP_ID.encode(w);
+		}
+
 		// Publisher priority
 		0u8.encode(w);
 	}

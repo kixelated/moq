@@ -20,3 +20,21 @@ impl Message for MaxRequestId {
 		Ok(Self { request_id })
 	}
 }
+
+#[derive(Clone, Debug)]
+pub struct RequestsBlocked {
+	pub request_id: u64,
+}
+
+impl Message for RequestsBlocked {
+	const ID: u64 = 0x1a;
+
+	fn encode<W: bytes::BufMut>(&self, w: &mut W) {
+		self.request_id.encode(w);
+	}
+
+	fn decode<R: bytes::Buf>(r: &mut R) -> Result<Self, DecodeError> {
+		let request_id = u64::decode(r)?;
+		Ok(Self { request_id })
+	}
+}

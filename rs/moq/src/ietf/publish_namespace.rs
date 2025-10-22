@@ -1,4 +1,4 @@
-//! IETF moq-transport-07 announce messages
+//! IETF moq-transport-14 publish namespace messages
 
 use std::borrow::Cow;
 
@@ -6,7 +6,7 @@ use crate::{coding::*, ietf::Message, Path};
 
 use super::namespace::{decode_namespace, encode_namespace};
 
-/// Announce message (0x06)
+/// PublishNamespace message (0x06)
 /// Sent by the publisher to announce the availability of a namespace.
 #[derive(Clone, Debug)]
 pub struct PublishNamespace<'a> {
@@ -28,7 +28,7 @@ impl<'a> Message for PublishNamespace<'a> {
 		let track_namespace = decode_namespace(r)?;
 
 		// Ignore parameters, who cares.
-		let _params = Extensions::decode(r)?;
+		let _params = Parameters::decode(r)?;
 
 		Ok(Self {
 			request_id,
@@ -37,7 +37,7 @@ impl<'a> Message for PublishNamespace<'a> {
 	}
 }
 
-/// AnnounceOk message (0x07)
+/// PublishNamespaceOk message (0x07)
 #[derive(Clone, Debug)]
 pub struct PublishNamespaceOk {
 	pub request_id: u64,
@@ -56,7 +56,7 @@ impl Message for PublishNamespaceOk {
 	}
 }
 
-/// AnnounceError message (0x08)
+/// PublishNamespaceError message (0x08)
 #[derive(Clone, Debug)]
 pub struct PublishNamespaceError<'a> {
 	pub request_id: u64,
@@ -85,7 +85,7 @@ impl<'a> Message for PublishNamespaceError<'a> {
 		})
 	}
 }
-/// Unannounce message (0x09)
+/// PublishNamespaceDone message (0x09)
 #[derive(Clone, Debug)]
 pub struct PublishNamespaceDone<'a> {
 	pub track_namespace: Path<'a>,
@@ -104,7 +104,7 @@ impl<'a> Message for PublishNamespaceDone<'a> {
 	}
 }
 
-/// AnnounceCancel message (0x0c)
+/// PublishNamespaceCancel message (0x0c)
 #[derive(Clone, Debug)]
 pub struct PublishNamespaceCancel<'a> {
 	pub track_namespace: Path<'a>,

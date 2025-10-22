@@ -1,4 +1,4 @@
-//! IETF moq-transport-07 goaway message
+//! IETF moq-transport-14 goaway message
 
 use std::borrow::Cow;
 

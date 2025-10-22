@@ -10,6 +10,7 @@ import {
 	PublishNamespaceError,
 	PublishNamespaceOk,
 } from "./publish_namespace.ts";
+import { MaxRequestId, RequestsBlocked } from "./request.ts";
 import * as Setup from "./setup.ts";
 import { PublishDone, Subscribe, SubscribeError, SubscribeOk, Unsubscribe } from "./subscribe.ts";
 import {
@@ -50,6 +51,8 @@ const Messages = {
 	[Publish.id]: Publish,
 	[PublishOk.id]: PublishOk,
 	[PublishError.id]: PublishError,
+	[MaxRequestId.id]: MaxRequestId,
+	[RequestsBlocked.id]: RequestsBlocked,
 } as const;
 
 export type MessageId = keyof typeof Messages;

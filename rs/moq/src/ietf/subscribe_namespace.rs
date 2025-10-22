@@ -1,4 +1,4 @@
-//! IETF moq-transport-07 subscribe announces messages
+//! IETF moq-transport-14 subscribe namespace messages
 
 use std::borrow::Cow;
 
@@ -6,7 +6,7 @@ use crate::{coding::*, ietf::Message, Path};
 
 use super::namespace::{decode_namespace, encode_namespace};
 
-/// SubscribeAnnounces message (0x11)
+/// SubscribeNamespace message (0x11)
 #[derive(Clone, Debug)]
 pub struct SubscribeNamespace<'a> {
 	pub namespace: Path<'a>,
@@ -27,7 +27,7 @@ impl<'a> Message for SubscribeNamespace<'a> {
 		let request_id = u64::decode(r)?;
 
 		// Ignore parameters, who cares.
-		let _params = Extensions::decode(r)?;
+		let _params = Parameters::decode(r)?;
 
 		Ok(Self { namespace, request_id })
 	}
@@ -81,7 +81,7 @@ impl<'a> Message for SubscribeNamespaceError<'a> {
 	}
 }
 
-/// UnsubscribeAnnounces message (0x14)
+/// UnsubscribeNamespace message (0x14)
 #[derive(Clone, Debug)]
 pub struct UnsubscribeNamespace {
 	pub request_id: u64,

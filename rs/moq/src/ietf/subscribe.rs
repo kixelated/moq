@@ -1,4 +1,4 @@
-//! IETF moq-transport-07 subscribe messages
+//! IETF moq-transport-14 subscribe messages
 
 use std::borrow::Cow;
 
@@ -48,7 +48,7 @@ impl<'a> Message for Subscribe<'a> {
 		}
 
 		// Ignore parameters, who cares.
-		let _params = Extensions::decode(r)?;
+		let _params = Parameters::decode(r)?;
 
 		Ok(Self {
 			request_id,
@@ -112,7 +112,7 @@ impl Message for SubscribeOk {
 		}
 
 		// Ignore parameters, who cares.
-		let _params = Extensions::decode(r)?;
+		let _params = Parameters::decode(r)?;
 
 		Ok(Self { request_id })
 	}

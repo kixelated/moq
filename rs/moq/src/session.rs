@@ -3,7 +3,7 @@ use std::sync::Arc;
 use bytes::BytesMut;
 
 use crate::{
-	coding::{self, Encode, Stream},
+	coding::{self, Encode, Parameters, Stream},
 	ietf::{self, Message},
 	lite, Error, OriginConsumer, OriginProducer,
 };
@@ -39,9 +39,13 @@ impl<S: web_transport_trait::Session> Session<S> {
 		// Unfortunately, we have to choose one value blind as the client.
 		lite::ControlType::ClientCompatV14.encode(&mut buf);
 
+		let mut parameters = Parameters::default();
+		parameters.set(2, vec![63]); // Allow some request_ids without delving into varint encoding.
+		parameters.set(5, b"moq-lite-rs".to_vec()); // Put the implementation name in the parameters.
+
 		let client = ietf::ClientSetup {
 			versions: SUPPORTED.into(),
-			extensions: Default::default(),
+			parameters,
 		};
 
 		client.encode_size().encode(&mut buf);
@@ -116,16 +120,17 @@ impl<S: web_transport_trait::Session> Session<S> {
 			.copied()
 			.ok_or_else(|| Error::Version(versions, SUPPORTED.into()))?;
 
+		let mut parameters = Parameters::default();
+		parameters.set(2, vec![63]); // Allow some request_ids without delving into varint encoding.
+		parameters.set(5, b"moq-lite-rs".to_vec()); // Put the implementation name in the parameters.
+
 		// Backwards compatibility with moq-transport-07
 		match kind {
 			lite::ControlType::ClientCompatV14 => {
 				stream.writer.encode(&lite::ControlType::ServerCompatV14).await?;
 
 				// This type doesn't implement Encode (yet), so we have to do it manually.
-				let setup = ietf::ServerSetup {
-					version,
-					extensions: Default::default(),
-				};
+				let setup = ietf::ServerSetup { version, parameters };
 
 				let mut buf = BytesMut::new();
 				setup.encode_size().encode(&mut buf);
@@ -137,23 +142,11 @@ impl<S: web_transport_trait::Session> Session<S> {
 				stream.writer.encode(&lite::ControlType::ServerCompatV7).await?;
 
 				// NOTE: This is a lite message, but it's the same encoding as the IETF message.
-				stream
-					.writer
-					.encode(&lite::ServerSetup {
-						version,
-						extensions: Default::default(),
-					})
-					.await?;
+				stream.writer.encode(&lite::ServerSetup { version, parameters }).await?;
 			}
 			lite::ControlType::Session => {
 				// No ID needed for moq-lite responses.
-				stream
-					.writer
-					.encode(&lite::ServerSetup {
-						version,
-						extensions: Default::default(),
-					})
-					.await?;
+				stream.writer.encode(&lite::ServerSetup { version, parameters }).await?;
 			}
 			_ => unreachable!(),
 		}

@@ -42,6 +42,13 @@ async fn run<S: web_transport_trait::Session + Sync>(
 ) -> Result<(), Error> {
 	let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
 	let control = Control::new(tx, client);
+
+	// Allow the peer to send up to u32::MAX requests.
+	let max_request_id = ietf::MaxRequestId {
+		request_id: u32::MAX as u64,
+	};
+	control.send(max_request_id)?;
+
 	let publisher = Publisher::new(session.clone(), publish, control.clone());
 	let subscriber = Subscriber::new(session.clone(), subscribe, control);
 
@@ -133,6 +140,10 @@ async fn run_control_read<S: web_transport_trait::Session + Sync>(
 			ietf::MaxRequestId::ID => {
 				let msg = ietf::MaxRequestId::decode(&mut data)?;
 				tracing::warn!(?msg, "ignoring max request id");
+			}
+			ietf::RequestsBlocked::ID => {
+				let msg = ietf::RequestsBlocked::decode(&mut data)?;
+				tracing::warn!(?msg, "ignoring requests blocked");
 			}
 			ietf::Fetch::ID => return Err(Error::Unsupported),
 			ietf::FetchCancel::ID => return Err(Error::Unsupported),

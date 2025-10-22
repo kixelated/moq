@@ -1,16 +1,11 @@
 use std::collections::HashMap;
-use std::io::Cursor;
 
 use crate::coding::*;
 
-pub trait Extension: Encode + Decode {
-	fn id() -> u64;
-}
-
 #[derive(Default, Debug, Clone)]
-pub struct Extensions(HashMap<u64, Vec<u8>>);
+pub struct Parameters(HashMap<u64, Vec<u8>>);
 
-impl Decode for Extensions {
+impl Decode for Parameters {
 	fn decode<R: bytes::Buf>(mut r: &mut R) -> Result<Self, DecodeError> {
 		let mut map = HashMap::new();
 
@@ -26,11 +21,11 @@ impl Decode for Extensions {
 			map.insert(kind, data);
 		}
 
-		Ok(Extensions(map))
+		Ok(Parameters(map))
 	}
 }
 
-impl Encode for Extensions {
+impl Encode for Parameters {
 	fn encode<W: bytes::BufMut>(&self, w: &mut W) {
 		self.0.len().encode(w);
 
@@ -41,20 +36,12 @@ impl Encode for Extensions {
 	}
 }
 
-impl Extensions {
-	pub fn get<E: Extension>(&self) -> Result<Option<E>, DecodeError> {
-		Ok(match self.0.get(&E::id()) {
-			Some(payload) => {
-				let mut cursor = Cursor::new(payload);
-				Some(E::decode(&mut cursor)?)
-			}
-			None => None,
-		})
+impl Parameters {
+	pub fn get(&self, kind: u64) -> Option<&Vec<u8>> {
+		self.0.get(&kind)
 	}
 
-	pub fn set<E: Extension>(&mut self, e: E) {
-		let mut value = Vec::new();
-		e.encode(&mut value);
-		self.0.insert(E::id(), value);
+	pub fn set(&mut self, kind: u64, value: Vec<u8>) {
+		self.0.insert(kind, value);
 	}
 }

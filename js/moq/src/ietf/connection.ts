@@ -17,6 +17,7 @@ import {
 	PublishNamespaceOk,
 } from "./publish_namespace.ts";
 import { Publisher } from "./publisher.ts";
+import { MaxRequestId } from "./request.ts";
 import * as Setup from "./setup.ts";
 import { PublishDone, Subscribe, SubscribeError, SubscribeOk, Unsubscribe } from "./subscribe.ts";
 import {
@@ -61,6 +62,8 @@ export class Connection implements Established {
 		this.url = url;
 		this.#quic = quic;
 		this.#control = new Control.Stream(control);
+		this.#control.write(new MaxRequestId(2 ** 31 - 1));
+
 		this.#publisher = new Publisher(this.#quic, this.#control);
 		this.#subscriber = new Subscriber(this.#control);
 
@@ -144,7 +147,6 @@ export class Connection implements Established {
 					await this.#publisher.handlePublishNamespaceError(msg);
 				} else if (msg instanceof PublishNamespaceCancel) {
 					await this.#publisher.handlePublishNamespaceCancel(msg);
-					// Messages sent by Publisher, received by Subscriber:
 				} else if (msg instanceof PublishNamespace) {
 					await this.#subscriber.handlePublishNamespace(msg);
 				} else if (msg instanceof PublishNamespaceDone) {
@@ -157,7 +159,6 @@ export class Connection implements Established {
 					await this.#subscriber.handlePublishDone(msg);
 				} else if (msg instanceof TrackStatus) {
 					await this.#subscriber.handleTrackStatus(msg);
-					// Other messages:
 				} else if (msg instanceof GoAway) {
 					await this.#handleGoAway(msg);
 				} else if (msg instanceof Setup.ClientSetup) {
@@ -173,19 +174,21 @@ export class Connection implements Established {
 				} else if (msg instanceof UnsubscribeNamespace) {
 					await this.#publisher.handleUnsubscribeNamespace(msg);
 				} else if (msg instanceof Publish) {
-					// Publish messages are not yet supported
+					throw new Error("PUBLISH messages are not supported");
 				} else if (msg instanceof PublishOk) {
-					// Publish messages are not yet supported
+					throw new Error("PUBLISH_OK messages are not supported");
 				} else if (msg instanceof PublishError) {
-					// Publish messages are not yet supported
+					throw new Error("PUBLISH_ERROR messages are not supported");
 				} else if (msg instanceof Fetch) {
-					// Fetch messages are not supported
+					throw new Error("FETCH messages are not supported");
 				} else if (msg instanceof FetchOk) {
-					// Fetch messages are not supported
+					throw new Error("FETCH_OK messages are not supported");
 				} else if (msg instanceof FetchError) {
-					// Fetch messages are not supported
+					throw new Error("FETCH_ERROR messages are not supported");
 				} else if (msg instanceof FetchCancel) {
-					// Fetch messages are not supported
+					throw new Error("FETCH_CANCEL messages are not supported");
+				} else if (msg instanceof MaxRequestId) {
+					console.warn("ignoring MAX_REQUEST_ID message");
 				} else {
 					unreachable(msg);
 				}

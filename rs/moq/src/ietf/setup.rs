@@ -7,7 +7,7 @@ pub struct ClientSetup {
 	pub versions: Versions,
 
 	/// Extensions.
-	pub extensions: Extensions,
+	pub parameters: Parameters,
 }
 
 impl Message for ClientSetup {
@@ -16,15 +16,15 @@ impl Message for ClientSetup {
 	/// Decode a client setup message.
 	fn decode<R: bytes::Buf>(r: &mut R) -> Result<Self, DecodeError> {
 		let versions = Versions::decode(r)?;
-		let extensions = Extensions::decode(r)?;
+		let parameters = Parameters::decode(r)?;
 
-		Ok(Self { versions, extensions })
+		Ok(Self { versions, parameters })
 	}
 
 	/// Encode a client setup message.
 	fn encode<W: bytes::BufMut>(&self, w: &mut W) {
 		self.versions.encode(w);
-		self.extensions.encode(w);
+		self.parameters.encode(w);
 	}
 }
 
@@ -35,7 +35,7 @@ pub struct ServerSetup {
 	pub version: Version,
 
 	/// Supported extensions.
-	pub extensions: Extensions,
+	pub parameters: Parameters,
 }
 
 impl Message for ServerSetup {
@@ -43,13 +43,13 @@ impl Message for ServerSetup {
 
 	fn encode<W: bytes::BufMut>(&self, w: &mut W) {
 		self.version.encode(w);
-		self.extensions.encode(w);
+		self.parameters.encode(w);
 	}
 
 	fn decode<R: bytes::Buf>(r: &mut R) -> Result<Self, DecodeError> {
 		let version = Version::decode(r)?;
-		let extensions = Extensions::decode(r)?;
+		let parameters = Parameters::decode(r)?;
 
-		Ok(Self { version, extensions })
+		Ok(Self { version, parameters })
 	}
 }
