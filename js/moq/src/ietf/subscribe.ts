@@ -2,6 +2,7 @@ import type * as Path from "../path.ts";
 import type { Reader, Writer } from "../stream.ts";
 import * as Message from "./message.ts";
 import * as Namespace from "./namespace.ts";
+import { Parameters } from "./parameters.ts";
 
 // We only support Latest Group (0x1)
 const FILTER_TYPE = 0x01;
@@ -64,10 +65,7 @@ export class Subscribe {
 			throw new Error(`unsupported filter type: ${filterType}`);
 		}
 
-		const numParams = await r.u8();
-		if (numParams !== 0) {
-			throw new Error(`SUBSCRIBE: parameters not supported: ${numParams}`);
-		}
+		await Parameters.decode(r); // ignore parameters
 
 		return new Subscribe(requestId, trackNamespace, trackName, subscriberPriority);
 	}
@@ -121,10 +119,7 @@ export class SubscribeOk {
 			await r.u62();
 		}
 
-		const numParams = await r.u8();
-		if (numParams !== 0) {
-			throw new Error(`SUBSCRIBE_OK: parameters not supported: ${numParams}`);
-		}
+		await Parameters.decode(r); // ignore parameters
 
 		return new SubscribeOk(requestId);
 	}

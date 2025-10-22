@@ -2,6 +2,7 @@ import type * as Path from "../path.ts";
 import type { Reader, Writer } from "../stream.ts";
 import * as Message from "./message.ts";
 import * as Namespace from "./namespace.ts";
+import { Parameters } from "./parameters.ts";
 
 // In draft-14, ANNOUNCE is renamed to PUBLISH_NAMESPACE
 export class PublishNamespace {
@@ -32,10 +33,7 @@ export class PublishNamespace {
 	static async #decode(r: Reader): Promise<PublishNamespace> {
 		const requestId = await r.u53();
 		const trackNamespace = await Namespace.decode(r);
-		const numParams = await r.u8();
-		if (numParams > 0) {
-			throw new Error("unsupported announce parameters");
-		}
+		await Parameters.decode(r); // ignore parameters
 		return new PublishNamespace(requestId, trackNamespace);
 	}
 }
