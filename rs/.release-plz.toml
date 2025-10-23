@@ -1,3 +1,31 @@
 [workspace]
 dependencies_update = true
 git_release_enable = false
+
+[[package]]
+name = "hang"
+version_group = "hang"
+
+[[package]]
+name = "hang-cli"
+version_group = "hang"
+
+[[package]]
+name = "moq-lite"
+version_group = "moq"
+
+[[package]]
+name = "moq-clock"
+version_group = "moq"
+
+[[package]]
+name = "moq-relay"
+version_group = "moq"
+
+[[package]]
+name = "moq-token"
+version_group = "token"
+
+[[package]]
+name = "moq-token-cli"
+version_group = "token"
