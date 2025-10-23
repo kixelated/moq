@@ -3,6 +3,12 @@ import { u53Schema } from "../integers";
 import { CaptionsSchema } from "./captions";
 import { SpeakingSchema } from "./speaking";
 
+// Backwards compatibility: old track schema
+const TrackSchema = z.object({
+	name: z.string(),
+	priority: z.number().int().min(0).max(255),
+});
+
 // Mirrors AudioDecoderConfig
 // https://w3c.github.io/webcodecs/#audio-decoder-config
 export const AudioConfigSchema = z.object({
@@ -25,20 +31,36 @@ export const AudioConfigSchema = z.object({
 	bitrate: u53Schema.optional(),
 });
 
-export const AudioSchema = z.object({
-	// A map of track name to rendition configuration.
-	// This is not an array so it will work with JSON Merge Patch.
-	renditions: z.record(z.string(), AudioConfigSchema),
+export const AudioSchema = z
+	.object({
+		// A map of track name to rendition configuration.
+		// This is not an array so it will work with JSON Merge Patch.
+		renditions: z.record(z.string(), AudioConfigSchema),
 
-	// The priority of the audio track, relative to other tracks in the broadcast.
-	priority: z.number().int().min(0).max(255),
+		// The priority of the audio track, relative to other tracks in the broadcast.
+		priority: z.number().int().min(0).max(255),
 
-	// An optional captions track
-	captions: CaptionsSchema.optional(),
+		// An optional captions track
+		captions: CaptionsSchema.optional(),
 
-	// An optional speaking track
-	speaking: SpeakingSchema.optional(),
-});
+		// An optional speaking track
+		speaking: SpeakingSchema.optional(),
+	})
+	.or(
+		// Backwards compatibility: transform old {track, config, captions?} format to new object format
+		z
+			.object({
+				track: TrackSchema,
+				config: AudioConfigSchema,
+				captions: CaptionsSchema.optional(),
+			})
+			.transform((old) => ({
+				renditions: { "0": old.config },
+				priority: old.track.priority,
+				captions: old.captions,
+				speaking: undefined,
+			})),
+	);
 
 export type Audio = z.infer<typeof AudioSchema>;
 export type AudioConfig = z.infer<typeof AudioConfigSchema>;

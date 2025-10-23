@@ -3,6 +3,12 @@ import { z } from "zod";
 import { u53Schema } from "../integers";
 import { DetectionSchema } from "./detection";
 
+// Backwards compatibility: old track schema
+const TrackSchema = z.object({
+	name: z.string(),
+	priority: z.number().int().min(0).max(255),
+});
+
 // Based on VideoDecoderConfig
 export const VideoConfigSchema = z.object({
 	// See: https://w3c.github.io/webcodecs/codec_registry.html
@@ -38,34 +44,53 @@ export const VideoConfigSchema = z.object({
 
 // Mirrors VideoDecoderConfig
 // https://w3c.github.io/webcodecs/#video-decoder-config
-export const VideoSchema = z.object({
-	// A map of track name to rendition configuration.
-	// This is not an array in order for it to work with JSON Merge Patch.
-	renditions: z.record(z.string(), VideoConfigSchema),
+export const VideoSchema = z
+	.object({
+		// A map of track name to rendition configuration.
+		// This is not an array in order for it to work with JSON Merge Patch.
+		renditions: z.record(z.string(), VideoConfigSchema),
 
-	// The priority of the video track, relative to other tracks in the broadcast.
-	priority: z.number().int().min(0).max(255),
+		// The priority of the video track, relative to other tracks in the broadcast.
+		priority: z.number().int().min(0).max(255),
 
-	// Render the video at this size in pixels.
-	// This is separate from the display aspect ratio because it does not require reinitialization.
-	display: z
-		.object({
-			width: u53Schema,
-			height: u53Schema,
-		})
-		.optional(),
+		// Render the video at this size in pixels.
+		// This is separate from the display aspect ratio because it does not require reinitialization.
+		display: z
+			.object({
+				width: u53Schema,
+				height: u53Schema,
+			})
+			.optional(),
 
-	// The rotation of the video in degrees.
-	// Default: 0
-	rotation: z.number().optional(),
+		// The rotation of the video in degrees.
+		// Default: 0
+		rotation: z.number().optional(),
 
-	// If true, the decoder will flip the video horizontally
-	// Default: false
-	flip: z.boolean().optional(),
+		// If true, the decoder will flip the video horizontally
+		// Default: false
+		flip: z.boolean().optional(),
 
-	// The detection configuration.
-	detection: DetectionSchema.optional(),
-});
+		// The detection configuration.
+		detection: DetectionSchema.optional(),
+	})
+	.or(
+		// Backwards compatibility: transform old array of {track, config} to new object format
+		z
+			.array(
+				z.object({
+					track: TrackSchema,
+					config: VideoConfigSchema,
+				}),
+			)
+			.transform((arr) => ({
+				renditions: Object.fromEntries(arr.map((item, i) => [i.toString(), item.config])),
+				priority: arr[0]?.track.priority ?? 128,
+				display: undefined,
+				rotation: undefined,
+				flip: undefined,
+				detection: undefined,
+			})),
+	);
 
 export type Video = z.infer<typeof VideoSchema>;
 export type VideoConfig = z.infer<typeof VideoConfigSchema>;
