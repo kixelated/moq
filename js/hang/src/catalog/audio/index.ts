@@ -53,12 +53,13 @@ export const AudioSchema = z
 				track: TrackSchema,
 				config: AudioConfigSchema,
 				captions: CaptionsSchema.optional(),
+				speaking: SpeakingSchema.optional(),
 			})
 			.transform((old) => ({
-				renditions: { "0": old.config },
+				renditions: { [old.track.name]: old.config },
 				priority: old.track.priority,
 				captions: old.captions,
-				speaking: undefined,
+				speaking: old.speaking,
 			})),
 	);
 

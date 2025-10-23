@@ -82,14 +82,20 @@ export const VideoSchema = z
 					config: VideoConfigSchema,
 				}),
 			)
-			.transform((arr) => ({
-				renditions: Object.fromEntries(arr.map((item, i) => [i.toString(), item.config])),
-				priority: arr[0]?.track.priority ?? 128,
-				display: undefined,
-				rotation: undefined,
-				flip: undefined,
-				detection: undefined,
-			})),
+			.transform((arr) => {
+				const config = arr[0]?.config;
+				return {
+					renditions: Object.fromEntries(arr.map((item, i) => [i.toString(), item.config])),
+					priority: arr[0]?.track.priority ?? 128,
+					display:
+						config?.displayAspectWidth && config?.displayAspectHeight
+							? { width: config.displayAspectWidth, height: config.displayAspectHeight }
+							: undefined,
+					rotation: undefined,
+					flip: undefined,
+					detection: undefined,
+				};
+			}),
 	);
 
 export type Video = z.infer<typeof VideoSchema>;
