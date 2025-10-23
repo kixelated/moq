@@ -7,6 +7,9 @@ type Subscriber<T> = (value: T) => void;
 // @ts-ignore - Some environments don't recognize import.meta.env
 const DEV = typeof import.meta.env !== "undefined" && import.meta.env?.MODE !== "production";
 
+// Symbol to identify Signal instances across different package versions
+const SIGNAL_BRAND = Symbol.for("@kixelated/signals");
+
 export interface Getter<T> {
 	// Get the current value.
 	peek(): T;
@@ -28,13 +31,17 @@ export class Signal<T> implements Getter<T>, Setter<T> {
 	#subscribers: Set<Subscriber<T>> = new Set();
 	#changed: Set<Subscriber<T>> = new Set();
 
+	// Brand to identify this as a Signal across package instances
+	readonly [SIGNAL_BRAND] = true;
+
 	constructor(value: T) {
 		this.#value = value;
 	}
 
 	static from<T>(value: T | Signal<T>): Signal<T> {
-		if (value instanceof Signal) {
-			return value;
+		// Use brand check instead of instanceof to work across package instances
+		if (typeof value === "object" && value !== null && SIGNAL_BRAND in value) {
+			return value as Signal<T>;
 		}
 		return new Signal(value);
 	}
