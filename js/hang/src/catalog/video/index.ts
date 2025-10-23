@@ -85,7 +85,7 @@ export const VideoSchema = z
 			.transform((arr) => {
 				const config = arr[0]?.config;
 				return {
-					renditions: Object.fromEntries(arr.map((item, i) => [i.toString(), item.config])),
+					renditions: Object.fromEntries(arr.map((item) => [item.track.name, item.config])),
 					priority: arr[0]?.track.priority ?? 128,
 					display:
 						config?.displayAspectWidth && config?.displayAspectHeight
