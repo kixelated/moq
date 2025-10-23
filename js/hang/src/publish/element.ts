@@ -150,7 +150,7 @@ export default class HangPublish extends HTMLElement {
 	}
 }
 
-class HangPublishInstance {
+export class HangPublishInstance {
 	parent: HangPublish;
 	connection: Moq.Connection.Reload;
 	broadcast: Broadcast;

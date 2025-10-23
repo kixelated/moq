@@ -200,7 +200,7 @@ export default class HangWatch extends HTMLElement {
 
 // An instance of HangWatch once its inserted into the DOM.
 // We do this otherwise every variable could be undefined; which is annoying in Typescript.
-class HangWatchInstance {
+export class HangWatchInstance {
 	parent: HangWatch;
 
 	// You can construct these manually if you want to use the library without the web component.
