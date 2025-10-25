@@ -14,18 +14,28 @@ use crate::AuthToken;
 pub struct ClusterConfig {
 	/// Connect to this hostname in order to discover other nodes.
 	#[serde(alias = "connect")]
-	#[arg(long = "cluster-root", env = "MOQ_CLUSTER_ROOT", alias = "cluster-connect")]
+	#[arg(
+		id = "cluster-root",
+		long = "cluster-root",
+		env = "MOQ_CLUSTER_ROOT",
+		alias = "cluster-connect"
+	)]
 	pub root: Option<String>,
 
 	/// Use the token in this file when connecting to other nodes.
-	#[arg(long = "cluster-token", env = "MOQ_CLUSTER_TOKEN")]
+	#[arg(id = "cluster-token", long = "cluster-token", env = "MOQ_CLUSTER_TOKEN")]
 	pub token: Option<PathBuf>,
 
 	/// Our hostname which we advertise to other nodes.
 	///
 	// TODO Remove alias once we've migrated to the new name.
 	#[serde(alias = "advertise")]
-	#[arg(long = "cluster-node", env = "MOQ_CLUSTER_NODE", alias = "cluster-advertise")]
+	#[arg(
+		id = "cluster-node",
+		long = "cluster-node",
+		env = "MOQ_CLUSTER_NODE",
+		alias = "cluster-advertise"
+	)]
 	pub node: Option<String>,
 
 	/// The prefix to use for cluster announcements.
@@ -33,6 +43,7 @@ pub struct ClusterConfig {
 	///
 	/// WARNING: This should not be accessible by users unless authentication is disabled (YOLO).
 	#[arg(
+		id = "cluster-prefix",
 		long = "cluster-prefix",
 		default_value = "internal/origins",
 		env = "MOQ_CLUSTER_PREFIX"

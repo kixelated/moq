@@ -14,7 +14,7 @@ pub use web::*;
 async fn main() -> anyhow::Result<()> {
 	let config = Config::load()?;
 
-	let addr = config.server.listen.unwrap_or("[::]:443".parse().unwrap());
+	let addr = config.server.bind.unwrap_or("[::]:443".parse().unwrap());
 	let mut server = config.server.init()?;
 	let client = config.client.init()?;
 	let auth = config.auth.init()?;

@@ -208,7 +208,7 @@ in
         MOQ_LOG_LEVEL = lib.mkDefault cfg.logLevel;
 
         # Server configuration
-        MOQ_SERVER_LISTEN = "[::]:${toString cfg.port}";
+        MOQ_SERVER_BIND = "[::]:${toString cfg.port}";
 
         MOQ_CLIENT_TLS_DISABLE_VERIFY = lib.boolToString cfg.cluster.disableTlsVerify;
       } // lib.optionalAttrs (cfg.tls.generate != [ ]) {

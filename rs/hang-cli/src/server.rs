@@ -19,7 +19,7 @@ pub async fn server<T: AsyncRead + Unpin>(
 	format: ImportType,
 	input: &mut T,
 ) -> anyhow::Result<()> {
-	let mut listen = config.listen.unwrap_or("[::]:443".parse().unwrap());
+	let mut listen = config.bind.unwrap_or("[::]:443".parse().unwrap());
 	listen = tokio::net::lookup_host(listen)
 		.await
 		.context("invalid listen address")?

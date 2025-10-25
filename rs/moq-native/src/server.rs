@@ -63,8 +63,9 @@ pub struct ServerTlsConfig {
 pub struct ServerConfig {
 	/// Listen for UDP packets on the given address.
 	/// Defaults to `[::]:443` if not provided.
-	#[arg(long, env = "MOQ_SERVER_LISTEN")]
-	pub listen: Option<net::SocketAddr>,
+	#[serde(alias = "listen")]
+	#[arg(id = "server-bind", long = "server-bind", alias = "listen", env = "MOQ_SERVER_BIND")]
+	pub bind: Option<net::SocketAddr>,
 
 	#[command(flatten)]
 	#[serde(default)]
@@ -133,7 +134,7 @@ impl Server {
 		let runtime = quinn::default_runtime().context("no async runtime")?;
 		let endpoint_config = quinn::EndpointConfig::default();
 
-		let listen = config.listen.unwrap_or("[::]:443".parse().unwrap());
+		let listen = config.bind.unwrap_or("[::]:443".parse().unwrap());
 		let socket = std::net::UdpSocket::bind(listen).context("failed to bind UDP socket")?;
 
 		// Create the generic QUIC endpoint.
