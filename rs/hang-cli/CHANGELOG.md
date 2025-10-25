@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.0](https://github.com/kixelated/moq/compare/hang-cli-v0.2.11...hang-cli-v0.6.0) - 2025-10-25
+
+### Other
+
+- Fix an arg collision with --tls-root and --cluster-root ([#637](https://github.com/kixelated/moq/pull/637))
+- Add systemd notify support ([#634](https://github.com/kixelated/moq/pull/634))
+
 ## [0.2.11](https://github.com/kixelated/moq/compare/hang-cli-v0.2.10...hang-cli-v0.2.11) - 2025-10-18
 
 ### Added

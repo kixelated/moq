@@ -64,6 +64,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.9.5](https://github.com/kixelated/moq/compare/moq-relay-v0.9.4...moq-relay-v0.9.5) - 2025-10-25
+
+### Other
+
+- Fix an arg collision with --tls-root and --cluster-root ([#637](https://github.com/kixelated/moq/pull/637))
+- Also rename back to --cluster-root ([#636](https://github.com/kixelated/moq/pull/636))
+- Add systemd notify support ([#634](https://github.com/kixelated/moq/pull/634))
+- rename --cluster-advertise back to --cluster-node ([#633](https://github.com/kixelated/moq/pull/633))
+
 ## [0.9.4](https://github.com/kixelated/moq/compare/moq-relay-v0.9.3...moq-relay-v0.9.4) - 2025-10-18
 
 ### Other

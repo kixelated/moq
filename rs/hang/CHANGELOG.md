@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.1](https://github.com/kixelated/moq/compare/hang-v0.6.0...hang-v0.6.1) - 2025-10-25
+
+### Other
+
+- updated the following local packages: moq-lite, moq-native
+
 ## [0.6.0](https://github.com/kixelated/moq/compare/hang-v0.5.5...hang-v0.6.0) - 2025-10-18
 
 ### Added

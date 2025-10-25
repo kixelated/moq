@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.9.5](https://github.com/kixelated/moq/compare/moq-lite-v0.8.1...moq-lite-v0.9.5) - 2025-10-25
+
+### Other
+
+- draft-07 -> draft-14 compatibility ([#628](https://github.com/kixelated/moq/pull/628))
+- Minor tweaks. ([#635](https://github.com/kixelated/moq/pull/635))
+
 ## [0.8.1](https://github.com/kixelated/moq/compare/moq-lite-v0.8.0...moq-lite-v0.8.1) - 2025-10-21
 
 ### Other
