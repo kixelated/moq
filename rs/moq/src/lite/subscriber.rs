@@ -124,7 +124,7 @@ impl<S: web_transport_trait::Session> Subscriber<S> {
 		path: PathOwned,
 		producers: &mut HashMap<PathOwned, BroadcastProducer>,
 	) -> Result<(), Error> {
-		tracing::debug!(broadcast = %self.log_path(&path), suffix = %path, "announce");
+		tracing::debug!(broadcast = %self.log_path(&path), "announce");
 
 		let broadcast = Broadcast::produce();
 
