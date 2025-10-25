@@ -1,12 +1,14 @@
 mod client;
+mod import;
 mod server;
 
 use std::path::PathBuf;
 
 use client::*;
+use import::*;
 use server::*;
 
-use clap::{Parser, Subcommand, ValueEnum};
+use clap::{Parser, Subcommand};
 use url::Url;
 
 #[derive(Parser, Clone)]
@@ -16,12 +18,6 @@ pub struct Cli {
 
 	#[command(subcommand)]
 	command: Command,
-}
-
-#[derive(ValueEnum, Clone)]
-pub enum ImportType {
-	AnnexB,
-	CMAF,
 }
 
 #[derive(Subcommand, Clone)]
@@ -37,6 +33,10 @@ pub enum Command {
 		/// Optionally serve static files from the given directory.
 		#[arg(long)]
 		dir: Option<PathBuf>,
+
+		/// The format of the input media.
+		#[arg(long, value_enum, default_value_t = ImportType::Cmaf)]
+		format: ImportType,
 	},
 	Publish {
 		/// The MoQ client configuration.
@@ -60,8 +60,8 @@ pub enum Command {
 		#[arg(long)]
 		name: String,
 
-		/// The format of the input video.
-		#[arg(long, value_enum, default_value_t = ImportType::CMAF)]
+		/// The format of the input media.
+		#[arg(long, value_enum, default_value_t = ImportType::Cmaf)]
 		format: ImportType,
 	},
 }
@@ -72,7 +72,12 @@ async fn main() -> anyhow::Result<()> {
 	cli.log.init();
 
 	match cli.command {
-		Command::Serve { config, dir, name } => server(config, name, dir, &mut tokio::io::stdin()).await,
+		Command::Serve {
+			config,
+			dir,
+			name,
+			format,
+		} => server(config, name, dir, format, &mut tokio::io::stdin()).await,
 		Command::Publish {
 			config,
 			url,

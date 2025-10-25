@@ -3,17 +3,20 @@ use axum::handler::HandlerWithoutStateExt;
 use axum::http::StatusCode;
 use axum::response::IntoResponse;
 use axum::{http::Method, routing::get, Router};
-use hang::{cmaf, moq_lite};
+use hang::moq_lite;
 use std::net::SocketAddr;
 use std::path::PathBuf;
 use tokio::io::AsyncRead;
 use tower_http::cors::{Any, CorsLayer};
 use tower_http::services::ServeDir;
 
+use crate::import::{Import, ImportType};
+
 pub async fn server<T: AsyncRead + Unpin>(
 	config: moq_native::ServerConfig,
 	name: String,
 	public: Option<PathBuf>,
+	format: ImportType,
 	input: &mut T,
 ) -> anyhow::Result<()> {
 	let mut listen = config.listen.unwrap_or("[::]:443".parse().unwrap());
@@ -24,14 +27,26 @@ pub async fn server<T: AsyncRead + Unpin>(
 		.context("invalid listen address")?;
 
 	let server = config.init()?;
-	let fingerprints = server.fingerprints().to_vec();
+
+	// Get the first certificate's fingerprint.
+	// TODO serve all of them so we can support multiple signature algorithms.
+	let fingerprint = server.fingerprints().first().context("missing certificate")?.clone();
 
 	let broadcast = moq_lite::Broadcast::produce();
+	let mut import = Import::new(broadcast.producer, format);
+
+	import
+		.init_from(input)
+		.await
+		.context("failed to initialize cmaf from input")?;
+
+	// Notify systemd that we're ready.
+	let _ = sd_notify::notify(true, &[sd_notify::NotifyState::Ready]);
 
 	tokio::select! {
 		res = accept(server, name, broadcast.consumer) => res,
-		res = publish(broadcast.producer, input) => res,
-		res = web(listen, fingerprints, public) => res,
+		res = import.read_from(input) => res,
+		res = web(listen, fingerprint, public) => res,
 	}
 }
 
@@ -85,27 +100,8 @@ async fn run_session(
 	session.closed().await.map_err(Into::into)
 }
 
-async fn publish<T: AsyncRead + Unpin>(producer: moq_lite::BroadcastProducer, input: &mut T) -> anyhow::Result<()> {
-	let mut import = cmaf::Import::new(producer);
-
-	import
-		.init_from(input)
-		.await
-		.context("failed to initialize cmaf from input")?;
-
-	tracing::info!("initialized");
-
-	import.read_from(input).await?;
-
-	Ok(())
-}
-
-// Run a HTTP server using Axum to serve the certificate fingerprint.
-async fn web(bind: SocketAddr, fingerprints: Vec<String>, public: Option<PathBuf>) -> anyhow::Result<()> {
-	// Get the first certificate's fingerprint.
-	// TODO serve all of them so we can support multiple signature algorithms.
-	let fingerprint = fingerprints.first().expect("missing certificate").clone();
-
+// Initialize the HTTP server (but don't serve yet).
+async fn web(bind: SocketAddr, fingerprint: String, public: Option<PathBuf>) -> anyhow::Result<()> {
 	async fn handle_404() -> impl IntoResponse {
 		(StatusCode::NOT_FOUND, "Not found")
 	}

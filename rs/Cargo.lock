@@ -849,6 +849,7 @@ dependencies = [
  "hang",
  "hyper-serve",
  "moq-native",
+ "sd-notify",
  "tokio",
  "tower-http",
  "tracing",
