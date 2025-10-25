@@ -13,8 +13,9 @@ use crate::AuthToken;
 #[serde(default, deny_unknown_fields)]
 pub struct ClusterConfig {
 	/// Connect to this hostname in order to discover other nodes.
-	#[arg(long = "cluster-connect", env = "MOQ_CLUSTER_CONNECT")]
-	pub connect: Option<String>,
+	#[serde(alias = "connect")]
+	#[arg(long = "cluster-root", env = "MOQ_CLUSTER_ROOT", alias = "cluster-connect")]
+	pub root: Option<String>,
 
 	/// Use the token in this file when connecting to other nodes.
 	#[arg(long = "cluster-token", env = "MOQ_CLUSTER_TOKEN")]
@@ -104,7 +105,7 @@ impl Cluster {
 	}
 
 	pub async fn run(self) -> anyhow::Result<()> {
-		let connect = match self.config.connect.clone() {
+		let root = match self.config.root.clone() {
 			// If we're using a root node, then we have to connect to it.
 			Some(connect) if Some(&connect) != self.config.node.as_ref() => connect,
 			// Otherwise, we're the root node so we wait for other nodes to connect to us.
@@ -137,7 +138,7 @@ impl Cluster {
 
 		// Despite returning a Result, we should NEVER return an Ok
 		tokio::select! {
-			res = self.clone().run_remote(&connect, token.clone(), noop) => {
+			res = self.clone().run_remote(&root, token.clone(), noop) => {
 				res.context("failed to connect to root")?;
 				anyhow::bail!("connection to root closed");
 			}

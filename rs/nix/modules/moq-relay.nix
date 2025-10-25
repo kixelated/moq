@@ -225,7 +225,7 @@ in
         MOQ_AUTH_PUBLIC = cfg.auth.publicPath;
       } // lib.optionalAttrs (cfg.cluster.rootUrl != null) {
         # Cluster configuration
-        MOQ_CLUSTER_CONNECT = cfg.cluster.rootUrl;
+        MOQ_CLUSTER_ROOT = cfg.cluster.rootUrl;
       } // lib.optionalAttrs (cfg.cluster.mode != "none") {
         MOQ_CLUSTER_TOKEN = if cfg.cluster.tokenFile != null then cfg.cluster.tokenFile else "${cfg.stateDir}/cluster.jwt";
       } // lib.optionalAttrs (cfg.cluster.nodeUrl != null) {
