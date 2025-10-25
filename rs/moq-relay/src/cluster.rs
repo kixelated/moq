@@ -21,8 +21,11 @@ pub struct ClusterConfig {
 	pub token: Option<PathBuf>,
 
 	/// Our hostname which we advertise to other nodes.
-	#[arg(long = "cluster-advertise", env = "MOQ_CLUSTER_ADVERTISE")]
-	pub advertise: Option<String>,
+	///
+	// TODO Remove alias once we've migrated to the new name.
+	#[serde(alias = "advertise")]
+	#[arg(long = "cluster-node", env = "MOQ_CLUSTER_NODE", alias = "cluster-advertise")]
+	pub node: Option<String>,
 
 	/// The prefix to use for cluster announcements.
 	/// Defaults to "internal/origins".

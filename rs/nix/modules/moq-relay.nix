@@ -229,7 +229,7 @@ in
       } // lib.optionalAttrs (cfg.cluster.mode != "none") {
         MOQ_CLUSTER_TOKEN = if cfg.cluster.tokenFile != null then cfg.cluster.tokenFile else "${cfg.stateDir}/cluster.jwt";
       } // lib.optionalAttrs (cfg.cluster.nodeUrl != null) {
-        MOQ_CLUSTER_ADVERTISE = cfg.cluster.nodeUrl;
+        MOQ_CLUSTER_NODE = cfg.cluster.nodeUrl;
       };
     };
   };
