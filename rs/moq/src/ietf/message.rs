@@ -2,7 +2,7 @@ use crate::coding::{DecodeError, Sizer};
 
 use bytes::{Buf, BufMut};
 
-/// A trait for messages that are automatically size-prefixed during encoding/decoding.
+/// A trait for messages that are size-prefixed during encoding/decoding.
 ///
 /// This trait wraps the existing Encode/Decode traits and automatically handles:
 /// - Prefixing messages with their encoded size during encoding

@@ -2,6 +2,8 @@ use std::collections::HashMap;
 
 use crate::coding::*;
 
+const MAX_PARAMS: u64 = 64;
+
 #[derive(Default, Debug, Clone)]
 pub struct Parameters(HashMap<u64, Vec<u8>>);
 
@@ -11,10 +13,14 @@ impl Decode for Parameters {
 
 		// I hate this encoding so much; let me encode my role and get on with my life.
 		let count = u64::decode(r)?;
+		if count > MAX_PARAMS {
+			return Err(DecodeError::TooMany);
+		}
+
 		for _ in 0..count {
 			let kind = u64::decode(r)?;
 			if map.contains_key(&kind) {
-				return Err(DecodeError::DupliateParameter);
+				return Err(DecodeError::Duplicate);
 			}
 
 			let data = Vec::<u8>::decode(&mut r)?;

@@ -11,6 +11,9 @@ pub enum DecodeError {
 	#[error("short buffer")]
 	Short,
 
+	#[error("long buffer")]
+	Long,
+
 	#[error("invalid string")]
 	InvalidString(#[from] FromUtf8Error),
 
@@ -23,6 +26,9 @@ pub enum DecodeError {
 	#[error("invalid value")]
 	InvalidValue,
 
+	#[error("too many")]
+	TooMany,
+
 	#[error("bounds exceeded")]
 	BoundsExceeded,
 
@@ -32,18 +38,11 @@ pub enum DecodeError {
 	#[error("expected data")]
 	ExpectedData,
 
-	#[error("too many bytes")]
-	TooManyBytes,
+	#[error("duplicate")]
+	Duplicate,
 
-	// TODO move these to ParamError
-	#[error("duplicate parameter")]
-	DupliateParameter,
-
-	#[error("missing parameter")]
-	MissingParameter,
-
-	#[error("invalid parameter")]
-	InvalidParameter,
+	#[error("missing")]
+	Missing,
 
 	#[error("unsupported")]
 	Unsupported,

@@ -32,7 +32,7 @@ impl<T: Message> Decode for T {
 		let mut limited = buf.take(size);
 		let result = Message::decode(&mut limited)?;
 		if limited.remaining() > 0 {
-			return Err(DecodeError::TooManyBytes);
+			return Err(DecodeError::Long);
 		}
 
 		Ok(result)

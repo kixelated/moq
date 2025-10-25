@@ -57,7 +57,7 @@ export class Group {
 
 	static async decode(r: Reader): Promise<Group> {
 		const id = await r.u53();
-		if (id < 0x10 || id > 0x1d) {
+		if (id < 0x10 || id > 0x1f) {
 			throw new Error(`Unsupported group type: ${id}`);
 		}
 

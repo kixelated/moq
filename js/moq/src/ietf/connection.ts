@@ -17,7 +17,7 @@ import {
 	PublishNamespaceOk,
 } from "./publish_namespace.ts";
 import { Publisher } from "./publisher.ts";
-import { MaxRequestId } from "./request.ts";
+import { MaxRequestId, RequestsBlocked } from "./request.ts";
 import * as Setup from "./setup.ts";
 import { PublishDone, Subscribe, SubscribeError, SubscribeOk, Unsubscribe } from "./subscribe.ts";
 import {
@@ -62,12 +62,11 @@ export class Connection implements Established {
 		this.url = url;
 		this.#quic = quic;
 		this.#control = new Control.Stream(control);
-		this.#control.write(new MaxRequestId(2 ** 31 - 1));
 
 		this.#publisher = new Publisher(this.#quic, this.#control);
 		this.#subscriber = new Subscriber(this.#control);
 
-		this.#run();
+		void this.#run();
 	}
 
 	/**
@@ -82,6 +81,8 @@ export class Connection implements Established {
 	}
 
 	async #run(): Promise<void> {
+		await this.#control.write(new MaxRequestId(2 ** 31 - 1));
+
 		const controlMessages = this.#runControlStream();
 		const objectStreams = this.#runObjectStreams();
 
@@ -189,6 +190,8 @@ export class Connection implements Established {
 					throw new Error("FETCH_CANCEL messages are not supported");
 				} else if (msg instanceof MaxRequestId) {
 					console.warn("ignoring MAX_REQUEST_ID message");
+				} else if (msg instanceof RequestsBlocked) {
+					console.warn("ignoring REQUESTS_BLOCKED message");
 				} else {
 					unreachable(msg);
 				}

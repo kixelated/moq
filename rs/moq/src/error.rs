@@ -73,6 +73,9 @@ pub enum Error {
 
 	#[error("too large")]
 	TooLarge,
+
+	#[error("too many parameters")]
+	TooManyParameters,
 }
 
 impl Error {
@@ -96,6 +99,7 @@ impl Error {
 			Self::UnexpectedMessage => 16,
 			Self::Unsupported => 17,
 			Self::TooLarge => 18,
+			Self::TooManyParameters => 19,
 			Self::App(app) => *app + 64,
 		}
 	}

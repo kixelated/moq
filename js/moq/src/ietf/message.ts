@@ -30,8 +30,12 @@ export async function encode(writer: Writer, f: (w: Writer) => Promise<void>) {
 		}),
 	);
 
-	await f(temp);
-	temp.close();
+	try {
+		await f(temp);
+	} finally {
+		temp.close();
+	}
+
 	await temp.closed;
 
 	// Check that message fits in u16
