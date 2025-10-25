@@ -106,7 +106,7 @@ impl Cluster {
 	pub async fn run(self) -> anyhow::Result<()> {
 		let connect = match self.config.connect.clone() {
 			// If we're using a root node, then we have to connect to it.
-			Some(connect) if Some(&connect) != self.config.advertise.as_ref() => connect,
+			Some(connect) if Some(&connect) != self.config.node.as_ref() => connect,
 			// Otherwise, we're the root node so we wait for other nodes to connect to us.
 			_ => {
 				tracing::info!("running as root, accepting leaf nodes");
@@ -118,7 +118,7 @@ impl Cluster {
 		let prefix = self.config.prefix.as_path();
 
 		// Announce ourselves as an origin to the root node.
-		if let Some(myself) = self.config.advertise.as_ref() {
+		if let Some(myself) = self.config.node.as_ref() {
 			tracing::info!(%self.config.prefix, %myself, "announcing as leaf");
 			let name = prefix.join(myself);
 			self.primary
@@ -186,7 +186,7 @@ impl Cluster {
 		// NOTE: The root node will connect to all other nodes as a client, ignoring the existing (server) connection.
 		// This ensures that nodes are advertising a valid hostname before any tracks get announced.
 		while let Some((node, origin)) = origins.announced().await {
-			if Some(node.as_str()) == self.config.advertise.as_deref() {
+			if Some(node.as_str()) == self.config.node.as_deref() {
 				// Skip ourselves.
 				continue;
 			}
