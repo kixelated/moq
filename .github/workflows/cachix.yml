@@ -4,6 +4,8 @@ on:
   push:
     tags:
       - 'moq-relay-v*'
+      - 'moq-token-cli-v*'
+      - 'hang-cli-v*'
 
 jobs:
   cache:
