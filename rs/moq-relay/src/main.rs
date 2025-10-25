@@ -41,6 +41,9 @@ async fn main() -> anyhow::Result<()> {
 
 	tracing::info!(%addr, "listening");
 
+	// Notify systemd that we're ready after all initialization is complete
+	let _ = sd_notify::notify(true, &[sd_notify::NotifyState::Ready]);
+
 	let mut conn_id = 0;
 
 	while let Some(request) = server.accept().await {
