@@ -117,7 +117,7 @@ export class Broadcast {
 		const active = effect.get(this.#active);
 		if (!conn || !enabled || path === undefined || !active) return;
 
-		const broadcast = conn.consume(path ?? Moq.Path.empty());
+		const broadcast = conn.consume(path);
 		effect.cleanup(() => broadcast.close());
 
 		effect.set(this.#broadcast, broadcast);
