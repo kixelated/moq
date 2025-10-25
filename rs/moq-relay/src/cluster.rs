@@ -13,22 +13,37 @@ use crate::AuthToken;
 #[serde(default, deny_unknown_fields)]
 pub struct ClusterConfig {
 	/// Connect to this hostname in order to discover other nodes.
-	#[arg(long = "cluster-connect", env = "MOQ_CLUSTER_CONNECT")]
-	pub connect: Option<String>,
+	#[serde(alias = "connect")]
+	#[arg(
+		id = "cluster-root",
+		long = "cluster-root",
+		env = "MOQ_CLUSTER_ROOT",
+		alias = "cluster-connect"
+	)]
+	pub root: Option<String>,
 
 	/// Use the token in this file when connecting to other nodes.
-	#[arg(long = "cluster-token", env = "MOQ_CLUSTER_TOKEN")]
+	#[arg(id = "cluster-token", long = "cluster-token", env = "MOQ_CLUSTER_TOKEN")]
 	pub token: Option<PathBuf>,
 
 	/// Our hostname which we advertise to other nodes.
-	#[arg(long = "cluster-advertise", env = "MOQ_CLUSTER_ADVERTISE")]
-	pub advertise: Option<String>,
+	///
+	// TODO Remove alias once we've migrated to the new name.
+	#[serde(alias = "advertise")]
+	#[arg(
+		id = "cluster-node",
+		long = "cluster-node",
+		env = "MOQ_CLUSTER_NODE",
+		alias = "cluster-advertise"
+	)]
+	pub node: Option<String>,
 
 	/// The prefix to use for cluster announcements.
 	/// Defaults to "internal/origins".
 	///
 	/// WARNING: This should not be accessible by users unless authentication is disabled (YOLO).
 	#[arg(
+		id = "cluster-prefix",
 		long = "cluster-prefix",
 		default_value = "internal/origins",
 		env = "MOQ_CLUSTER_PREFIX"
@@ -101,9 +116,9 @@ impl Cluster {
 	}
 
 	pub async fn run(self) -> anyhow::Result<()> {
-		let connect = match self.config.connect.clone() {
+		let root = match self.config.root.clone() {
 			// If we're using a root node, then we have to connect to it.
-			Some(connect) if Some(&connect) != self.config.advertise.as_ref() => connect,
+			Some(connect) if Some(&connect) != self.config.node.as_ref() => connect,
 			// Otherwise, we're the root node so we wait for other nodes to connect to us.
 			_ => {
 				tracing::info!("running as root, accepting leaf nodes");
@@ -115,7 +130,7 @@ impl Cluster {
 		let prefix = self.config.prefix.as_path();
 
 		// Announce ourselves as an origin to the root node.
-		if let Some(myself) = self.config.advertise.as_ref() {
+		if let Some(myself) = self.config.node.as_ref() {
 			tracing::info!(%self.config.prefix, %myself, "announcing as leaf");
 			let name = prefix.join(myself);
 			self.primary
@@ -134,7 +149,7 @@ impl Cluster {
 
 		// Despite returning a Result, we should NEVER return an Ok
 		tokio::select! {
-			res = self.clone().run_remote(&connect, token.clone(), noop) => {
+			res = self.clone().run_remote(&root, token.clone(), noop) => {
 				res.context("failed to connect to root")?;
 				anyhow::bail!("connection to root closed");
 			}
@@ -183,7 +198,7 @@ impl Cluster {
 		// NOTE: The root node will connect to all other nodes as a client, ignoring the existing (server) connection.
 		// This ensures that nodes are advertising a valid hostname before any tracks get announced.
 		while let Some((node, origin)) = origins.announced().await {
-			if Some(node.as_str()) == self.config.advertise.as_deref() {
+			if Some(node.as_str()) == self.config.node.as_deref() {
 				// Skip ourselves.
 				continue;
 			}

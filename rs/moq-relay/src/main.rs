@@ -14,7 +14,7 @@ pub use web::*;
 async fn main() -> anyhow::Result<()> {
 	let config = Config::load()?;
 
-	let addr = config.server.listen.unwrap_or("[::]:443".parse().unwrap());
+	let addr = config.server.bind.unwrap_or("[::]:443".parse().unwrap());
 	let mut server = config.server.init()?;
 	let client = config.client.init()?;
 	let auth = config.auth.init()?;
@@ -40,6 +40,9 @@ async fn main() -> anyhow::Result<()> {
 	});
 
 	tracing::info!(%addr, "listening");
+
+	// Notify systemd that we're ready after all initialization is complete
+	let _ = sd_notify::notify(true, &[sd_notify::NotifyState::Ready]);
 
 	let mut conn_id = 0;
 

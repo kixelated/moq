@@ -42,7 +42,7 @@ connect = "localhost:4443"
 token = "dev/root.jwt"
 
 # My hostname, which must be accessible from other nodes.
-advertise = "localhost:4444"
+node = "localhost:4444"
 
 # Each leaf node will connect to the root node and other nodes, using this configuration.
 [client]

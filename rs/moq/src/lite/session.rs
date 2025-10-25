@@ -4,7 +4,7 @@ use crate::{coding::Stream, lite::SessionInfo, Error, OriginConsumer, OriginProd
 
 use super::{Publisher, Subscriber};
 
-pub(crate) async fn start<S: web_transport_trait::Session + Sync>(
+pub(crate) async fn start<S: web_transport_trait::Session>(
 	session: S,
 	// The stream used to setup the session, after exchanging setup messages.
 	setup: Stream<S>,
@@ -51,7 +51,7 @@ pub(crate) async fn start<S: web_transport_trait::Session + Sync>(
 }
 
 // TODO do something useful with this
-async fn run_session<S: web_transport_trait::Session + Sync>(mut stream: Stream<S>) -> Result<(), Error> {
+async fn run_session<S: web_transport_trait::Session>(mut stream: Stream<S>) -> Result<(), Error> {
 	while let Some(_info) = stream.reader.decode_maybe::<SessionInfo>().await? {}
 	Err(Error::Cancel)
 }

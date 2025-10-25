@@ -51,7 +51,7 @@ impl<S: web_transport_trait::Session> Subscriber<S> {
 		};
 
 		let path = msg.track_namespace.to_owned();
-		tracing::debug!(broadcast = %origin.absolute(&path), suffix = %path, "announce");
+		tracing::debug!(broadcast = %origin.absolute(&path), "announce");
 
 		let broadcast = Broadcast::produce();
 

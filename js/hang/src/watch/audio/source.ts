@@ -119,6 +119,9 @@ export class Source {
 			// Register the AudioWorklet processor
 			await context.audioWorklet.addModule(RenderWorklet);
 
+			// Ensure the context is running before creating the worklet
+			if (context.state === "closed") return;
+
 			// Create the worklet node
 			const worklet = new AudioWorkletNode(context, "render", {
 				channelCount,

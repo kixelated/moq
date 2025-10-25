@@ -6,7 +6,7 @@ use crate::{
 
 use super::{Publisher, Subscriber};
 
-pub(crate) async fn start<S: web_transport_trait::Session + Sync>(
+pub(crate) async fn start<S: web_transport_trait::Session>(
 	session: S,
 	setup: Stream<S>,
 	client: bool,
@@ -33,7 +33,7 @@ pub(crate) async fn start<S: web_transport_trait::Session + Sync>(
 	Ok(())
 }
 
-async fn run<S: web_transport_trait::Session + Sync>(
+async fn run<S: web_transport_trait::Session>(
 	session: S,
 	setup: Stream<S>,
 	client: bool,
@@ -60,7 +60,7 @@ async fn run<S: web_transport_trait::Session + Sync>(
 	}
 }
 
-async fn run_control_read<S: web_transport_trait::Session + Sync>(
+async fn run_control_read<S: web_transport_trait::Session>(
 	mut control: Reader<S::RecvStream>,
 	mut publisher: Publisher<S>,
 	mut subscriber: Subscriber<S>,
@@ -161,7 +161,7 @@ async fn run_control_read<S: web_transport_trait::Session + Sync>(
 	}
 }
 
-async fn run_control_write<S: web_transport_trait::Session + Sync>(
+async fn run_control_write<S: web_transport_trait::Session>(
 	mut control: Writer<S::SendStream>,
 	mut rx: tokio::sync::mpsc::UnboundedReceiver<Vec<u8>>,
 ) -> Result<(), Error> {
