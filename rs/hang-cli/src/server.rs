@@ -35,10 +35,7 @@ pub async fn server<T: AsyncRead + Unpin>(
 	let broadcast = moq_lite::Broadcast::produce();
 	let mut import = Import::new(broadcast.producer, format);
 
-	import
-		.init_from(input)
-		.await
-		.context("failed to initialize cmaf from input")?;
+	import.init_from(input).await?;
 
 	// Notify systemd that we're ready.
 	let _ = sd_notify::notify(true, &[sd_notify::NotifyState::Ready]);

@@ -1,3 +1,4 @@
+use anyhow::Context;
 use clap::ValueEnum;
 use hang::moq_lite::BroadcastProducer;
 use tokio::io::AsyncRead;
@@ -25,9 +26,11 @@ impl Import {
 impl Import {
 	pub async fn init_from<T: AsyncRead + Unpin>(&mut self, input: &mut T) -> anyhow::Result<()> {
 		match self {
-			Self::AnnexB(_import) => Ok(()), // TODO: Implement
-			Self::Cmaf(import) => import.init_from(input).await.map_err(Into::into),
-		}
+			Self::AnnexB(_import) => {}
+			Self::Cmaf(import) => import.init_from(input).await.context("failed to parse CMAF headers")?,
+		};
+
+		Ok(())
 	}
 
 	pub async fn read_from<T: AsyncRead + Unpin>(&mut self, input: &mut T) -> anyhow::Result<()> {
