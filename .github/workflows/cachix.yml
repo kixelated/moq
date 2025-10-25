@@ -1,0 +1,28 @@
+name: Cachix
+
+on:
+  push:
+    tags:
+      - 'moq-relay-v*'
+
+jobs:
+  cache:
+    name: Build and push to Cachix
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: DeterminateSystems/nix-installer-action@main
+      - uses: DeterminateSystems/magic-nix-cache-action@main
+
+      - uses: cachix/cachix-action@v16
+        with:
+          name: kixelated
+          authToken: ${{ secrets.CACHIX_AUTH_TOKEN }}
+
+      - run: nix build ./rs --print-build-logs
+
+      - run: cachix push kixelated ./result
