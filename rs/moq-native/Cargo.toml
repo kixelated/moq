@@ -42,3 +42,9 @@ tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 url = "2"
 web-transport-quinn = { workspace = true }
+
+[dev-dependencies]
+anyhow = "1"
+bytes = "1"
+tokio = { workspace = true, features = ["rt-multi-thread"] }
+url = "2"

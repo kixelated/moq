@@ -1399,17 +1399,14 @@ dependencies = [
 name = "moq-lite"
 version = "0.9.5"
 dependencies = [
- "anyhow",
  "async-channel",
  "bytes",
  "futures",
- "moq-native",
  "num_enum",
  "serde",
  "thiserror 2.0.17",
  "tokio",
  "tracing",
- "url",
  "web-async",
  "web-transport-trait",
 ]
@@ -1419,6 +1416,7 @@ name = "moq-native"
 version = "0.9.0"
 dependencies = [
  "anyhow",
+ "bytes",
  "clap",
  "futures",
  "hex",

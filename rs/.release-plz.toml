@@ -29,3 +29,7 @@ version_group = "token"
 [[package]]
 name = "moq-token-cli"
 version_group = "token"
+
+[[package]]
+name = "moq-native"
+version_group = "moq"
