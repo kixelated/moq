@@ -20,7 +20,7 @@ export class Group {
 	}
 
 	async encode(w: Writer): Promise<void> {
-		Message.encode(w, this.#encode.bind(this));
+		return Message.encode(w, this.#encode.bind(this));
 	}
 
 	static async decode(r: Reader): Promise<Group> {
@@ -54,7 +54,7 @@ export class GroupDrop {
 	}
 
 	async encode(w: Writer): Promise<void> {
-		Message.encode(w, this.#encode.bind(this));
+		return Message.encode(w, this.#encode.bind(this));
 	}
 
 	static async decode(r: Reader): Promise<GroupDrop> {
@@ -83,7 +83,7 @@ export class Frame {
 	}
 
 	async encode(w: Writer): Promise<void> {
-		Message.encode(w, this.#encode.bind(this));
+		return Message.encode(w, this.#encode.bind(this));
 	}
 
 	static async decode(r: Reader): Promise<Frame> {
