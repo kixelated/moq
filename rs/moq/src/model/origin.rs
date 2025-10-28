@@ -512,6 +512,15 @@ impl OriginConsumer {
 		Some(OriginConsumer::new(self.root.clone(), self.nodes.select(prefixes)?))
 	}
 
+	/// Returns a new OriginConsumer that automatically strips out the provided prefix.
+	///
+	/// Returns None if the provided root is not authorized; when consume_only was already used without a wildcard.
+	pub fn with_root(&self, prefix: impl AsPath) -> Option<Self> {
+		let prefix = prefix.as_path();
+
+		Some(Self::new(self.root.join(&prefix).to_owned(), self.nodes.root(&prefix)?))
+	}
+
 	/// Returns the prefix that is automatically stripped from all paths.
 	pub fn root(&self) -> &Path<'_> {
 		&self.root

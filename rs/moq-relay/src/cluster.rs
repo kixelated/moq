@@ -1,7 +1,7 @@
 use std::{collections::HashMap, path::PathBuf, sync::Arc};
 
 use anyhow::Context;
-use moq_lite::{AsPath, Broadcast, BroadcastConsumer, BroadcastProducer, Origin, OriginConsumer, OriginProducer};
+use moq_lite::{Broadcast, BroadcastConsumer, BroadcastProducer, Origin, OriginConsumer, OriginProducer};
 use tracing::Instrument;
 use url::Url;
 
@@ -127,15 +127,18 @@ impl Cluster {
 			}
 		};
 
-		let prefix = self.config.prefix.as_path();
+		// Subscribe to available origins.
+		// Use with_root to automatically strip the prefix from announced paths.
+		let origins = self
+			.secondary
+			.producer
+			.with_root(&self.config.prefix)
+			.context("no authorized origins")?;
 
 		// Announce ourselves as an origin to the root node.
 		if let Some(myself) = self.config.node.as_ref() {
-			tracing::info!(%self.config.prefix, %myself, "announcing as leaf");
-			let name = prefix.join(myself);
-			self.primary
-				.producer
-				.publish_broadcast(&name, self.noop.consumer.clone());
+			tracing::info!(%myself, "announcing as leaf");
+			origins.publish_broadcast(myself, self.noop.consumer.clone());
 		}
 
 		// If the token is provided, read it from the disk and use it in the query parameter.
@@ -153,7 +156,7 @@ impl Cluster {
 				res.context("failed to connect to root")?;
 				anyhow::bail!("connection to root closed");
 			}
-			res = self.clone().run_remotes(token) => {
+			res = self.clone().run_remotes(origins.consume(), token) => {
 				res.context("failed to connect to remotes")?;
 				anyhow::bail!("connection to remotes closed");
 			}
@@ -183,14 +186,7 @@ impl Cluster {
 		}
 	}
 
-	async fn run_remotes(self, token: String) -> anyhow::Result<()> {
-		// Subscribe to available origins.
-		let mut origins = self
-			.secondary
-			.consumer
-			.consume_only(&[self.config.prefix.as_path()])
-			.context("no authorized origins")?;
-
+	async fn run_remotes(self, mut origins: OriginConsumer, token: String) -> anyhow::Result<()> {
 		// Cancel tasks when the origin is closed.
 		let mut active: HashMap<String, tokio::task::AbortHandle> = HashMap::new();
 
