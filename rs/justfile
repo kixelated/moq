@@ -132,7 +132,7 @@ clock action url="http://localhost:4443/anon":
 		exit 1; \
 	fi
 
-	cargo run --bin moq-clock -- "{{url}}" --name "clock" {{action}}
+	cargo run --bin moq-clock -- "{{url}}" --broadcast "clock" {{action}}
 
 # Run the CI checks
 check:

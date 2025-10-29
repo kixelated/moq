@@ -91,8 +91,8 @@ web url='http://localhost:4443/anon':
 
 # Publish the clock broadcast
 # `action` is either `publish` or `subscribe`
-clock action:
-	cd rs && just clock {{action}}
+clock action url="http://localhost:4443/anon":
+	cd rs && just clock {{action}} {{url}}
 
 # Run the CI checks
 check:
