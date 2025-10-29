@@ -20,12 +20,12 @@ pub struct ClientTls {
 	/// Danger: Disable TLS certificate verification.
 	///
 	/// Fine for local development and between relays, but should be used in caution in production.
-	// This is an Option<bool> so clap skips over it when not provided, otherwise it is set to false.
 	#[serde(skip_serializing_if = "Option::is_none")]
 	#[arg(
 		id = "tls-disable-verify",
 		long = "tls-disable-verify",
-		env = "MOQ_CLIENT_TLS_DISABLE_VERIFY"
+		env = "MOQ_CLIENT_TLS_DISABLE_VERIFY",
+		action = clap::ArgAction::SetTrue
 	)]
 	pub disable_verify: Option<bool>,
 }
