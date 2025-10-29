@@ -4,9 +4,6 @@ import * as Message from "./message.ts";
 import * as Namespace from "./namespace.ts";
 import { Parameters } from "./parameters.ts";
 
-// We only support Latest Group (0x1)
-const FILTER_TYPE = 0x01;
-
 // we only support Group Order descending
 const GROUP_ORDER = 0x02;
 
@@ -32,7 +29,7 @@ export class Subscribe {
 		await w.u8(this.subscriberPriority);
 		await w.u8(GROUP_ORDER);
 		await w.u8(1); // forward = true
-		await w.u8(FILTER_TYPE);
+		await w.u8(0x2); // LargestObject
 		await w.u8(0); // no parameters
 	}
 
@@ -61,7 +58,7 @@ export class Subscribe {
 		}
 
 		const filterType = await r.u8();
-		if (filterType !== FILTER_TYPE) {
+		if (filterType !== 0x1 && filterType !== 0x2) {
 			throw new Error(`unsupported filter type: ${filterType}`);
 		}
 
