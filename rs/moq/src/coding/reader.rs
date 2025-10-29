@@ -52,6 +52,29 @@ impl<S: web_transport_trait::RecvStream> Reader<S> {
 		}
 	}
 
+	pub async fn decode_peek<T: Decode>(&mut self) -> Result<T, Error> {
+		loop {
+			let mut cursor = io::Cursor::new(&self.buffer);
+			match T::decode(&mut cursor) {
+				Ok(msg) => return Ok(msg),
+				Err(DecodeError::Short) => {
+					// Try to read more data
+					if self
+						.stream
+						.read_buf(&mut self.buffer)
+						.await
+						.map_err(|e| Error::Transport(Arc::new(e)))?
+						.is_none()
+					{
+						// Stream closed while we still need more data
+						return Err(Error::Decode(DecodeError::Short));
+					}
+				}
+				Err(e) => return Err(Error::Decode(e)),
+			}
+		}
+	}
+
 	// Returns a non-zero chunk of data, or None if the stream is closed
 	pub async fn read(&mut self, max: usize) -> Result<Option<Bytes>, Error> {
 		if !self.buffer.is_empty() {

@@ -22,11 +22,9 @@ impl Decode for GroupOrder {
 	}
 }
 
-pub struct Group {
-	pub track_alias: u64,
-	pub group_id: u64,
-
-	// Each object has extensions.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct GroupFlags {
+	// The group has extensions.
 	pub has_extensions: bool,
 
 	// There's an explicit subgroup on the wire.
@@ -41,14 +39,17 @@ pub struct Group {
 	pub has_end: bool,
 }
 
-impl Encode for Group {
-	fn encode<W: bytes::BufMut>(&self, w: &mut W) {
+impl GroupFlags {
+	pub const START: u64 = 0x10;
+	pub const END: u64 = 0x1d;
+
+	pub fn encode(&self) -> u64 {
 		assert!(
 			!self.has_subgroup || !self.has_subgroup_object,
 			"has_subgroup and has_subgroup_object cannot be true at the same time"
 		);
 
-		let mut id: u8 = 0x10; // Base value
+		let mut id: u64 = Self::START; // Base value
 		if self.has_extensions {
 			id |= 0x01;
 		}
@@ -61,24 +62,11 @@ impl Encode for Group {
 		if self.has_end {
 			id |= 0x08;
 		}
-		id.encode(w);
-
-		self.track_alias.encode(w);
-		self.group_id.encode(w);
-
-		if self.has_subgroup {
-			SUBGROUP_ID.encode(w);
-		}
-
-		// Publisher priority
-		0u8.encode(w);
+		id
 	}
-}
 
-impl Decode for Group {
-	fn decode<R: bytes::Buf>(r: &mut R) -> Result<Self, DecodeError> {
-		let id = u64::decode(r)?;
-		if !(0x10..=0x1D).contains(&id) {
+	pub fn decode(id: u64) -> Result<Self, DecodeError> {
+		if !(Self::START..=Self::END).contains(&id) {
 			return Err(DecodeError::InvalidValue);
 		}
 
@@ -91,10 +79,55 @@ impl Decode for Group {
 			return Err(DecodeError::InvalidValue);
 		}
 
+		Ok(Self {
+			has_extensions,
+			has_subgroup,
+			has_subgroup_object,
+			has_end,
+		})
+	}
+}
+
+impl Default for GroupFlags {
+	fn default() -> Self {
+		Self {
+			has_extensions: false,
+			has_subgroup: false,
+			has_subgroup_object: false,
+			has_end: true,
+		}
+	}
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct GroupHeader {
+	pub track_alias: u64,
+	pub group_id: u64,
+	pub flags: GroupFlags,
+}
+
+impl Encode for GroupHeader {
+	fn encode<W: bytes::BufMut>(&self, w: &mut W) {
+		self.flags.encode().encode(w);
+		self.track_alias.encode(w);
+		self.group_id.encode(w);
+
+		if self.flags.has_subgroup {
+			SUBGROUP_ID.encode(w);
+		}
+
+		// Publisher priority
+		0u8.encode(w);
+	}
+}
+
+impl Decode for GroupHeader {
+	fn decode<R: bytes::Buf>(r: &mut R) -> Result<Self, DecodeError> {
+		let flags = GroupFlags::decode(u64::decode(r)?)?;
 		let track_alias = u64::decode(r)?;
 		let group_id = u64::decode(r)?;
 
-		if has_subgroup {
+		if flags.has_subgroup {
 			let subgroup_id = u8::decode(r)?;
 			if subgroup_id != SUBGROUP_ID {
 				return Err(DecodeError::Unsupported);
@@ -106,10 +139,7 @@ impl Decode for Group {
 		Ok(Self {
 			track_alias,
 			group_id,
-			has_extensions,
-			has_subgroup,
-			has_subgroup_object,
-			has_end,
+			flags,
 		})
 	}
 }

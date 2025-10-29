@@ -5,7 +5,7 @@ use std::{
 
 use crate::{
 	coding::Reader,
-	ietf::{self, Control, FilterType, GroupOrder},
+	ietf::{self, Control, FetchHeader, FilterType, GroupFlags, GroupOrder},
 	model::BroadcastProducer,
 	Broadcast, Error, Frame, FrameProducer, Group, GroupProducer, OriginProducer, Path, PathOwned, TrackProducer,
 };
@@ -159,6 +159,14 @@ impl<S: web_transport_trait::Session> Subscriber<S> {
 	}
 
 	async fn run_uni_stream(mut self, mut stream: Reader<S::RecvStream>) -> Result<(), Error> {
+		let kind: u64 = stream.decode_peek().await?;
+
+		match kind {
+			FetchHeader::TYPE => return Err(Error::Unsupported),
+			GroupFlags::START..=GroupFlags::END => {}
+			_ => return Err(Error::UnexpectedStream),
+		}
+
 		if let Err(err) = self.recv_group(&mut stream).await {
 			stream.abort(&err);
 		}
@@ -227,7 +235,7 @@ impl<S: web_transport_trait::Session> Subscriber<S> {
 	}
 
 	pub async fn recv_group(&mut self, stream: &mut Reader<S::RecvStream>) -> Result<(), Error> {
-		let group: ietf::Group = stream.decode().await?;
+		let group: ietf::GroupHeader = stream.decode().await?;
 
 		let producer = {
 			let mut state = self.state.lock();
@@ -265,7 +273,7 @@ impl<S: web_transport_trait::Session> Subscriber<S> {
 
 	async fn run_group(
 		&mut self,
-		group: ietf::Group,
+		group: ietf::GroupHeader,
 		stream: &mut Reader<S::RecvStream>,
 		mut producer: GroupProducer,
 	) -> Result<(), Error> {
@@ -274,7 +282,7 @@ impl<S: web_transport_trait::Session> Subscriber<S> {
 				return Err(Error::Unsupported);
 			}
 
-			if group.has_extensions {
+			if group.flags.has_extensions {
 				let size: usize = stream.decode().await?;
 				stream.skip(size).await?;
 			}
@@ -287,7 +295,7 @@ impl<S: web_transport_trait::Session> Subscriber<S> {
 					// Empty frame
 					let frame = producer.create_frame(Frame { size: 0 });
 					frame.close();
-				} else if status == 3 && !group.has_end {
+				} else if status == 3 && !group.flags.has_end {
 					// End of group
 					break;
 				} else {

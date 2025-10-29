@@ -194,15 +194,10 @@ impl<S: web_transport_trait::Session> Publisher<S> {
 			}
 
 			let priority = stream_priority(track.info.priority, sequence);
-			let msg = ietf::Group {
+			let msg = ietf::GroupHeader {
 				track_alias: request_id,
 				group_id: sequence,
-
-				// All of these flags are dumb
-				has_extensions: false,      // not using extensions
-				has_subgroup: false,        // not using subgroups
-				has_subgroup_object: false, // not using the first object to indicate the subgroup
-				has_end: true,              // no explicit end marker required
+				flags: Default::default(),
 			};
 
 			// Spawn a task to serve this group, ignoring any errors because they don't really matter.
@@ -230,7 +225,12 @@ impl<S: web_transport_trait::Session> Publisher<S> {
 		}
 	}
 
-	async fn run_group(session: S, msg: ietf::Group, priority: i32, mut group: GroupConsumer) -> Result<(), Error> {
+	async fn run_group(
+		session: S,
+		msg: ietf::GroupHeader,
+		priority: i32,
+		mut group: GroupConsumer,
+	) -> Result<(), Error> {
 		// TODO add a way to open in priority order.
 		let mut stream = session
 			.open_uni()
@@ -259,7 +259,7 @@ impl<S: web_transport_trait::Session> Publisher<S> {
 			stream.encode(&0u8).await?;
 
 			// not using extensions.
-			if msg.has_extensions {
+			if msg.flags.has_extensions {
 				stream.encode(&0u8).await?;
 			}
 
