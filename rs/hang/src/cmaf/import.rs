@@ -472,89 +472,94 @@ impl Import {
 			let default_sample_size = trex.map(|trex| trex.default_sample_size).unwrap_or_default();
 			let default_sample_flags = trex.map(|trex| trex.default_sample_flags).unwrap_or_default();
 
-			let tfhd = &traf.tfhd;
-			let trun = traf.trun.as_ref().ok_or(Error::MissingBox(Trun::KIND))?;
-
 			let tfdt = traf.tfdt.as_ref().ok_or(Error::MissingBox(Tfdt::KIND))?;
 			let mut dts = tfdt.base_media_decode_time;
 			let timescale = trak.mdia.mdhd.timescale as u64;
 
-			let mut offset = tfhd.base_data_offset.unwrap_or_default() as usize;
+			let mut offset = traf.tfhd.base_data_offset.unwrap_or_default() as usize;
 
-			if let Some(data_offset) = trun.data_offset {
-				// This is relative to the start of the MOOF, not the MDAT.
-				// Note: The trun data offset can be negative, but... that's not supported here.
-				let data_offset: usize = data_offset.try_into().map_err(|_| Error::InvalidOffset)?;
-				if data_offset < self.moof_size {
-					return Err(Error::InvalidOffset);
-				}
-
-				offset += data_offset - self.moof_size - header_size;
+			if traf.trun.is_empty() {
+				return Err(Error::MissingBox(Trun::KIND));
 			}
+			for trun in &traf.trun {
+				let tfhd = &traf.tfhd;
 
-			for entry in &trun.entries {
-				// Use the moof defaults if the sample doesn't have its own values.
-				let flags = entry
-					.flags
-					.unwrap_or(tfhd.default_sample_flags.unwrap_or(default_sample_flags));
-				let duration = entry
-					.duration
-					.unwrap_or(tfhd.default_sample_duration.unwrap_or(default_sample_duration));
-				let size = entry
-					.size
-					.unwrap_or(tfhd.default_sample_size.unwrap_or(default_sample_size)) as usize;
-
-				let pts = (dts as i64 + entry.cts.unwrap_or_default() as i64) as u64;
-				let timestamp = Timestamp::from_micros(1_000_000 * pts / timescale);
-
-				if offset + size > mdat.len() {
-					return Err(Error::InvalidOffset);
+				if let Some(data_offset) = trun.data_offset {
+					let base_offset = tfhd.base_data_offset.unwrap_or_default() as usize;
+					// This is relative to the start of the MOOF, not the MDAT.
+					// Note: The trun data offset can be negative, but... that's not supported here.
+					let data_offset: usize = data_offset.try_into().map_err(|_| Error::InvalidOffset)?;
+					if data_offset < self.moof_size {
+						return Err(Error::InvalidOffset);
+					}
+					// Reset offset if the TRUN has a data offset
+					offset = base_offset + data_offset - self.moof_size - header_size;
 				}
 
-				let keyframe = if trak.mdia.hdlr.handler == b"vide".into() {
-					// https://chromium.googlesource.com/chromium/src/media/+/master/formats/mp4/track_run_iterator.cc#177
-					let keyframe = (flags >> 24) & 0x3 == 0x2; // kSampleDependsOnNoOther
-					let non_sync = (flags >> 16) & 0x1 == 0x1; // kSampleIsNonSyncSample
+				for entry in &trun.entries {
+					// Use the moof defaults if the sample doesn't have its own values.
+					let flags = entry
+						.flags
+						.unwrap_or(tfhd.default_sample_flags.unwrap_or(default_sample_flags));
+					let duration = entry
+						.duration
+						.unwrap_or(tfhd.default_sample_duration.unwrap_or(default_sample_duration));
+					let size = entry
+						.size
+						.unwrap_or(tfhd.default_sample_size.unwrap_or(default_sample_size)) as usize;
 
-					if keyframe && !non_sync {
-						for audio in moov.trak.iter().filter(|t| t.mdia.hdlr.handler == b"soun".into()) {
-							// Force an audio keyframe on video keyframes
-							self.last_keyframe.remove(&audio.tkhd.track_id);
+					let pts = (dts as i64 + entry.cts.unwrap_or_default() as i64) as u64;
+					let timestamp = Timestamp::from_micros(1_000_000 * pts / timescale);
+
+					if offset + size > mdat.len() {
+						return Err(Error::InvalidOffset);
+					}
+
+					let keyframe = if trak.mdia.hdlr.handler == b"vide".into() {
+						// https://chromium.googlesource.com/chromium/src/media/+/master/formats/mp4/track_run_iterator.cc#177
+						let keyframe = (flags >> 24) & 0x3 == 0x2; // kSampleDependsOnNoOther
+						let non_sync = (flags >> 16) & 0x1 == 0x1; // kSampleIsNonSyncSample
+
+						if keyframe && !non_sync {
+							for audio in moov.trak.iter().filter(|t| t.mdia.hdlr.handler == b"soun".into()) {
+								// Force an audio keyframe on video keyframes
+								self.last_keyframe.remove(&audio.tkhd.track_id);
+							}
+
+							true
+						} else {
+							false
 						}
-
-						true
 					} else {
-						false
+						match self.last_keyframe.get(&track_id) {
+							// Force an audio keyframe at least every 10 seconds, but ideally at video keyframes
+							Some(prev) => timestamp - *prev > Duration::from_secs(10),
+							None => true,
+						}
+					};
+
+					if keyframe {
+						self.last_keyframe.insert(track_id, timestamp);
 					}
-				} else {
-					match self.last_keyframe.get(&track_id) {
-						// Force an audio keyframe at least every 10 seconds, but ideally at video keyframes
-						Some(prev) => timestamp - *prev > Duration::from_secs(10),
-						None => true,
+
+					let payload = mdat.slice(offset..(offset + size));
+
+					let frame = Frame {
+						timestamp,
+						keyframe,
+						payload,
+					};
+					track.write(frame);
+
+					dts += duration as u64;
+					offset += size;
+
+					if timestamp >= max_timestamp.unwrap_or_default() {
+						max_timestamp = Some(timestamp);
 					}
-				};
-
-				if keyframe {
-					self.last_keyframe.insert(track_id, timestamp);
-				}
-
-				let payload = mdat.slice(offset..(offset + size));
-
-				let frame = Frame {
-					timestamp,
-					keyframe,
-					payload,
-				};
-				track.write(frame);
-
-				dts += duration as u64;
-				offset += size;
-
-				if timestamp >= max_timestamp.unwrap_or_default() {
-					max_timestamp = Some(timestamp);
-				}
-				if timestamp <= min_timestamp.unwrap_or_default() {
-					min_timestamp = Some(timestamp);
+					if timestamp <= min_timestamp.unwrap_or_default() {
+						min_timestamp = Some(timestamp);
+					}
 				}
 			}
 		}
