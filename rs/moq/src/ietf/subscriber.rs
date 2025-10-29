@@ -12,14 +12,24 @@ use crate::{
 
 use web_async::Lock;
 
+#[derive(Default)]
+struct SubscriberState {
+	subscribes: HashMap<u64, SubscriberTrack>,
+	aliases: HashMap<u64, u64>,
+	broadcasts: HashMap<PathOwned, BroadcastProducer>,
+}
+
+struct SubscriberTrack {
+	producer: TrackProducer,
+	alias: Option<u64>,
+}
+
 #[derive(Clone)]
 pub(super) struct Subscriber<S: web_transport_trait::Session> {
 	session: S,
 
 	origin: Option<OriginProducer>,
-	subscribes: Lock<HashMap<u64, TrackProducer>>,
-
-	producers: Lock<HashMap<PathOwned, BroadcastProducer>>,
+	state: Lock<SubscriberState>,
 	control: Control,
 }
 
@@ -28,8 +38,7 @@ impl<S: web_transport_trait::Session> Subscriber<S> {
 		Self {
 			session,
 			origin,
-			subscribes: Default::default(),
-			producers: Default::default(),
+			state: Default::default(),
 			control,
 		}
 	}
@@ -55,8 +64,10 @@ impl<S: web_transport_trait::Session> Subscriber<S> {
 
 		let broadcast = Broadcast::produce();
 
+		let mut state = self.state.lock();
+
 		// Make sure the peer doesn't double announce.
-		match self.producers.lock().entry(path.to_owned()) {
+		match state.broadcasts.entry(path.to_owned()) {
 			Entry::Occupied(_) => return Err(Error::Duplicate),
 			Entry::Vacant(entry) => entry.insert(broadcast.producer.clone()),
 		};
@@ -80,30 +91,49 @@ impl<S: web_transport_trait::Session> Subscriber<S> {
 		let path = msg.track_namespace.to_owned();
 		tracing::debug!(broadcast = %origin.absolute(&path), "unannounced");
 
+		let mut state = self.state.lock();
+
 		// Close the producer.
-		let mut producer = self.producers.lock().remove(&path).ok_or(Error::NotFound)?;
+		let mut producer = state.broadcasts.remove(&path).ok_or(Error::NotFound)?;
 
 		producer.close();
 
 		Ok(())
 	}
 
-	pub fn recv_subscribe_ok(&mut self, _msg: ietf::SubscribeOk) -> Result<(), Error> {
-		// Don't care.
+	pub fn recv_subscribe_ok(&mut self, msg: ietf::SubscribeOk) -> Result<(), Error> {
+		// Save the track alias if it's not the same as the request id.
+		if msg.request_id != msg.track_alias {
+			let mut state = self.state.lock();
+			if let Some(subscribe) = state.subscribes.get_mut(&msg.request_id) {
+				subscribe.alias = Some(msg.track_alias);
+				state.aliases.insert(msg.track_alias, msg.request_id);
+			}
+		}
+
 		Ok(())
 	}
 
 	pub fn recv_subscribe_error(&mut self, msg: ietf::SubscribeError) -> Result<(), Error> {
-		if let Some(track) = self.subscribes.lock().remove(&msg.request_id) {
-			track.abort(Error::Cancel);
+		let mut state = self.state.lock();
+
+		if let Some(track) = state.subscribes.remove(&msg.request_id) {
+			track.producer.abort(Error::Cancel);
+			if let Some(alias) = track.alias {
+				state.aliases.remove(&alias);
+			}
 		}
 
 		Ok(())
 	}
 
 	pub fn recv_publish_done(&mut self, msg: ietf::PublishDone<'_>) -> Result<(), Error> {
-		if let Some(track) = self.subscribes.lock().remove(&msg.request_id) {
-			track.close();
+		let mut state = self.state.lock();
+		if let Some(track) = state.subscribes.remove(&msg.request_id) {
+			track.producer.close();
+			if let Some(alias) = track.alias {
+				state.aliases.remove(&alias);
+			}
 		}
 
 		Ok(())
@@ -153,19 +183,26 @@ impl<S: web_transport_trait::Session> Subscriber<S> {
 			let request_id = self.control.request_id();
 			let mut this = self.clone();
 
+			let mut state = self.state.lock();
+			state.subscribes.insert(
+				request_id,
+				SubscriberTrack {
+					producer: track.clone(),
+					alias: None,
+				},
+			);
+
 			let path = path.clone();
 			web_async::spawn(async move {
 				if let Err(err) = this.run_subscribe(request_id, path, track).await {
 					tracing::debug!(%err, id = %request_id, "error running subscribe");
 				}
-				this.subscribes.lock().remove(&request_id);
+				this.state.lock().subscribes.remove(&request_id);
 			});
 		}
 	}
 
 	async fn run_subscribe(&mut self, request_id: u64, broadcast: Path<'_>, track: TrackProducer) -> Result<(), Error> {
-		self.subscribes.lock().insert(request_id, track.clone());
-
 		self.control.send(ietf::Subscribe {
 			request_id,
 			track_namespace: broadcast.to_owned(),
@@ -193,13 +230,14 @@ impl<S: web_transport_trait::Session> Subscriber<S> {
 		let group: ietf::Group = stream.decode().await?;
 
 		let producer = {
-			let mut subs = self.subscribes.lock();
-			let track = subs.get_mut(&group.request_id).ok_or(Error::Cancel)?;
+			let mut state = self.state.lock();
+			let request_id = *state.aliases.get(&group.track_alias).unwrap_or(&group.track_alias);
+			let track = state.subscribes.get_mut(&request_id).ok_or(Error::NotFound)?;
 
 			let group = Group {
 				sequence: group.group_id,
 			};
-			track.create_group(group).ok_or(Error::Old)?
+			track.producer.create_group(group).ok_or(Error::Old)?
 		};
 
 		let res = tokio::select! {

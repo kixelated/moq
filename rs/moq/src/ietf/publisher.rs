@@ -99,7 +99,10 @@ impl<S: web_transport_trait::Session> Publisher<S> {
 		let mut subscribes = self.subscribes.lock();
 		subscribes.insert(request_id, tx);
 
-		self.control.send(ietf::SubscribeOk { request_id })?;
+		self.control.send(ietf::SubscribeOk {
+			request_id,
+			track_alias: request_id,
+		})?;
 
 		let session = self.session.clone();
 		let control = self.control.clone();
@@ -192,7 +195,7 @@ impl<S: web_transport_trait::Session> Publisher<S> {
 
 			let priority = stream_priority(track.info.priority, sequence);
 			let msg = ietf::Group {
-				request_id,
+				track_alias: request_id,
 				group_id: sequence,
 
 				// All of these flags are dumb

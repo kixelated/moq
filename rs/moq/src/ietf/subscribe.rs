@@ -111,6 +111,7 @@ impl<'a> Message for Subscribe<'a> {
 #[derive(Clone, Debug)]
 pub struct SubscribeOk {
 	pub request_id: u64,
+	pub track_alias: u64,
 }
 
 impl Message for SubscribeOk {
@@ -118,7 +119,7 @@ impl Message for SubscribeOk {
 
 	fn encode<W: bytes::BufMut>(&self, w: &mut W) {
 		self.request_id.encode(w);
-		self.request_id.encode(w); // TODO track_alias == request_id for now
+		self.track_alias.encode(w);
 		0u64.encode(w); // expires = 0
 		GroupOrder::Descending.encode(w);
 		false.encode(w); // no content
@@ -127,12 +128,7 @@ impl Message for SubscribeOk {
 
 	fn decode<R: bytes::Buf>(r: &mut R) -> Result<Self, DecodeError> {
 		let request_id = u64::decode(r)?;
-
 		let track_alias = u64::decode(r)?;
-		if track_alias != request_id {
-			// TODO We don't support track aliases yet; they are dumb.
-			return Err(DecodeError::Unsupported);
-		}
 
 		let expires = u64::decode(r)?;
 		if expires != 0 {
@@ -151,7 +147,10 @@ impl Message for SubscribeOk {
 		// Ignore parameters, who cares.
 		let _params = Parameters::decode(r)?;
 
-		Ok(Self { request_id })
+		Ok(Self {
+			request_id,
+			track_alias,
+		})
 	}
 }
 
@@ -313,7 +312,10 @@ mod tests {
 
 	#[test]
 	fn test_subscribe_ok() {
-		let msg = SubscribeOk { request_id: 42 };
+		let msg = SubscribeOk {
+			request_id: 42,
+			track_alias: 42,
+		};
 
 		let encoded = encode_message(&msg);
 		let decoded: SubscribeOk = decode_message(&encoded).unwrap();

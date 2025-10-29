@@ -23,7 +23,7 @@ impl Decode for GroupOrder {
 }
 
 pub struct Group {
-	pub request_id: u64,
+	pub track_alias: u64,
 	pub group_id: u64,
 
 	// Each object has extensions.
@@ -63,7 +63,7 @@ impl Encode for Group {
 		}
 		id.encode(w);
 
-		self.request_id.encode(w);
+		self.track_alias.encode(w);
 		self.group_id.encode(w);
 
 		if self.has_subgroup {
@@ -91,7 +91,7 @@ impl Decode for Group {
 			return Err(DecodeError::InvalidValue);
 		}
 
-		let request_id = u64::decode(r)?;
+		let track_alias = u64::decode(r)?;
 		let group_id = u64::decode(r)?;
 
 		if has_subgroup {
@@ -104,7 +104,7 @@ impl Decode for Group {
 		let _publisher_priority = u8::decode(r)?;
 
 		Ok(Self {
-			request_id,
+			track_alias,
 			group_id,
 			has_extensions,
 			has_subgroup,
