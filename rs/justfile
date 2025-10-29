@@ -126,13 +126,13 @@ serve name:
 
 # Publish the clock broadcast
 # `action` is either `publish` or `subscribe`
-clock action url="http://localhost:4443/anon":
+clock action url="http://localhost:4443/anon" *args:
 	@if [ "{{action}}" != "publish" ] && [ "{{action}}" != "subscribe" ]; then \
 		echo "Error: action must be 'publish' or 'subscribe', got '{{action}}'" >&2; \
 		exit 1; \
 	fi
 
-	cargo run --bin moq-clock -- --url "{{url}}" --broadcast "clock" --tls-disable-verify true {{action}}
+	cargo run --bin moq-clock -- --url "{{url}}" --broadcast "clock" {{args}} {{action}}
 
 # Run the CI checks
 check:
