@@ -1,6 +1,26 @@
 use crate::coding::{Decode, DecodeError, Encode};
 
+use num_enum::{IntoPrimitive, TryFromPrimitive};
 const SUBGROUP_ID: u8 = 0x0;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, TryFromPrimitive, IntoPrimitive)]
+#[repr(u8)]
+pub enum GroupOrder {
+	Ascending = 0x1,
+	Descending = 0x2,
+}
+
+impl Encode for GroupOrder {
+	fn encode<W: bytes::BufMut>(&self, w: &mut W) {
+		u8::from(*self).encode(w);
+	}
+}
+
+impl Decode for GroupOrder {
+	fn decode<R: bytes::Buf>(r: &mut R) -> Result<Self, DecodeError> {
+		Self::try_from(u8::decode(r)?).map_err(|_| DecodeError::InvalidValue)
+	}
+}
 
 pub struct Group {
 	pub request_id: u64,
@@ -93,114 +113,3 @@ impl Decode for Group {
 		})
 	}
 }
-
-/* We use an optimized streaming version to avoid buffering the entire frame.
-pub struct Object {
-	// If None, this is the end of the group.
-	pub payload: Option<Vec<u8>>,
-}
-
-impl Encode for Object {
-	fn encode<W: bytes::BufMut>(&self, w: &mut W) {
-		0u8.encode(w); // id_delta == 0
-
-		let size = self.payload.as_ref().map(|p| p.len()).unwrap_or(0);
-		size.encode(w);
-
-		match &self.payload {
-			Some(payload) if !payload.is_empty() => w.put_slice(payload),
-			Some(_) => 0u8.encode(w),
-			None => GROUP_END.encode(w),
-		}
-	}
-}
-
-impl Decode for Object {
-	fn decode<R: bytes::Buf>(r: &mut R) -> Result<Self, DecodeError> {
-		let id_delta = u64::decode(r)?;
-		if id_delta != 0 {
-			return Err(DecodeError::Unsupported);
-		}
-
-		let size = u64::decode(r)?;
-
-		if r.remaining() < size as usize {
-			return Err(DecodeError::Short);
-		}
-
-		if size > 0 {
-			let payload = r.copy_to_bytes(size as usize).to_vec();
-			Ok(Self { payload: Some(payload) })
-		} else {
-			match u8::decode(r)? {
-				0 => Ok(Self {
-					payload: Some(Vec::new()),
-				}),
-				GROUP_END => Ok(Self { payload: None }),
-				_ => Err(DecodeError::InvalidValue),
-			}
-		}
-	}
-}
-
-// The same as Object, but when extensions have been negotiated.
-// They're always ignored of course.
-pub struct ObjectExtensions {
-	// If None, this is the end of the group.
-	pub payload: Option<Vec<u8>>,
-}
-
-impl Encode for ObjectExtensions {
-	fn encode<W: bytes::BufMut>(&self, w: &mut W) {
-		0u8.encode(w); // id_delta == 0
-
-		// zero length extensions
-		0u8.encode(w);
-
-		let size = self.payload.as_ref().map(|p| p.len()).unwrap_or(0);
-		size.encode(w);
-
-		match &self.payload {
-			Some(payload) if !payload.is_empty() => w.put_slice(payload),
-			Some(_) => 0u8.encode(w),
-			None => GROUP_END.encode(w),
-		}
-	}
-}
-
-impl Decode for ObjectExtensions {
-	fn decode<R: bytes::Buf>(r: &mut R) -> Result<Self, DecodeError> {
-		let id_delta = u64::decode(r)?;
-		if id_delta != 0 {
-			return Err(DecodeError::Unsupported);
-		}
-
-		let size = u64::decode(r)?;
-		if r.remaining() < size as usize {
-			return Err(DecodeError::Short);
-		}
-
-		// Skip the extensions
-		r.advance(size as usize);
-
-		let size = u64::decode(r)?;
-		if r.remaining() < size as usize {
-			return Err(DecodeError::Short);
-		}
-
-		if size > 0 {
-			let payload = r.copy_to_bytes(size as usize).to_vec();
-			Ok(Self { payload: Some(payload) })
-		} else {
-			match u8::decode(r)? {
-				0 => Ok(Self {
-					payload: Some(Vec::new()),
-				}),
-				GROUP_END => Ok(Self { payload: None }),
-				_ => Err(DecodeError::InvalidValue),
-			}
-		}
-	}
-}
-
-*/

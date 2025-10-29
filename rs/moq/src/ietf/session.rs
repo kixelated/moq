@@ -75,7 +75,10 @@ async fn run_control_read<S: web_transport_trait::Session>(
 				let msg = ietf::Subscribe::decode(&mut data)?;
 				publisher.recv_subscribe(msg)?;
 			}
-			ietf::SubscribeUpdate::ID => return Err(Error::Unsupported),
+			ietf::SubscribeUpdate::ID => {
+				let msg = ietf::SubscribeUpdate::decode(&mut data)?;
+				publisher.recv_subscribe_update(msg)?;
+			}
 			ietf::SubscribeOk::ID => {
 				let msg = ietf::SubscribeOk::decode(&mut data)?;
 				subscriber.recv_subscribe_ok(msg)?;
@@ -112,13 +115,9 @@ async fn run_control_read<S: web_transport_trait::Session>(
 				let msg = ietf::PublishNamespaceCancel::decode(&mut data)?;
 				publisher.recv_publish_namespace_cancel(msg)?;
 			}
-			ietf::TrackStatusRequest::ID => {
-				let msg = ietf::TrackStatusRequest::decode(&mut data)?;
-				publisher.recv_track_status_request(msg)?;
-			}
 			ietf::TrackStatus::ID => {
 				let msg = ietf::TrackStatus::decode(&mut data)?;
-				subscriber.recv_track_status(msg)?;
+				publisher.recv_track_status(msg)?;
 			}
 			ietf::GoAway::ID => return Err(Error::Unsupported),
 			ietf::SubscribeNamespace::ID => {
@@ -145,11 +144,26 @@ async fn run_control_read<S: web_transport_trait::Session>(
 				let msg = ietf::RequestsBlocked::decode(&mut data)?;
 				tracing::warn!(?msg, "ignoring requests blocked");
 			}
-			ietf::Fetch::ID => return Err(Error::Unsupported),
-			ietf::FetchCancel::ID => return Err(Error::Unsupported),
-			ietf::FetchOk::ID => return Err(Error::Unsupported),
-			ietf::FetchError::ID => return Err(Error::Unsupported),
-			ietf::Publish::ID => return Err(Error::Unsupported),
+			ietf::Fetch::ID => {
+				let msg = ietf::Fetch::decode(&mut data)?;
+				publisher.recv_fetch(msg)?;
+			}
+			ietf::FetchCancel::ID => {
+				let msg = ietf::FetchCancel::decode(&mut data)?;
+				publisher.recv_fetch_cancel(msg)?;
+			}
+			ietf::FetchOk::ID => {
+				let msg = ietf::FetchOk::decode(&mut data)?;
+				subscriber.recv_fetch_ok(msg)?;
+			}
+			ietf::FetchError::ID => {
+				let msg = ietf::FetchError::decode(&mut data)?;
+				subscriber.recv_fetch_error(msg)?;
+			}
+			ietf::Publish::ID => {
+				let msg = ietf::Publish::decode(&mut data)?;
+				subscriber.recv_publish(msg)?;
+			}
 			ietf::PublishOk::ID => return Err(Error::Unsupported),
 			ietf::PublishError::ID => return Err(Error::Unsupported),
 			_ => return Err(Error::UnexpectedMessage),

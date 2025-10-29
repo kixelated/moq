@@ -2,15 +2,36 @@
 
 use std::borrow::Cow;
 
-use crate::{coding::*, ietf::Message, Path};
+use num_enum::{IntoPrimitive, TryFromPrimitive};
+
+use crate::{
+	coding::*,
+	ietf::{GroupOrder, Location, Message},
+	Path,
+};
 
 use super::namespace::{decode_namespace, encode_namespace};
 
-// We only support Latest Group (0x1)
-const FILTER_TYPE: u8 = 0x01;
+#[derive(Clone, Copy, Debug, TryFromPrimitive, IntoPrimitive)]
+#[repr(u64)]
+pub enum FilterType {
+	NextGroup = 0x01,
+	LargestObject = 0x2,
+	AbsoluteStart = 0x3,
+	AbsoluteRange = 0x4,
+}
 
-// We only support Group Order descending (0x02)
-const GROUP_ORDER: u8 = 0x02;
+impl Encode for FilterType {
+	fn encode<W: bytes::BufMut>(&self, w: &mut W) {
+		u64::from(*self).encode(w);
+	}
+}
+
+impl Decode for FilterType {
+	fn decode<R: bytes::Buf>(r: &mut R) -> Result<Self, DecodeError> {
+		Self::try_from(u64::decode(r)?).map_err(|_| DecodeError::InvalidValue)
+	}
+}
 
 /// Subscribe message (0x03)
 /// Sent by the subscriber to request all future objects for the given track.
@@ -20,6 +41,8 @@ pub struct Subscribe<'a> {
 	pub track_namespace: Path<'a>,
 	pub track_name: Cow<'a, str>,
 	pub subscriber_priority: u8,
+	pub group_order: GroupOrder,
+	pub filter_type: FilterType,
 }
 
 impl<'a> Message for Subscribe<'a> {
@@ -34,18 +57,24 @@ impl<'a> Message for Subscribe<'a> {
 		let track_name = Cow::<str>::decode(r)?;
 		let subscriber_priority = u8::decode(r)?;
 
-		// Ignore group order, we're sending it descending anyway.
-		let _group_order = u8::decode(r)?;
+		let group_order = GroupOrder::decode(r)?;
 
 		let forward = bool::decode(r)?;
 		if !forward {
 			return Err(DecodeError::Unsupported);
 		}
 
-		let filter_type = u8::decode(r)?;
-		if filter_type != FILTER_TYPE {
-			return Err(DecodeError::Unsupported);
-		}
+		let filter_type = FilterType::decode(r)?;
+		match filter_type {
+			FilterType::AbsoluteStart => {
+				let _start = Location::decode(r)?;
+			}
+			FilterType::AbsoluteRange => {
+				let _start = Location::decode(r)?;
+				let _end_group = u64::decode(r)?;
+			}
+			FilterType::NextGroup | FilterType::LargestObject => {}
+		};
 
 		// Ignore parameters, who cares.
 		let _params = Parameters::decode(r)?;
@@ -55,6 +84,8 @@ impl<'a> Message for Subscribe<'a> {
 			track_namespace,
 			track_name,
 			subscriber_priority,
+			group_order,
+			filter_type,
 		})
 	}
 
@@ -63,9 +94,15 @@ impl<'a> Message for Subscribe<'a> {
 		encode_namespace(w, &self.track_namespace);
 		self.track_name.encode(w);
 		self.subscriber_priority.encode(w);
-		GROUP_ORDER.encode(w);
+		GroupOrder::Descending.encode(w);
 		true.encode(w); // forward
-		FILTER_TYPE.encode(w);
+
+		assert!(
+			!matches!(self.filter_type, FilterType::AbsoluteStart | FilterType::AbsoluteRange),
+			"Absolute subscribe not supported"
+		);
+
+		self.filter_type.encode(w);
 		0u8.encode(w); // no parameters
 	}
 }
@@ -83,7 +120,7 @@ impl Message for SubscribeOk {
 		self.request_id.encode(w);
 		self.request_id.encode(w); // TODO track_alias == request_id for now
 		0u64.encode(w); // expires = 0
-		GROUP_ORDER.encode(w);
+		GroupOrder::Descending.encode(w);
 		false.encode(w); // no content
 		0u8.encode(w); // no parameters
 	}
@@ -166,10 +203,59 @@ impl Message for Unsubscribe {
 	}
 }
 
-pub struct SubscribeUpdate {}
+/*
+  Type (i) = 0x2,
+  Length (16),
+  Request ID (i),
+  Subscription Request ID (i),
+  Start Location (Location),
+  End Group (i),
+  Subscriber Priority (8),
+  Forward (8),
+  Number of Parameters (i),
+  Parameters (..) ...
+*/
+pub struct SubscribeUpdate {
+	pub request_id: u64,
+	pub subscription_request_id: u64,
+	pub start_location: Location,
+	pub end_group: u64,
+	pub subscriber_priority: u8,
+	pub forward: bool,
+	// pub parameters: Parameters,
+}
 
-impl SubscribeUpdate {
-	pub const ID: u64 = 0x02;
+impl Message for SubscribeUpdate {
+	const ID: u64 = 0x02;
+
+	fn encode<W: bytes::BufMut>(&self, w: &mut W) {
+		self.request_id.encode(w);
+		self.subscription_request_id.encode(w);
+		self.start_location.encode(w);
+		self.end_group.encode(w);
+		self.subscriber_priority.encode(w);
+		self.forward.encode(w);
+		0u8.encode(w); // no parameters
+	}
+
+	fn decode<R: bytes::Buf>(r: &mut R) -> Result<Self, DecodeError> {
+		let request_id = u64::decode(r)?;
+		let subscription_request_id = u64::decode(r)?;
+		let start_location = Location::decode(r)?;
+		let end_group = u64::decode(r)?;
+		let subscriber_priority = u8::decode(r)?;
+		let forward = bool::decode(r)?;
+		let _parameters = Parameters::decode(r)?;
+
+		Ok(Self {
+			request_id,
+			subscription_request_id,
+			start_location,
+			end_group,
+			subscriber_priority,
+			forward,
+		})
+	}
 }
 
 #[cfg(test)]
@@ -195,6 +281,8 @@ mod tests {
 			track_namespace: Path::new("test"),
 			track_name: "video".into(),
 			subscriber_priority: 128,
+			group_order: GroupOrder::Descending,
+			filter_type: FilterType::LargestObject,
 		};
 
 		let encoded = encode_message(&msg);
@@ -213,6 +301,8 @@ mod tests {
 			track_namespace: Path::new("conference/room123"),
 			track_name: "audio".into(),
 			subscriber_priority: 255,
+			group_order: GroupOrder::Descending,
+			filter_type: FilterType::LargestObject,
 		};
 
 		let encoded = encode_message(&msg);

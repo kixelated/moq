@@ -107,8 +107,12 @@ The namespace or track is not of interest to the endpoint.
 use std::borrow::Cow;
 
 use crate::{
-	coding::{Decode, DecodeError, Encode},
-	ietf::Message,
+	coding::{Decode, DecodeError, Encode, Parameters},
+	ietf::{
+		namespace::{decode_namespace, encode_namespace},
+		GroupOrder, Location, Message,
+	},
+	Path,
 };
 
 /// Used to be called SubscribeDone
@@ -143,18 +147,100 @@ impl<'a> Message for PublishDone<'a> {
 	}
 }
 
-pub struct Publish {}
-
-impl Publish {
-	pub const ID: u64 = 0x1D;
+pub struct Publish<'a> {
+	pub request_id: u64,
+	pub track_namespace: Path<'a>,
+	pub track_name: Cow<'a, str>,
+	pub track_alias: u64,
+	pub group_order: GroupOrder,
+	pub largest_location: Option<Location>,
+	pub forward: bool,
+	// pub parameters: Parameters,
 }
 
-pub struct PublishOk {}
+impl<'a> Message for Publish<'a> {
+	const ID: u64 = 0x1D;
+
+	fn encode<W: bytes::BufMut>(&self, w: &mut W) {
+		self.request_id.encode(w);
+		encode_namespace(w, &self.track_namespace);
+		self.track_name.encode(w);
+		self.track_alias.encode(w);
+		self.group_order.encode(w);
+		if let Some(location) = &self.largest_location {
+			true.encode(w);
+			location.encode(w);
+		} else {
+			false.encode(w);
+		}
+
+		self.forward.encode(w);
+		// parameters
+		0u8.encode(w);
+	}
+
+	fn decode<R: bytes::Buf>(r: &mut R) -> Result<Self, DecodeError> {
+		let request_id = u64::decode(r)?;
+		let track_namespace = decode_namespace(r)?;
+		let track_name = Cow::<str>::decode(r)?;
+		let track_alias = u64::decode(r)?;
+		let group_order = GroupOrder::decode(r)?;
+		let content_exists = bool::decode(r)?;
+		let largest_location = match content_exists {
+			true => Some(Location::decode(r)?),
+			false => None,
+		};
+		let forward = bool::decode(r)?;
+		// parameters
+		let _params = Parameters::decode(r)?;
+		Ok(Self {
+			request_id,
+			track_namespace,
+			track_name,
+			track_alias,
+			group_order,
+			largest_location,
+			forward,
+		})
+	}
+}
+
+pub struct PublishOk {
+	pub request_id: u64,
+	pub forward: bool,
+	pub subscriber_priority: u8,
+	pub group_order: GroupOrder,
+	pub filter_type: u8,
+	pub start_location: Option<Location>,
+	// pub parameters: Parameters,
+}
+
 impl PublishOk {
 	pub const ID: u64 = 0x1E;
 }
 
-pub struct PublishError {}
-impl PublishError {
-	pub const ID: u64 = 0x1F;
+pub struct PublishError<'a> {
+	pub request_id: u64,
+	pub error_code: u64,
+	pub reason_phrase: Cow<'a, str>,
+}
+impl<'a> Message for PublishError<'a> {
+	const ID: u64 = 0x1F;
+
+	fn encode<W: bytes::BufMut>(&self, w: &mut W) {
+		self.request_id.encode(w);
+		self.error_code.encode(w);
+		self.reason_phrase.encode(w);
+	}
+
+	fn decode<R: bytes::Buf>(r: &mut R) -> Result<Self, DecodeError> {
+		let request_id = u64::decode(r)?;
+		let error_code = u64::decode(r)?;
+		let reason_phrase = Cow::<str>::decode(r)?;
+		Ok(Self {
+			request_id,
+			error_code,
+			reason_phrase,
+		})
+	}
 }

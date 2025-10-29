@@ -5,7 +5,7 @@ use std::{
 
 use crate::{
 	coding::Reader,
-	ietf::{self, Control},
+	ietf::{self, Control, FilterType, GroupOrder},
 	model::BroadcastProducer,
 	Broadcast, Error, Frame, FrameProducer, Group, GroupProducer, OriginProducer, Path, PathOwned, TrackProducer,
 };
@@ -155,23 +155,29 @@ impl<S: web_transport_trait::Session> Subscriber<S> {
 
 			let path = path.clone();
 			web_async::spawn(async move {
-				this.run_subscribe(request_id, path, track).await;
+				if let Err(err) = this.run_subscribe(request_id, path, track).await {
+					tracing::debug!(%err, id = %request_id, "error running subscribe");
+				}
 				this.subscribes.lock().remove(&request_id);
 			});
 		}
 	}
 
-	async fn run_subscribe(&mut self, request_id: u64, broadcast: Path<'_>, track: TrackProducer) {
+	async fn run_subscribe(&mut self, request_id: u64, broadcast: Path<'_>, track: TrackProducer) -> Result<(), Error> {
 		self.subscribes.lock().insert(request_id, track.clone());
 
-		self.control
-			.send(ietf::Subscribe {
-				request_id,
-				track_namespace: broadcast.to_owned(),
-				track_name: (&track.info.name).into(),
-				subscriber_priority: track.info.priority,
-			})
-			.ok();
+		self.control.send(ietf::Subscribe {
+			request_id,
+			track_namespace: broadcast.to_owned(),
+			track_name: (&track.info.name).into(),
+			subscriber_priority: track.info.priority,
+			group_order: GroupOrder::Descending,
+			// we want largest group
+			filter_type: FilterType::LargestObject,
+		})?;
+
+		// TODO we should send a joining fetch, but it's annoying to implement.
+		// We hope instead that publisher start subscriptions at group boundaries.
 
 		tracing::info!(id = %request_id, broadcast = %self.origin.as_ref().unwrap().absolute(&broadcast), track = %track.info.name, "subscribe started");
 
@@ -179,6 +185,8 @@ impl<S: web_transport_trait::Session> Subscriber<S> {
 		tracing::info!(id = %request_id, broadcast = %self.origin.as_ref().unwrap().absolute(&broadcast), track = %track.info.name, "subscribe cancelled");
 
 		track.abort(Error::Cancel);
+
+		Ok(())
 	}
 
 	pub async fn recv_group(&mut self, stream: &mut Reader<S::RecvStream>) -> Result<(), Error> {
@@ -285,10 +293,6 @@ impl<S: web_transport_trait::Session> Subscriber<S> {
 		Ok(())
 	}
 
-	pub fn recv_track_status(&mut self, _msg: ietf::TrackStatus<'_>) -> Result<(), Error> {
-		Err(Error::Unsupported)
-	}
-
 	pub fn recv_subscribe_namespace_ok(&mut self, _msg: ietf::SubscribeNamespaceOk) -> Result<(), Error> {
 		// Don't care.
 		Ok(())
@@ -297,5 +301,21 @@ impl<S: web_transport_trait::Session> Subscriber<S> {
 	pub fn recv_subscribe_namespace_error(&mut self, msg: ietf::SubscribeNamespaceError<'_>) -> Result<(), Error> {
 		tracing::warn!(?msg, "subscribe namespace error");
 		Ok(())
+	}
+
+	pub fn recv_fetch_ok(&mut self, _msg: ietf::FetchOk) -> Result<(), Error> {
+		Err(Error::Unsupported)
+	}
+
+	pub fn recv_fetch_error(&mut self, _msg: ietf::FetchError<'_>) -> Result<(), Error> {
+		Err(Error::Unsupported)
+	}
+
+	pub fn recv_publish(&mut self, msg: ietf::Publish<'_>) -> Result<(), Error> {
+		self.control.send(ietf::PublishError {
+			request_id: msg.request_id,
+			error_code: 300,
+			reason_phrase: "publish not supported bro".into(),
+		})
 	}
 }
