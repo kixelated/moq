@@ -1,4 +1,7 @@
-use crate::{coding::*, lite::Message};
+use crate::{
+	coding::*,
+	lite::{Message, Parameters},
+};
 
 /// Sent by the client to setup the session.
 #[derive(Debug, Clone)]

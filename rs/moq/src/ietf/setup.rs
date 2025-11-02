@@ -1,4 +1,7 @@
-use crate::{coding::*, ietf::Message};
+use crate::{
+	coding::*,
+	ietf::{Message, Parameters},
+};
 
 /// Sent by the client to setup the session.
 #[derive(Debug, Clone)]

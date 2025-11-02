@@ -41,13 +41,3 @@ impl Encode for Parameters {
 		}
 	}
 }
-
-impl Parameters {
-	pub fn get(&self, kind: u64) -> Option<&Vec<u8>> {
-		self.0.get(&kind)
-	}
-
-	pub fn set(&mut self, kind: u64, value: Vec<u8>) {
-		self.0.insert(kind, value);
-	}
-}

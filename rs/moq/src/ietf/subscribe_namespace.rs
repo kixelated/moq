@@ -2,7 +2,11 @@
 
 use std::borrow::Cow;
 
-use crate::{coding::*, ietf::Message, Path};
+use crate::{
+	coding::*,
+	ietf::{Message, Parameters},
+	Path,
+};
 
 use super::namespace::{decode_namespace, encode_namespace};
 
