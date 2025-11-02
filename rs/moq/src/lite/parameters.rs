@@ -5,7 +5,7 @@ use crate::coding::*;
 const MAX_PARAMS: u64 = 64;
 
 #[derive(Default, Debug, Clone)]
-pub struct Parameters(pub HashMap<u64, Vec<u8>>);
+pub struct Parameters(HashMap<u64, Vec<u8>>);
 
 impl Decode for Parameters {
 	fn decode<R: bytes::Buf>(mut r: &mut R) -> Result<Self, DecodeError> {
