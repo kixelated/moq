@@ -107,10 +107,10 @@ The namespace or track is not of interest to the endpoint.
 use std::borrow::Cow;
 
 use crate::{
-	coding::{Decode, DecodeError, Encode, Parameters},
+	coding::{Decode, DecodeError, Encode},
 	ietf::{
 		namespace::{decode_namespace, encode_namespace},
-		GroupOrder, Location, Message,
+		GroupOrder, Location, Message, Parameters,
 	},
 	Path,
 };

@@ -13,17 +13,33 @@ impl Decode for Parameters {
 
 		// I hate this encoding so much; let me encode my role and get on with my life.
 		let count = u64::decode(r)?;
+
 		if count > MAX_PARAMS {
 			return Err(DecodeError::TooMany);
 		}
 
 		for _ in 0..count {
 			let kind = u64::decode(r)?;
+
 			if map.contains_key(&kind) {
 				return Err(DecodeError::Duplicate);
 			}
 
-			let data = Vec::<u8>::decode(&mut r)?;
+			// Per draft-ietf-moq-transport-14 Section 1.4.2:
+			// - If Type is even, Value is a single varint (no length prefix)
+			// - If Type is odd, Value has a length prefix followed by bytes
+			let data = if kind % 2 == 0 {
+				// Even: decode as varint and encode it as bytes
+				let value = u64::decode(&mut r)?;
+				// Store the varint as bytes (we'll need to encode it back when accessing)
+				let mut bytes = Vec::new();
+				value.encode(&mut bytes);
+				bytes
+			} else {
+				// Odd: decode as length-prefixed bytes
+				Vec::<u8>::decode(&mut r)?
+			};
+
 			map.insert(kind, data);
 		}
 
@@ -37,7 +53,16 @@ impl Encode for Parameters {
 
 		for (kind, value) in self.0.iter() {
 			kind.encode(w);
-			value.encode(w);
+			// Per draft-ietf-moq-transport-14 Section 1.4.2:
+			// - If Type is even, Value is a single varint (no length prefix)
+			// - If Type is odd, Value has a length prefix followed by bytes
+			if kind % 2 == 0 {
+				// Even: value is stored as encoded varint bytes, write them directly
+				w.put_slice(value);
+			} else {
+				// Odd: encode as length-prefixed bytes
+				value.encode(w);
+			}
 		}
 	}
 }

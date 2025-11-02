@@ -6,7 +6,7 @@ use num_enum::{IntoPrimitive, TryFromPrimitive};
 
 use crate::{
 	coding::*,
-	ietf::{FilterType, GroupOrder, Message},
+	ietf::{FilterType, GroupOrder, Message, Parameters},
 	Path,
 };
 
