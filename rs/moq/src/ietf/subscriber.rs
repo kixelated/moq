@@ -1,9 +1,6 @@
 use std::{
 	collections::{hash_map::Entry, HashMap},
-	sync::{
-		atomic::{self, AtomicU64},
-		Arc,
-	},
+	sync::Arc,
 };
 
 use crate::{
@@ -13,7 +10,6 @@ use crate::{
 	Broadcast, Error, Frame, FrameProducer, Group, GroupProducer, OriginProducer, Path, PathOwned, TrackProducer,
 };
 
-use tokio::try_join;
 use web_async::Lock;
 
 #[derive(Default)]
@@ -35,8 +31,6 @@ pub(super) struct Subscriber<S: web_transport_trait::Session> {
 	origin: Option<OriginProducer>,
 	state: Lock<SubscriberState>,
 	control: Control,
-
-	subscribe_namespace_request_id: Arc<AtomicU64>,
 }
 
 impl<S: web_transport_trait::Session> Subscriber<S> {
@@ -46,7 +40,6 @@ impl<S: web_transport_trait::Session> Subscriber<S> {
 			origin,
 			state: Default::default(),
 			control,
-			subscribe_namespace_request_id: Default::default(),
 		}
 	}
 
@@ -153,27 +146,6 @@ impl<S: web_transport_trait::Session> Subscriber<S> {
 	}
 
 	pub async fn run(self) -> Result<(), Error> {
-		try_join!(self.clone().run_subscribe_namespace(), self.run_uni_streams()).map(|_| ())
-	}
-
-	async fn run_subscribe_namespace(self) -> Result<(), Error> {
-		let subscribe_namespace_request_id = match self.origin.is_some() {
-			true => self.control.next_request_id().await?,
-			false => return Ok(()),
-		};
-
-		self.subscribe_namespace_request_id
-			.store(subscribe_namespace_request_id, atomic::Ordering::Relaxed);
-
-		self.control.send(ietf::SubscribeNamespace {
-			request_id: subscribe_namespace_request_id,
-			namespace: Path::empty(),
-		})?;
-
-		Ok(())
-	}
-
-	async fn run_uni_streams(self) -> Result<(), Error> {
 		loop {
 			let stream = self
 				.session
@@ -375,30 +347,12 @@ impl<S: web_transport_trait::Session> Subscriber<S> {
 		Ok(())
 	}
 
-	pub fn recv_subscribe_namespace_ok(&mut self, msg: ietf::SubscribeNamespaceOk) -> Result<(), Error> {
-		let request_id = self.subscribe_namespace_request_id.load(atomic::Ordering::Relaxed);
-		if request_id != msg.request_id {
-			tracing::warn!(
-				"subscribe namespace ok received but request id mismatch: expected {} but got {}",
-				request_id,
-				msg.request_id
-			);
-		}
-
-		Ok(())
+	pub fn recv_subscribe_namespace_ok(&mut self, _msg: ietf::SubscribeNamespaceOk) -> Result<(), Error> {
+		Err(Error::Unsupported)
 	}
 
-	pub fn recv_subscribe_namespace_error(&mut self, msg: ietf::SubscribeNamespaceError<'_>) -> Result<(), Error> {
-		let request_id = self.subscribe_namespace_request_id.load(atomic::Ordering::Relaxed);
-		if request_id != msg.request_id {
-			tracing::warn!(
-				"subscribe namespace error received but request id mismatch: expected {} but got {}",
-				request_id,
-				msg.request_id
-			);
-		}
-
-		Ok(())
+	pub fn recv_subscribe_namespace_error(&mut self, _msg: ietf::SubscribeNamespaceError<'_>) -> Result<(), Error> {
+		Err(Error::Unsupported)
 	}
 
 	pub fn recv_fetch_ok(&mut self, _msg: ietf::FetchOk) -> Result<(), Error> {

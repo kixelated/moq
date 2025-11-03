@@ -1402,6 +1402,7 @@ dependencies = [
  "async-channel",
  "bytes",
  "futures",
+ "hex",
  "num_enum",
  "serde",
  "thiserror 2.0.17",

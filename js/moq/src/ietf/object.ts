@@ -93,7 +93,7 @@ export class Frame {
 	}
 
 	async encode(w: Writer, flags: GroupFlags): Promise<void> {
-		await w.u8(0); // id_delta = 0
+		await w.u53(0); // id_delta = 0
 
 		if (flags.hasExtensions) {
 			await w.u53(0); // extensions length = 0

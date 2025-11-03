@@ -38,6 +38,8 @@ impl Control {
 		msg.encode_size().encode(&mut buf);
 		msg.encode(&mut buf);
 
+		tracing::trace!(hex = hex::encode(&buf), "raw");
+
 		self.tx.send(buf).map_err(|e| Error::Transport(Arc::new(e)))?;
 		Ok(())
 	}
