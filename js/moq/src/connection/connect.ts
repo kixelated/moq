@@ -79,8 +79,8 @@ export async function connect(url: URL, props?: ConnectProps): Promise<Establish
 	const encoder = new TextEncoder();
 
 	const params = new Ietf.Parameters();
-	params.set(2n, new Uint8Array([63])); // Allow some request_ids without delving into varint encoding.
-	params.set(5n, encoder.encode("moq-lite-js")); // Put the implementation name in the parameters.
+	params.setVarint(2n, 42069n); // Allow a ton of request IDs.
+	params.setBytes(7n, encoder.encode("moq-lite-js")); // Put the implementation name in the parameters.
 
 	const msg = new Ietf.ClientSetup([Lite.CURRENT_VERSION, Ietf.CURRENT_VERSION], params);
 	await msg.encode(stream.writer);

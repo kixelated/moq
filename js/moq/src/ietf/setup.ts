@@ -21,15 +21,7 @@ export class ClientSetup {
 			await w.u53(v);
 		}
 
-		// Number of parameters
-		await w.u53(this.parameters.size);
-
-		// Parameters
-		for (const [id, data] of this.parameters.entries) {
-			await w.u62(id);
-			await w.u53(data.length);
-			await w.write(data);
-		}
+		await this.parameters.encode(w);
 	}
 
 	async encode(w: Writer): Promise<void> {
@@ -50,16 +42,7 @@ export class ClientSetup {
 			supportedVersions.push(version);
 		}
 
-		// Number of parameters
-		const numParams = await r.u53();
-		const parameters = new Parameters();
-
-		for (let i = 0; i < numParams; i++) {
-			const id = await r.u62();
-			const size = await r.u53();
-			const value = await r.read(size);
-			parameters.set(id, value);
-		}
+		const parameters = await Parameters.decode(r);
 
 		return new ClientSetup(supportedVersions, parameters);
 	}
@@ -82,16 +65,7 @@ export class ServerSetup {
 
 	async #encode(w: Writer): Promise<void> {
 		await w.u53(this.version);
-
-		// Number of parameters
-		await w.u53(this.parameters.size);
-
-		// Parameters
-		for (const [id, data] of this.parameters.entries) {
-			await w.u62(id);
-			await w.u53(data.length);
-			await w.write(data);
-		}
+		await this.parameters.encode(w);
 	}
 
 	async encode(w: Writer): Promise<void> {
@@ -101,18 +75,7 @@ export class ServerSetup {
 	static async #decode(r: Reader): Promise<ServerSetup> {
 		// Selected version
 		const selectedVersion = await r.u53();
-
-		// Number of parameters
-		const numParams = await r.u53();
-		const parameters = new Parameters();
-
-		for (let i = 0; i < numParams; i++) {
-			// Read message type
-			const id = await r.u62();
-			const size = await r.u53();
-			const value = await r.read(size);
-			parameters.set(id, value);
-		}
+		const parameters = await Parameters.decode(r);
 
 		return new ServerSetup(selectedVersion, parameters);
 	}
