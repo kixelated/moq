@@ -17,6 +17,7 @@ serde = ["dep:serde"]
 [dependencies]
 async-channel = "2"
 bytes = "1"
+hex = "0.4"
 futures = "0.3"
 num_enum = "0.7"
 serde = { workspace = true, optional = true }
