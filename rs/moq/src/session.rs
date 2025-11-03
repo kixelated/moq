@@ -4,7 +4,7 @@ use bytes::BytesMut;
 
 use crate::{
 	coding::{self, Encode, Stream},
-	ietf::{self, Message},
+	ietf::{self, Message, ParameterBytes, ParameterVarInt},
 	lite, Error, OriginConsumer, OriginProducer,
 };
 
@@ -40,8 +40,8 @@ impl<S: web_transport_trait::Session> Session<S> {
 		lite::ControlType::ClientCompatV14.encode(&mut buf);
 
 		let mut parameters = ietf::Parameters::default();
-		parameters.set(2, vec![63]); // Allow some request_ids without delving into varint encoding.
-		parameters.set(7, b"moq-lite-rs".to_vec()); // Put the implementation name in the parameters.
+		parameters.set_varint(ParameterVarInt::MaxRequestId, u32::MAX as u64);
+		parameters.set_bytes(ParameterBytes::Implementation, b"moq-lite-rs".to_vec());
 
 		let client = ietf::ClientSetup {
 			versions: SUPPORTED.into(),
@@ -68,12 +68,22 @@ impl<S: web_transport_trait::Session> Session<S> {
 			return Err(Error::WrongSize);
 		}
 
+		let request_id_max = server.parameters.get_varint(ParameterVarInt::MaxRequestId).unwrap_or(0);
+
 		match server.version {
 			coding::Version::LITE_LATEST => {
 				lite::start(session.clone(), stream, publish.into(), subscribe.into()).await?;
 			}
 			coding::Version::IETF_LATEST => {
-				ietf::start(session.clone(), stream, true, publish.into(), subscribe.into()).await?;
+				ietf::start(
+					session.clone(),
+					stream,
+					request_id_max,
+					true,
+					publish.into(),
+					subscribe.into(),
+				)
+				.await?;
 			}
 			_ => return Err(Error::Version(client.versions, [server.version].into())),
 		}
@@ -95,10 +105,10 @@ impl<S: web_transport_trait::Session> Session<S> {
 		let mut stream = Stream::accept(&session).await?;
 		let kind: lite::ControlType = stream.reader.decode().await?;
 
-		let versions = match kind {
+		let (versions, request_id_max) = match kind {
 			lite::ControlType::Session | lite::ControlType::ClientCompatV7 => {
 				let client: lite::ClientSetup = stream.reader.decode().await?;
-				client.versions
+				(client.versions, None)
 			}
 			// If it's draft-14 client, we need to write back a u16 for the size.
 			lite::ControlType::ClientCompatV14 => {
@@ -109,7 +119,10 @@ impl<S: web_transport_trait::Session> Session<S> {
 				if !buf.is_empty() {
 					return Err(Error::WrongSize);
 				}
-				client.versions
+				(
+					client.versions,
+					client.parameters.get_varint(ParameterVarInt::MaxRequestId),
+				)
 			}
 			_ => return Err(Error::UnexpectedStream),
 		};
@@ -126,8 +139,8 @@ impl<S: web_transport_trait::Session> Session<S> {
 				stream.writer.encode(&lite::ControlType::ServerCompatV14).await?;
 
 				let mut parameters = ietf::Parameters::default();
-				parameters.set(2, vec![63]); // Allow some request_ids without delving into varint encoding.
-				parameters.set(7, b"moq-lite-rs".to_vec()); // Put the implementation name in the parameters.
+				parameters.set_varint(ParameterVarInt::MaxRequestId, u32::MAX as u64);
+				parameters.set_bytes(ParameterBytes::Implementation, b"moq-lite-rs".to_vec());
 
 				// This type doesn't implement Encode (yet), so we have to do it manually.
 				let setup = ietf::ServerSetup { version, parameters };
@@ -168,7 +181,15 @@ impl<S: web_transport_trait::Session> Session<S> {
 				lite::start(session.clone(), stream, publish.into(), subscribe.into()).await?;
 			}
 			coding::Version::IETF_LATEST => {
-				ietf::start(session.clone(), stream, false, publish.into(), subscribe.into()).await?;
+				ietf::start(
+					session.clone(),
+					stream,
+					request_id_max.unwrap_or(0),
+					false,
+					publish.into(),
+					subscribe.into(),
+				)
+				.await?;
 			}
 			_ => unreachable!(),
 		}
