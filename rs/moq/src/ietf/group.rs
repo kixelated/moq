@@ -53,10 +53,10 @@ impl GroupFlags {
 		if self.has_extensions {
 			id |= 0x01;
 		}
-		if self.has_subgroup {
+		if self.has_subgroup_object {
 			id |= 0x02;
 		}
-		if self.has_subgroup_object {
+		if self.has_subgroup {
 			id |= 0x04;
 		}
 		if self.has_end {
@@ -71,8 +71,8 @@ impl GroupFlags {
 		}
 
 		let has_extensions = (id & 0x01) != 0;
-		let has_subgroup = (id & 0x02) != 0;
-		let has_subgroup_object = (id & 0x04) != 0;
+		let has_subgroup_object = (id & 0x02) != 0;
+		let has_subgroup = (id & 0x04) != 0;
 		let has_end = (id & 0x08) != 0;
 
 		if has_subgroup && has_subgroup_object {
@@ -141,5 +141,113 @@ impl Decode for GroupHeader {
 			group_id,
 			flags,
 		})
+	}
+}
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+
+	// Test table from draft-ietf-moq-transport-14 Section 10.4.2 Table 7
+	#[test]
+	fn test_group_flags_spec_table() {
+		// Type 0x10: No subgroup field, Subgroup ID = 0, No extensions, No end
+		let flags = GroupFlags::decode(0x10).unwrap();
+		assert!(!flags.has_subgroup);
+		assert!(!flags.has_subgroup_object);
+		assert!(!flags.has_extensions);
+		assert!(!flags.has_end);
+		assert_eq!(flags.encode(), 0x10);
+
+		// Type 0x11: No subgroup field, Subgroup ID = 0, Extensions, No end
+		let flags = GroupFlags::decode(0x11).unwrap();
+		assert!(!flags.has_subgroup);
+		assert!(!flags.has_subgroup_object);
+		assert!(flags.has_extensions);
+		assert!(!flags.has_end);
+		assert_eq!(flags.encode(), 0x11);
+
+		// Type 0x12: No subgroup field, Subgroup ID = First Object ID, No extensions, No end
+		let flags = GroupFlags::decode(0x12).unwrap();
+		assert!(!flags.has_subgroup);
+		assert!(flags.has_subgroup_object);
+		assert!(!flags.has_extensions);
+		assert!(!flags.has_end);
+		assert_eq!(flags.encode(), 0x12);
+
+		// Type 0x13: No subgroup field, Subgroup ID = First Object ID, Extensions, No end
+		let flags = GroupFlags::decode(0x13).unwrap();
+		assert!(!flags.has_subgroup);
+		assert!(flags.has_subgroup_object);
+		assert!(flags.has_extensions);
+		assert!(!flags.has_end);
+		assert_eq!(flags.encode(), 0x13);
+
+		// Type 0x14: Subgroup field present, No extensions, No end
+		let flags = GroupFlags::decode(0x14).unwrap();
+		assert!(flags.has_subgroup);
+		assert!(!flags.has_subgroup_object);
+		assert!(!flags.has_extensions);
+		assert!(!flags.has_end);
+		assert_eq!(flags.encode(), 0x14);
+
+		// Type 0x15: Subgroup field present, Extensions, No end
+		let flags = GroupFlags::decode(0x15).unwrap();
+		assert!(flags.has_subgroup);
+		assert!(!flags.has_subgroup_object);
+		assert!(flags.has_extensions);
+		assert!(!flags.has_end);
+		assert_eq!(flags.encode(), 0x15);
+
+		// Type 0x18: No subgroup field, Subgroup ID = 0, No extensions, End of group
+		let flags = GroupFlags::decode(0x18).unwrap();
+		assert!(!flags.has_subgroup);
+		assert!(!flags.has_subgroup_object);
+		assert!(!flags.has_extensions);
+		assert!(flags.has_end);
+		assert_eq!(flags.encode(), 0x18);
+
+		// Type 0x19: No subgroup field, Subgroup ID = 0, Extensions, End of group
+		let flags = GroupFlags::decode(0x19).unwrap();
+		assert!(!flags.has_subgroup);
+		assert!(!flags.has_subgroup_object);
+		assert!(flags.has_extensions);
+		assert!(flags.has_end);
+		assert_eq!(flags.encode(), 0x19);
+
+		// Type 0x1A: No subgroup field, Subgroup ID = First Object ID, No extensions, End of group
+		let flags = GroupFlags::decode(0x1A).unwrap();
+		assert!(!flags.has_subgroup);
+		assert!(flags.has_subgroup_object);
+		assert!(!flags.has_extensions);
+		assert!(flags.has_end);
+		assert_eq!(flags.encode(), 0x1A);
+
+		// Type 0x1B: No subgroup field, Subgroup ID = First Object ID, Extensions, End of group
+		let flags = GroupFlags::decode(0x1B).unwrap();
+		assert!(!flags.has_subgroup);
+		assert!(flags.has_subgroup_object);
+		assert!(flags.has_extensions);
+		assert!(flags.has_end);
+		assert_eq!(flags.encode(), 0x1B);
+
+		// Type 0x1C: Subgroup field present, No extensions, End of group
+		let flags = GroupFlags::decode(0x1C).unwrap();
+		assert!(flags.has_subgroup);
+		assert!(!flags.has_subgroup_object);
+		assert!(!flags.has_extensions);
+		assert!(flags.has_end);
+		assert_eq!(flags.encode(), 0x1C);
+
+		// Type 0x1D: Subgroup field present, Extensions, End of group
+		let flags = GroupFlags::decode(0x1D).unwrap();
+		assert!(flags.has_subgroup);
+		assert!(!flags.has_subgroup_object);
+		assert!(flags.has_extensions);
+		assert!(flags.has_end);
+		assert_eq!(flags.encode(), 0x1D);
+
+		// Invalid: Both has_subgroup and has_subgroup_object (would be 0x16)
+		assert!(GroupFlags::decode(0x16).is_err());
 	}
 }
