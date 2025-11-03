@@ -37,10 +37,10 @@ export class Group {
 		if (this.flags.hasExtensions) {
 			id |= 0x01;
 		}
-		if (this.flags.hasSubgroup) {
+		if (this.flags.hasSubgroupObject) {
 			id |= 0x02;
 		}
-		if (this.flags.hasSubgroupObject) {
+		if (this.flags.hasSubgroup) {
 			id |= 0x04;
 		}
 		if (this.flags.hasEnd) {
@@ -63,8 +63,8 @@ export class Group {
 
 		const flags = {
 			hasExtensions: (id & 0x01) !== 0,
-			hasSubgroup: (id & 0x02) !== 0,
-			hasSubgroupObject: (id & 0x04) !== 0,
+			hasSubgroupObject: (id & 0x02) !== 0,
+			hasSubgroup: (id & 0x04) !== 0,
 			hasEnd: (id & 0x08) !== 0,
 		};
 
