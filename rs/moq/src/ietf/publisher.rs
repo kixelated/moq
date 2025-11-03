@@ -256,12 +256,12 @@ impl<S: web_transport_trait::Session> Publisher<S> {
 
 			tracing::trace!(size = %frame.info.size, "writing frame");
 
-			// object id is always 0.
-			stream.encode(&0u8).await?;
+			// object id delta is always 0.
+			stream.encode(&0u64).await?;
 
 			// not using extensions.
 			if msg.flags.has_extensions {
-				stream.encode(&0u8).await?;
+				stream.encode(&0u64).await?;
 			}
 
 			// Write the size of the frame.
