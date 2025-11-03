@@ -6,6 +6,7 @@ const SUBGROUP_ID: u8 = 0x0;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, TryFromPrimitive, IntoPrimitive)]
 #[repr(u8)]
 pub enum GroupOrder {
+	Any = 0x0,
 	Ascending = 0x1,
 	Descending = 0x2,
 }
