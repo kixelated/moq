@@ -181,6 +181,10 @@ impl<'a> Path<'a> {
 		&self.0
 	}
 
+	pub fn empty() -> Path<'static> {
+		Path(Cow::Borrowed(""))
+	}
+
 	pub fn is_empty(&self) -> bool {
 		self.0.is_empty()
 	}

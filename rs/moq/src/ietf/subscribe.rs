@@ -214,6 +214,7 @@ impl Message for Unsubscribe {
   Number of Parameters (i),
   Parameters (..) ...
 */
+#[derive(Debug)]
 pub struct SubscribeUpdate {
 	pub request_id: u64,
 	pub subscription_request_id: u64,

@@ -1,15 +1,41 @@
-use std::collections::HashMap;
+use std::collections::{hash_map, HashMap};
+
+use num_enum::{FromPrimitive, IntoPrimitive};
 
 use crate::coding::*;
 
 const MAX_PARAMS: u64 = 64;
 
+#[derive(Debug, Copy, Clone, FromPrimitive, IntoPrimitive, Eq, Hash, PartialEq)]
+#[repr(u64)]
+pub enum ParameterVarInt {
+	MaxRequestId = 2,
+	MaxAuthTokenCacheSize = 4,
+	#[num_enum(catch_all)]
+	Unknown(u64),
+}
+
+#[derive(Debug, Copy, Clone, FromPrimitive, IntoPrimitive, Eq, Hash, PartialEq)]
+#[repr(u64)]
+pub enum ParameterBytes {
+	Path = 1,
+	AuthorizationToken = 3,
+	Authority = 5,
+	Implementation = 7,
+	#[num_enum(catch_all)]
+	Unknown(u64),
+}
+
 #[derive(Default, Debug, Clone)]
-pub struct Parameters(HashMap<u64, Vec<u8>>);
+pub struct Parameters {
+	vars: HashMap<ParameterVarInt, u64>,
+	bytes: HashMap<ParameterBytes, Vec<u8>>,
+}
 
 impl Decode for Parameters {
 	fn decode<R: bytes::Buf>(mut r: &mut R) -> Result<Self, DecodeError> {
-		let mut map = HashMap::new();
+		let mut vars = HashMap::new();
+		let mut bytes = HashMap::new();
 
 		// I hate this encoding so much; let me encode my role and get on with my life.
 		let count = u64::decode(r)?;
@@ -21,58 +47,55 @@ impl Decode for Parameters {
 		for _ in 0..count {
 			let kind = u64::decode(r)?;
 
-			if map.contains_key(&kind) {
-				return Err(DecodeError::Duplicate);
-			}
-
-			// Per draft-ietf-moq-transport-14 Section 1.4.2:
-			// - If Type is even, Value is a single varint (no length prefix)
-			// - If Type is odd, Value has a length prefix followed by bytes
-			let data = if kind % 2 == 0 {
-				// Even: decode as varint and encode it as bytes
-				let value = u64::decode(&mut r)?;
-				// Store the varint as bytes (we'll need to encode it back when accessing)
-				let mut bytes = Vec::new();
-				value.encode(&mut bytes);
-				bytes
+			if kind % 2 == 0 {
+				let kind = ParameterVarInt::from(kind);
+				match vars.entry(kind) {
+					hash_map::Entry::Occupied(_) => return Err(DecodeError::Duplicate),
+					hash_map::Entry::Vacant(entry) => entry.insert(u64::decode(&mut r)?),
+				};
 			} else {
-				// Odd: decode as length-prefixed bytes
-				Vec::<u8>::decode(&mut r)?
-			};
-
-			map.insert(kind, data);
+				let kind = ParameterBytes::from(kind);
+				match bytes.entry(kind) {
+					hash_map::Entry::Occupied(_) => return Err(DecodeError::Duplicate),
+					hash_map::Entry::Vacant(entry) => entry.insert(Vec::<u8>::decode(&mut r)?),
+				};
+			}
 		}
 
-		Ok(Parameters(map))
+		Ok(Parameters { vars, bytes })
 	}
 }
 
 impl Encode for Parameters {
 	fn encode<W: bytes::BufMut>(&self, w: &mut W) {
-		self.0.len().encode(w);
+		(self.vars.len() + self.bytes.len()).encode(w);
 
-		for (kind, value) in self.0.iter() {
-			kind.encode(w);
-			// Per draft-ietf-moq-transport-14 Section 1.4.2:
-			// - If Type is even, Value is a single varint (no length prefix)
-			// - If Type is odd, Value has a length prefix followed by bytes
-			if kind % 2 == 0 {
-				// Even: value is stored as encoded varint bytes, write them directly
-				w.put_slice(value);
-			} else {
-				// Odd: encode as length-prefixed bytes
-				value.encode(w);
-			}
+		for (kind, value) in self.vars.iter() {
+			u64::from(*kind).encode(w);
+			value.encode(w);
+		}
+
+		for (kind, value) in self.bytes.iter() {
+			u64::from(*kind).encode(w);
+			value.encode(w);
 		}
 	}
 }
 
 impl Parameters {
-	pub fn get(&self, kind: u64) -> Option<&Vec<u8>> {
-		self.0.get(&kind)
+	pub fn get_varint(&self, kind: ParameterVarInt) -> Option<u64> {
+		self.vars.get(&kind).copied()
 	}
 
-	pub fn set(&mut self, kind: u64, value: Vec<u8>) {
-		self.0.insert(kind, value);
+	pub fn set_varint(&mut self, kind: ParameterVarInt, value: u64) {
+		self.vars.insert(kind, value);
+	}
+
+	pub fn get_bytes(&self, kind: ParameterBytes) -> Option<&[u8]> {
+		self.bytes.get(&kind).map(|v| v.as_slice())
+	}
+
+	pub fn set_bytes(&mut self, kind: ParameterBytes, value: Vec<u8>) {
+		self.bytes.insert(kind, value);
 	}
 }
