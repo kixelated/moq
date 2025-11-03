@@ -18,6 +18,7 @@ serde = ["dep:serde"]
 async-channel = "2"
 bytes = "1"
 futures = "0.3"
+hex = "0.4"
 num_enum = "0.7"
 serde = { workspace = true, optional = true }
 thiserror = "2"
