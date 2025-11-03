@@ -16,8 +16,8 @@ export class SubscribeNamespace {
 	}
 
 	async #encode(w: Writer): Promise<void> {
-		await Namespace.encode(w, this.namespace);
 		await w.u53(this.requestId);
+		await Namespace.encode(w, this.namespace);
 		await w.u8(0); // no parameters
 	}
 
@@ -30,8 +30,8 @@ export class SubscribeNamespace {
 	}
 
 	static async #decode(r: Reader): Promise<SubscribeNamespace> {
-		const namespace = await Namespace.decode(r);
 		const requestId = await r.u53();
+		const namespace = await Namespace.decode(r);
 
 		const numParams = await r.u8();
 		if (numParams !== 0) {
