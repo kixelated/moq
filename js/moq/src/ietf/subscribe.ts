@@ -80,7 +80,7 @@ export class SubscribeOk {
 	async #encode(w: Writer): Promise<void> {
 		await w.u53(this.requestId);
 		await w.u53(this.requestId); // track_alias == request_id for now
-		await w.u62(BigInt(0)); // expires = 0
+		await w.u62(0n); // expires = 0
 		await w.u8(GROUP_ORDER);
 		await w.u8(0); // no largest group/object
 		await w.u8(0); // no parameters

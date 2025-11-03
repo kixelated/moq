@@ -147,6 +147,7 @@ export class Publisher {
 				// Automatically end the group on stream FIN
 				hasEnd: true,
 			});
+			console.debug("sending group header", header);
 			await header.encode(stream);
 
 			try {

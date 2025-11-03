@@ -1,46 +1,71 @@
 import type { Reader, Writer } from "../stream";
-import { setVint62 } from "../stream";
 
 export class Parameters {
-	entries: Map<bigint, Uint8Array>;
+	vars: Map<bigint, bigint>;
+	bytes: Map<bigint, Uint8Array>;
 
 	constructor() {
-		this.entries = new Map();
+		this.vars = new Map();
+		this.bytes = new Map();
 	}
 
 	get size() {
-		return this.entries.size;
+		return this.vars.size + this.bytes.size;
 	}
 
-	set(id: bigint, value: Uint8Array) {
-		this.entries.set(id, value);
+	setBytes(id: bigint, value: Uint8Array) {
+		if (id % 2n !== 1n) {
+			throw new Error(`invalid parameter id: ${id.toString()}, must be odd`);
+		}
+		this.bytes.set(id, value);
 	}
 
-	get(id: bigint): Uint8Array | undefined {
-		return this.entries.get(id);
+	setVarint(id: bigint, value: bigint) {
+		if (id % 2n !== 0n) {
+			throw new Error(`invalid parameter id: ${id.toString()}, must be even`);
+		}
+		this.vars.set(id, value);
 	}
 
-	remove(id: bigint): Uint8Array | undefined {
-		const value = this.entries.get(id);
-		this.entries.delete(id);
-		return value;
+	getBytes(id: bigint): Uint8Array | undefined {
+		if (id % 2n !== 1n) {
+			throw new Error(`invalid parameter id: ${id.toString()}, must be odd`);
+		}
+		return this.bytes.get(id);
+	}
+
+	getVarint(id: bigint): bigint | undefined {
+		if (id % 2n !== 0n) {
+			throw new Error(`invalid parameter id: ${id.toString()}, must be even`);
+		}
+		return this.vars.get(id);
+	}
+
+	removeBytes(id: bigint): boolean {
+		if (id % 2n !== 1n) {
+			throw new Error(`invalid parameter id: ${id.toString()}, must be odd`);
+		}
+		return this.bytes.delete(id);
+	}
+
+	removeVarint(id: bigint): boolean {
+		if (id % 2n !== 0n) {
+			throw new Error(`invalid parameter id: ${id.toString()}, must be even`);
+		}
+		return this.vars.delete(id);
 	}
 
 	async encode(w: Writer) {
-		await w.u53(this.entries.size);
-		for (const [id, value] of this.entries) {
+		await w.u53(this.vars.size + this.bytes.size);
+		for (const [id, value] of this.vars) {
 			await w.u62(id);
-			// Per draft-ietf-moq-transport-14 Section 1.4.2:
-			// - If Type is even, Value is a single varint (no length prefix)
-			// - If Type is odd, Value has a length prefix followed by bytes
-			if (id % 2n === 0n) {
-				// Even: value is stored as encoded varint bytes, write them directly
-				await w.write(value);
-			} else {
-				// Odd: encode as length-prefixed bytes
-				await w.u53(value.length);
-				await w.write(value);
-			}
+			await w.u62(value);
+		}
+
+		for (const [id, value] of this.bytes) {
+			await w.u62(id);
+			await w.u53(value.length);
+			await w.write(value);
 		}
 	}
 
@@ -54,25 +79,24 @@ export class Parameters {
 			// Per draft-ietf-moq-transport-14 Section 1.4.2:
 			// - If Type is even, Value is a single varint (no length prefix)
 			// - If Type is odd, Value has a length prefix followed by bytes
-			let value: Uint8Array;
 			if (id % 2n === 0n) {
+				if (params.vars.has(id)) {
+					throw new Error(`duplicate parameter id: ${id.toString()}`);
+				}
+
 				// Even: read varint and store as encoded bytes
-				const varintValue = await r.u62();
-				// Encode the varint back to bytes to store it
-				const temp = new Uint8Array(8);
-				const encoded = setVint62(temp.buffer, varintValue);
-				value = encoded;
+				const varint = await r.u62();
+				params.setVarint(id, varint);
 			} else {
+				if (params.bytes.has(id)) {
+					throw new Error(`duplicate parameter id: ${id.toString()}`);
+				}
+
 				// Odd: read length-prefixed bytes
 				const size = await r.u53();
-				value = await r.read(size);
+				const bytes = await r.read(size);
+				params.setBytes(id, bytes);
 			}
-
-			if (params.entries.has(id)) {
-				throw new Error(`duplicate parameter id: ${id.toString()}`);
-			}
-
-			params.entries.set(id, value);
 		}
 
 		return params;
