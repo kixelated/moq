@@ -48,8 +48,8 @@ export class Subscribe {
 		const subscriberPriority = await r.u8();
 
 		const groupOrder = await r.u8();
-		if (groupOrder !== 0 && groupOrder !== GROUP_ORDER) {
-			throw new Error(`unsupported group order: ${groupOrder}`);
+		if (groupOrder > 2) {
+			throw new Error(`unknown group order: ${groupOrder}`);
 		}
 
 		const forward = await r.u8();
