@@ -5,7 +5,7 @@ import * as Message from "./message.ts";
 export class Fetch {
 	static id = 0x16;
 
-	requestId: number;
+	requestId: bigint;
 	trackNamespace: Path.Valid;
 	trackName: string;
 	subscriberPriority: number;
@@ -16,7 +16,7 @@ export class Fetch {
 	endObject: bigint;
 
 	constructor(
-		requestId: number,
+		requestId: bigint,
 		trackNamespace: Path.Valid,
 		trackName: string,
 		subscriberPriority: number,
@@ -57,9 +57,9 @@ export class Fetch {
 export class FetchOk {
 	static id = 0x18;
 
-	requestId: number;
+	requestId: bigint;
 
-	constructor(requestId: number) {
+	constructor(requestId: bigint) {
 		this.requestId = requestId;
 	}
 
@@ -83,11 +83,11 @@ export class FetchOk {
 export class FetchError {
 	static id = 0x19;
 
-	requestId: number;
+	requestId: bigint;
 	errorCode: number;
 	reasonPhrase: string;
 
-	constructor(requestId: number, errorCode: number, reasonPhrase: string) {
+	constructor(requestId: bigint, errorCode: number, reasonPhrase: string) {
 		this.requestId = requestId;
 		this.errorCode = errorCode;
 		this.reasonPhrase = reasonPhrase;
@@ -113,9 +113,9 @@ export class FetchError {
 export class FetchCancel {
 	static id = 0x17;
 
-	requestId: number;
+	requestId: bigint;
 
-	constructor(requestId: number) {
+	constructor(requestId: bigint) {
 		this.requestId = requestId;
 	}
 

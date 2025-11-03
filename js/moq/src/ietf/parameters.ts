@@ -1,5 +1,10 @@
 import type { Reader, Writer } from "../stream";
 
+export const Parameter = {
+	MaxRequestId: 2n,
+	Implementation: 7n,
+} as const;
+
 export class Parameters {
 	vars: Map<bigint, bigint>;
 	bytes: Map<bigint, Uint8Array>;

@@ -7,6 +7,7 @@ import type { Track } from "../track.ts";
 import { error } from "../util/error.ts";
 import type * as Control from "./control.ts";
 import { Frame, type Group as GroupMessage } from "./object.ts";
+import { type Publish, PublishError } from "./publish.ts";
 import type { PublishNamespace, PublishNamespaceDone } from "./publish_namespace.ts";
 import { type PublishDone, Subscribe, type SubscribeError, type SubscribeOk, Unsubscribe } from "./subscribe.ts";
 import {
@@ -32,11 +33,14 @@ export class Subscriber {
 	#announcedConsumers = new Set<Announced>();
 
 	// Our subscribed tracks - keyed by request ID
-	#subscribes = new Map<number, Track>();
+	#subscribes = new Map<bigint, Track>();
+
+	// A map of track aliases to request IDs
+	#trackAliases = new Map<bigint, bigint>();
 
 	// Track subscription responses - keyed by request ID
 	#subscribeCallbacks = new Map<
-		number,
+		bigint,
 		{
 			resolve: (msg: SubscribeOk) => void;
 			reject: (msg: Error) => void;
@@ -70,17 +74,24 @@ export class Subscriber {
 			});
 		}
 
-		const requestId = this.#control.requestId();
-		this.#control.write(new SubscribeNamespace(prefix, requestId));
-
 		this.#announcedConsumers.add(announced);
-
-		announced.closed.finally(() => {
+		this.#runAnnounced(announced, prefix).finally(() => {
 			this.#announcedConsumers.delete(announced);
-			this.#control.write(new UnsubscribeNamespace(requestId));
 		});
 
 		return announced;
+	}
+
+	async #runAnnounced(announced: Announced, prefix: Path.Valid) {
+		const requestId = await this.#control.nextRequestId();
+		if (requestId === undefined) return;
+
+		try {
+			this.#control.write(new SubscribeNamespace(prefix, requestId));
+			await announced.closed;
+		} finally {
+			this.#control.write(new UnsubscribeNamespace(requestId));
+		}
 	}
 
 	/**
@@ -104,10 +115,8 @@ export class Subscriber {
 	}
 
 	async #runSubscribe(broadcast: Path.Valid, request: TrackRequest) {
-		const requestId = this.#control.requestId();
-
-		// Save the writer so we can append groups to it.
-		this.#subscribes.set(requestId, request.track);
+		const requestId = await this.#control.nextRequestId();
+		if (requestId === undefined) return;
 
 		const msg = new Subscribe(requestId, broadcast, request.track.name, request.priority);
 
@@ -119,11 +128,17 @@ export class Subscriber {
 		await this.#control.write(msg);
 
 		try {
-			await responsePromise;
-			await request.track.closed;
+			const ok = await responsePromise;
+			this.#trackAliases.set(ok.trackAlias, requestId);
 
-			const msg = new Unsubscribe(requestId);
-			await this.#control.write(msg);
+			try {
+				await request.track.closed;
+
+				const msg = new Unsubscribe(requestId);
+				await this.#control.write(msg);
+			} finally {
+				this.#trackAliases.delete(ok.trackAlias);
+			}
 		} catch (err) {
 			const e = error(err);
 			request.track.close(e);
@@ -170,9 +185,17 @@ export class Subscriber {
 		const producer = new Group(group.groupId);
 
 		try {
-			const track = this.#subscribes.get(group.requestId);
+			let requestId = this.#trackAliases.get(group.trackAlias);
+			if (requestId === undefined) {
+				// Just hope the track alias is the request ID
+				requestId = group.trackAlias;
+			}
+
+			const track = this.#subscribes.get(requestId);
 			if (!track) {
-				throw new Error(`unknown track: requestId=${group.requestId}`);
+				throw new Error(
+					`unknown track: trackAlias=${group.trackAlias} requestId=${this.#trackAliases.get(group.trackAlias)}`,
+				);
 			}
 
 			// Convert to Group (moq-lite equivalent)
@@ -196,6 +219,14 @@ export class Subscriber {
 			producer.close(e);
 			stream.stop(e);
 		}
+	}
+
+	// we don't support publish, so send PUBLISH_ERROR
+	async handlePublish(msg: Publish) {
+		// TODO technically, we should send PUBLISH_OK if we had a SUBSCRIBE in flight for the same track.
+		// Otherwise, the peer will SUBSCRIBE_ERROR because duplicate subscriptions are not allowed :(
+		const err = new PublishError(msg.requestId, 500, "publish not supported");
+		await this.#control.write(err);
 	}
 
 	/**
