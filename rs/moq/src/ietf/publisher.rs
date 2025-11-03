@@ -240,6 +240,20 @@ impl<S: web_transport_trait::Session> Publisher<S> {
 		stream.set_priority(priority);
 
 		let mut stream = Writer::new(stream);
+
+		// Log the raw GroupHeader bytes
+		{
+			use crate::coding::Encode;
+			let mut buf = bytes::BytesMut::new();
+			msg.encode(&mut buf);
+			tracing::trace!(
+				track_alias = %msg.track_alias,
+				group_id = %msg.group_id,
+				bytes = ?hex::encode(&buf),
+				"encoded group header"
+			);
+		}
+
 		stream.encode(&msg).await?;
 
 		loop {
@@ -254,7 +268,33 @@ impl<S: web_transport_trait::Session> Publisher<S> {
 				None => break,
 			};
 
-			tracing::trace!(size = %frame.info.size, "writing frame");
+			// Log the raw frame header bytes (without payload)
+			{
+				use crate::coding::Encode;
+				let mut buf = bytes::BytesMut::new();
+
+				// object id delta is always 0.
+				0u64.encode(&mut buf);
+
+				// not using extensions.
+				if msg.flags.has_extensions {
+					0u64.encode(&mut buf);
+				}
+
+				// Write the size of the frame.
+				frame.info.size.encode(&mut buf);
+
+				if frame.info.size == 0 {
+					// Have to write the object status too.
+					0u8.encode(&mut buf);
+				}
+
+				tracing::trace!(
+					size = %frame.info.size,
+					bytes = ?hex::encode(&buf),
+					"encoded frame header"
+				);
+			}
 
 			// object id delta is always 0.
 			stream.encode(&0u64).await?;
@@ -285,8 +325,6 @@ impl<S: web_transport_trait::Session> Publisher<S> {
 					}
 				}
 			}
-
-			tracing::trace!(size = %frame.info.size, "wrote frame");
 		}
 
 		stream.finish().await?;
