@@ -48,7 +48,7 @@ async function decodeMessage<T>(bytes: Uint8Array, decoder: (r: Reader) => Promi
 
 // Subscribe tests
 test("Subscribe: round trip", async () => {
-	const msg = new Subscribe.Subscribe(1, Path.from("test"), "video", 128);
+	const msg = new Subscribe.Subscribe(1n, Path.from("test"), "video", 128);
 
 	const encoded = await encodeMessage(msg);
 	const decoded = await decodeMessage(encoded, Subscribe.Subscribe.decode);
@@ -60,7 +60,7 @@ test("Subscribe: round trip", async () => {
 });
 
 test("Subscribe: nested namespace", async () => {
-	const msg = new Subscribe.Subscribe(100, Path.from("conference/room123"), "audio", 255);
+	const msg = new Subscribe.Subscribe(100n, Path.from("conference/room123"), "audio", 255);
 
 	const encoded = await encodeMessage(msg);
 	const decoded = await decodeMessage(encoded, Subscribe.Subscribe.decode);
@@ -69,16 +69,17 @@ test("Subscribe: nested namespace", async () => {
 });
 
 test("SubscribeOk: without largest", async () => {
-	const msg = new Subscribe.SubscribeOk(42);
+	const msg = new Subscribe.SubscribeOk(42n, 43n);
 
 	const encoded = await encodeMessage(msg);
 	const decoded = await decodeMessage(encoded, Subscribe.SubscribeOk.decode);
 
 	assert.strictEqual(decoded.requestId, 42);
+	assert.strictEqual(decoded.trackAlias, 43);
 });
 
 test("SubscribeError: round trip", async () => {
-	const msg = new Subscribe.SubscribeError(123, 500, "Not found");
+	const msg = new Subscribe.SubscribeError(123n, 500, "Not found");
 
 	const encoded = await encodeMessage(msg);
 	const decoded = await decodeMessage(encoded, Subscribe.SubscribeError.decode);
@@ -89,7 +90,7 @@ test("SubscribeError: round trip", async () => {
 });
 
 test("Unsubscribe: round trip", async () => {
-	const msg = new Subscribe.Unsubscribe(999);
+	const msg = new Subscribe.Unsubscribe(999n);
 
 	const encoded = await encodeMessage(msg);
 	const decoded = await decodeMessage(encoded, Subscribe.Unsubscribe.decode);
@@ -98,7 +99,7 @@ test("Unsubscribe: round trip", async () => {
 });
 
 test("PublishDone: basic test", async () => {
-	const msg = new Subscribe.PublishDone(10, 0, "complete");
+	const msg = new Subscribe.PublishDone(10n, 0, "complete");
 
 	const encoded = await encodeMessage(msg);
 	const decoded = await decodeMessage(encoded, Subscribe.PublishDone.decode);
@@ -109,7 +110,7 @@ test("PublishDone: basic test", async () => {
 });
 
 test("PublishDone: with error", async () => {
-	const msg = new Subscribe.PublishDone(10, 1, "error");
+	const msg = new Subscribe.PublishDone(10n, 1, "error");
 
 	const encoded = await encodeMessage(msg);
 	const decoded = await decodeMessage(encoded, Subscribe.PublishDone.decode);
@@ -121,7 +122,7 @@ test("PublishDone: with error", async () => {
 
 // Announce/PublishNamespace tests
 test("PublishNamespace: round trip", async () => {
-	const msg = new Announce.PublishNamespace(1, Path.from("test/broadcast"));
+	const msg = new Announce.PublishNamespace(1n, Path.from("test/broadcast"));
 
 	const encoded = await encodeMessage(msg);
 	const decoded = await decodeMessage(encoded, Announce.PublishNamespace.decode);
@@ -131,7 +132,7 @@ test("PublishNamespace: round trip", async () => {
 });
 
 test("PublishNamespaceOk: round trip", async () => {
-	const msg = new Announce.PublishNamespaceOk(2);
+	const msg = new Announce.PublishNamespaceOk(2n);
 
 	const encoded = await encodeMessage(msg);
 	const decoded = await decodeMessage(encoded, Announce.PublishNamespaceOk.decode);
@@ -140,7 +141,7 @@ test("PublishNamespaceOk: round trip", async () => {
 });
 
 test("PublishNamespaceError: round trip", async () => {
-	const msg = new Announce.PublishNamespaceError(3, 404, "Unauthorized");
+	const msg = new Announce.PublishNamespaceError(3n, 404, "Unauthorized");
 
 	const encoded = await encodeMessage(msg);
 	const decoded = await decodeMessage(encoded, Announce.PublishNamespaceError.decode);
@@ -257,7 +258,7 @@ test("SubscribeOk: rejects non-zero expires", async () => {
 
 // Unicode tests
 test("SubscribeError: unicode strings", async () => {
-	const msg = new Subscribe.SubscribeError(1, 400, "Error: 错误 🚫");
+	const msg = new Subscribe.SubscribeError(1n, 400, "Error: 错误 🚫");
 
 	const encoded = await encodeMessage(msg);
 	const decoded = await decodeMessage(encoded, Subscribe.SubscribeError.decode);
@@ -266,7 +267,7 @@ test("SubscribeError: unicode strings", async () => {
 });
 
 test("PublishNamespace: unicode namespace", async () => {
-	const msg = new Announce.PublishNamespace(1, Path.from("会议/房间"));
+	const msg = new Announce.PublishNamespace(1n, Path.from("会议/房间"));
 
 	const encoded = await encodeMessage(msg);
 	const decoded = await decodeMessage(encoded, Announce.PublishNamespace.decode);

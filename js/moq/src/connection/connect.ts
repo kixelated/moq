@@ -79,8 +79,8 @@ export async function connect(url: URL, props?: ConnectProps): Promise<Establish
 	const encoder = new TextEncoder();
 
 	const params = new Ietf.Parameters();
-	params.setVarint(2n, 42069n); // Allow a ton of request IDs.
-	params.setBytes(7n, encoder.encode("moq-lite-js")); // Put the implementation name in the parameters.
+	params.setVarint(Ietf.Parameter.MaxRequestId, 42069n); // Allow a ton of request IDs.
+	params.setBytes(Ietf.Parameter.Implementation, encoder.encode("moq-lite-js")); // Put the implementation name in the parameters.
 
 	const msg = new Ietf.ClientSetup([Lite.CURRENT_VERSION, Ietf.CURRENT_VERSION], params);
 	await msg.encode(stream.writer);
@@ -96,8 +96,9 @@ export async function connect(url: URL, props?: ConnectProps): Promise<Establish
 		console.debug(url.toString(), "moq-lite session established");
 		return new Lite.Connection(url, quic, stream);
 	} else if (server.version === Ietf.CURRENT_VERSION) {
+		const maxRequestId = server.parameters.getVarint(Ietf.Parameter.MaxRequestId) ?? 0n;
 		console.debug(url.toString(), "moq-ietf session established");
-		return new Ietf.Connection(url, quic, stream);
+		return new Ietf.Connection(url, quic, stream, maxRequestId);
 	} else {
 		throw new Error(`unsupported server version: ${server.version.toString()}`);
 	}

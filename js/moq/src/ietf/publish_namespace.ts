@@ -8,16 +8,16 @@ import { Parameters } from "./parameters.ts";
 export class PublishNamespace {
 	static id = 0x06;
 
-	requestId: number;
+	requestId: bigint;
 	trackNamespace: Path.Valid;
 
-	constructor(requestId: number, trackNamespace: Path.Valid) {
+	constructor(requestId: bigint, trackNamespace: Path.Valid) {
 		this.requestId = requestId;
 		this.trackNamespace = trackNamespace;
 	}
 
 	async #encode(w: Writer): Promise<void> {
-		await w.u53(this.requestId);
+		await w.u62(this.requestId);
 		await Namespace.encode(w, this.trackNamespace);
 		await w.u8(0); // number of parameters
 	}
@@ -31,7 +31,7 @@ export class PublishNamespace {
 	}
 
 	static async #decode(r: Reader): Promise<PublishNamespace> {
-		const requestId = await r.u53();
+		const requestId = await r.u62();
 		const trackNamespace = await Namespace.decode(r);
 		await Parameters.decode(r); // ignore parameters
 		return new PublishNamespace(requestId, trackNamespace);
@@ -41,14 +41,14 @@ export class PublishNamespace {
 export class PublishNamespaceOk {
 	static id = 0x07;
 
-	requestId: number;
+	requestId: bigint;
 
-	constructor(requestId: number) {
+	constructor(requestId: bigint) {
 		this.requestId = requestId;
 	}
 
 	async #encode(w: Writer): Promise<void> {
-		await w.u53(this.requestId);
+		await w.u62(this.requestId);
 	}
 
 	async encode(w: Writer): Promise<void> {
@@ -60,7 +60,7 @@ export class PublishNamespaceOk {
 	}
 
 	static async #decode(r: Reader): Promise<PublishNamespaceOk> {
-		const requestId = await r.u53();
+		const requestId = await r.u62();
 		return new PublishNamespaceOk(requestId);
 	}
 }
@@ -68,18 +68,18 @@ export class PublishNamespaceOk {
 export class PublishNamespaceError {
 	static id = 0x08;
 
-	requestId: number;
+	requestId: bigint;
 	errorCode: number;
 	reasonPhrase: string;
 
-	constructor(requestId: number, errorCode: number, reasonPhrase: string) {
+	constructor(requestId: bigint, errorCode: number, reasonPhrase: string) {
 		this.requestId = requestId;
 		this.errorCode = errorCode;
 		this.reasonPhrase = reasonPhrase;
 	}
 
 	async #encode(w: Writer): Promise<void> {
-		await w.u53(this.requestId);
+		await w.u62(this.requestId);
 		await w.u62(BigInt(this.errorCode));
 		await w.string(this.reasonPhrase);
 	}
@@ -93,7 +93,7 @@ export class PublishNamespaceError {
 	}
 
 	static async #decode(r: Reader): Promise<PublishNamespaceError> {
-		const requestId = await r.u53();
+		const requestId = await r.u62();
 		const errorCode = Number(await r.u62());
 		const reasonPhrase = await r.string();
 		return new PublishNamespaceError(requestId, errorCode, reasonPhrase);

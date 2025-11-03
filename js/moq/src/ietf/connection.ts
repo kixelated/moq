@@ -58,10 +58,14 @@ export class Connection implements Established {
 	 *
 	 * @internal
 	 */
-	constructor(url: URL, quic: WebTransport, control: Stream) {
+	constructor(url: URL, quic: WebTransport, control: Stream, maxRequestId: bigint) {
 		this.url = url;
 		this.#quic = quic;
-		this.#control = new Control.Stream(control);
+		this.#control = new Control.Stream(control, maxRequestId);
+
+		this.#quic.closed.finally(() => {
+			this.#control.close();
+		});
 
 		this.#publisher = new Publisher(this.#quic, this.#control);
 		this.#subscriber = new Subscriber(this.#control);
@@ -81,8 +85,6 @@ export class Connection implements Established {
 	}
 
 	async #run(): Promise<void> {
-		await this.#control.write(new MaxRequestId(2 ** 31 - 1));
-
 		const controlMessages = this.#runControlStream();
 		const objectStreams = this.#runObjectStreams();
 
@@ -175,7 +177,7 @@ export class Connection implements Established {
 				} else if (msg instanceof UnsubscribeNamespace) {
 					await this.#publisher.handleUnsubscribeNamespace(msg);
 				} else if (msg instanceof Publish) {
-					throw new Error("PUBLISH messages are not supported");
+					await this.#subscriber.handlePublish(msg);
 				} else if (msg instanceof PublishOk) {
 					throw new Error("PUBLISH_OK messages are not supported");
 				} else if (msg instanceof PublishError) {
@@ -189,7 +191,7 @@ export class Connection implements Established {
 				} else if (msg instanceof FetchCancel) {
 					throw new Error("FETCH_CANCEL messages are not supported");
 				} else if (msg instanceof MaxRequestId) {
-					console.warn("ignoring MAX_REQUEST_ID message");
+					this.#control.maxRequestId(msg.requestId);
 				} else if (msg instanceof RequestsBlocked) {
 					console.warn("ignoring REQUESTS_BLOCKED message");
 				} else {

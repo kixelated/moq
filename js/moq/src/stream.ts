@@ -138,6 +138,13 @@ export class Reader {
 		return new TextDecoder().decode(buffer);
 	}
 
+	async bool(): Promise<boolean> {
+		const v = await this.u8();
+		if (v === 0) return false;
+		if (v === 1) return true;
+		throw new Error("invalid bool value");
+	}
+
 	async u8(): Promise<number> {
 		await this.#fillTo(1);
 		return this.#slice(1)[0];
@@ -219,6 +226,10 @@ export class Writer {
 		this.#stream = stream;
 		this.#scratch = new ArrayBuffer(8);
 		this.#writer = this.#stream.getWriter();
+	}
+
+	async bool(v: boolean) {
+		await this.write(setUint8(this.#scratch, v ? 1 : 0));
 	}
 
 	async u8(v: number) {

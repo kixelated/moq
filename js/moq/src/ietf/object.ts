@@ -18,16 +18,16 @@ export interface GroupFlags {
 export class Group {
 	static id = STREAM_TYPE;
 
-	requestId: number;
+	trackAlias: bigint;
 	groupId: number;
 	flags: GroupFlags;
 
-	constructor(requestId: number, groupId: number, flags: GroupFlags) {
+	constructor(trackAlias: bigint, groupId: number, flags: GroupFlags) {
 		if (flags.hasSubgroup && flags.hasSubgroupObject) {
 			throw new Error("hasSubgroup and hasSubgroupObject cannot be true at the same time");
 		}
 
-		this.requestId = requestId;
+		this.trackAlias = trackAlias;
 		this.groupId = groupId;
 		this.flags = flags;
 	}
@@ -47,7 +47,7 @@ export class Group {
 			id |= 0x08;
 		}
 		await w.u53(id);
-		await w.u53(this.requestId);
+		await w.u62(this.trackAlias);
 		await w.u53(this.groupId);
 		if (this.flags.hasSubgroup) {
 			await w.u8(SUBGROUP_ID);
@@ -68,7 +68,7 @@ export class Group {
 			hasEnd: (id & 0x08) !== 0,
 		};
 
-		const requestId = await r.u53();
+		const requestId = await r.u62();
 		const groupId = await r.u53();
 
 		if (flags.hasSubgroup) {

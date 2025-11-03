@@ -52,7 +52,9 @@ export class Publisher {
 
 	async #runPublish(path: Path.Valid, broadcast: Broadcast) {
 		try {
-			const requestId = this.#control.requestId();
+			const requestId = await this.#control.nextRequestId();
+			if (requestId === undefined) return;
+
 			const announce = new PublishNamespace(requestId, path);
 			await this.#control.write(announce);
 
@@ -94,7 +96,7 @@ export class Publisher {
 		const track = broadcast.subscribe(msg.trackName, msg.subscriberPriority);
 
 		// Send SUBSCRIBE_OK response on control stream
-		const okMsg = new SubscribeOk(msg.requestId);
+		const okMsg = new SubscribeOk(msg.requestId, msg.requestId);
 		await this.#control.write(okMsg);
 
 		// Start sending track data using ObjectStream (Subgroup delivery mode only)
@@ -108,7 +110,7 @@ export class Publisher {
 	 *
 	 * @internal
 	 */
-	async #runTrack(requestId: number, track: Track) {
+	async #runTrack(requestId: bigint, track: Track) {
 		try {
 			for (;;) {
 				const group = await track.nextGroup();
@@ -134,7 +136,7 @@ export class Publisher {
 	 *
 	 * @internal
 	 */
-	async #runGroup(requestId: number, group: Group) {
+	async #runGroup(requestId: bigint, group: Group) {
 		try {
 			// Create a new unidirectional stream for this group
 			const stream = await Writer.open(this.#quic);
@@ -147,6 +149,7 @@ export class Publisher {
 				// Automatically end the group on stream FIN
 				hasEnd: true,
 			});
+
 			console.debug("sending group header", header);
 			await header.encode(stream);
 

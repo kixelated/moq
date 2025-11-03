@@ -66,13 +66,22 @@ export class Stream {
 	stream: StreamInner;
 
 	// The client always starts at 0.
-	#requestId = 0;
+	#requestId = 0n;
+
+	#maxRequestId: bigint;
+
+	#maxRequestIdPromise?: Promise<void>; // unblocks when there's a new max request id
+	#maxRequestIdResolve!: () => void; // resolves the max request id promise
 
 	#writeLock = new Mutex();
 	#readLock = new Mutex();
 
-	constructor(stream: StreamInner) {
+	constructor(stream: StreamInner, maxRequestId: bigint) {
 		this.stream = stream;
+		this.#maxRequestId = maxRequestId;
+		this.#maxRequestIdPromise = new Promise((resolve) => {
+			this.#maxRequestIdResolve = resolve;
+		});
 	}
 
 	/**
@@ -113,9 +122,38 @@ export class Stream {
 		});
 	}
 
-	requestId(): number {
-		const id = this.#requestId;
-		this.#requestId += 2;
-		return id;
+	maxRequestId(max: bigint): void {
+		if (max <= this.#maxRequestId) {
+			throw new Error(
+				`max request id must be greater than current max request id: max=${max} current=${this.#maxRequestId}`,
+			);
+		}
+
+		this.#maxRequestId = max;
+		this.#maxRequestIdResolve();
+		this.#maxRequestIdPromise = new Promise((resolve) => {
+			this.#maxRequestIdResolve = resolve;
+		});
+	}
+
+	async nextRequestId(): Promise<bigint | undefined> {
+		while (true) {
+			const id = this.#requestId;
+			if (id < this.#maxRequestId) {
+				this.#requestId += 2n;
+				return id;
+			}
+
+			if (!this.#maxRequestIdPromise) {
+				return undefined;
+			}
+
+			await this.#maxRequestIdPromise;
+		}
+	}
+
+	close(): void {
+		this.#maxRequestIdResolve();
+		this.#maxRequestIdPromise = undefined;
 	}
 }
