@@ -147,6 +147,7 @@ impl<'a> Message for PublishDone<'a> {
 	}
 }
 
+#[derive(Debug)]
 pub struct Publish<'a> {
 	pub request_id: u64,
 	pub track_namespace: Path<'a>,
@@ -205,6 +206,7 @@ impl<'a> Message for Publish<'a> {
 	}
 }
 
+#[derive(Debug)]
 pub struct PublishOk {
 	pub request_id: u64,
 	pub forward: bool,
@@ -219,6 +221,7 @@ impl PublishOk {
 	pub const ID: u64 = 0x1E;
 }
 
+#[derive(Debug)]
 pub struct PublishError<'a> {
 	pub request_id: u64,
 	pub error_code: u64,

@@ -39,7 +39,8 @@ impl<S: web_transport_trait::Session> Publisher<S> {
 
 			if active.is_some() {
 				tracing::debug!(broadcast = %self.origin.absolute(&path), "announce");
-				let request_id = self.control.request_id();
+
+				let request_id = self.control.next_request_id().await?;
 
 				self.control.send(ietf::PublishNamespace {
 					request_id,

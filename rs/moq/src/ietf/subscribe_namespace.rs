@@ -13,22 +13,22 @@ use super::namespace::{decode_namespace, encode_namespace};
 /// SubscribeNamespace message (0x11)
 #[derive(Clone, Debug)]
 pub struct SubscribeNamespace<'a> {
-	pub namespace: Path<'a>,
 	pub request_id: u64,
+	pub namespace: Path<'a>,
 }
 
 impl<'a> Message for SubscribeNamespace<'a> {
 	const ID: u64 = 0x11;
 
 	fn encode<W: bytes::BufMut>(&self, w: &mut W) {
-		encode_namespace(w, &self.namespace);
 		self.request_id.encode(w);
+		encode_namespace(w, &self.namespace);
 		0u8.encode(w); // no parameters
 	}
 
 	fn decode<R: bytes::Buf>(r: &mut R) -> Result<Self, DecodeError> {
-		let namespace = decode_namespace(r)?;
 		let request_id = u64::decode(r)?;
+		let namespace = decode_namespace(r)?;
 
 		// Ignore parameters, who cares.
 		let _params = Parameters::decode(r)?;
