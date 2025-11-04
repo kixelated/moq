@@ -4,7 +4,7 @@ use std::borrow::Cow;
 
 use crate::{
 	coding::*,
-	ietf::{Message, Parameters},
+	ietf::{Message, Parameters, RequestId},
 	Path,
 };
 
@@ -14,7 +14,7 @@ use super::namespace::{decode_namespace, encode_namespace};
 /// Sent by the publisher to announce the availability of a namespace.
 #[derive(Clone, Debug)]
 pub struct PublishNamespace<'a> {
-	pub request_id: u64,
+	pub request_id: RequestId,
 	pub track_namespace: Path<'a>,
 }
 
@@ -28,7 +28,7 @@ impl<'a> Message for PublishNamespace<'a> {
 	}
 
 	fn decode<R: bytes::Buf>(r: &mut R) -> Result<Self, DecodeError> {
-		let request_id = u64::decode(r)?;
+		let request_id = RequestId::decode(r)?;
 		let track_namespace = decode_namespace(r)?;
 
 		// Ignore parameters, who cares.
@@ -44,7 +44,7 @@ impl<'a> Message for PublishNamespace<'a> {
 /// PublishNamespaceOk message (0x07)
 #[derive(Clone, Debug)]
 pub struct PublishNamespaceOk {
-	pub request_id: u64,
+	pub request_id: RequestId,
 }
 
 impl Message for PublishNamespaceOk {
@@ -55,7 +55,7 @@ impl Message for PublishNamespaceOk {
 	}
 
 	fn decode<R: bytes::Buf>(r: &mut R) -> Result<Self, DecodeError> {
-		let request_id = u64::decode(r)?;
+		let request_id = RequestId::decode(r)?;
 		Ok(Self { request_id })
 	}
 }
@@ -63,7 +63,7 @@ impl Message for PublishNamespaceOk {
 /// PublishNamespaceError message (0x08)
 #[derive(Clone, Debug)]
 pub struct PublishNamespaceError<'a> {
-	pub request_id: u64,
+	pub request_id: RequestId,
 	pub error_code: u64,
 	pub reason_phrase: Cow<'a, str>,
 }
@@ -78,7 +78,7 @@ impl<'a> Message for PublishNamespaceError<'a> {
 	}
 
 	fn decode<R: bytes::Buf>(r: &mut R) -> Result<Self, DecodeError> {
-		let request_id = u64::decode(r)?;
+		let request_id = RequestId::decode(r)?;
 		let error_code = u64::decode(r)?;
 		let reason_phrase = Cow::<str>::decode(r)?;
 
@@ -156,7 +156,7 @@ mod tests {
 	#[test]
 	fn test_announce_round_trip() {
 		let msg = PublishNamespace {
-			request_id: 1,
+			request_id: RequestId(1),
 			track_namespace: Path::new("test/broadcast"),
 		};
 
@@ -169,7 +169,7 @@ mod tests {
 	#[test]
 	fn test_announce_error() {
 		let msg = PublishNamespaceError {
-			request_id: 1,
+			request_id: RequestId(1),
 			error_code: 404,
 			reason_phrase: "Unauthorized".into(),
 		};

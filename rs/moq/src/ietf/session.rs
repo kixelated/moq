@@ -1,6 +1,6 @@
 use crate::{
 	coding::{Reader, Stream, Writer},
-	ietf::{self, Control, Message},
+	ietf::{self, Control, Message, RequestId},
 	Error, OriginConsumer, OriginProducer,
 };
 
@@ -9,7 +9,7 @@ use super::{Publisher, Subscriber};
 pub(crate) async fn start<S: web_transport_trait::Session>(
 	session: S,
 	setup: Stream<S>,
-	request_id_max: u64,
+	request_id_max: RequestId,
 	client: bool,
 	publish: Option<OriginConsumer>,
 	subscribe: Option<OriginProducer>,
@@ -37,7 +37,7 @@ pub(crate) async fn start<S: web_transport_trait::Session>(
 async fn run<S: web_transport_trait::Session>(
 	session: S,
 	setup: Stream<S>,
-	request_id_max: u64,
+	request_id_max: RequestId,
 	client: bool,
 	publish: Option<OriginConsumer>,
 	subscribe: Option<OriginProducer>,

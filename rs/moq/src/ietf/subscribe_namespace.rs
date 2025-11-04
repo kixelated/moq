@@ -4,7 +4,7 @@ use std::borrow::Cow;
 
 use crate::{
 	coding::*,
-	ietf::{Message, Parameters},
+	ietf::{Message, Parameters, RequestId},
 	Path,
 };
 
@@ -13,7 +13,7 @@ use super::namespace::{decode_namespace, encode_namespace};
 /// SubscribeNamespace message (0x11)
 #[derive(Clone, Debug)]
 pub struct SubscribeNamespace<'a> {
-	pub request_id: u64,
+	pub request_id: RequestId,
 	pub namespace: Path<'a>,
 }
 
@@ -27,7 +27,7 @@ impl<'a> Message for SubscribeNamespace<'a> {
 	}
 
 	fn decode<R: bytes::Buf>(r: &mut R) -> Result<Self, DecodeError> {
-		let request_id = u64::decode(r)?;
+		let request_id = RequestId::decode(r)?;
 		let namespace = decode_namespace(r)?;
 
 		// Ignore parameters, who cares.
@@ -40,7 +40,7 @@ impl<'a> Message for SubscribeNamespace<'a> {
 /// SubscribeNamespaceOk message (0x12)
 #[derive(Clone, Debug)]
 pub struct SubscribeNamespaceOk {
-	pub request_id: u64,
+	pub request_id: RequestId,
 }
 
 impl Message for SubscribeNamespaceOk {
@@ -51,14 +51,14 @@ impl Message for SubscribeNamespaceOk {
 	}
 
 	fn decode<R: bytes::Buf>(r: &mut R) -> Result<Self, DecodeError> {
-		let request_id = u64::decode(r)?;
+		let request_id = RequestId::decode(r)?;
 		Ok(Self { request_id })
 	}
 }
 /// SubscribeNamespaceError message (0x13)
 #[derive(Clone, Debug)]
 pub struct SubscribeNamespaceError<'a> {
-	pub request_id: u64,
+	pub request_id: RequestId,
 	pub error_code: u64,
 	pub reason_phrase: Cow<'a, str>,
 }
@@ -73,7 +73,7 @@ impl<'a> Message for SubscribeNamespaceError<'a> {
 	}
 
 	fn decode<R: bytes::Buf>(r: &mut R) -> Result<Self, DecodeError> {
-		let request_id = u64::decode(r)?;
+		let request_id = RequestId::decode(r)?;
 		let error_code = u64::decode(r)?;
 		let reason_phrase = Cow::<str>::decode(r)?;
 
@@ -88,7 +88,7 @@ impl<'a> Message for SubscribeNamespaceError<'a> {
 /// UnsubscribeNamespace message (0x14)
 #[derive(Clone, Debug)]
 pub struct UnsubscribeNamespace {
-	pub request_id: u64,
+	pub request_id: RequestId,
 }
 
 impl Message for UnsubscribeNamespace {
@@ -99,7 +99,7 @@ impl Message for UnsubscribeNamespace {
 	}
 
 	fn decode<R: bytes::Buf>(r: &mut R) -> Result<Self, DecodeError> {
-		let request_id = u64::decode(r)?;
+		let request_id = RequestId::decode(r)?;
 		Ok(Self { request_id })
 	}
 }

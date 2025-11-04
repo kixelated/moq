@@ -5,23 +5,39 @@ use std::{
 
 use crate::{
 	coding::Reader,
-	ietf::{self, Control, FetchHeader, FilterType, GroupFlags, GroupOrder},
+	ietf::{self, Control, FetchHeader, FilterType, GroupFlags, GroupOrder, RequestId},
 	model::BroadcastProducer,
-	Broadcast, Error, Frame, FrameProducer, Group, GroupProducer, OriginProducer, Path, PathOwned, TrackProducer,
+	Broadcast, Error, Frame, FrameProducer, Group, GroupProducer, OriginProducer, Path, PathOwned, Track,
+	TrackProducer,
 };
 
 use web_async::Lock;
 
 #[derive(Default)]
-struct SubscriberState {
-	subscribes: HashMap<u64, SubscriberTrack>,
-	aliases: HashMap<u64, u64>,
-	broadcasts: HashMap<PathOwned, BroadcastProducer>,
+struct State {
+	// Each active subscription
+	subscribes: HashMap<RequestId, TrackState>,
+
+	// A map of track aliases to request IDs.
+	aliases: HashMap<u64, RequestId>,
+
+	// Each broadcast created by either a PUBLISH or PUBLISH_NAMESPACE message.
+	broadcasts: HashMap<PathOwned, BroadcastState>,
+
+	// Each PUBLISH message that is implicitly causing a PUBLISH_NAMESPACE message.
+	publishes: HashMap<RequestId, PathOwned>,
 }
 
-struct SubscriberTrack {
+struct TrackState {
 	producer: TrackProducer,
 	alias: Option<u64>,
+}
+
+struct BroadcastState {
+	producer: BroadcastProducer,
+
+	// active number of PUBLISH or PUBLISH_NAMESPACE messages.
+	count: usize,
 }
 
 #[derive(Clone)]
@@ -29,7 +45,7 @@ pub(super) struct Subscriber<S: web_transport_trait::Session> {
 	session: S,
 
 	origin: Option<OriginProducer>,
-	state: Lock<SubscriberState>,
+	state: Lock<State>,
 	control: Control,
 }
 
@@ -46,75 +62,87 @@ impl<S: web_transport_trait::Session> Subscriber<S> {
 	pub fn recv_publish_namespace(&mut self, msg: ietf::PublishNamespace) -> Result<(), Error> {
 		let request_id = msg.request_id;
 
+		match self.start_announce(msg.track_namespace.to_owned()) {
+			Ok(_) => self.control.send(ietf::PublishNamespaceOk { request_id }),
+			Err(err) => self.control.send(ietf::PublishNamespaceError {
+				request_id,
+				error_code: 400,
+				reason_phrase: err.to_string().into(),
+			}),
+		}
+	}
+
+	fn start_announce(&mut self, path: PathOwned) -> Result<BroadcastProducer, Error> {
 		let origin = match &self.origin {
 			Some(origin) => origin,
-			None => {
-				self.control.send(ietf::PublishNamespaceError {
-					request_id,
-					error_code: 404,
-					reason_phrase: "Publish only".into(),
-				})?;
+			None => return Err(Error::InvalidRole),
+		};
 
-				return Ok(());
+		let mut state = self.state.lock();
+		let broadcast = match state.broadcasts.entry(path.clone()) {
+			Entry::Occupied(mut entry) => {
+				entry.get_mut().count += 1;
+				return Ok(entry.get().producer.clone());
+			}
+			Entry::Vacant(entry) => {
+				let broadcast = Broadcast::produce();
+				origin.publish_broadcast(path.clone(), broadcast.consumer);
+				entry.insert(BroadcastState {
+					producer: broadcast.producer.clone(),
+					count: 1,
+				});
+				broadcast.producer
 			}
 		};
 
-		let path = msg.track_namespace.to_owned();
 		tracing::debug!(broadcast = %origin.absolute(&path), "announce");
 
-		let broadcast = Broadcast::produce();
-
-		let mut state = self.state.lock();
-
-		// Make sure the peer doesn't double announce.
-		match state.broadcasts.entry(path.to_owned()) {
-			Entry::Occupied(_) => return Err(Error::Duplicate),
-			Entry::Vacant(entry) => entry.insert(broadcast.producer.clone()),
-		};
-
-		// Run the broadcast in the background until all consumers are dropped.
-		origin.publish_broadcast(path.clone(), broadcast.consumer);
-
-		self.control.send(ietf::PublishNamespaceOk { request_id })?;
-
 		let mut this = self.clone();
+		let producer = broadcast.clone();
+
 		web_async::spawn(async move {
-			if let Err(err) = this.run_broadcast(path.clone(), broadcast.producer).await {
+			if let Err(err) = this.run_broadcast(path.clone(), producer).await {
 				tracing::debug!(%err, "error running broadcast");
 			}
 			this.state.lock().broadcasts.remove(&path);
 		});
 
+		Ok(broadcast)
+	}
+
+	fn stop_announce(&mut self, path: PathOwned) -> Result<(), Error> {
+		let origin = match &self.origin {
+			Some(origin) => origin,
+			None => return Err(Error::InvalidRole),
+		};
+
+		let mut state = self.state.lock();
+
+		// Close the producer if this was the last announce.
+		match state.broadcasts.entry(path.clone()) {
+			Entry::Occupied(mut entry) => {
+				entry.get_mut().count -= 1;
+				if entry.get().count == 0 {
+					tracing::debug!(broadcast = %origin.absolute(&path), "unannounced");
+					entry.remove();
+				}
+			}
+			Entry::Vacant(_) => return Err(Error::NotFound),
+		};
+
 		Ok(())
 	}
 
 	pub fn recv_publish_namespace_done(&mut self, msg: ietf::PublishNamespaceDone) -> Result<(), Error> {
-		let origin = match &self.origin {
-			Some(origin) => origin,
-			None => return Ok(()),
-		};
-
-		let path = msg.track_namespace.to_owned();
-		tracing::debug!(broadcast = %origin.absolute(&path), "unannounced");
-
-		let mut state = self.state.lock();
-
-		// Close the producer.
-		let mut producer = state.broadcasts.remove(&path).ok_or(Error::NotFound)?;
-
-		producer.close();
-
-		Ok(())
+		self.stop_announce(msg.track_namespace.to_owned())
 	}
 
 	pub fn recv_subscribe_ok(&mut self, msg: ietf::SubscribeOk) -> Result<(), Error> {
-		// Save the track alias if it's not the same as the request id.
-		if msg.request_id != msg.track_alias {
-			let mut state = self.state.lock();
-			if let Some(subscribe) = state.subscribes.get_mut(&msg.request_id) {
-				subscribe.alias = Some(msg.track_alias);
-				state.aliases.insert(msg.track_alias, msg.request_id);
-			}
+		// Save the track alias
+		let mut state = self.state.lock();
+		if let Some(subscribe) = state.subscribes.get_mut(&msg.request_id) {
+			subscribe.alias = Some(msg.track_alias);
+			state.aliases.insert(msg.track_alias, msg.request_id);
 		}
 
 		Ok(())
@@ -135,11 +163,17 @@ impl<S: web_transport_trait::Session> Subscriber<S> {
 
 	pub fn recv_publish_done(&mut self, msg: ietf::PublishDone<'_>) -> Result<(), Error> {
 		let mut state = self.state.lock();
+
 		if let Some(track) = state.subscribes.remove(&msg.request_id) {
 			track.producer.close();
 			if let Some(alias) = track.alias {
 				state.aliases.remove(&alias);
 			}
+		}
+
+		if let Some(path) = state.publishes.remove(&msg.request_id) {
+			drop(state);
+			self.stop_announce(path)?;
 		}
 
 		Ok(())
@@ -200,7 +234,7 @@ impl<S: web_transport_trait::Session> Subscriber<S> {
 			let mut state = self.state.lock();
 			state.subscribes.insert(
 				request_id,
-				SubscriberTrack {
+				TrackState {
 					producer: track.clone(),
 					alias: None,
 				},
@@ -218,7 +252,12 @@ impl<S: web_transport_trait::Session> Subscriber<S> {
 		Ok(())
 	}
 
-	async fn run_subscribe(&mut self, request_id: u64, broadcast: Path<'_>, track: TrackProducer) -> Result<(), Error> {
+	async fn run_subscribe(
+		&mut self,
+		request_id: RequestId,
+		broadcast: Path<'_>,
+		track: TrackProducer,
+	) -> Result<(), Error> {
 		self.control.send(ietf::Subscribe {
 			request_id,
 			track_namespace: broadcast.to_owned(),
@@ -247,7 +286,11 @@ impl<S: web_transport_trait::Session> Subscriber<S> {
 
 		let producer = {
 			let mut state = self.state.lock();
-			let request_id = *state.aliases.get(&group.track_alias).unwrap_or(&group.track_alias);
+			let request_id = *state
+				.aliases
+				.get(&group.track_alias)
+				// TODO: This is a hack to avoid buffering media for unknown tracks aliases.
+				.unwrap_or(&RequestId(group.track_alias));
 			let track = state.subscribes.get_mut(&request_id).ok_or(Error::NotFound)?;
 
 			let group = Group {
@@ -364,10 +407,55 @@ impl<S: web_transport_trait::Session> Subscriber<S> {
 	}
 
 	pub fn recv_publish(&mut self, msg: ietf::Publish<'_>) -> Result<(), Error> {
-		self.control.send(ietf::PublishError {
-			request_id: msg.request_id,
-			error_code: 300,
-			reason_phrase: "publish not supported bro".into(),
-		})
+		if let Err(err) = self.start_publish(&msg) {
+			self.control.send(ietf::PublishError {
+				request_id: msg.request_id,
+				error_code: 400,
+				reason_phrase: err.to_string().into(),
+			})?;
+		} else {
+			self.control.send(ietf::PublishOk {
+				request_id: msg.request_id,
+				forward: true,
+				subscriber_priority: 0,
+				group_order: GroupOrder::Descending,
+				filter_type: FilterType::LargestObject,
+			})?;
+		}
+
+		Ok(())
+	}
+
+	fn start_publish(&mut self, msg: &ietf::Publish<'_>) -> Result<(), Error> {
+		let request_id = msg.request_id;
+
+		let mut broadcast = self.start_announce(msg.track_namespace.to_owned())?;
+
+		let track = Track {
+			name: msg.track_name.to_string(),
+			priority: 0,
+		}
+		.produce();
+
+		let mut state = self.state.lock();
+		match state.subscribes.entry(request_id) {
+			Entry::Vacant(entry) => {
+				entry.insert(TrackState {
+					producer: track.producer,
+					alias: Some(msg.track_alias),
+				});
+			}
+			Entry::Occupied(_) => return Err(Error::Duplicate),
+		};
+
+		// Save that we're implicitly announcing this track.
+		state.publishes.insert(request_id, msg.track_namespace.to_owned());
+
+		let exists = broadcast.insert_track(track.consumer);
+		if exists {
+			tracing::warn!(track = %msg.track_name, "track already exists, replacing it");
+		}
+
+		Ok(())
 	}
 }

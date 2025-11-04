@@ -2,11 +2,15 @@ use std::sync::{Arc, Mutex};
 
 use tokio::sync::Notify;
 
-use crate::{coding::Encode, ietf::Message, Error};
+use crate::{
+	coding::Encode,
+	ietf::{Message, RequestId},
+	Error,
+};
 
 struct ControlState {
-	request_id_next: u64,
-	request_id_max: u64,
+	request_id_next: RequestId,
+	request_id_max: RequestId,
 	request_id_notify: Arc<Notify>,
 }
 
@@ -17,11 +21,11 @@ pub(super) struct Control {
 }
 
 impl Control {
-	pub fn new(tx: tokio::sync::mpsc::UnboundedSender<Vec<u8>>, request_id_max: u64, client: bool) -> Self {
+	pub fn new(tx: tokio::sync::mpsc::UnboundedSender<Vec<u8>>, request_id_max: RequestId, client: bool) -> Self {
 		Self {
 			tx,
 			state: Arc::new(Mutex::new(ControlState {
-				request_id_next: if client { 0 } else { 1 },
+				request_id_next: if client { RequestId(0) } else { RequestId(1) },
 				request_id_max,
 				request_id_notify: Arc::new(Notify::new()),
 			})),
@@ -44,21 +48,19 @@ impl Control {
 		Ok(())
 	}
 
-	pub fn max_request_id(&self, max: u64) {
+	pub fn max_request_id(&self, max: RequestId) {
 		let mut state = self.state.lock().unwrap();
 		state.request_id_max = max;
 		state.request_id_notify.notify_waiters();
 	}
 
-	pub async fn next_request_id(&self) -> Result<u64, Error> {
+	pub async fn next_request_id(&self) -> Result<RequestId, Error> {
 		loop {
 			let notify = {
 				let mut state = self.state.lock().unwrap();
 
 				if state.request_id_next < state.request_id_max {
-					let next = state.request_id_next;
-					state.request_id_next += 2;
-					return Ok(next);
+					return Ok(state.request_id_next.increment());
 				}
 
 				state.request_id_notify.clone().notified_owned()

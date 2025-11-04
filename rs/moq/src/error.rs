@@ -76,6 +76,9 @@ pub enum Error {
 
 	#[error("too many parameters")]
 	TooManyParameters,
+
+	#[error("invalid role")]
+	InvalidRole,
 }
 
 impl Error {
@@ -100,6 +103,7 @@ impl Error {
 			Self::Unsupported => 17,
 			Self::TooLarge => 18,
 			Self::TooManyParameters => 19,
+			Self::InvalidRole => 20,
 			Self::App(app) => *app + 64,
 		}
 	}

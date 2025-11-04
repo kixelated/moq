@@ -6,7 +6,7 @@ use num_enum::{IntoPrimitive, TryFromPrimitive};
 
 use crate::{
 	coding::*,
-	ietf::{GroupOrder, Location, Message, Parameters},
+	ietf::{GroupOrder, Location, Message, Parameters, RequestId},
 	Path,
 };
 
@@ -37,7 +37,7 @@ impl Decode for FilterType {
 /// Sent by the subscriber to request all future objects for the given track.
 #[derive(Clone, Debug)]
 pub struct Subscribe<'a> {
-	pub request_id: u64,
+	pub request_id: RequestId,
 	pub track_namespace: Path<'a>,
 	pub track_name: Cow<'a, str>,
 	pub subscriber_priority: u8,
@@ -49,7 +49,7 @@ impl<'a> Message for Subscribe<'a> {
 	const ID: u64 = 0x03;
 
 	fn decode<R: bytes::Buf>(r: &mut R) -> Result<Self, DecodeError> {
-		let request_id = u64::decode(r)?;
+		let request_id = RequestId::decode(r)?;
 
 		// Decode namespace (tuple of strings)
 		let track_namespace = decode_namespace(r)?;
@@ -110,7 +110,7 @@ impl<'a> Message for Subscribe<'a> {
 /// SubscribeOk message (0x04)
 #[derive(Clone, Debug)]
 pub struct SubscribeOk {
-	pub request_id: u64,
+	pub request_id: RequestId,
 	pub track_alias: u64,
 }
 
@@ -127,7 +127,7 @@ impl Message for SubscribeOk {
 	}
 
 	fn decode<R: bytes::Buf>(r: &mut R) -> Result<Self, DecodeError> {
-		let request_id = u64::decode(r)?;
+		let request_id = RequestId::decode(r)?;
 		let track_alias = u64::decode(r)?;
 
 		let expires = u64::decode(r)?;
@@ -157,7 +157,7 @@ impl Message for SubscribeOk {
 /// SubscribeError message (0x05)
 #[derive(Clone, Debug)]
 pub struct SubscribeError<'a> {
-	pub request_id: u64,
+	pub request_id: RequestId,
 	pub error_code: u64,
 	pub reason_phrase: Cow<'a, str>,
 }
@@ -171,7 +171,7 @@ impl<'a> Message for SubscribeError<'a> {
 		self.reason_phrase.encode(w);
 	}
 	fn decode<R: bytes::Buf>(r: &mut R) -> Result<Self, DecodeError> {
-		let request_id = u64::decode(r)?;
+		let request_id = RequestId::decode(r)?;
 		let error_code = u64::decode(r)?;
 		let reason_phrase = Cow::<str>::decode(r)?;
 
@@ -186,7 +186,7 @@ impl<'a> Message for SubscribeError<'a> {
 /// Unsubscribe message (0x0a)
 #[derive(Clone, Debug)]
 pub struct Unsubscribe {
-	pub request_id: u64,
+	pub request_id: RequestId,
 }
 
 impl Message for Unsubscribe {
@@ -197,7 +197,7 @@ impl Message for Unsubscribe {
 	}
 
 	fn decode<R: bytes::Buf>(r: &mut R) -> Result<Self, DecodeError> {
-		let request_id = u64::decode(r)?;
+		let request_id = RequestId::decode(r)?;
 		Ok(Self { request_id })
 	}
 }
@@ -216,8 +216,8 @@ impl Message for Unsubscribe {
 */
 #[derive(Debug)]
 pub struct SubscribeUpdate {
-	pub request_id: u64,
-	pub subscription_request_id: u64,
+	pub request_id: RequestId,
+	pub subscription_request_id: RequestId,
 	pub start_location: Location,
 	pub end_group: u64,
 	pub subscriber_priority: u8,
@@ -239,8 +239,8 @@ impl Message for SubscribeUpdate {
 	}
 
 	fn decode<R: bytes::Buf>(r: &mut R) -> Result<Self, DecodeError> {
-		let request_id = u64::decode(r)?;
-		let subscription_request_id = u64::decode(r)?;
+		let request_id = RequestId::decode(r)?;
+		let subscription_request_id = RequestId::decode(r)?;
 		let start_location = Location::decode(r)?;
 		let end_group = u64::decode(r)?;
 		let subscriber_priority = u8::decode(r)?;
@@ -277,7 +277,7 @@ mod tests {
 	#[test]
 	fn test_subscribe_round_trip() {
 		let msg = Subscribe {
-			request_id: 1,
+			request_id: RequestId(1),
 			track_namespace: Path::new("test"),
 			track_name: "video".into(),
 			subscriber_priority: 128,
@@ -288,7 +288,7 @@ mod tests {
 		let encoded = encode_message(&msg);
 		let decoded: Subscribe = decode_message(&encoded).unwrap();
 
-		assert_eq!(decoded.request_id, 1);
+		assert_eq!(decoded.request_id, RequestId(1));
 		assert_eq!(decoded.track_namespace.as_str(), "test");
 		assert_eq!(decoded.track_name, "video");
 		assert_eq!(decoded.subscriber_priority, 128);
@@ -297,7 +297,7 @@ mod tests {
 	#[test]
 	fn test_subscribe_nested_namespace() {
 		let msg = Subscribe {
-			request_id: 100,
+			request_id: RequestId(100),
 			track_namespace: Path::new("conference/room123"),
 			track_name: "audio".into(),
 			subscriber_priority: 255,
@@ -314,20 +314,20 @@ mod tests {
 	#[test]
 	fn test_subscribe_ok() {
 		let msg = SubscribeOk {
-			request_id: 42,
+			request_id: RequestId(42),
 			track_alias: 42,
 		};
 
 		let encoded = encode_message(&msg);
 		let decoded: SubscribeOk = decode_message(&encoded).unwrap();
 
-		assert_eq!(decoded.request_id, 42);
+		assert_eq!(decoded.request_id, RequestId(42));
 	}
 
 	#[test]
 	fn test_subscribe_error() {
 		let msg = SubscribeError {
-			request_id: 123,
+			request_id: RequestId(123),
 			error_code: 500,
 			reason_phrase: "Not found".into(),
 		};
@@ -335,19 +335,21 @@ mod tests {
 		let encoded = encode_message(&msg);
 		let decoded: SubscribeError = decode_message(&encoded).unwrap();
 
-		assert_eq!(decoded.request_id, 123);
+		assert_eq!(decoded.request_id, RequestId(123));
 		assert_eq!(decoded.error_code, 500);
 		assert_eq!(decoded.reason_phrase, "Not found");
 	}
 
 	#[test]
 	fn test_unsubscribe() {
-		let msg = Unsubscribe { request_id: 999 };
+		let msg = Unsubscribe {
+			request_id: RequestId(999),
+		};
 
 		let encoded = encode_message(&msg);
 		let decoded: Unsubscribe = decode_message(&encoded).unwrap();
 
-		assert_eq!(decoded.request_id, 999);
+		assert_eq!(decoded.request_id, RequestId(999));
 	}
 
 	#[test]
