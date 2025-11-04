@@ -177,7 +177,8 @@ impl Client {
 
 		let alpn = match url.scheme() {
 			"https" => web_transport_quinn::ALPN,
-			"moql" => moq_lite::ALPN,
+			"moql" => moq_lite::lite::ALPN,
+			"moqt" => moq_lite::ietf::ALPN,
 			_ => anyhow::bail!("url scheme must be 'http', 'https', or 'moql'"),
 		};
 
@@ -196,7 +197,7 @@ impl Client {
 
 		let session = match alpn {
 			web_transport_quinn::ALPN => web_transport_quinn::Session::connect(connection, url).await?,
-			moq_lite::ALPN => web_transport_quinn::Session::raw(connection, url),
+			moq_lite::lite::ALPN | moq_lite::ietf::ALPN => web_transport_quinn::Session::raw(connection, url),
 			_ => unreachable!("ALPN was checked above"),
 		};
 

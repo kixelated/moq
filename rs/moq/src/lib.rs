@@ -15,17 +15,15 @@
 //! While designed for media, the transport is generic and can handle any live data streams.
 
 mod error;
-mod lite;
 mod model;
 mod path;
 mod session;
 
 pub mod coding;
 pub mod ietf;
+pub mod lite;
 
 pub use error::*;
 pub use model::*;
 pub use path::*;
 pub use session::*;
-
-pub const ALPN: &str = coding::Alpn::LITE_LATEST.0;

@@ -34,3 +34,5 @@ pub use subscribe::*;
 pub use subscribe_namespace::*;
 use subscriber::*;
 pub use track::*;
+
+pub const ALPN: &str = crate::coding::Alpn::IETF_LATEST.0;

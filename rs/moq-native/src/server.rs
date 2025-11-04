@@ -122,7 +122,8 @@ impl Server {
 
 		tls.alpn_protocols = vec![
 			web_transport_quinn::ALPN.as_bytes().to_vec(),
-			moq_lite::ALPN.as_bytes().to_vec(),
+			moq_lite::lite::ALPN.as_bytes().to_vec(),
+			moq_lite::ietf::ALPN.as_bytes().to_vec(),
 		];
 		tls.key_log = Arc::new(rustls::KeyLogFile::new());
 
@@ -214,7 +215,7 @@ impl Server {
 					.context("failed to receive WebTransport request")?;
 				Ok(Request::WebTransport(request))
 			}
-			moq_lite::ALPN => Ok(Request::Quic(QuicRequest::accept(conn))),
+			moq_lite::lite::ALPN | moq_lite::ietf::ALPN => Ok(Request::Quic(QuicRequest::accept(conn))),
 			_ => anyhow::bail!("unsupported ALPN: {alpn}"),
 		}
 	}
