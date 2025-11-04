@@ -58,6 +58,8 @@ impl Alpn {
 	pub const LITE_00: Alpn = Alpn("moql-00");
 	pub const LITE_01: Alpn = Alpn("moql-01");
 	pub const LITE_LATEST: Alpn = Self::LITE_01;
+
+	pub const IETF_LATEST: Alpn = Alpn("moq-00");
 }
 
 impl From<u64> for Version {

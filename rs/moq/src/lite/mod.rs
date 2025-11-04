@@ -21,3 +21,5 @@ pub use setup::*;
 pub use stream::*;
 pub use subscribe::*;
 use subscriber::*;
+
+pub const ALPN: &str = crate::coding::Alpn::LITE_LATEST.0;
