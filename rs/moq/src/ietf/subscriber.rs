@@ -429,8 +429,6 @@ impl<S: web_transport_trait::Session> Subscriber<S> {
 	fn start_publish(&mut self, msg: &ietf::Publish<'_>) -> Result<(), Error> {
 		let request_id = msg.request_id;
 
-		let mut broadcast = self.start_announce(msg.track_namespace.to_owned())?;
-
 		let track = Track {
 			name: msg.track_name.to_string(),
 			priority: 0,
@@ -450,6 +448,11 @@ impl<S: web_transport_trait::Session> Subscriber<S> {
 
 		// Save that we're implicitly announcing this track.
 		state.publishes.insert(request_id, msg.track_namespace.to_owned());
+		drop(state);
+
+		// Announce our namespace if we haven't already.
+		// NOTE: This is debated in the IETF draft, but is significantly easier to implement.
+		let mut broadcast = self.start_announce(msg.track_namespace.to_owned())?;
 
 		let exists = broadcast.insert_track(track.consumer);
 		if exists {
