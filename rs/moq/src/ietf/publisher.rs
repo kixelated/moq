@@ -6,7 +6,7 @@ use web_transport_trait::SendStream;
 
 use crate::{
 	coding::Writer,
-	ietf::{self, Control, FetchHeader, FetchType, FilterType, GroupOrder, Location},
+	ietf::{self, Control, FetchHeader, FetchType, FilterType, GroupOrder, Location, RequestId},
 	model::GroupConsumer,
 	Error, Origin, OriginConsumer, Track, TrackConsumer,
 };
@@ -18,7 +18,7 @@ pub(super) struct Publisher<S: web_transport_trait::Session> {
 	control: Control,
 
 	// Drop in order to cancel the subscribe.
-	subscribes: Lock<HashMap<u64, oneshot::Sender<()>>>,
+	subscribes: Lock<HashMap<RequestId, oneshot::Sender<()>>>,
 }
 
 impl<S: web_transport_trait::Session> Publisher<S> {
@@ -102,7 +102,7 @@ impl<S: web_transport_trait::Session> Publisher<S> {
 
 		self.control.send(ietf::SubscribeOk {
 			request_id,
-			track_alias: request_id,
+			track_alias: request_id.0, // NOTE: using track alias as request id for now
 		})?;
 
 		let session = self.session.clone();
@@ -146,7 +146,7 @@ impl<S: web_transport_trait::Session> Publisher<S> {
 	async fn run_track(
 		session: S,
 		mut track: TrackConsumer,
-		request_id: u64,
+		request_id: RequestId,
 		mut cancel: oneshot::Receiver<()>,
 	) -> Result<(), Error> {
 		// TODO use a BTreeMap serve the latest N groups by sequence.
@@ -196,7 +196,7 @@ impl<S: web_transport_trait::Session> Publisher<S> {
 
 			let priority = stream_priority(track.info.priority, sequence);
 			let msg = ietf::GroupHeader {
-				track_alias: request_id,
+				track_alias: request_id.0, // NOTE: using track alias as request id for now
 				group_id: sequence,
 				flags: Default::default(),
 			};
@@ -433,7 +433,7 @@ impl<S: web_transport_trait::Session> Publisher<S> {
 	}
 
 	// We literally just create a stream and FIN it.
-	async fn run_fetch(session: S, request_id: u64) -> Result<(), Error> {
+	async fn run_fetch(session: S, request_id: RequestId) -> Result<(), Error> {
 		let stream = session
 			.open_uni()
 			.await

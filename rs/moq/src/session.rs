@@ -4,7 +4,7 @@ use bytes::BytesMut;
 
 use crate::{
 	coding::{self, Encode, Stream},
-	ietf::{self, Message, ParameterBytes, ParameterVarInt},
+	ietf::{self, Message, ParameterBytes, ParameterVarInt, RequestId},
 	lite, Error, OriginConsumer, OriginProducer,
 };
 
@@ -68,7 +68,7 @@ impl<S: web_transport_trait::Session> Session<S> {
 			return Err(Error::WrongSize);
 		}
 
-		let request_id_max = server.parameters.get_varint(ParameterVarInt::MaxRequestId).unwrap_or(0);
+		let request_id_max = RequestId(server.parameters.get_varint(ParameterVarInt::MaxRequestId).unwrap_or(0));
 
 		match server.version {
 			coding::Version::LITE_LATEST => {
@@ -119,10 +119,8 @@ impl<S: web_transport_trait::Session> Session<S> {
 				if !buf.is_empty() {
 					return Err(Error::WrongSize);
 				}
-				(
-					client.versions,
-					client.parameters.get_varint(ParameterVarInt::MaxRequestId),
-				)
+				let request_id_max = client.parameters.get_varint(ParameterVarInt::MaxRequestId).unwrap_or(0);
+				(client.versions, Some(RequestId(request_id_max)))
 			}
 			_ => return Err(Error::UnexpectedStream),
 		};
@@ -184,7 +182,7 @@ impl<S: web_transport_trait::Session> Session<S> {
 				ietf::start(
 					session.clone(),
 					stream,
-					request_id_max.unwrap_or(0),
+					request_id_max.unwrap_or(RequestId(0)),
 					false,
 					publish.into(),
 					subscribe.into(),

@@ -6,7 +6,7 @@ use num_enum::{IntoPrimitive, TryFromPrimitive};
 
 use crate::{
 	coding::*,
-	ietf::{FilterType, GroupOrder, Message, Parameters},
+	ietf::{FilterType, GroupOrder, Message, Parameters, RequestId},
 	Path,
 };
 
@@ -15,7 +15,7 @@ use super::namespace::{decode_namespace, encode_namespace};
 /// TrackStatus message (0x0d)
 #[derive(Clone, Debug)]
 pub struct TrackStatus<'a> {
-	pub request_id: u64,
+	pub request_id: RequestId,
 	pub track_namespace: Path<'a>,
 	pub track_name: Cow<'a, str>,
 }
@@ -35,7 +35,7 @@ impl<'a> Message for TrackStatus<'a> {
 	}
 
 	fn decode<R: bytes::Buf>(r: &mut R) -> Result<Self, DecodeError> {
-		let request_id = u64::decode(r)?;
+		let request_id = RequestId::decode(r)?;
 		let track_namespace = decode_namespace(r)?;
 		let track_name = Cow::<str>::decode(r)?;
 

@@ -110,7 +110,7 @@ use crate::{
 	coding::{Decode, DecodeError, Encode},
 	ietf::{
 		namespace::{decode_namespace, encode_namespace},
-		GroupOrder, Location, Message, Parameters,
+		FilterType, GroupOrder, Location, Message, Parameters, RequestId,
 	},
 	Path,
 };
@@ -118,7 +118,7 @@ use crate::{
 /// Used to be called SubscribeDone
 #[derive(Clone, Debug)]
 pub struct PublishDone<'a> {
-	pub request_id: u64,
+	pub request_id: RequestId,
 	pub status_code: u64,
 	pub reason_phrase: Cow<'a, str>,
 }
@@ -134,7 +134,7 @@ impl<'a> Message for PublishDone<'a> {
 	}
 
 	fn decode<R: bytes::Buf>(r: &mut R) -> Result<Self, DecodeError> {
-		let request_id = u64::decode(r)?;
+		let request_id = RequestId::decode(r)?;
 		let status_code = u64::decode(r)?;
 		let reason_phrase = Cow::<str>::decode(r)?;
 		let _stream_count = u64::decode(r)?;
@@ -149,7 +149,7 @@ impl<'a> Message for PublishDone<'a> {
 
 #[derive(Debug)]
 pub struct Publish<'a> {
-	pub request_id: u64,
+	pub request_id: RequestId,
 	pub track_namespace: Path<'a>,
 	pub track_name: Cow<'a, str>,
 	pub track_alias: u64,
@@ -181,7 +181,7 @@ impl<'a> Message for Publish<'a> {
 	}
 
 	fn decode<R: bytes::Buf>(r: &mut R) -> Result<Self, DecodeError> {
-		let request_id = u64::decode(r)?;
+		let request_id = RequestId::decode(r)?;
 		let track_namespace = decode_namespace(r)?;
 		let track_name = Cow::<str>::decode(r)?;
 		let track_alias = u64::decode(r)?;
@@ -208,22 +208,64 @@ impl<'a> Message for Publish<'a> {
 
 #[derive(Debug)]
 pub struct PublishOk {
-	pub request_id: u64,
+	pub request_id: RequestId,
 	pub forward: bool,
 	pub subscriber_priority: u8,
 	pub group_order: GroupOrder,
-	pub filter_type: u8,
-	pub start_location: Option<Location>,
+	pub filter_type: FilterType,
 	// pub parameters: Parameters,
 }
 
-impl PublishOk {
-	pub const ID: u64 = 0x1E;
+impl Message for PublishOk {
+	const ID: u64 = 0x1E;
+
+	fn encode<W: bytes::BufMut>(&self, w: &mut W) {
+		self.request_id.encode(w);
+		self.forward.encode(w);
+		self.subscriber_priority.encode(w);
+		self.group_order.encode(w);
+		self.filter_type.encode(w);
+		assert!(
+			matches!(self.filter_type, FilterType::LargestObject | FilterType::NextGroup),
+			"absolute subscribe not supported"
+		);
+		// no parameters
+		0u8.encode(w);
+	}
+
+	fn decode<R: bytes::Buf>(r: &mut R) -> Result<Self, DecodeError> {
+		let request_id = RequestId::decode(r)?;
+		let forward = bool::decode(r)?;
+		let subscriber_priority = u8::decode(r)?;
+		let group_order = GroupOrder::decode(r)?;
+		let filter_type = FilterType::decode(r)?;
+		match filter_type {
+			FilterType::AbsoluteStart => {
+				let _start = Location::decode(r)?;
+			}
+			FilterType::AbsoluteRange => {
+				let _start = Location::decode(r)?;
+				let _end_group = u64::decode(r)?;
+			}
+			FilterType::NextGroup | FilterType::LargestObject => {}
+		};
+
+		// no parameters
+		let _params = Parameters::decode(r)?;
+
+		Ok(Self {
+			request_id,
+			forward,
+			subscriber_priority,
+			group_order,
+			filter_type,
+		})
+	}
 }
 
 #[derive(Debug)]
 pub struct PublishError<'a> {
-	pub request_id: u64,
+	pub request_id: RequestId,
 	pub error_code: u64,
 	pub reason_phrase: Cow<'a, str>,
 }
@@ -237,7 +279,7 @@ impl<'a> Message for PublishError<'a> {
 	}
 
 	fn decode<R: bytes::Buf>(r: &mut R) -> Result<Self, DecodeError> {
-		let request_id = u64::decode(r)?;
+		let request_id = RequestId::decode(r)?;
 		let error_code = u64::decode(r)?;
 		let reason_phrase = Cow::<str>::decode(r)?;
 		Ok(Self {
