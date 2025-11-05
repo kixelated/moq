@@ -12,12 +12,12 @@ export class Announce {
 	}
 
 	async #encode(w: Writer) {
-		await w.u8(this.active ? 1 : 0);
+		await w.bool(this.active);
 		await w.string(this.suffix);
 	}
 
 	static async #decode(r: Reader): Promise<Announce> {
-		const active = (await r.u8()) === 1;
+		const active = await r.bool();
 		const suffix = Path.from(await r.string());
 		return new Announce(suffix, active);
 	}

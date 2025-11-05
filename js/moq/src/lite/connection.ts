@@ -148,7 +148,7 @@ export class Connection implements Established {
 	}
 
 	async #runBidi(stream: Stream) {
-		const typ = await stream.reader.u8();
+		const typ = await stream.reader.u53();
 
 		if (typ === StreamId.Session) {
 			throw new Error("duplicate session stream");

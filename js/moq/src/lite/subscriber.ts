@@ -47,7 +47,7 @@ export class Subscriber {
 		try {
 			// Open a stream and send the announce interest.
 			const stream = await Stream.open(this.#quic);
-			await stream.writer.u8(StreamId.Announce);
+			await stream.writer.u53(StreamId.Announce);
 			await msg.encode(stream.writer);
 
 			// First, receive ANNOUNCE_INIT
@@ -109,7 +109,7 @@ export class Subscriber {
 		const msg = new Subscribe(id, broadcast, request.track.name, request.priority);
 
 		const stream = await Stream.open(this.#quic);
-		await stream.writer.u8(StreamId.Subscribe);
+		await stream.writer.u53(StreamId.Subscribe);
 		await msg.encode(stream.writer);
 
 		try {

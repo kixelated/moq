@@ -54,7 +54,7 @@ export class Publish {
 			await w.u62(this.largest.objectId);
 		}
 		await w.bool(this.forward);
-		await w.u8(0); // number of parameters
+		await w.u53(0); // size of parameters
 	}
 
 	async encode(w: Writer): Promise<void> {

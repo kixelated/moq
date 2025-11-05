@@ -210,7 +210,7 @@ export class Publisher {
 		const msg = new GroupMessage(sub, group.sequence);
 		try {
 			const stream = await Writer.open(this.#quic);
-			await stream.u8(0);
+			await stream.u8(0); // stream type
 			await msg.encode(stream);
 
 			try {

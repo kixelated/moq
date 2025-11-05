@@ -28,9 +28,9 @@ export class Subscribe {
 		await w.string(this.trackName);
 		await w.u8(this.subscriberPriority);
 		await w.u8(GROUP_ORDER);
-		await w.u8(1); // forward = true
-		await w.u8(0x2); // LargestObject
-		await w.u8(0); // no parameters
+		await w.bool(true); // forward = true
+		await w.u53(0x2); // filter type = LargestObject
+		await w.u53(0); // no parameters
 	}
 
 	async encode(w: Writer): Promise<void> {
@@ -52,12 +52,12 @@ export class Subscribe {
 			throw new Error(`unknown group order: ${groupOrder}`);
 		}
 
-		const forward = await r.u8();
-		if (forward !== 1) {
+		const forward = await r.bool();
+		if (!forward) {
 			throw new Error(`unsupported forward value: ${forward}`);
 		}
 
-		const filterType = await r.u8();
+		const filterType = await r.u53();
 		if (filterType !== 0x1 && filterType !== 0x2) {
 			throw new Error(`unsupported filter type: ${filterType}`);
 		}
@@ -84,8 +84,8 @@ export class SubscribeOk {
 		await w.u62(this.trackAlias);
 		await w.u62(0n); // expires = 0
 		await w.u8(GROUP_ORDER);
-		await w.u8(0); // no largest group/object
-		await w.u8(0); // no parameters
+		await w.bool(false); // content exists = false
+		await w.u53(0); // no parameters
 	}
 
 	async encode(w: Writer): Promise<void> {
@@ -106,8 +106,8 @@ export class SubscribeOk {
 
 		await r.u8(); // Don't care about group order
 
-		const contentExists = await r.u8();
-		if (contentExists === 1) {
+		const contentExists = await r.bool();
+		if (contentExists) {
 			// Ignore largest group/object
 			await r.u62();
 			await r.u62();

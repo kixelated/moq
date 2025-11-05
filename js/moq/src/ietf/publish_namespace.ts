@@ -19,7 +19,7 @@ export class PublishNamespace {
 	async #encode(w: Writer): Promise<void> {
 		await w.u62(this.requestId);
 		await Namespace.encode(w, this.trackNamespace);
-		await w.u8(0); // number of parameters
+		await w.u53(0); // size of parameters
 	}
 
 	async encode(w: Writer): Promise<void> {
