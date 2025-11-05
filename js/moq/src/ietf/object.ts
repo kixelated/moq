@@ -115,7 +115,7 @@ export class Frame {
 		if (flags.hasExtensions) {
 			const extensionsLength = await r.u53();
 			// We don't care about extensions
-			await r.read(extensionsLength);
+			await r.skip(extensionsLength);
 		}
 
 		const payloadLength = await r.u53();

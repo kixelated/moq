@@ -109,6 +109,8 @@ impl Encode for GroupHeader {
 
 		if self.flags.has_subgroup {
 			self.sub_group_id.encode(w);
+		} else {
+			assert_eq!(self.sub_group_id, 0, "sub_group_id must be 0 if has_subgroup is false");
 		}
 
 		// Publisher priority

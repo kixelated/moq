@@ -132,6 +132,11 @@ export class Reader {
 		return this.#slice(this.#buffer.byteLength);
 	}
 
+	// TODO make this more efficient if we use it
+	async skip(size: number) {
+		await this.read(size);
+	}
+
 	async string(): Promise<string> {
 		const length = await this.u53();
 		const buffer = await this.read(length);
