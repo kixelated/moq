@@ -12,7 +12,7 @@ keywords = ["quic", "http3", "webtransport", "media", "live"]
 categories = ["multimedia", "network-programming", "web-programming"]
 
 [features]
-serde = ["dep:serde"]
+serde = ["dep:serde", "bytes/serde"]
 
 [dependencies]
 async-channel = "2"
