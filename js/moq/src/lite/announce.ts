@@ -12,7 +12,7 @@ export class Announce {
 	}
 
 	async #encode(w: Writer) {
-		await w.u8(this.active ? 1 : 0);
+		await w.bool(this.active);
 		await w.string(this.suffix);
 	}
 
