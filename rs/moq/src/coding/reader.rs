@@ -27,7 +27,9 @@ impl<S: web_transport_trait::RecvStream> Reader<S> {
 					return Ok(msg);
 				}
 				Err(DecodeError::Short) => {
-					tracing::trace!(hex = ?hex::encode(&self.buffer), "buffering");
+					if !self.buffer.is_empty() {
+						tracing::trace!(hex = ?hex::encode(&self.buffer), "buffering");
+					}
 
 					// Try to read more data
 					if self
@@ -64,7 +66,9 @@ impl<S: web_transport_trait::RecvStream> Reader<S> {
 					return Ok(msg);
 				}
 				Err(DecodeError::Short) => {
-					tracing::trace!(hex = ?hex::encode(&self.buffer), "buffering");
+					if !self.buffer.is_empty() {
+						tracing::trace!(hex = ?hex::encode(&self.buffer), "buffering");
+					}
 
 					// Try to read more data
 					if self
