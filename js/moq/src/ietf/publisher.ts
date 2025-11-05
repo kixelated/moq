@@ -5,7 +5,8 @@ import { Writer } from "../stream.ts";
 import type { Track } from "../track.ts";
 import { error } from "../util/error.ts";
 import type * as Control from "./control.ts";
-import { Frame, Group as GroupMessage } from "./object.ts";
+import { Frame } from "./frame.ts";
+import { GroupHeader } from "./group.ts";
 import {
 	PublishNamespace,
 	type PublishNamespaceCancel,
@@ -142,7 +143,7 @@ export class Publisher {
 			const stream = await Writer.open(this.#quic);
 
 			// Write STREAM_HEADER_SUBGROUP
-			const header = new GroupMessage(requestId, group.sequence, 0, 0, {
+			const header = new GroupHeader(requestId, group.sequence, 0, 0, {
 				hasExtensions: false,
 				hasSubgroup: false,
 				hasSubgroupObject: false,

@@ -7,7 +7,7 @@ import { unreachable } from "../util/index.ts";
 import * as Control from "./control.ts";
 import { Fetch, FetchCancel, FetchError, FetchOk } from "./fetch.ts";
 import { GoAway } from "./goaway.ts";
-import { Group } from "./object.ts";
+import { GroupHeader } from "./group.ts";
 import { Publish, PublishError, PublishOk } from "./publish.ts";
 import {
 	PublishNamespace,
@@ -263,7 +263,7 @@ export class Connection implements Established {
 	async #runObjectStream(stream: Reader) {
 		try {
 			// we don't support other stream types yet
-			const header = await Group.decode(stream);
+			const header = await GroupHeader.decode(stream);
 			console.debug("received group header", header);
 			await this.#subscriber.handleGroup(header, stream);
 		} catch (err) {

@@ -6,7 +6,9 @@ import type { Reader } from "../stream.ts";
 import type { Track } from "../track.ts";
 import { error } from "../util/error.ts";
 import type * as Control from "./control.ts";
-import { Frame, type Group as GroupMessage } from "./object.ts";
+import { Fetch, FetchType } from "./fetch.ts";
+import { Frame } from "./frame.ts";
+import type { GroupHeader } from "./group.ts";
 import { type Publish, PublishError } from "./publish.ts";
 import type { PublishNamespace, PublishNamespaceDone } from "./publish_namespace.ts";
 import { type PublishDone, Subscribe, type SubscribeError, type SubscribeOk, Unsubscribe } from "./subscribe.ts";
@@ -129,6 +131,13 @@ export class Subscriber {
 
 		await this.#control.write(msg);
 
+		// We also need to issue a joining fetch otherwise we miss parts of the first group.
+		const fetch = new Fetch(requestId, request.priority, 0, {
+			type: FetchType.Relative,
+			subscribeId: requestId,
+			groupOffset: 0,
+		});
+
 		try {
 			const ok = await responsePromise;
 			this.#trackAliases.set(ok.trackAlias, requestId);
@@ -187,7 +196,7 @@ export class Subscriber {
 	 *
 	 * @internal
 	 */
-	async handleGroup(group: GroupMessage, stream: Reader) {
+	async handleGroup(group: GroupHeader, stream: Reader) {
 		const producer = new Group(group.groupId);
 
 		if (group.subGroupId !== 0) {
