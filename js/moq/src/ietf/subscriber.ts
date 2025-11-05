@@ -118,6 +118,8 @@ export class Subscriber {
 		const requestId = await this.#control.nextRequestId();
 		if (requestId === undefined) return;
 
+		this.#subscribes.set(requestId, request.track);
+
 		const msg = new Subscribe(requestId, broadcast, request.track.name, request.priority);
 
 		// Send SUBSCRIBE message on control stream and wait for response
@@ -158,6 +160,8 @@ export class Subscriber {
 		const callback = this.#subscribeCallbacks.get(msg.requestId);
 		if (callback) {
 			callback.resolve(msg);
+		} else {
+			console.warn("handleSubscribeOk unknown requestId", msg.requestId);
 		}
 	}
 
@@ -171,6 +175,8 @@ export class Subscriber {
 		const callback = this.#subscribeCallbacks.get(msg.requestId);
 		if (callback) {
 			callback.reject(new Error(`SUBSCRIBE_ERROR: code=${msg.errorCode} reason=${msg.reasonPhrase}`));
+		} else {
+			console.warn("handleSubscribeError unknown requestId", msg.requestId);
 		}
 	}
 
