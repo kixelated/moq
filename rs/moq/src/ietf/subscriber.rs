@@ -283,14 +283,19 @@ impl<S: web_transport_trait::Session> Subscriber<S> {
 
 	pub async fn recv_group(&mut self, stream: &mut Reader<S::RecvStream>) -> Result<(), Error> {
 		let group: ietf::GroupHeader = stream.decode().await?;
+		if group.sub_group_id != 0 {
+			tracing::warn!(sub_group_id = %group.sub_group_id, "subgroup ID is not supported, stripping");
+		}
 
 		let producer = {
 			let mut state = self.state.lock();
-			let request_id = *state
-				.aliases
-				.get(&group.track_alias)
-				// TODO: This is a hack to avoid buffering media for unknown tracks aliases.
-				.unwrap_or(&RequestId(group.track_alias));
+			let request_id = match state.aliases.get(&group.track_alias) {
+				Some(request_id) => *request_id,
+				None => {
+					tracing::warn!(track_alias = %group.track_alias, "unknown track alias, using request ID");
+					RequestId(group.track_alias)
+				}
+			};
 			let track = state.subscribes.get_mut(&request_id).ok_or(Error::NotFound)?;
 
 			let group = Group {
@@ -330,7 +335,7 @@ impl<S: web_transport_trait::Session> Subscriber<S> {
 	) -> Result<(), Error> {
 		while let Some(id_delta) = stream.decode_maybe::<u64>().await? {
 			if id_delta != 0 {
-				return Err(Error::Unsupported);
+				tracing::warn!(id_delta = %id_delta, "object ID gaps not supported, ignoring");
 			}
 
 			if group.flags.has_extensions {

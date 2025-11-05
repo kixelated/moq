@@ -184,11 +184,16 @@ export class Subscriber {
 	async handleGroup(group: GroupMessage, stream: Reader) {
 		const producer = new Group(group.groupId);
 
+		if (group.subGroupId !== 0) {
+			console.warn("subgroup ID is not supported, ignoring");
+		}
+
 		try {
 			let requestId = this.#trackAliases.get(group.trackAlias);
 			if (requestId === undefined) {
 				// Just hope the track alias is the request ID
 				requestId = group.trackAlias;
+				console.warn("unknown track alias, using request ID");
 			}
 
 			const track = this.#subscribes.get(requestId);

@@ -1,7 +1,6 @@
 use crate::coding::{Decode, DecodeError, Encode};
 
 use num_enum::{IntoPrimitive, TryFromPrimitive};
-const SUBGROUP_ID: u8 = 0x0;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, TryFromPrimitive, IntoPrimitive)]
 #[repr(u8)]
@@ -104,6 +103,8 @@ impl Default for GroupFlags {
 pub struct GroupHeader {
 	pub track_alias: u64,
 	pub group_id: u64,
+	pub sub_group_id: u64,
+	pub publisher_priority: u8,
 	pub flags: GroupFlags,
 }
 
@@ -113,12 +114,16 @@ impl Encode for GroupHeader {
 		self.track_alias.encode(w);
 		self.group_id.encode(w);
 
+		if !self.flags.has_subgroup && self.sub_group_id != 0 {
+			panic!("sub_group_id must be 0 if has_subgroup is false");
+		}
+
 		if self.flags.has_subgroup {
-			SUBGROUP_ID.encode(w);
+			self.sub_group_id.encode(w);
 		}
 
 		// Publisher priority
-		0u8.encode(w);
+		self.publisher_priority.encode(w);
 	}
 }
 
@@ -128,18 +133,18 @@ impl Decode for GroupHeader {
 		let track_alias = u64::decode(r)?;
 		let group_id = u64::decode(r)?;
 
-		if flags.has_subgroup {
-			let subgroup_id = u8::decode(r)?;
-			if subgroup_id != SUBGROUP_ID {
-				return Err(DecodeError::Unsupported);
-			}
-		}
+		let sub_group_id = match flags.has_subgroup {
+			true => u64::decode(r)?,
+			false => 0,
+		};
 
-		let _publisher_priority = u8::decode(r)?;
+		let publisher_priority = u8::decode(r)?;
 
 		Ok(Self {
 			track_alias,
 			group_id,
+			sub_group_id,
+			publisher_priority,
 			flags,
 		})
 	}

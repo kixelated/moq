@@ -14,21 +14,25 @@ export interface GroupFlags {
  * Used for stream-per-group delivery mode.
  */
 export class Group {
+	flags: GroupFlags;
 	trackAlias: bigint;
 	groupId: number;
-	flags: GroupFlags;
+	subGroupId: number;
+	publisherPriority: number;
 
-	constructor(trackAlias: bigint, groupId: number, flags: GroupFlags) {
-		if (flags.hasSubgroup && flags.hasSubgroupObject) {
-			throw new Error("hasSubgroup and hasSubgroupObject cannot be true at the same time");
-		}
-
+	constructor(trackAlias: bigint, groupId: number, subGroupId: number, publisherPriority: number, flags: GroupFlags) {
+		this.flags = flags;
 		this.trackAlias = trackAlias;
 		this.groupId = groupId;
-		this.flags = flags;
+		this.subGroupId = subGroupId;
+		this.publisherPriority = publisherPriority;
 	}
 
 	async encode(w: Writer): Promise<void> {
+		if (!this.flags.hasSubgroup && this.subGroupId !== 0) {
+			throw new Error(`Subgroup ID must be 0 if hasSubgroup is false: ${this.subGroupId}`);
+		}
+
 		let id = 0x10;
 		if (this.flags.hasExtensions) {
 			id |= 0x01;
@@ -46,7 +50,7 @@ export class Group {
 		await w.u62(this.trackAlias);
 		await w.u53(this.groupId);
 		if (this.flags.hasSubgroup) {
-			await w.u53(0); // subgroup id = 0
+			await w.u53(this.subGroupId);
 		}
 		await w.u8(0); // publisher priority
 	}
@@ -66,17 +70,10 @@ export class Group {
 
 		const trackAlias = await r.u62();
 		const groupId = await r.u53();
+		const subGroupId = flags.hasSubgroup ? await r.u53() : 0;
+		const publisherPriority = await r.u8(); // Don't care about publisher priority
 
-		if (flags.hasSubgroup) {
-			const subgroupId = await r.u53();
-			if (subgroupId !== 0) {
-				throw new Error(`subgroups not supported yet: ${subgroupId}`);
-			}
-		}
-
-		await r.u8(); // Don't care about publisher priority
-
-		return new Group(trackAlias, groupId, flags);
+		return new Group(trackAlias, groupId, subGroupId, publisherPriority, flags);
 	}
 }
 
@@ -112,16 +109,12 @@ export class Frame {
 	static async decode(r: Reader, flags: GroupFlags): Promise<Frame> {
 		const delta = await r.u53();
 		if (delta !== 0) {
-			throw new Error(`Unsupported delta: ${delta}`);
+			console.warn(`object ID delta is not supported, ignoring: ${delta}`);
 		}
 
 		if (flags.hasExtensions) {
 			const extensionsLength = await r.u53();
-			if (extensionsLength > 0) {
-				throw new Error(`Unsupported extensions length: ${extensionsLength}`);
-			}
-
-			// Don't care about extensions
+			// We don't care about extensions
 			await r.read(extensionsLength);
 		}
 

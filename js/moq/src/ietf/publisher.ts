@@ -142,7 +142,7 @@ export class Publisher {
 			const stream = await Writer.open(this.#quic);
 
 			// Write STREAM_HEADER_SUBGROUP
-			const header = new GroupMessage(requestId, group.sequence, {
+			const header = new GroupMessage(requestId, group.sequence, 0, 0, {
 				hasExtensions: false,
 				hasSubgroup: false,
 				hasSubgroupObject: false,
