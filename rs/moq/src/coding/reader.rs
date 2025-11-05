@@ -125,8 +125,8 @@ impl<S: web_transport_trait::RecvStream> Reader<S> {
 	}
 
 	pub async fn skip(&mut self, mut size: usize) -> Result<(), Error> {
-		let buffered = self.buffer.len();
-		self.buffer.advance(size.min(buffered));
+		let buffered = self.buffer.len().min(size);
+		self.buffer.advance(buffered);
 		size -= buffered;
 
 		while size > 0 {
