@@ -154,7 +154,6 @@ impl Import {
 				display: None,
 				rotation: None,
 				flip: None,
-				detection: None,
 			};
 			self.catalog.set_video(Some(video));
 		}
@@ -163,8 +162,6 @@ impl Import {
 			let audio = Audio {
 				renditions: audio_renditions,
 				priority: 2,
-				captions: None,
-				speaking: None,
 			};
 			self.catalog.set_audio(Some(audio));
 		}

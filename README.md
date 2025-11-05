@@ -17,9 +17,8 @@ The core networking is delegated to a QUIC library but the rest is in applicatio
 - 🚀 **Real-time latency** using QUIC for priotization and partial reliability.
 - 📈 **Massive scale** designed for fan-out and supports cross-region clustering.
 - 🌐 **Modern browser support** using [WebTransport](https://developer.mozilla.org/en-US/docs/Web/API/WebTransport_API), [WebCodecs](https://developer.mozilla.org/en-US/docs/Web/API/WebCodecs_API), and [WebAudio](https://developer.mozilla.org/en-US/docs/Web/API/Web_Audio_API).
-- 🤖 **AI-powered** using [transformer.js](https://huggingface.co/docs/transformers.js/en/index) for on-device [caption generation](https://huggingface.co/openai/whisper-base), [voice activity detection](https://github.com/snakers4/silero-vad), [object classification](https://github.com/WongKinYiu/yolov9), and more to come.
 - 🎯 **Multi-language** with both Rust (native) and TypeScript (web) libraries.
-- 🔧 **Generic transport** for any live data, not just media. Includes text chat as both an example and a core feature.
+- 🔧 **Generic** for any live data, not just media. Includes text chat as both an example and a core feature.
 
 > **Note:** This project is a [fork](https://moq.dev/blog/transfork) of the [IETF MoQ specification](https://datatracker.ietf.org/group/moq/documents/). The focus is narrower, focusing on simplicity and deployability.
 
@@ -138,7 +137,7 @@ Additional documentation and implementation details:
 ## Protocol
 Read the specifications:
 - [moq-lite](https://kixelated.github.io/moq-drafts/draft-lcurley-moq-lite.html)
-- [hang](https://kixelated.github.io/moq-drafts/draft-lcurley-moq-hang.html) 
+- [hang](https://kixelated.github.io/moq-drafts/draft-lcurley-moq-hang.html)
 - [use-cases](https://kixelated.github.io/moq-drafts/draft-lcurley-moq-use-cases.html)
 
 ## Development

@@ -1,7 +1,6 @@
 import { z } from "zod";
 
-import { u53Schema } from "../integers";
-import { DetectionSchema } from "./detection";
+import { u53Schema } from "./integers";
 
 // Backwards compatibility: old track schema
 const TrackSchema = z.object({
@@ -69,9 +68,6 @@ export const VideoSchema = z
 		// If true, the decoder will flip the video horizontally
 		// Default: false
 		flip: z.boolean().optional(),
-
-		// The detection configuration.
-		detection: DetectionSchema.optional(),
 	})
 	.or(
 		// Backwards compatibility: transform old array of {track, config} to new object format
@@ -93,7 +89,6 @@ export const VideoSchema = z
 							: undefined,
 					rotation: undefined,
 					flip: undefined,
-					detection: undefined,
 				};
 			}),
 	);

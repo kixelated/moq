@@ -5,9 +5,7 @@ import * as Frame from "../../frame";
 import type * as Time from "../../time";
 import * as Hex from "../../util/hex";
 import * as libav from "../../util/libav";
-import { Captions, type CaptionsProps } from "./captions";
 import type * as Render from "./render";
-import { Speaking, type SpeakingProps } from "./speaking";
 
 // We want some extra overhead to avoid starving the render worklet.
 // The default Opus frame duration is 20ms.
@@ -20,12 +18,6 @@ export type SourceProps = {
 
 	// Jitter buffer size in milliseconds (default: 100ms)
 	latency?: Time.Milli | Signal<Time.Milli>;
-
-	// Enable to download the captions track.
-	captions?: CaptionsProps;
-
-	// Enable to download the speaking track. (boolean)
-	speaking?: SpeakingProps;
 };
 
 // Unfortunately, we need to use a Vite-exclusive import for now.
@@ -51,9 +43,6 @@ export class Source {
 	catalog = new Signal<Catalog.Audio | undefined>(undefined);
 	config = new Signal<Catalog.AudioConfig | undefined>(undefined);
 
-	captions: Captions;
-	speaking: Speaking;
-
 	// Not a signal because I'm lazy.
 	readonly latency: Signal<Time.Milli>;
 
@@ -70,8 +59,6 @@ export class Source {
 		this.broadcast = broadcast;
 		this.enabled = Signal.from(props?.enabled ?? false);
 		this.latency = Signal.from(props?.latency ?? (100 as Time.Milli)); // TODO Reduce this once fMP4 stuttering is fixed.
-		this.captions = new Captions(broadcast, this.catalog, props?.captions);
-		this.speaking = new Speaking(broadcast, this.catalog, props?.speaking);
 
 		this.#signals.effect((effect) => {
 			const audio = effect.get(catalog)?.audio;
@@ -244,7 +231,5 @@ export class Source {
 
 	close() {
 		this.#signals.close();
-		this.captions.close();
-		this.speaking.close();
 	}
 }

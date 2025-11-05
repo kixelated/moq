@@ -1,7 +1,5 @@
 import { z } from "zod";
-import { u53Schema } from "../integers";
-import { CaptionsSchema } from "./captions";
-import { SpeakingSchema } from "./speaking";
+import { u53Schema } from "./integers";
 
 // Backwards compatibility: old track schema
 const TrackSchema = z.object({
@@ -39,27 +37,17 @@ export const AudioSchema = z
 
 		// The priority of the audio track, relative to other tracks in the broadcast.
 		priority: z.number().int().min(0).max(255),
-
-		// An optional captions track
-		captions: CaptionsSchema.optional(),
-
-		// An optional speaking track
-		speaking: SpeakingSchema.optional(),
 	})
 	.or(
-		// Backwards compatibility: transform old {track, config, captions?} format to new object format
+		// Backwards compatibility: transform old {track, config} format to new object format
 		z
 			.object({
 				track: TrackSchema,
 				config: AudioConfigSchema,
-				captions: CaptionsSchema.optional(),
-				speaking: SpeakingSchema.optional(),
 			})
 			.transform((old) => ({
 				renditions: { [old.track.name]: old.config },
 				priority: old.track.priority,
-				captions: old.captions,
-				speaking: old.speaking,
 			})),
 	);
 

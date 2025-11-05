@@ -1,6 +1,4 @@
 export * from "./audio";
-export * from "./audio/captions";
-export * from "./audio/speaking";
 export * from "./capabilities";
 export * from "./chat";
 export * from "./integers";
@@ -10,4 +8,3 @@ export * from "./root";
 export * from "./track";
 export * from "./user";
 export * from "./video";
-export * from "./video/detection";

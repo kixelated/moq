@@ -12,7 +12,6 @@ pub struct Preview {
 	pub video: Option<bool>,  // video enabled
 	pub screen: Option<bool>, // screen sharing
 
-	pub speaking: Option<bool>, // actively speaking
-	pub typing: Option<bool>,   // actively typing
-	pub chat: Option<bool>,     // chatted recently
+	pub typing: Option<bool>, // actively typing
+	pub chat: Option<bool>,   // chatted recently
 }

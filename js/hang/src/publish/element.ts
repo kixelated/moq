@@ -6,7 +6,7 @@ import * as Source from "./source";
 
 // TODO: remove device; it's a backwards compatible alias for source.
 // TODO remove name; it's a backwards compatible alias for path.
-const OBSERVED = ["url", "name", "path", "device", "audio", "video", "controls", "captions", "source"] as const;
+const OBSERVED = ["url", "name", "path", "device", "audio", "video", "controls", "source"] as const;
 type Observed = (typeof OBSERVED)[number];
 
 type SourceType = "camera" | "screen";
@@ -18,7 +18,6 @@ export interface HangPublishSignals {
 	audio: Signal<boolean>;
 	video: Signal<boolean>;
 	controls: Signal<boolean>;
-	captions: Signal<boolean>;
 	source: Signal<SourceType | undefined>;
 }
 
@@ -32,7 +31,6 @@ export default class HangPublish extends HTMLElement {
 		audio: new Signal<boolean>(false),
 		video: new Signal<boolean>(false),
 		controls: new Signal(false),
-		captions: new Signal(false),
 		source: new Signal<SourceType | undefined>(undefined),
 	};
 
@@ -68,8 +66,6 @@ export default class HangPublish extends HTMLElement {
 			this.video = newValue !== null;
 		} else if (name === "controls") {
 			this.controls = newValue !== null;
-		} else if (name === "captions") {
-			this.captions = newValue !== null;
 		} else {
 			const exhaustive: never = name;
 			throw new Error(`Invalid attribute: ${exhaustive}`);
@@ -140,14 +136,6 @@ export default class HangPublish extends HTMLElement {
 	set controls(controls: boolean) {
 		this.signals.controls.set(controls);
 	}
-
-	get captions(): boolean {
-		return this.signals.captions.peek();
-	}
-
-	set captions(captions: boolean) {
-		this.signals.captions.set(captions);
-	}
 }
 
 export class HangPublishInstance {
@@ -184,12 +172,6 @@ export class HangPublishInstance {
 
 			audio: {
 				enabled: this.parent.signals.audio,
-				captions: {
-					enabled: this.parent.signals.captions,
-				},
-				speaking: {
-					enabled: this.parent.signals.captions,
-				},
 			},
 			video: {
 				hd: {
@@ -218,7 +200,6 @@ export class HangPublishInstance {
 
 		this.#signals.effect(this.#runSource.bind(this));
 		this.#signals.effect(this.#renderControls.bind(this));
-		this.#signals.effect(this.#renderCaptions.bind(this));
 
 		// Keep device signal in sync with source signal for backwards compatibility
 		this.#signals.effect((effect) => {
@@ -301,49 +282,6 @@ export class HangPublishInstance {
 
 			this.#renderSelect(controls, effect);
 			this.#renderStatus(controls, effect);
-		});
-	}
-
-	#renderCaptions(effect: Effect) {
-		const captions = DOM.create("div", {
-			style: {
-				display: "flex",
-				justifyContent: "space-around",
-				gap: "16px",
-				minHeight: "1lh",
-				alignContent: "center",
-			},
-		});
-
-		DOM.render(effect, this.parent, captions);
-
-		effect.effect((effect) => {
-			const show = effect.get(this.parent.signals.captions);
-			if (!show) return;
-
-			const leftSpacer = DOM.create("div", {
-				style: { width: "1.5em" },
-			});
-
-			const captionText = DOM.create("div", {
-				style: { textAlign: "center" },
-			});
-
-			const speakingIcon = DOM.create("div", {
-				style: { width: "1.5em" },
-			});
-
-			effect.effect((effect) => {
-				const text = effect.get(this.broadcast.audio.captions.text);
-				const speaking = effect.get(this.broadcast.audio.speaking.active);
-
-				captionText.textContent = text ?? "";
-				speakingIcon.textContent = speaking ? "🗣️" : " ";
-			});
-
-			DOM.render(effect, captions, leftSpacer);
-			DOM.render(effect, captions, captionText);
-			DOM.render(effect, captions, speakingIcon);
 		});
 	}
 
