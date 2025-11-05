@@ -1,12 +1,11 @@
-import * as Moq from "@kixelated/moq";
+import type * as Moq from "@kixelated/moq";
 import { Effect, type Getter, Signal } from "@kixelated/signals";
-import * as Catalog from "../../catalog";
+import type * as Catalog from "../../catalog";
 import { u53 } from "../../catalog/integers";
 import * as Frame from "../../frame";
 import * as Time from "../../time";
 import * as libav from "../../util/libav";
 import { PRIORITY } from "../priority";
-import { Captions, type CaptionsProps } from "./captions";
 import type * as Capture from "./capture";
 import type { Source } from "./types";
 
@@ -15,7 +14,6 @@ const FADE_TIME = 0.2;
 
 // Unfortunately, we need to use a Vite-exclusive import for now.
 import CaptureWorklet from "./capture-worklet?worker&url";
-import { Speaking, type SpeakingProps } from "./speaking";
 
 // The initial values for our signals.
 export type EncoderProps = {
@@ -24,8 +22,6 @@ export type EncoderProps = {
 
 	muted?: boolean | Signal<boolean>;
 	volume?: number | Signal<number>;
-	captions?: CaptionsProps;
-	speaking?: SpeakingProps;
 
 	// The size of each group. Larger groups mean fewer drops but the viewer can fall further behind.
 	// NOTE: Each frame is always flushed to the network immediately.
@@ -40,8 +36,6 @@ export class Encoder {
 
 	muted: Signal<boolean>;
 	volume: Signal<number>;
-	captions: Captions;
-	speaking: Speaking;
 	maxLatency: Time.Milli;
 
 	source: Signal<Source | undefined>;
@@ -64,8 +58,6 @@ export class Encoder {
 	constructor(props?: EncoderProps) {
 		this.source = Signal.from(props?.source);
 		this.enabled = Signal.from(props?.enabled ?? false);
-		this.speaking = new Speaking(this.source, props?.speaking);
-		this.captions = new Captions(this.speaking, props?.captions);
 		this.muted = Signal.from(props?.muted ?? false);
 		this.volume = Signal.from(props?.volume ?? 1);
 		this.maxLatency = props?.maxLatency ?? (100 as Time.Milli); // Default is a group every 100ms
@@ -239,14 +231,9 @@ export class Encoder {
 		const config = effect.get(this.#config);
 		if (!config) return;
 
-		const captions = effect.get(this.captions.catalog);
-		const speaking = effect.get(this.speaking.catalog);
-
 		const catalog: Catalog.Audio = {
 			renditions: { [Encoder.TRACK]: config },
 			priority: Encoder.PRIORITY,
-			captions,
-			speaking,
 		};
 
 		effect.set(this.#catalog, catalog);
@@ -254,7 +241,5 @@ export class Encoder {
 
 	close() {
 		this.#signals.close();
-		this.captions.close();
-		this.speaking.close();
 	}
 }

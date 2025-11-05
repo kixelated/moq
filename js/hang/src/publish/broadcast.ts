@@ -99,14 +99,8 @@ export class Broadcast {
 					case Chat.Message.TRACK:
 						this.chat.message.serve(request.track, effect);
 						break;
-					case Video.Detection.TRACK:
-						this.video.detection.serve(request.track, effect);
-						break;
 					case Audio.Encoder.TRACK:
 						this.audio.serve(request.track, effect);
-						break;
-					case Audio.Speaking.TRACK:
-						this.audio.speaking.serve(request.track, effect);
 						break;
 					case Video.Root.TRACK_HD:
 						this.video.hd.serve(request.track, effect);

@@ -5,11 +5,9 @@ import * as Frame from "../../frame";
 import { PRIORITY } from "../../publish/priority";
 import * as Time from "../../time";
 import * as Hex from "../../util/hex";
-import { Detection, type DetectionProps } from "./detection";
 
 export type SourceProps = {
 	enabled?: boolean | Signal<boolean>;
-	detection?: DetectionProps;
 
 	// Jitter buffer size in milliseconds (default: 100ms)
 	// When using b-frames, this should to be larger than the frame duration.
@@ -49,8 +47,6 @@ export class Source {
 	#pending?: Effect;
 	#active?: Effect;
 
-	detection: Detection;
-
 	// Used as a tiebreaker when there are multiple tracks (HD vs SD).
 	target = new Signal<Target | undefined>(undefined);
 
@@ -84,7 +80,6 @@ export class Source {
 		this.broadcast = broadcast;
 		this.latency = Signal.from(props?.latency ?? (100 as Time.Milli));
 		this.enabled = Signal.from(props?.enabled ?? false);
-		this.detection = new Detection(this.broadcast, this.catalog, props?.detection);
 
 		// We subtract a frame from the jitter buffer to account for the extra buffered frame.
 		// Assume 30fps by default.
@@ -375,6 +370,5 @@ export class Source {
 		this.#next = undefined;
 
 		this.#signals.close();
-		this.detection.close();
 	}
 }

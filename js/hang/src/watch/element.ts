@@ -6,18 +6,7 @@ import * as Audio from "./audio";
 import { Broadcast } from "./broadcast";
 import * as Video from "./video";
 
-const OBSERVED = [
-	"url",
-	"name",
-	"path",
-	"paused",
-	"volume",
-	"muted",
-	"controls",
-	"captions",
-	"reload",
-	"latency",
-] as const;
+const OBSERVED = ["url", "name", "path", "paused", "volume", "muted", "controls", "reload", "latency"] as const;
 type Observed = (typeof OBSERVED)[number];
 
 export interface HangWatchSignals {
@@ -27,7 +16,6 @@ export interface HangWatchSignals {
 	volume: Signal<number>;
 	muted: Signal<boolean>;
 	controls: Signal<boolean>;
-	captions: Signal<boolean>;
 	reload: Signal<boolean>;
 	latency: Signal<Time.Milli>;
 }
@@ -56,9 +44,6 @@ export default class HangWatch extends HTMLElement {
 
 		// Whether the controls are shown.
 		controls: new Signal(false),
-
-		// Whether the captions are shown.
-		captions: new Signal(false),
 
 		// Don't automatically reload the broadcast.
 		// TODO: Temporarily defaults to false because Cloudflare doesn't support it yet.
@@ -103,8 +88,6 @@ export default class HangWatch extends HTMLElement {
 			this.muted = newValue !== null;
 		} else if (name === "controls") {
 			this.controls = newValue !== null;
-		} else if (name === "captions") {
-			this.captions = newValue !== null;
 		} else if (name === "reload") {
 			this.reload = newValue !== null;
 		} else if (name === "latency") {
@@ -173,14 +156,6 @@ export default class HangWatch extends HTMLElement {
 		this.signals.controls.set(controls);
 	}
 
-	get captions(): boolean {
-		return this.signals.captions.peek();
-	}
-
-	set captions(captions: boolean) {
-		this.signals.captions.set(captions);
-	}
-
 	get reload(): boolean {
 		return this.signals.reload.peek();
 	}
@@ -224,12 +199,6 @@ export class HangWatchInstance {
 			enabled: true,
 			reload: this.parent.signals.reload,
 			audio: {
-				captions: {
-					enabled: this.parent.signals.captions,
-				},
-				speaking: {
-					enabled: this.parent.signals.captions,
-				},
 				latency: this.parent.signals.latency,
 			},
 			video: {
@@ -314,7 +283,6 @@ export class HangWatchInstance {
 		});
 
 		this.#signals.effect(this.#renderControls.bind(this));
-		this.#signals.effect(this.#renderCaptions.bind(this));
 	}
 
 	close() {
@@ -345,45 +313,6 @@ export class HangWatchInstance {
 			this.#renderVolume(controls, effect);
 			this.#renderStatus(controls, effect);
 			this.#renderFullscreen(controls, effect);
-		});
-	}
-
-	#renderCaptions(effect: Effect) {
-		const captions = DOM.create("div", {
-			style: {
-				textAlign: "center",
-			},
-		});
-
-		DOM.render(effect, this.parent, captions);
-
-		effect.effect((effect) => {
-			const show = effect.get(this.parent.signals.captions);
-			if (!show) return;
-
-			const leftSpacer = DOM.create("div", {
-				style: { width: "1.5em" },
-			});
-
-			const captionText = DOM.create("div", {
-				style: { textAlign: "center" },
-			});
-
-			const speakingIcon = DOM.create("div", {
-				style: { width: "1.5em" },
-			});
-
-			effect.effect((effect) => {
-				const text = effect.get(this.broadcast.audio.captions.text);
-				const speaking = effect.get(this.broadcast.audio.speaking.active);
-
-				captionText.textContent = text ?? "";
-				speakingIcon.textContent = speaking ? "🗣️" : " ";
-			});
-
-			DOM.render(effect, captions, leftSpacer);
-			DOM.render(effect, captions, captionText);
-			DOM.render(effect, captions, speakingIcon);
 		});
 	}
 

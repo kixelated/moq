@@ -1,18 +1,15 @@
 import { Effect, Signal } from "@kixelated/signals";
 import * as Catalog from "../../catalog";
 import { PRIORITY } from "../priority";
-import { Detection, DetectionProps } from "./detection";
-import { Encoder, EncoderProps } from "./encoder";
+import { Encoder, type EncoderProps } from "./encoder";
 import { TrackProcessor } from "./polyfill";
-import { Source } from "./types";
+import type { Source } from "./types";
 
-export * from "./detection";
 export * from "./encoder";
 export * from "./types";
 
 export type Props = {
 	source?: Source | Signal<Source | undefined>;
-	detection?: DetectionProps;
 	hd?: EncoderProps;
 	sd?: EncoderProps;
 	flip?: boolean | Signal<boolean>;
@@ -24,7 +21,6 @@ export class Root {
 	static readonly PRIORITY = PRIORITY.video;
 
 	source: Signal<Source | undefined>;
-	detection: Detection;
 	hd: Encoder;
 	sd: Encoder;
 
@@ -41,7 +37,6 @@ export class Root {
 
 		this.hd = new Encoder(this.frame, this.source, props?.hd);
 		this.sd = new Encoder(this.frame, this.source, props?.sd);
-		this.detection = new Detection(this.frame, props?.detection);
 
 		this.flip = Signal.from(props?.flip ?? false);
 
@@ -102,7 +97,6 @@ export class Root {
 				width: Catalog.u53(display.width),
 				height: Catalog.u53(display.height),
 			},
-			detection: effect.get(this.detection.catalog),
 			flip: effect.get(this.flip) ?? undefined,
 		};
 
@@ -113,7 +107,6 @@ export class Root {
 		this.signals.close();
 		this.hd.close();
 		this.sd.close();
-		this.detection.close();
 
 		this.frame.update((prev) => {
 			prev?.close();
