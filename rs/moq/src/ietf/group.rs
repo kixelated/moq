@@ -88,17 +88,6 @@ impl GroupFlags {
 	}
 }
 
-impl Default for GroupFlags {
-	fn default() -> Self {
-		Self {
-			has_extensions: false,
-			has_subgroup: false,
-			has_subgroup_object: false,
-			has_end: true,
-		}
-	}
-}
-
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct GroupHeader {
 	pub track_alias: u64,

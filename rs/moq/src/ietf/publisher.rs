@@ -6,7 +6,7 @@ use web_transport_trait::SendStream;
 
 use crate::{
 	coding::Writer,
-	ietf::{self, Control, FetchHeader, FetchType, FilterType, GroupOrder, Location, RequestId},
+	ietf::{self, Control, FetchHeader, FetchType, FilterType, GroupFlags, GroupOrder, Location, RequestId},
 	model::GroupConsumer,
 	Error, Origin, OriginConsumer, Track, TrackConsumer,
 };
@@ -199,7 +199,14 @@ impl<S: web_transport_trait::Session> Publisher<S> {
 				group_id: sequence,
 				sub_group_id: 0,
 				publisher_priority: 0,
-				flags: Default::default(),
+				flags: GroupFlags {
+					// TODO: We don't know if frames have extensions.
+					// We would have to add this data to model::Group if we want to save a byte per frame when no.
+					has_extensions: true,
+					has_subgroup: false,
+					has_subgroup_object: false,
+					has_end: true,
+				},
 			};
 
 			// Spawn a task to serve this group, ignoring any errors because they don't really matter.
