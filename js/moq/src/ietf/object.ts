@@ -50,7 +50,7 @@ export class Group {
 		await w.u62(this.trackAlias);
 		await w.u53(this.groupId);
 		if (this.flags.hasSubgroup) {
-			await w.u8(SUBGROUP_ID);
+			await w.u53(SUBGROUP_ID);
 		}
 		await w.u8(0); // publisher priority
 	}
@@ -68,7 +68,7 @@ export class Group {
 			hasEnd: (id & 0x08) !== 0,
 		};
 
-		const requestId = await r.u62();
+		const trackAlias = await r.u62();
 		const groupId = await r.u53();
 
 		if (flags.hasSubgroup) {
@@ -80,7 +80,7 @@ export class Group {
 
 		await r.u8(); // Don't care about publisher priority
 
-		return new Group(requestId, groupId, flags);
+		return new Group(trackAlias, groupId, flags);
 	}
 }
 
