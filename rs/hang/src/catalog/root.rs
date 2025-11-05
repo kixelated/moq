@@ -331,13 +331,10 @@ mod test {
 				display: None,
 				rotation: None,
 				flip: None,
-				detection: None,
 			}),
 			audio: Some(Audio {
 				renditions: audio_renditions,
 				priority: 2,
-				captions: None,
-				speaking: None,
 			}),
 			..Default::default()
 		};

@@ -98,7 +98,6 @@ impl Import {
 								display: None,
 								rotation: None,
 								flip: None,
-								detection: None,
 							};
 
 							self.catalog.set_video(Some(video));

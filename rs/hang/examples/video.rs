@@ -85,7 +85,6 @@ fn create_track(broadcast: &mut moq_lite::BroadcastProducer) -> hang::TrackProdu
 		display: None,
 		rotation: None,
 		flip: None,
-		detection: None,
 	};
 
 	// Create a producer/consumer pair for the catalog.

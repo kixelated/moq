@@ -1,12 +1,8 @@
 mod aac;
-mod captions;
 mod codec;
-mod speaking;
 
 pub use aac::*;
-pub use captions::*;
 pub use codec::*;
-pub use speaking::*;
 
 use std::collections::HashMap;
 
@@ -18,7 +14,6 @@ use serde_with::{hex::Hex, DisplayFromStr};
 /// Information about an audio track in the catalog.
 ///
 /// This struct contains a map of renditions (different quality/codec options)
-/// and optional metadata like captions and speaking indicators.
 #[serde_with::serde_as]
 #[serde_with::skip_serializing_none]
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
@@ -30,14 +25,6 @@ pub struct Audio {
 
 	/// The priority of the audio track, relative to other tracks in the broadcast.
 	pub priority: u8,
-
-	/// An optional captions track
-	#[serde(default)]
-	pub captions: Option<Captions>,
-
-	/// An optional speaking track
-	#[serde(default)]
-	pub speaking: Option<Speaking>,
 }
 
 /// Audio decoder configuration based on WebCodecs AudioDecoderConfig.
