@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::{fmt::Debug, sync::Arc};
 
 use crate::{coding::*, Error};
 
@@ -16,9 +16,11 @@ impl<S: web_transport_trait::SendStream> Writer<S> {
 		}
 	}
 
-	pub async fn encode<T: Encode>(&mut self, msg: &T) -> Result<(), Error> {
+	pub async fn encode<T: Encode + Debug>(&mut self, msg: &T) -> Result<(), Error> {
 		self.buffer.clear();
 		msg.encode(&mut self.buffer);
+
+		tracing::trace!(?msg, hex = ?hex::encode(&self.buffer), "encoded");
 
 		while !self.buffer.is_empty() {
 			self.stream

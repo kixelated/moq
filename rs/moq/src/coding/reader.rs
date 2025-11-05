@@ -1,4 +1,4 @@
-use std::{cmp, io, sync::Arc};
+use std::{cmp, fmt::Debug, io, sync::Arc};
 
 use bytes::{Buf, Bytes, BytesMut};
 
@@ -17,15 +17,20 @@ impl<S: web_transport_trait::RecvStream> Reader<S> {
 		}
 	}
 
-	pub async fn decode<T: Decode>(&mut self) -> Result<T, Error> {
+	pub async fn decode<T: Decode + Debug>(&mut self) -> Result<T, Error> {
 		loop {
 			let mut cursor = io::Cursor::new(&self.buffer);
 			match T::decode(&mut cursor) {
 				Ok(msg) => {
+					tracing::trace!(?msg, hex = ?hex::encode(&self.buffer[..cursor.position() as usize]), "decoded");
 					self.buffer.advance(cursor.position() as usize);
 					return Ok(msg);
 				}
 				Err(DecodeError::Short) => {
+					if !self.buffer.is_empty() {
+						tracing::trace!(hex = ?hex::encode(&self.buffer), "buffering");
+					}
+
 					// Try to read more data
 					if self
 						.stream
@@ -44,7 +49,7 @@ impl<S: web_transport_trait::RecvStream> Reader<S> {
 	}
 
 	// Decode optional messages at the end of a stream
-	pub async fn decode_maybe<T: Decode>(&mut self) -> Result<Option<T>, Error> {
+	pub async fn decode_maybe<T: Decode + Debug>(&mut self) -> Result<Option<T>, Error> {
 		match self.closed().await {
 			Ok(()) => Ok(None),
 			Err(Error::Decode(DecodeError::ExpectedEnd)) => Ok(Some(self.decode().await?)),
@@ -52,12 +57,19 @@ impl<S: web_transport_trait::RecvStream> Reader<S> {
 		}
 	}
 
-	pub async fn decode_peek<T: Decode>(&mut self) -> Result<T, Error> {
+	pub async fn decode_peek<T: Decode + Debug>(&mut self) -> Result<T, Error> {
 		loop {
 			let mut cursor = io::Cursor::new(&self.buffer);
 			match T::decode(&mut cursor) {
-				Ok(msg) => return Ok(msg),
+				Ok(msg) => {
+					tracing::trace!(?msg, hex = ?hex::encode(&self.buffer[..cursor.position() as usize]), "decoded");
+					return Ok(msg);
+				}
 				Err(DecodeError::Short) => {
+					if !self.buffer.is_empty() {
+						tracing::trace!(hex = ?hex::encode(&self.buffer), "buffering");
+					}
+
 					// Try to read more data
 					if self
 						.stream

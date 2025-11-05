@@ -3,7 +3,7 @@ use std::sync::{Arc, Mutex};
 use tokio::sync::Notify;
 
 use crate::{
-	coding::Encode,
+	coding::{Encode, Writer},
 	ietf::{Message, RequestId},
 	Error,
 };
@@ -32,7 +32,7 @@ impl Control {
 		}
 	}
 
-	pub fn send<T: Message + std::fmt::Debug>(&self, msg: T) -> Result<(), Error> {
+	pub fn send<T: Message>(&self, msg: T) -> Result<(), Error> {
 		tracing::debug!(message = ?msg, "sending control message");
 
 		let mut buf = Vec::new();
@@ -42,9 +42,19 @@ impl Control {
 		msg.encode_size().encode(&mut buf);
 		msg.encode(&mut buf);
 
-		tracing::trace!(hex = hex::encode(&buf), "raw");
-
 		self.tx.send(buf).map_err(|e| Error::Transport(Arc::new(e)))?;
+		Ok(())
+	}
+
+	pub async fn run<S: web_transport_trait::Session>(
+		mut stream: Writer<S::SendStream>,
+		mut rx: tokio::sync::mpsc::UnboundedReceiver<Vec<u8>>,
+	) -> Result<(), Error> {
+		while let Some(msg) = rx.recv().await {
+			let mut buf = std::io::Cursor::new(msg);
+			stream.write_all(&mut buf).await?;
+		}
+
 		Ok(())
 	}
 
