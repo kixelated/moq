@@ -60,14 +60,13 @@ impl<S: web_transport_trait::Session> Publisher<S> {
 	pub fn recv_subscribe(&mut self, msg: ietf::Subscribe<'_>) -> Result<(), Error> {
 		match msg.filter_type {
 			FilterType::AbsoluteStart | FilterType::AbsoluteRange => {
-				return self.control.send(ietf::SubscribeError {
-					request_id: msg.request_id,
-					error_code: 500,
-					reason_phrase: "Absolute subscribe not supported".into(),
-				});
+				tracing::warn!(?msg, "absolute subscribe not supported, ignoring");
+			}
+			FilterType::NextGroup => {
+				tracing::warn!(?msg, "next group subscribe not supported, ignoring");
 			}
 			// We actually send LargestGroup, which the peer can't enforce anyway.
-			FilterType::NextGroup | FilterType::LargestObject => {}
+			FilterType::LargestObject => {}
 		};
 
 		let request_id = msg.request_id;
@@ -198,6 +197,8 @@ impl<S: web_transport_trait::Session> Publisher<S> {
 			let msg = ietf::GroupHeader {
 				track_alias: request_id.0, // NOTE: using track alias as request id for now
 				group_id: sequence,
+				sub_group_id: 0,
+				publisher_priority: 0,
 				flags: Default::default(),
 			};
 
