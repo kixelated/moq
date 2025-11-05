@@ -1,4 +1,5 @@
 use crate::coding::{DecodeError, Sizer};
+use std::fmt::Debug;
 
 use bytes::{Buf, BufMut};
 
@@ -8,7 +9,7 @@ use bytes::{Buf, BufMut};
 /// - Prefixing messages with their encoded size during encoding
 /// - Reading the size prefix and validating exact consumption during decoding
 /// - Ensuring no bytes are left over or missing after decoding
-pub trait Message: Sized {
+pub trait Message: Sized + Debug {
 	const ID: u64;
 
 	/// Encode this message with a size prefix.

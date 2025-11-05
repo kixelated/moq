@@ -1,5 +1,5 @@
 use crate::{
-	coding::{Reader, Stream, Writer},
+	coding::{Reader, Stream},
 	ietf::{self, Control, Message, RequestId},
 	Error, OriginConsumer, OriginProducer,
 };
@@ -51,7 +51,7 @@ async fn run<S: web_transport_trait::Session>(
 		res = subscriber.clone().run() => res,
 		res = publisher.clone().run() => res,
 		res = run_control_read(setup.reader, control, publisher, subscriber) => res,
-		res = run_control_write::<S>(setup.writer, rx) => res,
+		res = Control::run::<S>(setup.writer, rx) => res,
 	}
 }
 
@@ -65,7 +65,6 @@ async fn run_control_read<S: web_transport_trait::Session>(
 		let id: u64 = reader.decode().await?;
 		let size: u16 = reader.decode::<u16>().await?;
 		let mut data = reader.read_exact(size as usize).await?;
-		tracing::trace!(hex = hex::encode(&data), "raw");
 
 		match id {
 			ietf::Subscribe::ID => {
@@ -209,16 +208,4 @@ async fn run_control_read<S: web_transport_trait::Session>(
 			return Err(Error::WrongSize);
 		}
 	}
-}
-
-async fn run_control_write<S: web_transport_trait::Session>(
-	mut control: Writer<S::SendStream>,
-	mut rx: tokio::sync::mpsc::UnboundedReceiver<Vec<u8>>,
-) -> Result<(), Error> {
-	while let Some(msg) = rx.recv().await {
-		let mut buf = std::io::Cursor::new(msg);
-		control.write_all(&mut buf).await?;
-	}
-
-	Ok(())
 }

@@ -219,6 +219,7 @@ impl Message for FetchCancel {
 	}
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FetchHeader {
 	pub request_id: RequestId,
 }
