@@ -17,7 +17,7 @@ export class Announce {
 	}
 
 	static async #decode(r: Reader): Promise<Announce> {
-		const active = (await r.u8()) === 1;
+		const active = await r.bool();
 		const suffix = Path.from(await r.string());
 		return new Announce(suffix, active);
 	}

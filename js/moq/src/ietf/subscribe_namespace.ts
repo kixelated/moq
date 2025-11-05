@@ -2,6 +2,7 @@ import type * as Path from "../path.ts";
 import type { Reader, Writer } from "../stream.ts";
 import * as Message from "./message.ts";
 import * as Namespace from "./namespace.ts";
+import { Parameters } from "./parameters.ts";
 
 // In draft-14, SUBSCRIBE_ANNOUNCES is renamed to SUBSCRIBE_NAMESPACE
 export class SubscribeNamespace {
@@ -18,7 +19,7 @@ export class SubscribeNamespace {
 	async #encode(w: Writer): Promise<void> {
 		await w.u62(this.requestId);
 		await Namespace.encode(w, this.namespace);
-		await w.u8(0); // no parameters
+		await w.u53(0); // no parameters
 	}
 
 	async encode(w: Writer): Promise<void> {
@@ -32,11 +33,7 @@ export class SubscribeNamespace {
 	static async #decode(r: Reader): Promise<SubscribeNamespace> {
 		const requestId = await r.u62();
 		const namespace = await Namespace.decode(r);
-
-		const numParams = await r.u8();
-		if (numParams !== 0) {
-			throw new Error(`SUBSCRIBE_NAMESPACE: parameters not supported: ${numParams}`);
-		}
+		await Parameters.decode(r);
 
 		return new SubscribeNamespace(namespace, requestId);
 	}

@@ -1,7 +1,5 @@
 import type { Reader, Writer } from "../stream.ts";
 
-const SUBGROUP_ID = 0x0; // Must always be layer 0
-const STREAM_TYPE = 0x04;
 const GROUP_END = 0x03;
 
 export interface GroupFlags {
@@ -16,8 +14,6 @@ export interface GroupFlags {
  * Used for stream-per-group delivery mode.
  */
 export class Group {
-	static id = STREAM_TYPE;
-
 	trackAlias: bigint;
 	groupId: number;
 	flags: GroupFlags;
@@ -50,7 +46,7 @@ export class Group {
 		await w.u62(this.trackAlias);
 		await w.u53(this.groupId);
 		if (this.flags.hasSubgroup) {
-			await w.u53(SUBGROUP_ID);
+			await w.u53(0); // subgroup id = 0
 		}
 		await w.u8(0); // publisher priority
 	}
@@ -73,8 +69,8 @@ export class Group {
 
 		if (flags.hasSubgroup) {
 			const subgroupId = await r.u53();
-			if (subgroupId !== SUBGROUP_ID) {
-				throw new Error(`Unsupported subgroup id: ${subgroupId}`);
+			if (subgroupId !== 0) {
+				throw new Error(`subgroups not supported yet: ${subgroupId}`);
 			}
 		}
 
@@ -103,13 +99,13 @@ export class Frame {
 			await w.u53(this.payload.byteLength);
 
 			if (this.payload.byteLength === 0) {
-				await w.u8(0); // status = normal
+				await w.u53(0); // status = normal
 			} else {
 				await w.write(this.payload);
 			}
 		} else {
-			await w.u8(0); // length = 0
-			await w.u8(GROUP_END);
+			await w.u53(0); // length = 0
+			await w.u53(GROUP_END);
 		}
 	}
 
