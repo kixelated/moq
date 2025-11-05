@@ -1,7 +1,6 @@
 use crate::coding::{Decode, DecodeError, Encode};
 
 use num_enum::{IntoPrimitive, TryFromPrimitive};
-const SUBGROUP_ID: u8 = 0x0;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, TryFromPrimitive, IntoPrimitive)]
 #[repr(u8)]
@@ -114,7 +113,7 @@ impl Encode for GroupHeader {
 		self.group_id.encode(w);
 
 		if self.flags.has_subgroup {
-			SUBGROUP_ID.encode(w);
+			0u64.encode(w);
 		}
 
 		// Publisher priority
@@ -129,10 +128,8 @@ impl Decode for GroupHeader {
 		let group_id = u64::decode(r)?;
 
 		if flags.has_subgroup {
-			let subgroup_id = u8::decode(r)?;
-			if subgroup_id != SUBGROUP_ID {
-				return Err(DecodeError::Unsupported);
-			}
+			// TODO This should be preserved...
+			let _subgroup_id = u64::decode(r)?;
 		}
 
 		let _publisher_priority = u8::decode(r)?;

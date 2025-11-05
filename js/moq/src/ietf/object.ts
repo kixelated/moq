@@ -68,10 +68,7 @@ export class Group {
 		const groupId = await r.u53();
 
 		if (flags.hasSubgroup) {
-			const subgroupId = await r.u53();
-			if (subgroupId !== 0) {
-				throw new Error(`subgroups not supported yet: ${subgroupId}`);
-			}
+			await r.u53(); // Don't care about subgroup id
 		}
 
 		await r.u8(); // Don't care about publisher priority
