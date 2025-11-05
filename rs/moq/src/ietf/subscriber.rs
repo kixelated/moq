@@ -11,6 +11,7 @@ use crate::{
 	TrackProducer,
 };
 
+use bytes::Bytes;
 use web_async::Lock;
 
 #[derive(Default)]
@@ -338,9 +339,10 @@ impl<S: web_transport_trait::Session> Subscriber<S> {
 				tracing::warn!(id_delta = %id_delta, "object ID gaps not supported, ignoring");
 			}
 
+			let mut extra = Bytes::new();
 			if group.flags.has_extensions {
 				let size: usize = stream.decode().await?;
-				stream.skip(size).await?;
+				extra = stream.read_exact(size).await?;
 			}
 
 			let size: u64 = stream.decode().await?;
@@ -349,7 +351,7 @@ impl<S: web_transport_trait::Session> Subscriber<S> {
 				let status: u64 = stream.decode().await?;
 				if status == 0 {
 					// Empty frame
-					let frame = producer.create_frame(Frame { size: 0 });
+					let frame = producer.create_frame(Frame { size: 0, extra });
 					frame.close();
 				} else if status == 3 && !group.flags.has_end {
 					// End of group
@@ -358,7 +360,7 @@ impl<S: web_transport_trait::Session> Subscriber<S> {
 					return Err(Error::Unsupported);
 				}
 			} else {
-				let frame = producer.create_frame(Frame { size });
+				let frame = producer.create_frame(Frame { size, extra });
 
 				let res = tokio::select! {
 					_ = frame.unused() => Err(Error::Cancel),

@@ -260,7 +260,9 @@ impl<S: web_transport_trait::Session> Publisher<S> {
 
 			// not using extensions.
 			if msg.flags.has_extensions {
-				stream.encode(&0u64).await?;
+				stream.encode(&frame.info.extra.len()).await?;
+				// NOTE: I'm lazy so this is a destructive operation.
+				stream.write_all(&mut frame.info.extra).await?;
 			}
 
 			// Write the size of the frame.

@@ -95,6 +95,7 @@ impl GroupProducer {
 		let data = frame.into();
 		let frame = Frame {
 			size: data.len() as u64,
+			extra: Bytes::new(),
 		};
 		let mut frame = self.create_frame(frame);
 		frame.write_chunk(data);

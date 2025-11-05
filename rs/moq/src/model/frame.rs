@@ -9,6 +9,9 @@ use crate::{Error, Produce, Result};
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Frame {
 	pub size: u64,
+
+	// Supported by IETF only.
+	pub extra: Bytes,
 }
 
 impl Frame {
@@ -21,25 +24,37 @@ impl Frame {
 
 impl From<usize> for Frame {
 	fn from(size: usize) -> Self {
-		Self { size: size as u64 }
+		Self {
+			size: size as u64,
+			extra: Bytes::new(),
+		}
 	}
 }
 
 impl From<u64> for Frame {
 	fn from(size: u64) -> Self {
-		Self { size }
+		Self {
+			size,
+			extra: Bytes::new(),
+		}
 	}
 }
 
 impl From<u32> for Frame {
 	fn from(size: u32) -> Self {
-		Self { size: size as u64 }
+		Self {
+			size: size as u64,
+			extra: Bytes::new(),
+		}
 	}
 }
 
 impl From<u16> for Frame {
 	fn from(size: u16) -> Self {
-		Self { size: size as u64 }
+		Self {
+			size: size as u64,
+			extra: Bytes::new(),
+		}
 	}
 }
 

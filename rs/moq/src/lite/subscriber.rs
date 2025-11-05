@@ -11,6 +11,7 @@ use crate::{
 	TrackProducer,
 };
 
+use bytes::Bytes;
 use tokio::sync::oneshot;
 use web_async::Lock;
 
@@ -263,7 +264,10 @@ impl<S: web_transport_trait::Session> Subscriber<S> {
 
 	async fn run_group(&mut self, stream: &mut Reader<S::RecvStream>, mut group: GroupProducer) -> Result<(), Error> {
 		while let Some(size) = stream.decode_maybe::<u64>().await? {
-			let frame = group.create_frame(Frame { size });
+			let frame = group.create_frame(Frame {
+				size,
+				extra: Bytes::new(),
+			});
 
 			let res = tokio::select! {
 				_ = frame.unused() => Err(Error::Cancel),
