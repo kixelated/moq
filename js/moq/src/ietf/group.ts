@@ -1,6 +1,34 @@
-import type { Reader, Writer } from "../stream.ts";
+import type { Reader, Writer } from "../stream";
 
-const GROUP_END = 0x03;
+export class GroupOrder {
+	#value: number;
+
+	private constructor(value: number) {
+		this.#value = value;
+	}
+
+	static readonly Any = new GroupOrder(0x0);
+	static readonly Ascending = new GroupOrder(0x1);
+	static readonly Descending = new GroupOrder(0x2);
+
+	async encode(w: Writer): Promise<void> {
+		await w.u8(this.#value);
+	}
+
+	static async decode(r: Reader): Promise<GroupOrder> {
+		const value = await r.u8();
+		switch (value) {
+			case 0x0:
+				return GroupOrder.Any;
+			case 0x1:
+				return GroupOrder.Ascending;
+			case 0x2:
+				return GroupOrder.Descending;
+			default:
+				throw new Error(`Invalid GroupOrder: ${value}`);
+		}
+	}
+}
 
 export interface GroupFlags {
 	hasExtensions: boolean;
@@ -13,7 +41,7 @@ export interface GroupFlags {
  * STREAM_HEADER_SUBGROUP from moq-transport spec.
  * Used for stream-per-group delivery mode.
  */
-export class Group {
+export class GroupHeader {
 	flags: GroupFlags;
 	trackAlias: bigint;
 	groupId: number;
@@ -55,7 +83,7 @@ export class Group {
 		await w.u8(0); // publisher priority
 	}
 
-	static async decode(r: Reader): Promise<Group> {
+	static async decode(r: Reader): Promise<GroupHeader> {
 		const id = await r.u53();
 		if (id < 0x10 || id > 0x1f) {
 			throw new Error(`Unsupported group type: ${id}`);
@@ -73,20 +101,25 @@ export class Group {
 		const subGroupId = flags.hasSubgroup ? await r.u53() : 0;
 		const publisherPriority = await r.u8(); // Don't care about publisher priority
 
-		return new Group(trackAlias, groupId, subGroupId, publisherPriority, flags);
+		return new GroupHeader(trackAlias, groupId, subGroupId, publisherPriority, flags);
 	}
 }
 
-export class Frame {
+const GROUP_END = 0x03;
+
+export class GroupObject {
+	id_delta: number;
+
 	// undefined means end of group
 	payload?: Uint8Array;
 
-	constructor(payload?: Uint8Array) {
+	constructor(id_delta: number, payload?: Uint8Array) {
+		this.id_delta = id_delta;
 		this.payload = payload;
 	}
 
 	async encode(w: Writer, flags: GroupFlags): Promise<void> {
-		await w.u53(0); // id_delta = 0
+		await w.u53(this.id_delta);
 
 		if (flags.hasExtensions) {
 			await w.u53(0); // extensions length = 0
@@ -106,11 +139,8 @@ export class Frame {
 		}
 	}
 
-	static async decode(r: Reader, flags: GroupFlags): Promise<Frame> {
+	static async decode(r: Reader, flags: GroupFlags): Promise<GroupObject> {
 		const delta = await r.u53();
-		if (delta !== 0) {
-			console.warn(`object ID delta is not supported, ignoring: ${delta}`);
-		}
 
 		if (flags.hasExtensions) {
 			const extensionsLength = await r.u53();
@@ -122,17 +152,17 @@ export class Frame {
 
 		if (payloadLength > 0) {
 			const payload = await r.read(payloadLength);
-			return new Frame(payload);
+			return new GroupObject(delta, payload);
 		}
 
 		const status = await r.u53();
 
-		if (flags.hasEnd) {
-			// Empty frame
-			if (status === 0) return new Frame(new Uint8Array(0));
-		} else if (status === 0 || status === GROUP_END) {
-			// TODO status === 0 should be an empty frame, but moq-rs seems to be sending it incorrectly on group end.
-			return new Frame();
+		if (status === 0) {
+			return new GroupObject(delta, new Uint8Array(0));
+		}
+
+		if (!flags.hasEnd && status === 3) {
+			return new GroupObject(delta);
 		}
 
 		throw new Error(`Unsupported object status: ${status}`);

@@ -56,7 +56,7 @@ pub enum Error {
 	#[error("not found")]
 	NotFound,
 
-	#[error("wrong frame size")]
+	#[error("wrong size")]
 	WrongSize,
 
 	#[error("protocol violation")]

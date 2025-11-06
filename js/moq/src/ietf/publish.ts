@@ -1,5 +1,6 @@
 import type * as Path from "../path.ts";
 import type { Reader, Writer } from "../stream.ts";
+import { GroupOrder } from "./group.ts";
 import * as Message from "./message.ts";
 import * as Namespace from "./namespace.ts";
 import { Parameters } from "./parameters.ts";
@@ -14,7 +15,7 @@ export class Publish {
 	trackNamespace: Path.Valid;
 	trackName: string;
 	trackAlias: bigint;
-	groupOrder: number;
+	groupOrder: GroupOrder;
 	contentExists: boolean;
 	largest: { groupId: bigint; objectId: bigint } | undefined;
 	forward: boolean;
@@ -24,7 +25,7 @@ export class Publish {
 		trackNamespace: Path.Valid,
 		trackName: string,
 		trackAlias: bigint,
-		groupOrder: number,
+		groupOrder: GroupOrder,
 		contentExists: boolean,
 		largest: { groupId: bigint; objectId: bigint } | undefined,
 		forward: boolean,
@@ -44,7 +45,7 @@ export class Publish {
 		await Namespace.encode(w, this.trackNamespace);
 		await w.string(this.trackName);
 		await w.u62(this.trackAlias);
-		await w.u8(this.groupOrder);
+		await this.groupOrder.encode(w);
 		await w.bool(this.contentExists);
 		if (this.contentExists !== !!this.largest) {
 			throw new Error("contentExists and largest must both be true or false");
@@ -70,7 +71,7 @@ export class Publish {
 		const trackNamespace = await Namespace.decode(r);
 		const trackName = await r.string();
 		const trackAlias = await r.u62();
-		const groupOrder = await r.u8();
+		const groupOrder = await GroupOrder.decode(r);
 		const contentExists = await r.bool();
 		const largest = contentExists ? { groupId: await r.u62(), objectId: await r.u62() } : undefined;
 		const forward = await r.bool();

@@ -1,7 +1,6 @@
 export * from "./connection.ts";
 export * from "./control.ts";
 export * from "./goaway.ts";
-export * from "./object.ts";
 export * from "./parameters.ts";
 export * from "./publish.ts";
 export * from "./publish_namespace.ts";

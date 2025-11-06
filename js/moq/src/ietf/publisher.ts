@@ -5,7 +5,8 @@ import { Writer } from "../stream.ts";
 import type { Track } from "../track.ts";
 import { error } from "../util/error.ts";
 import type * as Control from "./control.ts";
-import { Frame, Group as GroupMessage } from "./object.ts";
+import { type Fetch, type FetchCancel, FetchError, FetchType } from "./fetch.ts";
+import { GroupHeader, GroupObject } from "./group.ts";
 import {
 	PublishNamespace,
 	type PublishNamespaceCancel,
@@ -142,7 +143,7 @@ export class Publisher {
 			const stream = await Writer.open(this.#quic);
 
 			// Write STREAM_HEADER_SUBGROUP
-			const header = new GroupMessage(requestId, group.sequence, 0, 0, {
+			const header = new GroupHeader(requestId, group.sequence, 0, 0, {
 				hasExtensions: false,
 				hasSubgroup: false,
 				hasSubgroupObject: false,
@@ -159,7 +160,7 @@ export class Publisher {
 					if (!frame) break;
 
 					// Write each frame as an object
-					const obj = new Frame(frame);
+					const obj = new GroupObject(0, frame);
 					await obj.encode(stream, header.flags);
 				}
 
@@ -217,4 +218,29 @@ export class Publisher {
 	async handleSubscribeNamespace(_msg: SubscribeNamespace) {}
 
 	async handleUnsubscribeNamespace(_msg: UnsubscribeNamespace) {}
+
+	async handleFetch(msg: Fetch) {
+		if (msg.fetchType.type === FetchType.Standalone || msg.fetchType.type === FetchType.Absolute) {
+			const errorMsg = new FetchError(msg.requestId, 400, "fetch type not supported");
+			await this.#control.write(errorMsg);
+			return;
+		}
+
+		if (msg.fetchType.groupOffset !== 0) {
+			const errorMsg = new FetchError(msg.requestId, 400, "positive group offset not supported");
+			await this.#control.write(errorMsg);
+			return;
+		}
+
+		const NO_OBJECTS = 0x6;
+
+		// We don't even check if this was a valid subscribe request.
+		// Just write NO_OBJECTS because we start at the latest group anyway.
+		const errMsg = new FetchError(msg.requestId, NO_OBJECTS, "no objects");
+		await this.#control.write(errMsg);
+	}
+
+	handleFetchCancel(_msg: FetchCancel) {
+		// lul who cares
+	}
 }
