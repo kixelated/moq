@@ -82,8 +82,9 @@ export async function connect(url: URL, props?: ConnectProps): Promise<Establish
 	params.setVarint(Ietf.Parameter.MaxRequestId, 42069n); // Allow a ton of request IDs.
 	params.setBytes(Ietf.Parameter.Implementation, encoder.encode("moq-lite-js")); // Put the implementation name in the parameters.
 
-	const msg = new Ietf.ClientSetup([Lite.CURRENT_VERSION, Ietf.CURRENT_VERSION], params);
-	await msg.encode(stream.writer);
+	const client = new Ietf.ClientSetup([Lite.CURRENT_VERSION, Ietf.CURRENT_VERSION], params);
+	console.debug(url.toString(), "sending client setup", client);
+	await client.encode(stream.writer);
 
 	// And we expect 0x21 as the response.
 	const serverCompat = await stream.reader.u53();
@@ -92,6 +93,8 @@ export async function connect(url: URL, props?: ConnectProps): Promise<Establish
 	}
 
 	const server = await Ietf.ServerSetup.decode(stream.reader);
+	console.debug(url.toString(), "received server setup", server);
+
 	if (server.version === Lite.CURRENT_VERSION) {
 		console.debug(url.toString(), "moq-lite session established");
 		return new Lite.Connection(url, quic, stream);

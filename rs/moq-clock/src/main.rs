@@ -75,17 +75,37 @@ async fn main() -> anyhow::Result<()> {
 			let origin = moq_lite::Origin::produce();
 			let session = moq_lite::Session::connect(session, None, Some(origin.producer)).await?;
 
-			// The broadcast name is empty because the URL contains the name
-			let broadcast = origin
-				.consumer
-				.consume_broadcast(&config.broadcast)
-				.context("broadcast not found")?;
-			let track = broadcast.subscribe_track(&track);
-			let clock = clock::Subscriber::new(track);
+			// NOTE: We could just call `session.consume_broadcast(&config.broadcast)` instead,
+			// However that won't work with IETF MoQ and the current OriginConsumer API the moment.
+			// So instead we do the cooler thing and loop while the broadcast is announced.
 
-			tokio::select! {
-				res = session.closed() => res.map_err(Into::into),
-				_ = clock.run() => Ok(()),
+			tracing::info!(broadcast = %config.broadcast, "waiting for broadcast to be online");
+
+			let path: moq_lite::Path<'_> = config.broadcast.into();
+			let mut origin = origin
+				.consumer
+				.consume_only(&[path])
+				.context("not allowed to consume broadcast")?;
+
+			// The current subscriber if any, dropped after each announce.
+			let mut clock: Option<clock::Subscriber> = None;
+
+			loop {
+				tokio::select! {
+					Some(announce) = origin.announced() => match announce {
+						(path, Some(broadcast)) => {
+							tracing::info!(broadcast = %path, "broadcast is online, subscribing to track");
+							let track = broadcast.subscribe_track(&track);
+							clock = Some(clock::Subscriber::new(track));
+						}
+						(path, None) => {
+							tracing::warn!(broadcast = %path, "broadcast is offline, waiting...");
+						}
+					},
+					res = session.closed() => return res.context("session closed"),
+					// NOTE: This drops clock when a new announce arrives, canceling it.
+					Some(res) = async { Some(clock.take()?.run().await) } => res.context("clock error")?,
+				}
 			}
 		}
 	}

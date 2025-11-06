@@ -48,6 +48,8 @@ impl<S: web_transport_trait::Session> Session<S> {
 			parameters,
 		};
 
+		tracing::trace!(?client, "sending client setup");
+
 		client.encode_size().encode(&mut buf);
 		client.encode(&mut buf);
 		stream.writer.write_all(&mut buf).await?;
@@ -64,6 +66,8 @@ impl<S: web_transport_trait::Session> Session<S> {
 		let mut buf = stream.reader.read_exact(size as usize).await?;
 
 		let server = ietf::ServerSetup::decode(&mut buf)?;
+		tracing::trace!(?server, "received server setup");
+
 		if !buf.is_empty() {
 			return Err(Error::WrongSize);
 		}
