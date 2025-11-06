@@ -35,12 +35,16 @@ impl Control {
 	pub fn send<T: Message>(&self, msg: T) -> Result<(), Error> {
 		tracing::debug!(message = ?msg, "sending control message");
 
-		let mut buf = Vec::new();
-		T::ID.encode(&mut buf);
 		// TODO Always encode 2 bytes for the size, then go back and populate it later.
 		// That way we can avoid calculating the size upfront.
-		msg.encode_size().encode(&mut buf);
+		let size: u16 = msg.encode_size();
+
+		let mut buf = Vec::new();
+		T::ID.encode(&mut buf);
+		size.encode(&mut buf);
 		msg.encode(&mut buf);
+
+		tracing::trace!(id = T::ID, size = buf.len(), hex = %hex::encode(&buf), "encoded control message");
 
 		self.tx.send(buf).map_err(|e| Error::Transport(Arc::new(e)))?;
 		Ok(())

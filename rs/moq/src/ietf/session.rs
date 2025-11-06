@@ -64,7 +64,10 @@ async fn run_control_read<S: web_transport_trait::Session>(
 	loop {
 		let id: u64 = reader.decode().await?;
 		let size: u16 = reader.decode::<u16>().await?;
+		tracing::trace!(id, size, "reading control message");
+
 		let mut data = reader.read_exact(size as usize).await?;
+		tracing::trace!(hex = %hex::encode(&data), "decoding control message");
 
 		match id {
 			ietf::Subscribe::ID => {

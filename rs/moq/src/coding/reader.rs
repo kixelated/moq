@@ -22,15 +22,10 @@ impl<S: web_transport_trait::RecvStream> Reader<S> {
 			let mut cursor = io::Cursor::new(&self.buffer);
 			match T::decode(&mut cursor) {
 				Ok(msg) => {
-					tracing::trace!(?msg, hex = ?hex::encode(&self.buffer[..cursor.position() as usize]), "decoded");
 					self.buffer.advance(cursor.position() as usize);
 					return Ok(msg);
 				}
 				Err(DecodeError::Short) => {
-					if !self.buffer.is_empty() {
-						tracing::trace!(hex = ?hex::encode(&self.buffer), "buffering");
-					}
-
 					// Try to read more data
 					if self
 						.stream
@@ -61,15 +56,8 @@ impl<S: web_transport_trait::RecvStream> Reader<S> {
 		loop {
 			let mut cursor = io::Cursor::new(&self.buffer);
 			match T::decode(&mut cursor) {
-				Ok(msg) => {
-					tracing::trace!(?msg, hex = ?hex::encode(&self.buffer[..cursor.position() as usize]), "decoded");
-					return Ok(msg);
-				}
+				Ok(msg) => return Ok(msg),
 				Err(DecodeError::Short) => {
-					if !self.buffer.is_empty() {
-						tracing::trace!(hex = ?hex::encode(&self.buffer), "buffering");
-					}
-
 					// Try to read more data
 					if self
 						.stream
