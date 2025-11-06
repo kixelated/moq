@@ -5,7 +5,7 @@ import * as Path from "../path.js";
 import { type Reader, Readers, type Stream } from "../stream.ts";
 import { unreachable } from "../util/index.ts";
 import * as Control from "./control.ts";
-import { Fetch, FetchCancel, FetchError, FetchOk } from "./fetch.ts";
+import { Fetch, FetchCancel, FetchError, FetchHeader, FetchOk } from "./fetch.ts";
 import { GoAway } from "./goaway.ts";
 import { GroupHeader } from "./group.ts";
 import { Publish, PublishError, PublishOk } from "./publish.ts";
@@ -183,13 +183,13 @@ export class Connection implements Established {
 				} else if (msg instanceof PublishError) {
 					throw new Error("PUBLISH_ERROR messages are not supported");
 				} else if (msg instanceof Fetch) {
-					throw new Error("FETCH messages are not supported");
+					await this.#publisher.handleFetch(msg);
 				} else if (msg instanceof FetchOk) {
-					throw new Error("FETCH_OK messages are not supported");
+					this.#subscriber.handleFetchOk(msg);
 				} else if (msg instanceof FetchError) {
-					throw new Error("FETCH_ERROR messages are not supported");
+					this.#subscriber.handleFetchError(msg);
 				} else if (msg instanceof FetchCancel) {
-					throw new Error("FETCH_CANCEL messages are not supported");
+					this.#publisher.handleFetchCancel(msg);
 				} else if (msg instanceof MaxRequestId) {
 					this.#control.maxRequestId(msg.requestId);
 				} else if (msg instanceof RequestsBlocked) {
@@ -262,10 +262,17 @@ export class Connection implements Established {
 	 */
 	async #runObjectStream(stream: Reader) {
 		try {
-			// we don't support other stream types yet
-			const header = await GroupHeader.decode(stream);
-			console.debug("received group header", header);
-			await this.#subscriber.handleGroup(header, stream);
+			// TODO support varints for stream type; this is not correct
+			const typ = (await stream.peek(1))[0];
+			if (typ === FetchHeader.id) {
+				const fetch = await FetchHeader.decode(stream);
+				console.debug("received fetch header", fetch);
+				await this.#subscriber.handleFetch(fetch, stream);
+			} else {
+				const header = await GroupHeader.decode(stream);
+				console.debug("received group header", header);
+				await this.#subscriber.handleGroup(header, stream);
+			}
 		} catch (err) {
 			console.error("error processing object stream", err);
 		}

@@ -132,6 +132,11 @@ export class Reader {
 		return this.#slice(this.#buffer.byteLength);
 	}
 
+	async peek(size: number): Promise<Uint8Array> {
+		await this.#fillTo(size);
+		return new Uint8Array(this.#buffer.buffer, this.#buffer.byteOffset, size);
+	}
+
 	async string(): Promise<string> {
 		const length = await this.u53();
 		const buffer = await this.read(length);

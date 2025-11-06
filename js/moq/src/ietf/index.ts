@@ -1,6 +1,5 @@
 export * from "./connection.ts";
 export * from "./control.ts";
-export * from "./frame.ts";
 export * from "./goaway.ts";
 export * from "./parameters.ts";
 export * from "./publish.ts";

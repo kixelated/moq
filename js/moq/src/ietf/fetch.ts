@@ -1,9 +1,12 @@
 import type * as Path from "../path.ts";
 import type { Reader, Writer } from "../stream.ts";
+import { GroupOrder } from "./group.ts";
 import { Location } from "./location.js";
 import * as Message from "./message.ts";
 import * as Namespace from "./namespace.ts";
 import { Parameters } from "./parameters.ts";
+
+const FETCH_END = 0x03;
 
 export const FetchType = {
 	Standalone: 0x1,
@@ -35,10 +38,10 @@ export class Fetch {
 
 	requestId: bigint;
 	subscriberPriority: number;
-	groupOrder: number;
+	groupOrder: GroupOrder;
 	fetchType: FetchType;
 
-	constructor(requestId: bigint, subscriberPriority: number, groupOrder: number, fetchType: FetchType) {
+	constructor(requestId: bigint, subscriberPriority: number, groupOrder: GroupOrder, fetchType: FetchType) {
 		this.requestId = requestId;
 		this.subscriberPriority = subscriberPriority;
 		this.groupOrder = groupOrder;
@@ -48,7 +51,7 @@ export class Fetch {
 	async #encode(w: Writer): Promise<void> {
 		await w.u62(this.requestId);
 		await w.u8(this.subscriberPriority);
-		await w.u8(this.groupOrder);
+		await this.groupOrder.encode(w);
 		await w.u53(this.fetchType.type);
 		if (this.fetchType.type === FetchType.Standalone) {
 			await Namespace.encode(w, this.fetchType.namespace);
@@ -79,7 +82,7 @@ export class Fetch {
 	static async #decode(r: Reader): Promise<Fetch> {
 		const requestId = await r.u62();
 		const subscriberPriority = await r.u8();
-		const groupOrder = await r.u8();
+		const groupOrder = await GroupOrder.decode(r);
 		const fetchType = await r.u53();
 
 		if (fetchType === FetchType.Standalone) {
@@ -127,11 +130,11 @@ export class FetchOk {
 	static id = 0x18;
 
 	requestId: bigint;
-	groupOrder: number;
+	groupOrder: GroupOrder;
 	endOfTrack: boolean;
 	endLocation: Location;
 
-	constructor(requestId: bigint, groupOrder: number, endOfTrack: boolean, endLocation: Location) {
+	constructor(requestId: bigint, groupOrder: GroupOrder, endOfTrack: boolean, endLocation: Location) {
 		this.requestId = requestId;
 		this.groupOrder = groupOrder;
 		this.endOfTrack = endOfTrack;
@@ -140,7 +143,7 @@ export class FetchOk {
 
 	async #encode(w: Writer): Promise<void> {
 		await w.u62(this.requestId);
-		await w.u8(this.groupOrder);
+		await this.groupOrder.encode(w);
 		await w.bool(this.endOfTrack);
 		this.endLocation.encode(w);
 		await w.u53(0); // no parameters
@@ -156,7 +159,7 @@ export class FetchOk {
 
 	static async #decode(r: Reader): Promise<FetchOk> {
 		const requestId = await r.u62();
-		const groupOrder = await r.u8();
+		const groupOrder = await GroupOrder.decode(r);
 		const endOfTrack = await r.bool();
 		const endLocation = await Location.decode(r);
 		await Parameters.decode(r); // ignore parameters
@@ -223,5 +226,90 @@ export class FetchCancel {
 	static async #decode(r: Reader): Promise<FetchCancel> {
 		const requestId = await r.u62();
 		return new FetchCancel(requestId);
+	}
+}
+
+export class FetchHeader {
+	static id = 0x5;
+
+	requestId: bigint;
+
+	constructor(requestId: bigint) {
+		this.requestId = requestId;
+	}
+
+	async encode(w: Writer): Promise<void> {
+		await w.u62(this.requestId);
+	}
+
+	static async decode(r: Reader): Promise<FetchHeader> {
+		const requestId = await r.u62();
+		return new FetchHeader(requestId);
+	}
+}
+
+export class FetchObject {
+	groupId: number;
+	subgroupId: number;
+	objectId: number;
+	publisherPriority: number;
+	payload?: Uint8Array;
+
+	constructor(
+		groupId: number,
+		subgroupId: number,
+		objectId: number,
+		publisherPriority: number,
+		payload?: Uint8Array,
+	) {
+		this.groupId = groupId;
+		this.subgroupId = subgroupId;
+		this.objectId = objectId;
+		this.publisherPriority = publisherPriority;
+		this.payload = payload;
+	}
+
+	async encode(w: Writer): Promise<void> {
+		await w.u53(this.groupId);
+		await w.u53(this.subgroupId);
+		await w.u53(this.objectId);
+		await w.u8(this.publisherPriority);
+		await w.u53(0); // no extension headers
+
+		if (this.payload !== undefined) {
+			await w.u53(this.payload.byteLength);
+			if (this.payload.byteLength === 0) {
+				await w.u53(0); // status = normal
+			} else {
+				await w.write(this.payload);
+			}
+		} else {
+			await w.u53(0); // no payload, length = 0
+			await w.u53(FETCH_END); // no payload, status = end
+		}
+	}
+
+	static async decode(r: Reader): Promise<FetchObject> {
+		const groupId = await r.u53();
+		const subgroupId = await r.u53();
+		const objectId = await r.u53();
+		const publisherPriority = await r.u8();
+		const payloadLength = await r.u53();
+
+		let payload: Uint8Array | undefined;
+		if (payloadLength === 0) {
+			const status = await r.u53();
+			if (status === 0) {
+				payload = new Uint8Array(0);
+			} else if (status === FETCH_END) {
+				payload = undefined;
+			} else {
+				throw new Error(`unexpected status: ${status}`);
+			}
+		} else {
+			payload = await r.read(payloadLength);
+		}
+
+		return new FetchObject(groupId, subgroupId, objectId, publisherPriority, payload);
 	}
 }
