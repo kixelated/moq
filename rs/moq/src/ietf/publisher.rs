@@ -112,9 +112,9 @@ impl<S: web_transport_trait::Session> Publisher<S> {
 		web_async::spawn(async move {
 			if let Err(err) = Self::run_track(session, track, request_id, rx).await {
 				control
-					.send(ietf::SubscribeError {
+					.send(ietf::PublishDone {
 						request_id,
-						error_code: 500,
+						status_code: 500,
 						reason_phrase: err.to_string().into(),
 					})
 					.ok();
