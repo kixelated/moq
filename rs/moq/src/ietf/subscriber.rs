@@ -284,6 +284,8 @@ impl<S: web_transport_trait::Session> Subscriber<S> {
 
 	pub async fn recv_group(&mut self, stream: &mut Reader<S::RecvStream>) -> Result<(), Error> {
 		let group: ietf::GroupHeader = stream.decode().await?;
+		tracing::trace!(?group, "received group header");
+
 		if group.sub_group_id != 0 {
 			tracing::warn!(sub_group_id = %group.sub_group_id, "subgroup ID is not supported, stripping");
 		}

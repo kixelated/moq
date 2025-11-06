@@ -20,8 +20,6 @@ impl<S: web_transport_trait::SendStream> Writer<S> {
 		self.buffer.clear();
 		msg.encode(&mut self.buffer);
 
-		tracing::trace!(?msg, hex = ?hex::encode(&self.buffer), "encoded");
-
 		while !self.buffer.is_empty() {
 			self.stream
 				.write_buf(&mut self.buffer)
