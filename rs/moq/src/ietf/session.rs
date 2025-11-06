@@ -62,7 +62,11 @@ async fn run_control_read<S: web_transport_trait::Session>(
 	mut subscriber: Subscriber<S>,
 ) -> Result<(), Error> {
 	loop {
-		let id: u64 = reader.decode().await?;
+		let id: u64 = match reader.decode_maybe().await? {
+			Some(id) => id,
+			None => return Ok(()),
+		};
+
 		let size: u16 = reader.decode::<u16>().await?;
 		tracing::trace!(id, size, "reading control message");
 
