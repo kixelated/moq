@@ -115,6 +115,10 @@ export class Source {
 				if (valid) supported[name] = rendition;
 			}
 
+			if (Object.keys(supported).length === 0 && Object.keys(renditions).length > 0) {
+				console.warn("no supported renditions found, available: ", renditions);
+			}
+
 			this.#supported.set(supported);
 		});
 	}
