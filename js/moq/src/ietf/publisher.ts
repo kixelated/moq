@@ -6,6 +6,7 @@ import type { Track } from "../track.ts";
 import { error } from "../util/error.ts";
 import type * as Control from "./control.ts";
 import { Frame, Group as GroupMessage } from "./object.ts";
+import { PublishDone } from "./publish.ts";
 import {
 	PublishNamespace,
 	type PublishNamespaceCancel,
@@ -14,7 +15,6 @@ import {
 	type PublishNamespaceOk,
 } from "./publish_namespace.ts";
 import { type Subscribe, SubscribeError, SubscribeOk, type Unsubscribe } from "./subscribe.ts";
-import { PublishDone } from "./publish.ts";
 import type { SubscribeNamespace, UnsubscribeNamespace } from "./subscribe_namespace.ts";
 import { TrackStatus, type TrackStatusRequest } from "./track.ts";
 
