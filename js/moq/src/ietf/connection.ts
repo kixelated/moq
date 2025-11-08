@@ -8,7 +8,7 @@ import * as Control from "./control.ts";
 import { Fetch, FetchCancel, FetchError, FetchOk } from "./fetch.ts";
 import { GoAway } from "./goaway.ts";
 import { Group } from "./object.ts";
-import { Publish, PublishError, PublishOk } from "./publish.ts";
+import { Publish, PublishDone, PublishError, PublishOk } from "./publish.ts";
 import {
 	PublishNamespace,
 	PublishNamespaceCancel,
@@ -19,7 +19,7 @@ import {
 import { Publisher } from "./publisher.ts";
 import { MaxRequestId, RequestsBlocked } from "./request.ts";
 import * as Setup from "./setup.ts";
-import { PublishDone, Subscribe, SubscribeError, SubscribeOk, Unsubscribe } from "./subscribe.ts";
+import { Subscribe, SubscribeError, SubscribeOk, Unsubscribe } from "./subscribe.ts";
 import {
 	SubscribeNamespace,
 	SubscribeNamespaceError,

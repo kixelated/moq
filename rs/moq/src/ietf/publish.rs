@@ -120,6 +120,7 @@ use crate::{
 pub struct PublishDone<'a> {
 	pub request_id: RequestId,
 	pub status_code: u64,
+	pub stream_count: u64,
 	pub reason_phrase: Cow<'a, str>,
 }
 
@@ -129,19 +130,20 @@ impl<'a> Message for PublishDone<'a> {
 	fn encode<W: bytes::BufMut>(&self, w: &mut W) {
 		self.request_id.encode(w);
 		self.status_code.encode(w);
+		self.stream_count.encode(w);
 		self.reason_phrase.encode(w);
-		0u64.encode(w); // TODO: stream count unsupported
 	}
 
 	fn decode<R: bytes::Buf>(r: &mut R) -> Result<Self, DecodeError> {
 		let request_id = RequestId::decode(r)?;
 		let status_code = u64::decode(r)?;
+		let stream_count = u64::decode(r)?;
 		let reason_phrase = Cow::<str>::decode(r)?;
-		let _stream_count = u64::decode(r)?;
 
 		Ok(Self {
 			request_id,
 			status_code,
+			stream_count,
 			reason_phrase,
 		})
 	}
