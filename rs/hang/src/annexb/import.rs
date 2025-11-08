@@ -35,6 +35,8 @@ impl Import {
 
 		let now = std::time::Instant::now();
 
+		let mut got_first_keyframe = false;
+
 		while input.read_buf(&mut buffer).await? > 0 {
 			parser.push(&buffer);
 			buffer.clear();
@@ -52,7 +54,13 @@ impl Import {
 							payload,
 						};
 
-						track.write(frame);
+						if !got_first_keyframe {
+							got_first_keyframe = au.is_keyframe();
+						}
+
+						if got_first_keyframe {
+							track.write(frame);
+						}
 					}
 					None => {
 						if let Some(ref sps) = au.sps {
