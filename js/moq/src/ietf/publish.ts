@@ -142,3 +142,42 @@ export class PublishError {
 		return new PublishError(requestId, errorCode, reasonPhrase);
 	}
 }
+
+// In draft-14, this message is renamed from SUBSCRIBE_DONE to PUBLISH_DONE
+export class PublishDone {
+	static readonly id = 0x0b;
+
+	requestId: bigint;
+	statusCode: number;
+	reasonPhrase: string;
+
+	constructor(requestId: bigint, statusCode: number, reasonPhrase: string) {
+		this.requestId = requestId;
+		this.statusCode = statusCode;
+		this.reasonPhrase = reasonPhrase;
+	}
+
+	async #encode(w: Writer): Promise<void> {
+		await w.u62(this.requestId);
+		await w.u62(BigInt(this.statusCode));
+		await w.u62(BigInt(0)); // stream_count = 0 (unsupported)
+		await w.string(this.reasonPhrase);
+	}
+
+	async encode(w: Writer): Promise<void> {
+		return Message.encode(w, this.#encode.bind(this));
+	}
+
+	static async decode(r: Reader): Promise<PublishDone> {
+		return Message.decode(r, PublishDone.#decode);
+	}
+
+	static async #decode(r: Reader): Promise<PublishDone> {
+		const requestId = await r.u62();
+		const statusCode = Number(await r.u62());
+		await r.u62(); // ignore stream_count
+		const reasonPhrase = await r.string();
+
+		return new PublishDone(requestId, statusCode, reasonPhrase);
+	}
+}

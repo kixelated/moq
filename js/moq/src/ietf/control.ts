@@ -2,7 +2,7 @@ import { Mutex } from "async-mutex";
 import type { Stream as StreamInner } from "../stream.ts";
 import { Fetch, FetchCancel, FetchError, FetchOk } from "./fetch.ts";
 import { GoAway } from "./goaway.ts";
-import { Publish, PublishError, PublishOk } from "./publish.ts";
+import { Publish, PublishDone, PublishError, PublishOk } from "./publish.ts";
 import {
 	PublishNamespace,
 	PublishNamespaceCancel,
@@ -12,7 +12,7 @@ import {
 } from "./publish_namespace.ts";
 import { MaxRequestId, RequestsBlocked } from "./request.ts";
 import * as Setup from "./setup.ts";
-import { PublishDone, Subscribe, SubscribeError, SubscribeOk, Unsubscribe } from "./subscribe.ts";
+import { Subscribe, SubscribeError, SubscribeOk, Unsubscribe } from "./subscribe.ts";
 import {
 	SubscribeNamespace,
 	SubscribeNamespaceError,

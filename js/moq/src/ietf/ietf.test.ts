@@ -3,6 +3,7 @@ import test from "node:test";
 import * as Path from "../path.ts";
 import { Reader, Writer } from "../stream.ts";
 import * as GoAway from "./goaway.ts";
+import { PublishDone } from "./publish.ts";
 import * as Announce from "./publish_namespace.ts";
 import * as Subscribe from "./subscribe.ts";
 import * as Track from "./track.ts";
@@ -99,10 +100,10 @@ test("Unsubscribe: round trip", async () => {
 });
 
 test("PublishDone: basic test", async () => {
-	const msg = new Subscribe.PublishDone(10n, 0, "complete");
+	const msg = new PublishDone(10n, 0, "complete");
 
 	const encoded = await encodeMessage(msg);
-	const decoded = await decodeMessage(encoded, Subscribe.PublishDone.decode);
+	const decoded = await decodeMessage(encoded, PublishDone.decode);
 
 	assert.strictEqual(decoded.requestId, 10);
 	assert.strictEqual(decoded.statusCode, 0);
@@ -110,10 +111,10 @@ test("PublishDone: basic test", async () => {
 });
 
 test("PublishDone: with error", async () => {
-	const msg = new Subscribe.PublishDone(10n, 1, "error");
+	const msg = new PublishDone(10n, 1, "error");
 
 	const encoded = await encodeMessage(msg);
-	const decoded = await decodeMessage(encoded, Subscribe.PublishDone.decode);
+	const decoded = await decodeMessage(encoded, PublishDone.decode);
 
 	assert.strictEqual(decoded.requestId, 10);
 	assert.strictEqual(decoded.statusCode, 1);

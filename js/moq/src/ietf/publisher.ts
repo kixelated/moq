@@ -13,7 +13,8 @@ import {
 	type PublishNamespaceError,
 	type PublishNamespaceOk,
 } from "./publish_namespace.ts";
-import { PublishDone, type Subscribe, SubscribeError, SubscribeOk, type Unsubscribe } from "./subscribe.ts";
+import { type Subscribe, SubscribeError, SubscribeOk, type Unsubscribe } from "./subscribe.ts";
+import { PublishDone } from "./publish.ts";
 import type { SubscribeNamespace, UnsubscribeNamespace } from "./subscribe_namespace.ts";
 import { TrackStatus, type TrackStatusRequest } from "./track.ts";
 

@@ -115,6 +115,7 @@ impl<S: web_transport_trait::Session> Publisher<S> {
 					.send(ietf::PublishDone {
 						request_id,
 						status_code: 500,
+						stream_count: 0, // TODO send the correct value if we want the peer to block.
 						reason_phrase: err.to_string().into(),
 					})
 					.ok();
@@ -123,6 +124,7 @@ impl<S: web_transport_trait::Session> Publisher<S> {
 					.send(ietf::PublishDone {
 						request_id,
 						status_code: 200,
+						stream_count: 0, // TODO send the correct value if we want the peer to block.
 						reason_phrase: "OK".into(),
 					})
 					.ok();

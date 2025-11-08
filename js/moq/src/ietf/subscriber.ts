@@ -7,9 +7,9 @@ import type { Track } from "../track.ts";
 import { error } from "../util/error.ts";
 import type * as Control from "./control.ts";
 import { Frame, type Group as GroupMessage } from "./object.ts";
-import { type Publish, PublishError } from "./publish.ts";
+import { type Publish, type PublishDone, PublishError } from "./publish.ts";
 import type { PublishNamespace, PublishNamespaceDone } from "./publish_namespace.ts";
-import { type PublishDone, Subscribe, type SubscribeError, type SubscribeOk, Unsubscribe } from "./subscribe.ts";
+import { Subscribe, type SubscribeError, type SubscribeOk, Unsubscribe } from "./subscribe.ts";
 import {
 	SubscribeNamespace,
 	type SubscribeNamespaceError,
