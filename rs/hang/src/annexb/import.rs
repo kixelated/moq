@@ -35,17 +35,25 @@ impl Import {
 
 		let now = std::time::Instant::now();
 
+		let mut got_first_keyframe = false;
+
 		while input.read_buf(&mut buffer).await? > 0 {
 			parser.push(&buffer);
 			buffer.clear();
 			while let Some(au) = parser.next_access_unit()? {
 				match tp {
 					Some(ref mut track) => {
+						got_first_keyframe = got_first_keyframe || au.is_keyframe();
+						if !got_first_keyframe {
+							continue;
+						}
+
 						let ts = now.elapsed().as_micros();
 						let payload = match au.to_annexb_webcodec_bytes() {
 							Cow::Borrowed(b) => Bytes::copy_from_slice(b),
-							Cow::Owned(b) => Bytes::copy_from_slice(&b),
+							Cow::Owned(b) => Bytes::from(b), // avoids a copy
 						};
+
 						let frame = Frame {
 							timestamp: Timestamp::from_micros(ts as u64),
 							keyframe: au.is_keyframe(),
