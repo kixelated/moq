@@ -120,6 +120,8 @@ export class Subscriber {
 
 		this.#subscribes.set(requestId, request.track);
 
+		console.debug(`subscribe start: id=${requestId} broadcast=${broadcast} track=${request.track.name}`);
+
 		const msg = new Subscribe(requestId, broadcast, request.track.name, request.priority);
 
 		// Send SUBSCRIBE message on control stream and wait for response
@@ -132,18 +134,24 @@ export class Subscriber {
 		try {
 			const ok = await responsePromise;
 			this.#trackAliases.set(ok.trackAlias, requestId);
+			console.debug(`subscribe ok: id=${requestId} broadcast=${broadcast} track=${request.track.name}`);
 
 			try {
 				await request.track.closed;
 
 				const msg = new Unsubscribe(requestId);
 				await this.#control.write(msg);
+				console.debug(`unsubscribe: id=${requestId} broadcast=${broadcast} track=${request.track.name}`);
 			} finally {
 				this.#trackAliases.delete(ok.trackAlias);
 			}
 		} catch (err) {
 			const e = error(err);
 			request.track.close(e);
+
+			console.warn(
+				`subscribe error: id=${requestId} broadcast=${broadcast} track=${request.track.name} error=${e.message}`,
+			);
 		} finally {
 			this.#subscribes.delete(requestId);
 			this.#subscribeCallbacks.delete(requestId);
@@ -263,6 +271,7 @@ export class Subscriber {
 		}
 
 		this.#announced.add(msg.trackNamespace);
+		console.debug(`announced: broadcast=${msg.trackNamespace} active=true`);
 
 		for (const consumer of this.#announcedConsumers) {
 			consumer.append({
@@ -283,6 +292,7 @@ export class Subscriber {
 		}
 
 		this.#announced.delete(msg.trackNamespace);
+		console.debug(`announced: broadcast=${msg.trackNamespace} active=false`);
 
 		for (const consumer of this.#announcedConsumers) {
 			consumer.append({
