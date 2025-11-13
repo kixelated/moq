@@ -99,19 +99,21 @@ export class Publisher {
 		// Send SUBSCRIBE_OK response on control stream
 		const okMsg = new SubscribeOk(msg.requestId, msg.requestId);
 		await this.#control.write(okMsg);
+		console.debug(`publish ok: broadcast=${name} track=${track.name}`);
 
 		// Start sending track data using ObjectStream (Subgroup delivery mode only)
-		void this.#runTrack(msg.requestId, track);
+		void this.#runTrack(msg.requestId, name, track);
 	}
 
 	/**
 	 * Runs a track and sends its data using ObjectStream messages.
 	 * @param requestId - The subscription request ID (also used as track alias)
+	 * @param broadcast - The broadcast path
 	 * @param track - The track to run
 	 *
 	 * @internal
 	 */
-	async #runTrack(requestId: bigint, track: Track) {
+	async #runTrack(requestId: bigint, broadcast: Path.Valid, track: Track) {
 		try {
 			for (;;) {
 				const group = await track.nextGroup();
@@ -119,10 +121,12 @@ export class Publisher {
 				void this.#runGroup(requestId, group);
 			}
 
+			console.debug(`publish done: broadcast=${broadcast} track=${track.name}`);
 			const msg = new PublishDone(requestId, 200, "OK");
 			await this.#control.write(msg);
 		} catch (err: unknown) {
 			const e = error(err);
+			console.warn(`publish error: broadcast=${broadcast} track=${track.name} error=${e.message}`);
 			const msg = new PublishDone(requestId, 500, e.message);
 			await this.#control.write(msg);
 		} finally {

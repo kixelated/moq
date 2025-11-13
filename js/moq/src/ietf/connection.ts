@@ -50,6 +50,9 @@ export class Connection implements Established {
 	// Module for distributing tracks.
 	#subscriber: Subscriber;
 
+	// Just to avoid logging when `close()` is called.
+	#closed = false;
+
 	/**
 	 * Creates a new Connection instance.
 	 * @param url - The URL of the connection
@@ -77,6 +80,10 @@ export class Connection implements Established {
 	 * Closes the connection.
 	 */
 	close() {
+		if (this.#closed) return;
+
+		this.#closed = true;
+
 		try {
 			this.#quic.close();
 		} catch {
@@ -91,7 +98,9 @@ export class Connection implements Established {
 		try {
 			await Promise.all([controlMessages, objectStreams]);
 		} catch (err) {
-			console.error("fatal error running connection", err);
+			if (!this.#closed) {
+				console.error("fatal error running connection", err);
+			}
 		} finally {
 			this.close();
 		}

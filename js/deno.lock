@@ -18,7 +18,6 @@
       "hang": {
         "packageJson": {
           "dependencies": [
-            "npm:@huggingface/transformers@^3.7.2",
             "npm:@kixelated/libavjs-webcodecs-polyfill@~0.5.5",
             "npm:@libav.js/variant-opus-af@^6.8.8",
             "npm:@types/audioworklet@^0.0.77",
