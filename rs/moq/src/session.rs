@@ -207,10 +207,8 @@ impl<S: web_transport_trait::Session> Session<S> {
 	}
 
 	/// Block until the transport session is closed.
+	// TODO Remove the Result the next time we make a breaking change.
 	pub async fn closed(&self) -> Result<(), Error> {
-		match self.session.closed().await {
-			Ok(()) => Ok(()),
-			Err(err) => Err(Error::Transport(Arc::new(err))),
-		}
+		Err(Error::Transport(Arc::new(self.session.closed().await)))
 	}
 }

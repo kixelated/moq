@@ -116,7 +116,8 @@ impl<S: web_transport_trait::Session> Subscriber<S> {
 		}
 
 		// Close the stream when there's nothing more to announce.
-		stream.writer.finish().await
+		stream.writer.finish()?;
+		stream.writer.closed().await
 	}
 
 	fn start_announce(
@@ -212,7 +213,8 @@ impl<S: web_transport_trait::Session> Subscriber<S> {
 			return Err(err);
 		}
 
-		stream.writer.finish().await
+		stream.writer.finish()?;
+		stream.writer.closed().await
 	}
 
 	async fn run_track_stream(&mut self, stream: &mut Stream<S>, msg: lite::Subscribe<'_>) -> Result<(), Error> {

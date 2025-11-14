@@ -9,7 +9,7 @@ use rustls::sign::CertifiedKey;
 use std::fs;
 use std::io::{self, Cursor, Read};
 use url::Url;
-use web_transport_quinn::http;
+use web_transport_quinn::{http, ServerError};
 
 use futures::future::BoxFuture;
 use futures::stream::{FuturesUnordered, StreamExt};
@@ -236,7 +236,7 @@ pub enum Request {
 
 impl Request {
 	/// Reject the session, returning your favorite HTTP status code.
-	pub async fn close(self, status: http::StatusCode) -> Result<(), quinn::WriteError> {
+	pub async fn close(self, status: http::StatusCode) -> Result<(), ServerError> {
 		match self {
 			Self::WebTransport(request) => request.close(status).await,
 			Self::Quic(request) => {
@@ -250,7 +250,7 @@ impl Request {
 	///
 	/// For WebTransport, this completes the HTTP handshake (200 OK).
 	/// For raw QUIC, this constructs a raw session.
-	pub async fn ok(self) -> Result<web_transport_quinn::Session, quinn::WriteError> {
+	pub async fn ok(self) -> Result<web_transport_quinn::Session, ServerError> {
 		match self {
 			Request::WebTransport(request) => request.ok().await,
 			Request::Quic(request) => Ok(request.ok()),

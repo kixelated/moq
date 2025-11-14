@@ -121,7 +121,10 @@ impl<S: web_transport_trait::Session> Publisher<S> {
 								stream.writer.encode(&msg).await?;
 							}
 						},
-						None => return stream.writer.finish().await,
+						None => {
+							stream.writer.finish()?;
+							return stream.writer.closed().await;
+						}
 					}
 				}
 			}
@@ -187,7 +190,8 @@ impl<S: web_transport_trait::Session> Publisher<S> {
 			res = stream.reader.closed() => res?,
 		}
 
-		stream.writer.finish().await
+		stream.writer.finish()?;
+		stream.writer.closed().await
 	}
 
 	async fn run_track(session: S, mut track: TrackConsumer, subscribe: &lite::Subscribe<'_>) -> Result<(), Error> {
@@ -235,7 +239,6 @@ impl<S: web_transport_trait::Session> Publisher<S> {
 				continue;
 			}
 
-			let priority = stream_priority(track.info.priority, sequence);
 			let msg = lite::Group {
 				subscribe: subscribe.id,
 				sequence,
@@ -243,7 +246,7 @@ impl<S: web_transport_trait::Session> Publisher<S> {
 
 			// Spawn a task to serve this group, ignoring any errors because they don't really matter.
 			// TODO add some logging at least.
-			let handle = Box::pin(Self::serve_group(session.clone(), msg, priority, group));
+			let handle = Box::pin(Self::serve_group(session.clone(), msg, track.info.priority, group));
 
 			// Terminate the old group if it's still running.
 			if let Some(old_sequence) = old_sequence.take() {
@@ -266,7 +269,7 @@ impl<S: web_transport_trait::Session> Publisher<S> {
 		}
 	}
 
-	async fn serve_group(session: S, msg: lite::Group, priority: i32, mut group: GroupConsumer) -> Result<(), Error> {
+	async fn serve_group(session: S, msg: lite::Group, priority: u8, mut group: GroupConsumer) -> Result<(), Error> {
 		// TODO add a way to open in priority order.
 		let mut stream = session
 			.open_uni()
@@ -310,41 +313,11 @@ impl<S: web_transport_trait::Session> Publisher<S> {
 			tracing::trace!(size = %frame.info.size, "wrote frame");
 		}
 
-		stream.finish().await?;
+		stream.finish()?;
+		stream.closed().await?;
 
 		tracing::debug!(sequence = %msg.sequence, "finished group");
 
 		Ok(())
-	}
-}
-
-// Quinn takes a i32 priority.
-// We do our best to distill 70 bits of information into 32 bits, but overflows will happen.
-// Specifically, group sequence 2^24 will overflow and be incorrectly prioritized.
-// But even with a group per frame, it will take ~6 days to reach that point.
-// TODO The behavior when two tracks share the same priority is undefined. Should we round-robin?
-fn stream_priority(track_priority: u8, group_sequence: u64) -> i32 {
-	let sequence = 0xFFFFFF - (group_sequence as u32 & 0xFFFFFF);
-	((track_priority as i32) << 24) | sequence as i32
-}
-
-#[cfg(test)]
-mod test {
-	use super::*;
-
-	#[test]
-	fn priority() {
-		let assert = |track_priority, group_sequence, expected| {
-			assert_eq!(stream_priority(track_priority, group_sequence), expected);
-		};
-
-		const U24: i32 = (1 << 24) - 1;
-
-		// NOTE: The lower the value, the higher the priority for Quinn.
-		// MoQ does the opposite, so we invert the values.
-		assert(0, 50, U24 - 50);
-		assert(0, 0, U24);
-		assert(1, 50, 2 * U24 - 49);
-		assert(1, 0, 2 * U24 + 1);
 	}
 }
