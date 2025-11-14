@@ -7,7 +7,7 @@ use std::sync::Arc;
 #[derive(Debug, thiserror::Error, Clone)]
 pub enum Error {
 	/// An error from the underlying MoQ transport layer.
-	#[error("transfork error: {0}")]
+	#[error("moq lite error: {0}")]
 	Moq(#[from] moq_lite::Error),
 
 	/// Failed to decode a message at the MoQ transport layer.
