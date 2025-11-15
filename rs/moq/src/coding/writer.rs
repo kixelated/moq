@@ -59,6 +59,10 @@ impl<S: web_transport_trait::SendStream> Writer<S> {
 		self.stream.closed().await.map_err(|e| Error::Transport(Arc::new(e)))?;
 		Ok(())
 	}
+
+	pub fn set_priority(&mut self, priority: u8) {
+		self.stream.set_priority(priority);
+	}
 }
 
 impl<S: web_transport_trait::SendStream> Drop for Writer<S> {

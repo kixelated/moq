@@ -3,6 +3,7 @@ mod group;
 mod info;
 mod message;
 mod parameters;
+mod priority;
 mod publisher;
 mod session;
 mod setup;

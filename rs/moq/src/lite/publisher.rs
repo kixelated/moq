@@ -1,11 +1,13 @@
 use std::sync::Arc;
 
 use web_async::FuturesExt;
-use web_transport_trait::SendStream;
 
 use crate::{
 	coding::{Stream, Writer},
-	lite,
+	lite::{
+		self,
+		priority::{PriorityHandle, PriorityQueue},
+	},
 	model::GroupConsumer,
 	AsPath, BroadcastConsumer, Error, Origin, OriginConsumer, Track, TrackConsumer,
 };
@@ -13,13 +15,18 @@ use crate::{
 pub(super) struct Publisher<S: web_transport_trait::Session> {
 	session: S,
 	origin: OriginConsumer,
+	priority: PriorityQueue,
 }
 
 impl<S: web_transport_trait::Session> Publisher<S> {
 	pub fn new(session: S, origin: Option<OriginConsumer>) -> Self {
 		// Default to a dummy origin that is immediately closed.
 		let origin = origin.unwrap_or_else(|| Origin::produce().consumer);
-		Self { session, origin }
+		Self {
+			session,
+			origin,
+			priority: Default::default(),
+		}
 	}
 
 	pub async fn run(mut self) -> Result<(), Error> {
@@ -141,10 +148,11 @@ impl<S: web_transport_trait::Session> Publisher<S> {
 		tracing::info!(%id, broadcast = %absolute, %track, "subscribed started");
 
 		let broadcast = self.origin.consume_broadcast(&subscribe.broadcast);
+		let priority = self.priority.clone();
 
 		let session = self.session.clone();
 		web_async::spawn(async move {
-			if let Err(err) = Self::run_subscribe(session, &mut stream, &subscribe, broadcast).await {
+			if let Err(err) = Self::run_subscribe(session, &mut stream, &subscribe, broadcast, priority).await {
 				match &err {
 					// TODO better classify WebTransport errors.
 					Error::Cancel | Error::Transport(_) => {
@@ -168,6 +176,7 @@ impl<S: web_transport_trait::Session> Publisher<S> {
 		stream: &mut Stream<S>,
 		subscribe: &lite::Subscribe<'_>,
 		consumer: Option<BroadcastConsumer>,
+		priority: PriorityQueue,
 	) -> Result<(), Error> {
 		let track = Track {
 			name: subscribe.track.to_string(),
@@ -186,7 +195,7 @@ impl<S: web_transport_trait::Session> Publisher<S> {
 		stream.writer.encode(&info).await?;
 
 		tokio::select! {
-			res = Self::run_track(session, track, subscribe) => res?,
+			res = Self::run_track(session, track, subscribe, priority) => res?,
 			res = stream.reader.closed() => res?,
 		}
 
@@ -194,7 +203,12 @@ impl<S: web_transport_trait::Session> Publisher<S> {
 		stream.writer.closed().await
 	}
 
-	async fn run_track(session: S, mut track: TrackConsumer, subscribe: &lite::Subscribe<'_>) -> Result<(), Error> {
+	async fn run_track(
+		session: S,
+		mut track: TrackConsumer,
+		subscribe: &lite::Subscribe<'_>,
+		priority: PriorityQueue,
+	) -> Result<(), Error> {
 		// TODO use a BTreeMap serve the latest N groups by sequence.
 		// Until then, we'll implement N=2 manually.
 		// Also, this is more complicated because we can't use tokio because of WASM.
@@ -244,9 +258,11 @@ impl<S: web_transport_trait::Session> Publisher<S> {
 				sequence,
 			};
 
+			let priority = priority.insert(track.info.priority, sequence);
+
 			// Spawn a task to serve this group, ignoring any errors because they don't really matter.
 			// TODO add some logging at least.
-			let handle = Box::pin(Self::serve_group(session.clone(), msg, track.info.priority, group));
+			let handle = Box::pin(Self::serve_group(session.clone(), msg, priority, group));
 
 			// Terminate the old group if it's still running.
 			if let Some(old_sequence) = old_sequence.take() {
@@ -269,15 +285,20 @@ impl<S: web_transport_trait::Session> Publisher<S> {
 		}
 	}
 
-	async fn serve_group(session: S, msg: lite::Group, priority: u8, mut group: GroupConsumer) -> Result<(), Error> {
+	async fn serve_group(
+		session: S,
+		msg: lite::Group,
+		mut priority: PriorityHandle,
+		mut group: GroupConsumer,
+	) -> Result<(), Error> {
 		// TODO add a way to open in priority order.
-		let mut stream = session
+		let stream = session
 			.open_uni()
 			.await
 			.map_err(|err| Error::Transport(Arc::new(err)))?;
-		stream.set_priority(priority);
 
 		let mut stream = Writer::new(stream);
+		stream.set_priority(priority.current());
 		stream.encode(&lite::DataType::Group).await?;
 		stream.encode(&msg).await?;
 
@@ -286,6 +307,11 @@ impl<S: web_transport_trait::Session> Publisher<S> {
 				biased;
 				_ = stream.closed() => return Err(Error::Cancel),
 				frame = group.next_frame() => frame,
+				// Update the priority if it changes.
+				priority = priority.next() => {
+					stream.set_priority(priority);
+					continue;
+				}
 			};
 
 			let mut frame = match frame? {
@@ -302,6 +328,11 @@ impl<S: web_transport_trait::Session> Publisher<S> {
 					biased;
 					_ = stream.closed() => return Err(Error::Cancel),
 					chunk = frame.read_chunk() => chunk,
+					// Update the priority if it changes.
+					priority = priority.next() => {
+						stream.set_priority(priority);
+						continue;
+					}
 				};
 
 				match chunk? {
