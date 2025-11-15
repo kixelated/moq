@@ -195,7 +195,6 @@ impl<S: web_transport_trait::Session> Publisher<S> {
 				continue;
 			}
 
-			let priority = stream_priority(track.info.priority, sequence);
 			let msg = ietf::GroupHeader {
 				track_alias: request_id.0, // NOTE: using track alias as request id for now
 				group_id: sequence,
@@ -206,7 +205,7 @@ impl<S: web_transport_trait::Session> Publisher<S> {
 
 			// Spawn a task to serve this group, ignoring any errors because they don't really matter.
 			// TODO add some logging at least.
-			let handle = Box::pin(Self::run_group(session.clone(), msg, priority, group));
+			let handle = Box::pin(Self::run_group(session.clone(), msg, track.info.priority, group));
 
 			// Terminate the old group if it's still running.
 			if let Some(old_sequence) = old_sequence.take() {
@@ -232,7 +231,7 @@ impl<S: web_transport_trait::Session> Publisher<S> {
 	async fn run_group(
 		session: S,
 		msg: ietf::GroupHeader,
-		priority: i32,
+		priority: u8,
 		mut group: GroupConsumer,
 	) -> Result<(), Error> {
 		// TODO add a way to open in priority order.
@@ -290,7 +289,10 @@ impl<S: web_transport_trait::Session> Publisher<S> {
 			}
 		}
 
-		stream.finish().await?;
+		stream.finish()?;
+
+		// Wait until everything is acknowledged by the peer so we can still cancel the stream.
+		stream.closed().await?;
 
 		tracing::debug!(sequence = %msg.group_id, "finished group");
 
@@ -405,7 +407,8 @@ impl<S: web_transport_trait::Session> Publisher<S> {
 		let mut writer = Writer::new(stream);
 		writer.encode(&FetchHeader::TYPE).await?;
 		writer.encode(&FetchHeader { request_id }).await?;
-		writer.finish().await?;
+		writer.finish()?;
+		writer.closed().await?;
 
 		Ok(())
 	}
@@ -414,14 +417,4 @@ impl<S: web_transport_trait::Session> Publisher<S> {
 		tracing::warn!(?msg, "fetch cancel");
 		Ok(())
 	}
-}
-
-// Quinn takes a i32 priority.
-// We do our best to distill 70 bits of information into 32 bits, but overflows will happen.
-// Specifically, group sequence 2^24 will overflow and be incorrectly prioritized.
-// But even with a group per frame, it will take ~6 days to reach that point.
-// TODO The behavior when two tracks share the same priority is undefined. Should we round-robin?
-fn stream_priority(track_priority: u8, group_sequence: u64) -> i32 {
-	let sequence = 0xFFFFFF - (group_sequence as u32 & 0xFFFFFF);
-	((track_priority as i32) << 24) | sequence as i32
 }

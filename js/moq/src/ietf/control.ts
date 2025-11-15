@@ -148,6 +148,7 @@ export class Stream {
 				return undefined;
 			}
 
+			console.warn("blocked on max request id");
 			await this.#maxRequestIdPromise;
 		}
 	}

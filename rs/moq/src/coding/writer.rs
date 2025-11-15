@@ -47,9 +47,8 @@ impl<S: web_transport_trait::SendStream> Writer<S> {
 	}
 
 	/// A clean termination of the stream, waiting for the peer to close.
-	pub async fn finish(&mut self) -> Result<(), Error> {
-		self.stream.finish().await.map_err(|e| Error::Transport(Arc::new(e)))?;
-		Ok(())
+	pub fn finish(&mut self) -> Result<(), Error> {
+		self.stream.finish().map_err(|e| Error::Transport(Arc::new(e)))
 	}
 
 	pub fn abort(&mut self, err: &Error) {
