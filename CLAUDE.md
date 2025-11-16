@@ -22,13 +22,13 @@ The project contains multiple layers of protocols:
 1. **quic** - Does all the networking.
 2. **web-transport** - A small layer on top of QUIC/HTTP3 for browser support. Provided by the browser or the `web-transport` crates.
 3. **moq-lite** - A generic pub/sub protocol on top of `web-transport` implemented by CDNs, splitting content into:
-  - broadcast: a collection of tracks produced by a publisher
-  - track: a live stream of groups within a broadcast.
-  - group: a live stream of frames within a track, each delivered independently over a QUIC stream.
-  - frame: a sized payload of bytes.
+    - broadcast: a collection of tracks produced by a publisher
+    - track: a live stream of groups within a broadcast.
+    - group: a live stream of frames within a track, each delivered independently over a QUIC stream.
+    - frame: a sized payload of bytes.
 4. **hang** - Media-specific encoding/decoding on top of `moq-lite`. Contains:
-  - catalog: a JSON track containing a description of other tracks and their properties (for WebCodecs).
-  - container: each frame consists of a timestamp and codec bitstream
+    - catalog: a JSON track containing a description of other tracks and their properties (for WebCodecs).
+    - container: each frame consists of a timestamp and codec bitstream
 5. **application** - Users building on top of `moq-lite` or `hang`
 
 Key architectural rule: The CDN/relay does not know anything about media. Anything in the `moq` layer should be generic, using rules on the wire on how to deliver content.
