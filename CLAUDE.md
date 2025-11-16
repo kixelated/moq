@@ -9,16 +9,6 @@ MoQ (Media over QUIC) is a next-generation live media delivery protocol providin
 ## Common Development Commands
 
 ```bash
-# Setup and install dependencies
-just install
-
-# Run full development environment (relay + demo media + web server)
-just dev
-
-# Run individual components
-just relay        # Run localhost relay server
-just cluster      # Run cluster of relay servers
-
 # Code quality and testing
 just check        # Run all tests and linting
 just fix          # Auto-fix linting issues
@@ -27,13 +17,22 @@ just build        # Build all packages
 
 ## Architecture
 
-The project follows a layered protocol stack:
+The project contains multiple layers of protocols:
 
-1. **moq-lite** (core pub/sub transport) - Generic broadcast/track/group/frame protocol
-2. **hang** (media layer) - Media-specific encoding/streaming with codec support
-3. **Application layer** - Business logic, authentication, catalog
+1. **quic** - Does all the networking.
+2. **web-transport** - A small layer on top of QUIC/HTTP3 for browser support. Provided by the browser or the `web-transport` crates.
+3. **moq-lite** - A generic pub/sub protocol on top of `web-transport` implemented by CDNs, splitting content into:
+  - broadcast: a collection of tracks produced by a publisher
+  - track: a live stream of groups within a broadcast.
+  - group: a live stream of frames within a track, each delivered independently over a QUIC stream.
+  - frame: a sized payload of bytes.
+4. **hang** - Media-specific encoding/decoding on top of `moq-lite`. Contains:
+  - catalog: a JSON track containing a description of other tracks and their properties (for WebCodecs).
+  - container: each frame consists of a timestamp and codec bitstream
+5. **application** - Users building on top of `moq-lite` or `hang`
 
-Key architectural rule: The CDN/relay must not know about application logic, media codecs, or track details. All media logic is handled in the `hang` layer. `hang` should still be generic enough that an application can build a custom UI on top of it. For example, it can be used to access individual frames if the application wants to perform custom rendering.
+Key architectural rule: The CDN/relay does not know anything about media. Anything in the `moq` layer should be generic, using rules on the wire on how to deliver content.
+
 
 ## Project Structure
 
@@ -57,25 +56,9 @@ Key architectural rule: The CDN/relay must not know about application logic, med
 2. For Rust development, the workspace is configured in the `rs/Cargo.toml`
 3. For JS/TS development, bun workspaces are used with configuration in `js/package.json`
 4. Try to keep stuff out of the root unless necessary; scope tools to specific languages.
-5. The demo runs on https://localhost:8080 with self-signed certificates
-
-## Key Concepts
-
-- **Session**: A QUIC/WebTransport connection that can be used to publish or subscribe.
-- **Broadcasts**: Discoverable collections of tracks.
-- **Tracks**: Named streams of data, split into groups
-- **Groups**: Sequential collection of frames (usually start with keyframe)
-- **Frames**: Timed chunks of data.
 
 ## Testing Approach
 
-- Run `just check` to execute all tests and linting
+- Run `just check` to execute all tests and linting.
+- Run `just fix` to automatically fix formating and easy things.
 - Rust tests are integrated within source files
-
-## Contributing
-
-For first-time contributors looking for tasks to work on:
-
-- Check [TODO.md](./TODO.md) for security and performance issues that need to be addressed
-- Many of these issues are well-scoped and great for getting familiar with the codebase
-- Security-related tasks help improve the robustness of the MoQ protocol implementation
