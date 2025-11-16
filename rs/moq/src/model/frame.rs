@@ -1,5 +1,3 @@
-use std::future::Future;
-
 use bytes::{Bytes, BytesMut};
 use tokio::sync::watch;
 
@@ -150,14 +148,6 @@ impl FrameProducer {
 		}
 	}
 
-	// Returns a Future so &self is not borrowed during the future.
-	pub fn unused(&self) -> impl Future<Output = ()> {
-		let state = self.state.clone();
-		async move {
-			state.closed().await;
-		}
-	}
-
 	/// Proxy all chunks and errors from the given consumer.
 	///
 	/// This takes ownership of the frame and publishes identical chunks to the other consumer.
@@ -276,5 +266,140 @@ impl FrameConsumer {
 			// close or abort was not called
 			Err(_) => Err(Error::Dropped),
 		}
+	}
+}
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+
+	#[tokio::test]
+	async fn test_frame_basic_write_read() {
+		let frame = Frame::produce(10u64.into());
+		let mut producer = frame.producer;
+		let mut consumer = frame.consumer;
+
+		producer.write_chunk(&b"hello"[..]).unwrap();
+		producer.write_chunk(&b"world"[..]).unwrap();
+		producer.close().unwrap();
+
+		let chunk1 = consumer.read_chunk().await.unwrap();
+		assert_eq!(chunk1, Some(Bytes::from_static(b"hello")));
+
+		let chunk2 = consumer.read_chunk().await.unwrap();
+		assert_eq!(chunk2, Some(Bytes::from_static(b"world")));
+
+		let chunk3 = consumer.read_chunk().await.unwrap();
+		assert_eq!(chunk3, None);
+	}
+
+	#[tokio::test]
+	async fn test_frame_read_all() {
+		let frame = Frame::produce(10u64.into());
+		let mut producer = frame.producer;
+		let mut consumer = frame.consumer;
+
+		producer.write_chunk(&b"hello"[..]).unwrap();
+		producer.write_chunk(&b"world"[..]).unwrap();
+		producer.close().unwrap();
+
+		let all = consumer.read_all().await.unwrap();
+		assert_eq!(all, Bytes::from_static(b"helloworld"));
+	}
+
+	#[tokio::test]
+	async fn test_frame_wrong_size_too_large() {
+		let frame = Frame::produce(5u64.into());
+		let mut producer = frame.producer;
+
+		let result = producer.write_chunk(&b"toolong"[..]);
+		assert!(result.is_err());
+	}
+
+	#[tokio::test]
+	async fn test_frame_wrong_size_too_small() {
+		let frame = Frame::produce(10u64.into());
+		let mut producer = frame.producer;
+
+		producer.write_chunk(&b"short"[..]).unwrap();
+		let result = producer.close();
+		assert!(result.is_err());
+	}
+
+	#[tokio::test]
+	async fn test_frame_abort() {
+		let frame = Frame::produce(10u64.into());
+		let mut producer = frame.producer;
+		let mut consumer = frame.consumer;
+
+		producer.write_chunk(&b"hello"[..]).unwrap();
+		producer.abort(Error::Expired);
+
+		let result = consumer.read_chunk().await;
+		assert!(result.is_err());
+	}
+
+	#[tokio::test]
+	async fn test_frame_abort_before_read() {
+		let frame = Frame::produce(10u64.into());
+		let mut producer = frame.producer;
+		let consumer = frame.consumer;
+
+		producer.abort(Error::Expired);
+
+		let result = consumer.closed().await;
+		assert!(result.is_err());
+	}
+
+	#[tokio::test]
+	async fn test_frame_multiple_consumers() {
+		let frame = Frame::produce(10u64.into());
+		let mut producer = frame.producer;
+		let mut consumer1 = frame.consumer.clone();
+		let mut consumer2 = frame.consumer;
+
+		producer.write_chunk(&b"hello"[..]).unwrap();
+		producer.write_chunk(&b"world"[..]).unwrap();
+		producer.close().unwrap();
+
+		let all1 = consumer1.read_all().await.unwrap();
+		let all2 = consumer2.read_all().await.unwrap();
+
+		assert_eq!(all1, Bytes::from_static(b"helloworld"));
+		assert_eq!(all2, Bytes::from_static(b"helloworld"));
+	}
+
+	#[tokio::test]
+	async fn test_frame_write_after_close() {
+		let frame = Frame::produce(5u64.into());
+		let mut producer = frame.producer;
+
+		producer.write_chunk(&b"hello"[..]).unwrap();
+		producer.close().unwrap();
+
+		let result = producer.write_chunk(&b"extra"[..]);
+		assert!(result.is_err());
+	}
+
+	#[tokio::test]
+	async fn test_frame_proxy() {
+		let source = Frame::produce(10u64.into());
+		let mut source_producer = source.producer;
+		let source_consumer = source.consumer;
+
+		let dest = Frame::produce(10u64.into());
+		let dest_producer = dest.producer;
+		let mut dest_consumer = dest.consumer;
+
+		source_producer.write_chunk(&b"hello"[..]).unwrap();
+		source_producer.write_chunk(&b"world"[..]).unwrap();
+		source_producer.close().unwrap();
+
+		let proxy_task = tokio::spawn(dest_producer.proxy(source_consumer));
+
+		let all = dest_consumer.read_all().await.unwrap();
+		assert_eq!(all, Bytes::from_static(b"helloworld"));
+
+		proxy_task.await.unwrap().unwrap();
 	}
 }

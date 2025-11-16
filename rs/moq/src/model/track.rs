@@ -55,9 +55,9 @@ struct TrackState {
 	// Store each group along with the time it was created.
 	// This is in creation order, not sequence order, so groups can expire out of order.
 	// I still make it a VecDeque because we almost always expire from the front.
-	groups: VecDeque<(GroupConsumer, std::time::Instant)>,
-	// Store the max sequence number
-	max: u64,
+	groups: VecDeque<(GroupConsumer, tokio::time::Instant)>,
+	// Store the next sequence number to use for append_group
+	next: u64,
 	closed: Option<Result<()>>,
 }
 
@@ -98,10 +98,11 @@ impl TrackState {
 			}
 		} else {
 			// There's no larger sequence number, so this is the latest group.
-			self.max = group.info.sequence;
+			// Update next_sequence to be one past this sequence.
+			self.next = group.info.sequence + 1;
 		}
 
-		self.groups.push_back((group.consume(), std::time::Instant::now()));
+		self.groups.push_back((group.consume(), tokio::time::Instant::now()));
 
 		Ok(expires)
 	}
@@ -125,9 +126,10 @@ impl TrackState {
 			None => (),
 		};
 
-		let sequence = self.max + 1;
+		let sequence = self.next;
+		self.next += 1;
 		let group = Group { sequence }.produce();
-		self.groups.push_back((group.consumer, std::time::Instant::now()));
+		self.groups.push_back((group.consumer, tokio::time::Instant::now()));
 
 		Ok(group.producer)
 	}
@@ -301,7 +303,7 @@ impl TrackProducer {
 			_ = async {
 				// Wait until this group is no longer the latest group.
 				let closed = state
-					.wait_for(|state| state.closed.is_some() || state.max > sequence)
+					.wait_for(|state| state.closed.is_some() || state.next > sequence + 1)
 					.await.unwrap().closed.clone();
 
 				match closed {
@@ -399,7 +401,7 @@ impl TrackConsumer {
 		let proxied = Track {
 			name: self.info.name.clone(),
 			priority: self.info.priority,
-			expires: expires,
+			expires,
 		}
 		.produce();
 
@@ -467,5 +469,347 @@ impl TrackConsumer {
 
 	pub fn assert_not_clone(&self, other: &Self) {
 		assert!(!self.is_clone(other), "should not be clone");
+	}
+}
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+	use bytes::Bytes;
+	use std::time::Duration;
+
+	#[tokio::test]
+	async fn test_track_basic_write_read() {
+		let track = Track::new("test").produce();
+		let mut producer = track.producer;
+		let mut consumer = track.consumer;
+
+		let mut g1 = producer.append_group().unwrap();
+		g1.write_frame(&b"frame1"[..]).unwrap();
+		g1.close().unwrap();
+
+		let mut g2 = producer.append_group().unwrap();
+		g2.write_frame(&b"frame2"[..]).unwrap();
+		g2.close().unwrap();
+
+		producer.close().unwrap();
+
+		let mut group1 = consumer.next_group().await.unwrap().unwrap();
+		assert_eq!(group1.info.sequence, 0);
+		let f1 = group1.read_frame().await.unwrap().unwrap();
+		assert_eq!(f1, Bytes::from_static(b"frame1"));
+
+		let mut group2 = consumer.next_group().await.unwrap().unwrap();
+		assert_eq!(group2.info.sequence, 1);
+		let f2 = group2.read_frame().await.unwrap().unwrap();
+		assert_eq!(f2, Bytes::from_static(b"frame2"));
+
+		let none = consumer.next_group().await;
+		assert!(none.unwrap().is_none());
+	}
+
+	#[tokio::test]
+	async fn test_track_write_frame_helper() {
+		let track = Track::new("test").produce();
+		let mut producer = track.producer;
+		let mut consumer = track.consumer;
+
+		producer.write_frame(&b"frame1"[..]).unwrap();
+		producer.write_frame(&b"frame2"[..]).unwrap();
+		producer.close().unwrap();
+
+		let mut group1 = consumer.next_group().await.unwrap().unwrap();
+		let f1 = group1.read_frame().await.unwrap().unwrap();
+		assert_eq!(f1, Bytes::from_static(b"frame1"));
+
+		let mut group2 = consumer.next_group().await.unwrap().unwrap();
+		let f2 = group2.read_frame().await.unwrap().unwrap();
+		assert_eq!(f2, Bytes::from_static(b"frame2"));
+	}
+
+	#[tokio::test(start_paused = true)]
+	async fn test_track_create_group() {
+		let mut track_info = Track::new("test");
+		track_info.expires = Duration::from_secs(10); // Long expiration so nothing expires
+		let track = track_info.produce();
+		let mut producer = track.producer;
+		let mut consumer = track.consumer;
+
+		let mut g1 = producer.create_group(Group { sequence: 5 }).unwrap();
+		g1.write_frame(&b"frame1"[..]).unwrap();
+		g1.close().unwrap();
+
+		let mut g2 = producer.create_group(Group { sequence: 3 }).unwrap();
+		g2.write_frame(&b"frame2"[..]).unwrap();
+		g2.close().unwrap();
+
+		producer.close().unwrap();
+
+		// Groups can arrive out of order
+		let group1 = consumer.next_group().await.unwrap().unwrap();
+		assert_eq!(group1.info.sequence, 5);
+
+		let group2 = consumer.next_group().await.unwrap().unwrap();
+		assert_eq!(group2.info.sequence, 3);
+	}
+
+	#[tokio::test]
+	async fn test_track_abort() {
+		let track = Track::new("test").produce();
+		let mut producer = track.producer;
+		let consumer = track.consumer;
+
+		producer.write_frame(&b"frame1"[..]).unwrap();
+		producer.abort(Error::Expired);
+
+		let result = consumer.closed().await;
+		assert!(result.is_err());
+	}
+
+	#[tokio::test]
+	async fn test_track_multiple_consumers() {
+		let track = Track::new("test").produce();
+		let mut producer = track.producer;
+		let mut consumer1 = track.consumer.clone();
+		let mut consumer2 = track.consumer;
+
+		producer.write_frame(&b"frame1"[..]).unwrap();
+		producer.write_frame(&b"frame2"[..]).unwrap();
+		producer.close().unwrap();
+
+		// Both consumers should receive all groups
+		let mut g1_c1 = consumer1.next_group().await.unwrap().unwrap();
+		let mut g2_c1 = consumer1.next_group().await.unwrap().unwrap();
+		let mut g1_c2 = consumer2.next_group().await.unwrap().unwrap();
+		let mut g2_c2 = consumer2.next_group().await.unwrap().unwrap();
+
+		let f1_c1 = g1_c1.read_frame().await.unwrap().unwrap();
+		let f2_c1 = g2_c1.read_frame().await.unwrap().unwrap();
+		let f1_c2 = g1_c2.read_frame().await.unwrap().unwrap();
+		let f2_c2 = g2_c2.read_frame().await.unwrap().unwrap();
+
+		assert_eq!(f1_c1, Bytes::from_static(b"frame1"));
+		assert_eq!(f2_c1, Bytes::from_static(b"frame2"));
+		assert_eq!(f1_c2, Bytes::from_static(b"frame1"));
+		assert_eq!(f2_c2, Bytes::from_static(b"frame2"));
+	}
+
+	#[tokio::test(start_paused = true)]
+	async fn test_track_expiration() {
+		let mut track_info = Track::new("test");
+		track_info.expires = Duration::from_millis(300);
+		let track = track_info.produce();
+		let mut producer = track.producer;
+		let mut consumer = track.consumer;
+
+		// Create group 0 at t=0
+		let mut g0 = producer.append_group().unwrap();
+		g0.write_frame(&b"old"[..]).unwrap();
+		g0.close().unwrap();
+
+		// Advance time by 100ms
+		tokio::time::sleep(Duration::from_millis(100)).await;
+
+		// Create group 1 at t=100ms
+		// This starts the expiration timer for group 0
+		// Group 0 should expire at t=100ms + 300ms = t=400ms
+		let mut g1 = producer.append_group().unwrap();
+		g1.write_frame(&b"new"[..]).unwrap();
+		g1.close().unwrap();
+
+		// Get group 0
+		let mut group0 = consumer.next_group().await.unwrap().unwrap();
+		assert_eq!(group0.info.sequence, 0);
+
+		// At t=100ms, group 0 should still be available
+		// Advance to t=350ms (250ms after group 1 was created)
+		tokio::time::sleep(Duration::from_millis(250)).await;
+		let frame = group0.read_frame().await.unwrap().unwrap();
+		assert_eq!(frame, Bytes::from_static(b"old"));
+
+		// Advance to t=450ms (past the expiration time of t=400ms)
+		tokio::time::sleep(Duration::from_millis(100)).await;
+
+		// Group 0 should be aborted now
+		let result = group0.closed().await;
+		assert!(result.is_err());
+	}
+
+	#[tokio::test(start_paused = true)]
+	async fn test_track_expiration_immediate() {
+		let mut track_info = Track::new("test");
+		track_info.expires = Duration::from_millis(100);
+		let track = track_info.produce();
+		let mut producer = track.producer;
+
+		// Create group 2 at t=0 (latest group)
+		let mut g2 = producer.create_group(Group { sequence: 2 }).unwrap();
+		g2.write_frame(&b"latest"[..]).unwrap();
+		g2.close().unwrap();
+
+		// Advance time by 150ms (past expiration)
+		tokio::time::sleep(Duration::from_millis(150)).await;
+
+		// Try to insert an old group (sequence 0)
+		// It was created 150ms after group 2, and group 2 is newer
+		// So this group should expire immediately (already past the 100ms expiration)
+		let old_group = Group { sequence: 0 }.produce();
+		let result = producer.insert_group(old_group.producer);
+		assert!(result.is_err());
+	}
+
+	#[tokio::test(start_paused = true)]
+	async fn test_track_out_of_order() {
+		let mut track_info = Track::new("test");
+		track_info.expires = Duration::from_secs(10); // Long expiration so nothing expires
+		let track = track_info.produce();
+		let mut producer = track.producer;
+		let mut consumer = track.consumer;
+
+		// Create groups out of order
+		let mut g2 = producer.create_group(Group { sequence: 2 }).unwrap();
+		g2.write_frame(&b"second"[..]).unwrap();
+		g2.close().unwrap();
+
+		let mut g0 = producer.create_group(Group { sequence: 0 }).unwrap();
+		g0.write_frame(&b"first"[..]).unwrap();
+		g0.close().unwrap();
+
+		let mut g1 = producer.create_group(Group { sequence: 1 }).unwrap();
+		g1.write_frame(&b"middle"[..]).unwrap();
+		g1.close().unwrap();
+
+		producer.close().unwrap();
+
+		// Consumer should receive them in arrival order
+		let mut group = consumer.next_group().await.unwrap().unwrap();
+		assert_eq!(group.info.sequence, 2);
+
+		group = consumer.next_group().await.unwrap().unwrap();
+		assert_eq!(group.info.sequence, 0);
+
+		group = consumer.next_group().await.unwrap().unwrap();
+		assert_eq!(group.info.sequence, 1);
+	}
+
+	#[tokio::test]
+	async fn test_track_close_flushes_pending() {
+		let track = Track::new("test").produce();
+		let mut producer = track.producer;
+		let mut consumer = track.consumer;
+
+		// Create a group and close the track without closing the group
+		let mut group = producer.append_group().unwrap();
+		group.write_frame(&b"pending"[..]).unwrap();
+		// Note: not closing the group
+
+		producer.close().unwrap();
+
+		// Consumer should still be able to get the group
+		let mut received_group = consumer.next_group().await.unwrap().unwrap();
+		assert_eq!(received_group.info.sequence, 0);
+
+		// And read the frame from it
+		let frame = received_group.read_frame().await.unwrap().unwrap();
+		assert_eq!(frame, Bytes::from_static(b"pending"));
+	}
+
+	#[tokio::test]
+	async fn test_track_insert_group() {
+		let track = Track::new("test").produce();
+		let mut producer = track.producer;
+		let mut consumer = track.consumer;
+
+		// Create a group externally
+		let external_group = Group { sequence: 10 }.produce();
+		let mut external_producer = external_group.producer;
+		external_producer.write_frame(&b"external"[..]).unwrap();
+		external_producer.close().unwrap();
+
+		// Insert it into the track
+		producer.insert_group(external_producer).unwrap();
+		producer.close().unwrap();
+
+		// Consumer should receive it
+		let mut group = consumer.next_group().await.unwrap().unwrap();
+		assert_eq!(group.info.sequence, 10);
+		let frame = group.read_frame().await.unwrap().unwrap();
+		assert_eq!(frame, Bytes::from_static(b"external"));
+	}
+
+	#[tokio::test]
+	async fn test_track_proxy() {
+		let source = Track::new("source").produce();
+		let mut source_producer = source.producer;
+		let source_consumer = source.consumer;
+
+		let dest = Track::new("dest").produce();
+		let dest_producer = dest.producer;
+		let mut dest_consumer = dest.consumer;
+
+		source_producer.write_frame(&b"frame1"[..]).unwrap();
+		source_producer.write_frame(&b"frame2"[..]).unwrap();
+		source_producer.close().unwrap();
+
+		let proxy_task = tokio::spawn(dest_producer.proxy(source_consumer));
+
+		let mut g1 = dest_consumer.next_group().await.unwrap().unwrap();
+		let f1 = g1.read_frame().await.unwrap().unwrap();
+		assert_eq!(f1, Bytes::from_static(b"frame1"));
+
+		let mut g2 = dest_consumer.next_group().await.unwrap().unwrap();
+		let f2 = g2.read_frame().await.unwrap().unwrap();
+		assert_eq!(f2, Bytes::from_static(b"frame2"));
+
+		let none = dest_consumer.next_group().await;
+		assert!(none.unwrap().is_none());
+
+		proxy_task.await.unwrap().unwrap();
+	}
+
+	#[tokio::test(start_paused = true)]
+	async fn test_track_proxy_abort() {
+		let mut source_info = Track::new("source");
+		source_info.expires = Duration::from_secs(10); // Long expiration
+		let source = source_info.produce();
+		let mut source_producer = source.producer;
+		let source_consumer = source.consumer;
+
+		let mut dest_info = Track::new("dest");
+		dest_info.expires = Duration::from_secs(10); // Long expiration
+		let dest = dest_info.produce();
+		let dest_producer = dest.producer;
+		let dest_consumer = dest.consumer;
+
+		source_producer.write_frame(&b"frame1"[..]).unwrap();
+		source_producer.abort(Error::Expired);
+
+		let proxy_task = tokio::spawn(dest_producer.proxy(source_consumer));
+
+		let result = dest_consumer.closed().await;
+		assert!(result.is_err());
+
+		// The proxy task should return an error (propagated from source abort)
+		let proxy_result = proxy_task.await.unwrap();
+		assert!(proxy_result.is_err());
+	}
+
+	#[tokio::test]
+	async fn test_track_expires_modifier() {
+		let mut track_info = Track::new("test");
+		track_info.expires = Duration::from_secs(100);
+		let track = track_info.produce();
+		let mut producer = track.producer;
+
+		producer.write_frame(&b"frame1"[..]).unwrap();
+
+		// Create a consumer with a shorter expiration
+		let consumer = track.consumer.expires(Duration::from_millis(50));
+
+		producer.write_frame(&b"frame2"[..]).unwrap();
+		producer.close().unwrap();
+
+		// The consumer should work normally
+		assert!(consumer.closed().await.is_ok());
 	}
 }

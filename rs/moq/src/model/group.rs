@@ -64,19 +64,19 @@ impl From<u16> for Group {
 #[derive(Default)]
 struct GroupState {
 	// The frames that has been written thus far
-	frames: Vec<FrameConsumer>,
+	frames: Vec<FrameProducer>,
 
 	// Whether the group is closed
 	closed: Option<Result<()>>,
 }
 
 impl GroupState {
-	pub fn append_frame(&mut self, consumer: FrameConsumer) -> Result<()> {
+	pub fn append_frame(&mut self, producer: FrameProducer) -> Result<()> {
 		if let Some(res) = &self.closed {
 			return Err(res.clone().err().unwrap_or(Error::Closed));
 		}
 
-		self.frames.push(consumer);
+		self.frames.push(producer);
 		Ok(())
 	}
 
@@ -87,6 +87,13 @@ impl GroupState {
 
 		self.closed = Some(Ok(()));
 		Ok(())
+	}
+
+	pub fn abort(&mut self, err: Error) {
+		for frame in &mut self.frames {
+			frame.abort(err.clone());
+		}
+		self.closed = Some(Err(err));
 	}
 }
 
@@ -130,17 +137,17 @@ impl GroupProducer {
 	/// Returns an error if the group is already closed.
 	pub fn create_frame(&mut self, info: Frame) -> Result<FrameProducer> {
 		let frame = Frame::produce(info);
-		self.append_frame(frame.consumer)?;
+		self.append_frame(frame.producer.clone())?;
 		Ok(frame.producer)
 	}
 
 	/// Append a frame to the group.
 	///
 	/// Returns an error if the group is already closed.
-	pub fn append_frame(&mut self, consumer: FrameConsumer) -> Result<()> {
+	pub fn append_frame(&mut self, frame: FrameProducer) -> Result<()> {
 		let mut result = Ok(());
 		self.state.send_if_modified(|state| {
-			result = state.append_frame(consumer);
+			result = state.append_frame(frame);
 			result.is_ok()
 		});
 		result
@@ -160,7 +167,7 @@ impl GroupProducer {
 
 	/// Immediately abort the group with an error.
 	pub fn abort(&mut self, err: Error) {
-		self.state.send_modify(|state| state.closed = Some(Err(err)));
+		self.state.send_modify(|state| state.abort(err));
 	}
 
 	/// Create a new consumer for the group.
@@ -279,7 +286,7 @@ impl GroupConsumer {
 
 				if let Some(frame) = state.frames.get(self.index).cloned() {
 					self.index += 1;
-					return Ok(Some(frame));
+					return Ok(Some(frame.consume()));
 				}
 
 				match &state.closed {
@@ -320,5 +327,179 @@ impl GroupConsumer {
 			// close or abort was not called
 			Err(_) => Err(Error::Dropped),
 		}
+	}
+}
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+
+	#[tokio::test]
+	async fn test_group_basic_write_read() {
+		let group = Group::produce(1u64.into());
+		let mut producer = group.producer;
+		let mut consumer = group.consumer;
+
+		producer.write_frame(&b"frame1"[..]).unwrap();
+		producer.write_frame(&b"frame2"[..]).unwrap();
+		producer.close().unwrap();
+
+		let frame1 = consumer.read_frame().await.unwrap();
+		assert_eq!(frame1, Some(Bytes::from_static(b"frame1")));
+
+		let frame2 = consumer.read_frame().await.unwrap();
+		assert_eq!(frame2, Some(Bytes::from_static(b"frame2")));
+
+		let frame3 = consumer.read_frame().await.unwrap();
+		assert_eq!(frame3, None);
+	}
+
+	#[tokio::test]
+	async fn test_group_next_frame() {
+		let group = Group::produce(1u64.into());
+		let mut producer = group.producer;
+		let mut consumer = group.consumer;
+
+		producer.write_frame(&b"test"[..]).unwrap();
+		producer.close().unwrap();
+
+		let mut frame = consumer.next_frame().await.unwrap().unwrap();
+		let data = frame.read_all().await.unwrap();
+		assert_eq!(data, Bytes::from_static(b"test"));
+
+		let none = consumer.next_frame().await.unwrap();
+		assert!(none.is_none());
+	}
+
+	#[tokio::test]
+	async fn test_group_abort() {
+		let group = Group::produce(1u64.into());
+		let mut producer = group.producer;
+		let mut consumer = group.consumer;
+
+		// Create a frame
+		let mut frame_producer = producer.create_frame(Frame { size: 6 }).unwrap();
+		frame_producer.write_chunk(&b"frame1"[..]).unwrap();
+
+		// Abort the group before closing the frame
+		producer.abort(Error::Expired);
+
+		// The group consumer should see the error
+		let result = consumer.read_frame().await;
+		assert!(result.is_err());
+
+		// The frame should also be aborted (abort propagates from group to frames)
+		let frame_result = frame_producer.close();
+		assert!(frame_result.is_err());
+	}
+
+	#[tokio::test]
+	async fn test_group_abort_before_read() {
+		let group = Group::produce(1u64.into());
+		let mut producer = group.producer;
+		let consumer = group.consumer;
+
+		producer.abort(Error::Expired);
+
+		let result = consumer.closed().await;
+		assert!(result.is_err());
+	}
+
+	#[tokio::test]
+	async fn test_group_multiple_consumers() {
+		let group = Group::produce(1u64.into());
+		let mut producer = group.producer;
+		let mut consumer1 = group.consumer.clone();
+		let mut consumer2 = group.consumer;
+
+		producer.write_frame(&b"frame1"[..]).unwrap();
+		producer.write_frame(&b"frame2"[..]).unwrap();
+		producer.close().unwrap();
+
+		let f1_c1 = consumer1.read_frame().await.unwrap().unwrap();
+		let f2_c1 = consumer1.read_frame().await.unwrap().unwrap();
+		let f1_c2 = consumer2.read_frame().await.unwrap().unwrap();
+		let f2_c2 = consumer2.read_frame().await.unwrap().unwrap();
+
+		assert_eq!(f1_c1, Bytes::from_static(b"frame1"));
+		assert_eq!(f2_c1, Bytes::from_static(b"frame2"));
+		assert_eq!(f1_c2, Bytes::from_static(b"frame1"));
+		assert_eq!(f2_c2, Bytes::from_static(b"frame2"));
+	}
+
+	#[tokio::test]
+	async fn test_group_write_after_close() {
+		let group = Group::produce(1u64.into());
+		let mut producer = group.producer;
+
+		producer.write_frame(&b"frame1"[..]).unwrap();
+		producer.close().unwrap();
+
+		let result = producer.write_frame(&b"frame2"[..]);
+		assert!(result.is_err());
+	}
+
+	#[tokio::test]
+	async fn test_group_create_frame() {
+		let group = Group::produce(1u64.into());
+		let mut producer = group.producer;
+		let mut consumer = group.consumer;
+
+		let mut frame = producer.create_frame(Frame { size: 5 }).unwrap();
+		frame.write_chunk(&b"hello"[..]).unwrap();
+		frame.close().unwrap();
+
+		producer.close().unwrap();
+
+		let data = consumer.read_frame().await.unwrap().unwrap();
+		assert_eq!(data, Bytes::from_static(b"hello"));
+	}
+
+	#[tokio::test]
+	async fn test_group_proxy() {
+		let source = Group::produce(1u64.into());
+		let mut source_producer = source.producer;
+		let source_consumer = source.consumer;
+
+		let dest = Group::produce(1u64.into());
+		let dest_producer = dest.producer;
+		let mut dest_consumer = dest.consumer;
+
+		source_producer.write_frame(&b"frame1"[..]).unwrap();
+		source_producer.write_frame(&b"frame2"[..]).unwrap();
+		source_producer.close().unwrap();
+
+		let proxy_task = tokio::spawn(dest_producer.proxy(source_consumer));
+
+		let f1 = dest_consumer.read_frame().await.unwrap().unwrap();
+		let f2 = dest_consumer.read_frame().await.unwrap().unwrap();
+		let f3 = dest_consumer.read_frame().await.unwrap();
+
+		assert_eq!(f1, Bytes::from_static(b"frame1"));
+		assert_eq!(f2, Bytes::from_static(b"frame2"));
+		assert!(f3.is_none());
+
+		proxy_task.await.unwrap().unwrap();
+	}
+
+	#[tokio::test]
+	async fn test_group_proxy_abort() {
+		let source = Group::produce(1u64.into());
+		let mut source_producer = source.producer;
+		let source_consumer = source.consumer;
+
+		let dest = Group::produce(1u64.into());
+		let dest_producer = dest.producer;
+		let dest_consumer = dest.consumer;
+
+		source_producer.write_frame(&b"frame1"[..]).unwrap();
+		source_producer.abort(Error::Expired);
+
+		let proxy_task = tokio::spawn(dest_producer.proxy(source_consumer));
+
+		let result = dest_consumer.closed().await;
+		assert!(result.is_err());
+
+		proxy_task.await.unwrap().unwrap();
 	}
 }
