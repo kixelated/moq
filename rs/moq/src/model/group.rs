@@ -10,6 +10,7 @@
 use std::future::Future;
 
 use bytes::Bytes;
+use futures::StreamExt;
 use tokio::sync::watch;
 
 use crate::{Error, Produce, Result};
@@ -69,6 +70,26 @@ struct GroupState {
 	closed: Option<Result<()>>,
 }
 
+impl GroupState {
+	pub fn append_frame(&mut self, consumer: FrameConsumer) -> Result<()> {
+		if let Some(res) = &self.closed {
+			return Err(res.clone().err().unwrap_or(Error::Closed));
+		}
+
+		self.frames.push(consumer);
+		Ok(())
+	}
+
+	pub fn close(&mut self) -> Result<()> {
+		if let Some(Err(err)) = &self.closed {
+			return Err(err.clone());
+		}
+
+		self.closed = Some(Ok(()));
+		Ok(())
+	}
+}
+
 /// Create a group, frame-by-frame.
 #[derive(Clone)]
 pub struct GroupProducer {
@@ -89,39 +110,56 @@ impl GroupProducer {
 
 	/// A helper method to write a frame from a single byte buffer.
 	///
-	/// If you want to write multiple chunks, use [Self::create] or [Self::append].
-	/// But an upfront size is required.
-	pub fn write_frame<B: Into<Bytes>>(&mut self, frame: B) {
+	/// If you want to write multiple chunks, use [Self::create_frame] or [Self::append_frame].
+	/// That requires knowing the size upfront, but it can be more efficient.
+	///
+	/// Returns an error if the group is already closed.
+	pub fn write_frame<B: Into<Bytes>>(&mut self, frame: B) -> Result<()> {
 		let data = frame.into();
 		let frame = Frame {
 			size: data.len() as u64,
 		};
-		let mut frame = self.create_frame(frame);
-		frame.write_chunk(data);
-		frame.close();
+		let mut frame = self.create_frame(frame)?;
+		frame.write_chunk(data)?;
+		frame.close()?;
+		Ok(())
 	}
 
 	/// Create a frame with an upfront size
-	pub fn create_frame(&mut self, info: Frame) -> FrameProducer {
+	///
+	/// Returns an error if the group is already closed.
+	pub fn create_frame(&mut self, info: Frame) -> Result<FrameProducer> {
 		let frame = Frame::produce(info);
-		self.append_frame(frame.consumer);
-		frame.producer
+		self.append_frame(frame.consumer)?;
+		Ok(frame.producer)
 	}
 
 	/// Append a frame to the group.
-	pub fn append_frame(&mut self, consumer: FrameConsumer) {
-		self.state.send_modify(|state| {
-			assert!(state.closed.is_none());
-			state.frames.push(consumer)
+	///
+	/// Returns an error if the group is already closed.
+	pub fn append_frame(&mut self, consumer: FrameConsumer) -> Result<()> {
+		let mut result = Ok(());
+		self.state.send_if_modified(|state| {
+			result = state.append_frame(consumer);
+			result.is_ok()
 		});
+		result
 	}
 
-	// Clean termination of the group.
-	pub fn close(self) {
-		self.state.send_modify(|state| state.closed = Some(Ok(())));
+	/// Clean termination of the group.
+	///
+	/// Returns an error if the group is already closed.
+	pub fn close(&mut self) -> Result<()> {
+		let mut result = Ok(());
+		self.state.send_if_modified(|state| {
+			result = state.close();
+			result.is_ok()
+		});
+		result
 	}
 
-	pub fn abort(self, err: Error) {
+	/// Immediately abort the group with an error.
+	pub fn abort(&mut self, err: Error) {
 		self.state.send_modify(|state| state.closed = Some(Err(err)));
 	}
 
@@ -139,6 +177,48 @@ impl GroupProducer {
 		let state = self.state.clone();
 		async move {
 			state.closed().await;
+		}
+	}
+
+	/// Proxy all frames and errors from the given consumer.
+	///
+	/// This takes ownership of the group and publishes identical frames to the other consumer.
+	///
+	/// Returns an error on any unexpected close, which can happen if the [GroupProducer] is cloned.
+	pub async fn proxy(mut self, other: GroupConsumer) -> Result<()> {
+		let mut frames = Some(other.clone());
+		let mut tasks = futures::stream::FuturesUnordered::new();
+
+		loop {
+			tokio::select! {
+				biased;
+				Some(frame) = async { Some(frames.as_mut()?.next_frame().await) } => {
+					match frame {
+						Ok(Some(frame)) => {
+							let producer = self.create_frame(frame.info.clone())?;
+							tasks.push(producer.proxy(frame));
+						}
+						Ok(None) => {
+							// Stop trying to call next_frame.
+							frames = None;
+							self.close()?;
+						}
+						Err(err) => {
+							self.abort(err);
+							return Ok(());
+						}
+					}
+				}
+				// Abort early if the other consumer is closed.
+				Err(err) = other.closed() => {
+					self.abort(err);
+					return Ok(());
+				}
+				// Wait until all groups have been proxied.
+				Some(_) = tasks.next() => (),
+				// We're done with the proxy.
+				else => return Ok(()),
+			}
 		}
 	}
 }
@@ -212,6 +292,33 @@ impl GroupConsumer {
 			if self.state.changed().await.is_err() {
 				return Err(Error::Cancel);
 			}
+		}
+	}
+
+	// Used to terminate the timeout task if we're already aborted.
+	pub(super) async fn aborted(&self) -> Error {
+		let mut state = self.state.clone();
+
+		let state = state
+			.wait_for(|state| state.closed.as_ref().map(|result| result.is_err()).unwrap_or(false))
+			.await;
+
+		match state {
+			Ok(state) => match state.closed.clone() {
+				Some(Ok(_)) => Error::Closed,
+				Some(Err(err)) => err.clone(),
+				None => Error::Cancel,
+			},
+			Err(_) => Error::Cancel,
+		}
+	}
+
+	/// Block until the frame is closed.
+	pub async fn closed(&self) -> Result<()> {
+		match self.state.clone().wait_for(|state| state.closed.is_some()).await {
+			Ok(state) => state.closed.clone().unwrap(),
+			// close or abort was not called
+			Err(_) => Err(Error::Dropped),
 		}
 	}
 }

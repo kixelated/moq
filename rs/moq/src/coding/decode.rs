@@ -99,13 +99,6 @@ impl Decode for Vec<u8> {
 	}
 }
 
-impl Decode for std::time::Duration {
-	fn decode<B: bytes::Buf>(buf: &mut B) -> Result<Self, DecodeError> {
-		let ms = u64::decode(buf)?;
-		Ok(std::time::Duration::from_micros(ms))
-	}
-}
-
 impl Decode for i8 {
 	fn decode<R: bytes::Buf>(r: &mut R) -> Result<Self, DecodeError> {
 		if !r.has_remaining() {

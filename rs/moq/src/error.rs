@@ -41,13 +41,15 @@ pub enum Error {
 	#[error("cancelled")]
 	Cancel,
 
+	#[error("closed")]
+	Closed,
+
 	/// It took too long to open or transmit a stream.
 	#[error("timeout")]
 	Timeout,
 
-	/// The group is older than the latest group and dropped.
-	#[error("old")]
-	Old,
+	#[error("expired")]
+	Expired,
 
 	// The application closes the stream with a code.
 	#[error("app code={0}")]
@@ -79,6 +81,9 @@ pub enum Error {
 
 	#[error("invalid role")]
 	InvalidRole,
+
+	#[error("dropped")]
+	Dropped,
 }
 
 impl Error {
@@ -87,11 +92,13 @@ impl Error {
 		match self {
 			Self::Cancel => 0,
 			Self::RequiredExtension(_) => 1,
-			Self::Old => 2,
+			Self::Expired => 2,
 			Self::Timeout => 3,
 			Self::Transport(_) => 4,
 			Self::Decode(_) => 5,
 			Self::Unauthorized => 6,
+			Self::Closed => 7,
+			Self::Dropped => 8,
 			Self::Version(..) => 9,
 			Self::UnexpectedStream => 10,
 			Self::BoundsExceeded(_) => 11,

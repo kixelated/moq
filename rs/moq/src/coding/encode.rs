@@ -37,13 +37,6 @@ impl Encode for &str {
 	}
 }
 
-impl Encode for std::time::Duration {
-	fn encode<W: bytes::BufMut>(&self, w: &mut W) {
-		let v: u64 = self.as_micros().try_into().expect("duration too large");
-		v.encode(w);
-	}
-}
-
 impl Encode for i8 {
 	fn encode<W: bytes::BufMut>(&self, w: &mut W) {
 		// This is not the usual way of encoding negative numbers.

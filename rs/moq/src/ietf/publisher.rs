@@ -91,6 +91,7 @@ impl<S: web_transport_trait::Session> Publisher<S> {
 		let track = Track {
 			name: msg.track_name.to_string(),
 			priority: msg.subscriber_priority,
+			expires: std::time::Duration::default(), // TODO parse delivery timeout parameter
 		};
 
 		let track = broadcast.subscribe_track(&track);

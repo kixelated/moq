@@ -12,19 +12,26 @@
 //!
 //! The track is closed with [Error] when all writers or readers are dropped.
 
+use futures::StreamExt;
 use tokio::sync::watch;
 
 use crate::{Error, Produce, Result};
 
 use super::{Group, GroupConsumer, GroupProducer};
 
-use std::{cmp::Ordering, future::Future};
+use std::{
+	collections::{HashSet, VecDeque},
+	future::Future,
+};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Track {
 	pub name: String,
 	pub priority: u8,
+
+	/// This group will expire this duration after a newer group is created.
+	pub expires: std::time::Duration,
 }
 
 impl Track {
@@ -32,6 +39,7 @@ impl Track {
 		Self {
 			name: name.into(),
 			priority: 0,
+			expires: std::time::Duration::default(),
 		}
 	}
 
@@ -44,8 +52,94 @@ impl Track {
 
 #[derive(Default)]
 struct TrackState {
-	latest: Option<GroupConsumer>,
+	// Store each group along with the time it was created.
+	// This is in creation order, not sequence order, so groups can expire out of order.
+	// I still make it a VecDeque because we almost always expire from the front.
+	groups: VecDeque<(GroupConsumer, std::time::Instant)>,
+	// Store the max sequence number
+	max: u64,
 	closed: Option<Result<()>>,
+}
+
+impl TrackState {
+	fn insert_group(&mut self, group: GroupProducer, mut expires: std::time::Duration) -> Result<std::time::Duration> {
+		// If the track is closed, return an error.
+		match &self.closed {
+			Some(Err(err)) => return Err(err.clone()),
+			Some(Ok(_)) => return Err(Error::Closed),
+			None => (),
+		};
+
+		assert!(
+			!self
+				.groups
+				.iter()
+				.any(|(other, _)| other.info.sequence == group.info.sequence),
+			"group already exists"
+		);
+
+		// Calculate the expiration time for this group
+		// Basically we find the first group we received that is newer than this one, and subtract the elapsed time.
+		// This means we can expire super old groups immediately.
+		let newest = self
+			.groups
+			.iter()
+			.filter(|(other, _)| other.info.sequence > group.info.sequence)
+			.map(|(_, when)| when)
+			.min();
+
+		if let Some(newest) = newest {
+			// Subtract the elapsed time from the expiration time.
+			expires = expires.saturating_sub(newest.elapsed());
+
+			// Already expired, so don't create it.
+			if expires.is_zero() {
+				return Err(Error::Expired);
+			}
+		} else {
+			// There's no larger sequence number, so this is the latest group.
+			self.max = group.info.sequence;
+		}
+
+		self.groups.push_back((group.consume(), std::time::Instant::now()));
+
+		Ok(expires)
+	}
+
+	fn create_group(
+		&mut self,
+		group: Group,
+		expires: std::time::Duration,
+	) -> Result<(GroupProducer, std::time::Duration)> {
+		let group = group.produce();
+		let expires = self.insert_group(group.producer.clone(), expires)?;
+		Ok((group.producer, expires))
+	}
+
+	// Same logic as create_group but simpler because it is always the latest group.
+	fn append_group(&mut self) -> Result<GroupProducer> {
+		// If the track is closed, return an error.
+		match &self.closed {
+			Some(Err(err)) => return Err(err.clone()),
+			Some(Ok(_)) => return Err(Error::Closed),
+			None => (),
+		};
+
+		let sequence = self.max + 1;
+		let group = Group { sequence }.produce();
+		self.groups.push_back((group.consumer, std::time::Instant::now()));
+
+		Ok(group.producer)
+	}
+
+	fn close(&mut self) -> Result<()> {
+		if let Some(Err(err)) = &self.closed {
+			return Err(err.clone());
+		}
+
+		self.closed = Some(Ok(()));
+		Ok(())
+	}
 }
 
 /// A producer for a track, used to create new groups.
@@ -63,62 +157,113 @@ impl TrackProducer {
 		}
 	}
 
-	/// Insert a group into the track, returning true if this is the latest group.
-	pub fn insert_group(&mut self, group: GroupConsumer) -> bool {
+	/// Insert an existing group into the track.
+	///
+	/// This is used to insert a group that was received from the network.
+	/// The group will be closed with [Error::Expired] if it is active too long.
+	pub fn insert_group(&mut self, group: GroupProducer) -> Result<()> {
+		let mut result = Err(Error::Closed); // We will replace this.
+
+		let producer = group.clone();
 		self.state.send_if_modified(|state| {
-			assert!(state.closed.is_none());
+			result = state.insert_group(producer, self.info.expires);
+			result.is_ok()
+		});
 
-			if let Some(latest) = &state.latest {
-				match group.info.cmp(&latest.info) {
-					Ordering::Less => return false,
-					Ordering::Equal => return false,
-					Ordering::Greater => (),
-				}
-			}
-
-			state.latest = Some(group.clone());
-			true
-		})
+		let expires = result?;
+		web_async::spawn(self.clone().expire(group, expires));
+		Ok(())
 	}
 
 	/// Create a new group with the given sequence number.
 	///
-	/// If the sequence number is not the latest, this method will return None.
-	pub fn create_group(&mut self, info: Group) -> Option<GroupProducer> {
-		let group = info.produce();
-		self.insert_group(group.consumer).then_some(group.producer)
+	/// The group will be closed with [Error::Expired] if it is active too long.
+	pub fn create_group(&mut self, info: Group) -> Result<GroupProducer> {
+		let mut result = Err(Error::Closed); // We will replace this.
+
+		self.state.send_if_modified(|state| {
+			result = state.create_group(info, self.info.expires);
+			result.is_ok()
+		});
+
+		let (producer, expires) = result?;
+		web_async::spawn(self.clone().expire(producer.clone(), expires));
+		Ok(producer)
 	}
 
 	/// Create a new group with the next sequence number.
-	pub fn append_group(&mut self) -> GroupProducer {
-		let mut producer = None;
+	///
+	/// The group will eventually be closed with [Error::Expired] if active too long.
+	pub fn append_group(&mut self) -> Result<GroupProducer> {
+		let mut result = Err(Error::Closed); // We will replace this.
 
 		self.state.send_if_modified(|state| {
-			assert!(state.closed.is_none());
-
-			let sequence = state.latest.as_ref().map_or(0, |group| group.info.sequence + 1);
-			let group = Group { sequence }.produce();
-			state.latest = Some(group.consumer);
-			producer = Some(group.producer);
-
-			true
+			result = state.append_group();
+			result.is_ok()
 		});
 
-		producer.unwrap()
+		let producer = result?;
+		web_async::spawn(self.clone().expire(producer.clone(), self.info.expires));
+		Ok(producer)
 	}
 
-	/// Create a group with a single frame.
-	pub fn write_frame<B: Into<bytes::Bytes>>(&mut self, frame: B) {
-		let mut group = self.append_group();
-		group.write_frame(frame.into());
-		group.close();
+	/// A helper to create a group with a single frame.
+	pub fn write_frame<B: Into<bytes::Bytes>>(&mut self, frame: B) -> Result<()> {
+		let mut group = self.append_group()?;
+		group.write_frame(frame.into()).unwrap();
+		group.close().unwrap();
+		Ok(())
 	}
 
-	pub fn close(self) {
-		self.state.send_modify(|state| state.closed = Some(Ok(())));
+	/// Proxy all groups and errors from the given consumer.
+	///
+	/// This takes ownership of the track and publishes identical groups to the other consumer.
+	/// Unfortunately, this is required to set a shorter expiration time for the proxy.
+	pub async fn proxy(mut self, other: TrackConsumer) -> Result<()> {
+		let mut groups = Some(other.clone());
+		let mut tasks = futures::stream::FuturesUnordered::new();
+
+		loop {
+			tokio::select! {
+				biased;
+				Some(group) = async { Some(groups.as_mut()?.next_group().await) } => {
+					match group {
+						Ok(Some(group)) => {
+							let producer = self.create_group(group.info.clone())?;
+							tasks.push(producer.proxy(group));
+						}
+						Ok(None) => {
+							groups = None;
+							self.close()?;
+						}
+						Err(err) => {
+							self.abort(err.clone());
+							return Err(err);
+						}
+					}
+				}
+				Err(err) = other.closed() => {
+					self.abort(err);
+					return Ok(());
+				}
+				Some(_) = tasks.next() => {}
+				else => return Ok(()),
+			}
+		}
 	}
 
-	pub fn abort(self, err: Error) {
+	pub fn close(&mut self) -> Result<()> {
+		let mut result = Ok(());
+
+		self.state.send_if_modified(|state| {
+			result = state.close();
+			result.is_ok()
+		});
+
+		result
+	}
+
+	pub fn abort(&mut self, err: Error) {
 		self.state.send_modify(|state| state.closed = Some(Err(err)));
 	}
 
@@ -127,7 +272,7 @@ impl TrackProducer {
 		TrackConsumer {
 			info: self.info.clone(),
 			state: self.state.subscribe(),
-			prev: None,
+			seen: Default::default(),
 		}
 	}
 
@@ -143,6 +288,42 @@ impl TrackProducer {
 	pub fn is_clone(&self, other: &Self) -> bool {
 		self.state.same_channel(&other.state)
 	}
+
+	async fn expire(self, mut group: GroupProducer, expires: std::time::Duration) {
+		let consumer = group.consume();
+		let mut state = self.state.subscribe();
+
+		let sequence = group.info.sequence;
+
+		tokio::select! {
+			// Abort early if the group is aborted.
+			_ = consumer.aborted() => (),
+			_ = async {
+				// Wait until this group is no longer the latest group.
+				let closed = state
+					.wait_for(|state| state.closed.is_some() || state.max > sequence)
+					.await.unwrap().closed.clone();
+
+				match closed {
+					Some(Err(err)) => group.abort(err),
+					_ => {
+						// Start the timer to expire the group.
+						tokio::time::sleep(expires).await;
+
+						// Expire the group.
+						group.abort(Error::Expired);
+					}
+				};
+
+			} => (),
+		};
+
+		// Remove the group from the list of active groups.
+		self.state.send_if_modified(|state| {
+			state.groups.retain(|(active, _)| active.info.sequence != sequence);
+			false
+		});
+	}
 }
 
 impl From<Track> for TrackProducer {
@@ -152,23 +333,34 @@ impl From<Track> for TrackProducer {
 }
 
 /// A consumer for a track, used to read groups.
+///
+/// NOTE: [Self::clone] remembers all of the groups returned from [Self::next_group].
 #[derive(Clone)]
 pub struct TrackConsumer {
 	pub info: Track,
 	state: watch::Receiver<TrackState>,
-	prev: Option<u64>, // The previous sequence number
+
+	// Record groups that we have already returned.
+	seen: HashSet<u64>,
 }
 
 impl TrackConsumer {
-	/// Return the next group in order.
+	/// Receive the next group over the network.
 	///
-	/// NOTE: This can have gaps if the reader is too slow or there were network slowdowns.
+	/// NOTE: This can return groups out of order, or with gaps, if there is queueing or network slowdowns.
 	pub async fn next_group(&mut self) -> Result<Option<GroupConsumer>> {
 		// Wait until there's a new latest group or the track is closed.
 		let state = match self
 			.state
 			.wait_for(|state| {
-				state.latest.as_ref().map(|group| group.info.sequence) > self.prev || state.closed.is_some()
+				// Check if we've seen the last element in the queue.
+				if let Some((last, _)) = state.groups.back() {
+					if !self.seen.contains(&last.info.sequence) {
+						return true;
+					}
+				}
+				// Otherwise, check if the track is closed.
+				state.closed.is_some()
 			})
 			.await
 		{
@@ -176,17 +368,48 @@ impl TrackConsumer {
 			Err(_) => return Err(Error::Cancel),
 		};
 
-		match &state.closed {
-			Some(Ok(_)) => return Ok(None),
-			Some(Err(err)) => return Err(err.clone()),
-			_ => {}
+		if let Some(Err(err)) = &state.closed {
+			return Err(err.clone());
+		}
+
+		// Periodically clean up the seen set to only include groups that are still active.
+		if self.seen.len() > 4 * state.groups.len() {
+			self.seen
+				.retain(|sequence| state.groups.iter().any(|(group, _)| group.info.sequence == *sequence));
 		}
 
 		// If there's a new latest group, return it.
-		let group = state.latest.clone().unwrap();
-		self.prev = Some(group.info.sequence);
+		for (group, _) in state.groups.iter() {
+			if !self.seen.contains(&group.info.sequence) {
+				self.seen.insert(group.info.sequence);
+				return Ok(Some(group.clone()));
+			}
+		}
 
-		Ok(Some(group))
+		state.closed.clone().expect("should be closed").map(|_| None)
+	}
+
+	/// Create a new consumer with a more strict expiration time.
+	pub fn expires(self, expires: std::time::Duration) -> Self {
+		if expires >= self.info.expires {
+			return self;
+		}
+
+		// Ugh create a new producer and proxy the state.
+		let proxied = Track {
+			name: self.info.name.clone(),
+			priority: self.info.priority,
+			expires: expires,
+		}
+		.produce();
+
+		web_async::spawn(async move {
+			if let Err(err) = proxied.producer.proxy(self).await {
+				tracing::warn!(?err, "failed to proxy track");
+			}
+		});
+
+		proxied.consumer
 	}
 
 	/// Block until the track is closed.

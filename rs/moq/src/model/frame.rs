@@ -52,6 +52,26 @@ struct FrameState {
 	closed: Option<Result<()>>,
 }
 
+impl FrameState {
+	pub fn write_chunk(&mut self, chunk: Bytes) -> Result<()> {
+		if let Some(res) = &self.closed {
+			return Err(res.clone().err().unwrap_or(Error::Closed));
+		}
+
+		self.chunks.push(chunk);
+		Ok(())
+	}
+
+	pub fn close(&mut self) -> Result<()> {
+		if let Some(Err(err)) = &self.closed {
+			return Err(err.clone());
+		}
+
+		self.closed = Some(Ok(()));
+		Ok(())
+	}
+}
+
 /// Used to write a frame's worth of data in chunks.
 #[derive(Clone)]
 pub struct FrameProducer {
@@ -74,23 +94,50 @@ impl FrameProducer {
 		}
 	}
 
-	pub fn write_chunk<B: Into<Bytes>>(&mut self, chunk: B) {
+	/// Write a chunk to the frame.
+	///
+	/// Returns an error if the chunk is too large or the frame has already been aborted.
+	pub fn write_chunk<B: Into<Bytes>>(&mut self, chunk: B) -> Result<()> {
 		let chunk = chunk.into();
-		self.written += chunk.len();
-		assert!(self.written <= self.info.size as usize);
+		let len = chunk.len();
 
-		self.state.send_modify(|state| {
-			assert!(state.closed.is_none());
-			state.chunks.push(chunk);
+		if self.written + len > self.info.size as usize {
+			return Err(Error::WrongSize);
+		}
+
+		let mut result = Ok(());
+		self.state.send_if_modified(|state| {
+			result = state.write_chunk(chunk);
+			result.is_ok()
 		});
+
+		result?;
+		self.written += len;
+
+		Ok(())
 	}
 
-	pub fn close(self) {
-		assert!(self.written == self.info.size as usize);
-		self.state.send_modify(|state| state.closed = Some(Ok(())));
+	/// Close the producer once the last chunk has been written.
+	///
+	/// Returns an error if the frame is not full or has already been aborted.
+	pub fn close(&mut self) -> Result<()> {
+		if self.written != self.info.size as usize {
+			return Err(Error::WrongSize);
+		}
+
+		let mut result = Ok(());
+		self.state.send_if_modified(|state| {
+			result = state.close();
+			result.is_ok()
+		});
+
+		result
 	}
 
-	pub fn abort(self, err: Error) {
+	/// Immediately abort the producer with an error.
+	///
+	/// This returns an error immediately to any consumers.
+	pub fn abort(&mut self, err: Error) {
 		self.state.send_modify(|state| state.closed = Some(Err(err)));
 	}
 
@@ -109,6 +156,37 @@ impl FrameProducer {
 		async move {
 			state.closed().await;
 		}
+	}
+
+	/// Proxy all chunks and errors from the given consumer.
+	///
+	/// This takes ownership of the frame and publishes identical chunks to the other consumer.
+	/// Returns an error on an unexpected close, which can happen if the [FrameProducer] is cloned.
+	pub async fn proxy(mut self, other: FrameConsumer) -> Result<()> {
+		let mut chunks = Some(other.clone());
+		loop {
+			tokio::select! {
+				biased;
+				Some(chunk) = async { Some(chunks.as_mut()?.read_chunk().await) } => match chunk {
+					Ok(Some(chunk)) => self.write_chunk(chunk)?,
+					Ok(None) => {
+						chunks = None;
+						self.close()?
+					},
+					Err(err) => {
+						self.abort(err);
+						break
+					},
+				},
+				Err(err) = other.closed() => {
+					self.abort(err);
+					break
+				},
+				else => break,
+			}
+		}
+
+		Ok(())
 	}
 }
 
@@ -133,26 +211,28 @@ pub struct FrameConsumer {
 }
 
 impl FrameConsumer {
-	// Return the next chunk.
+	// Return the next chunk, or None if the frame is finished.
 	pub async fn read_chunk(&mut self) -> Result<Option<Bytes>> {
 		loop {
 			{
 				let state = self.state.borrow_and_update();
+
+				if let Some(Err(err)) = &state.closed {
+					return Err(err.clone());
+				}
 
 				if let Some(chunk) = state.chunks.get(self.index).cloned() {
 					self.index += 1;
 					return Ok(Some(chunk));
 				}
 
-				match &state.closed {
-					Some(Ok(_)) => return Ok(None),
-					Some(Err(err)) => return Err(err.clone()),
-					_ => {}
+				if let Some(Ok(_)) = &state.closed {
+					return Ok(None);
 				}
 			}
 
 			if self.state.changed().await.is_err() {
-				return Err(Error::Cancel);
+				return Err(Error::Dropped);
 			}
 		}
 	}
@@ -168,7 +248,7 @@ impl FrameConsumer {
 				}
 				state
 			}
-			Err(_) => return Err(Error::Cancel),
+			Err(_) => return Err(Error::Dropped),
 		};
 
 		// Get all of the remaining chunks.
@@ -187,5 +267,14 @@ impl FrameConsumer {
 		}
 
 		Ok(buf.freeze())
+	}
+
+	/// Block until the frame is closed.
+	pub async fn closed(&self) -> Result<()> {
+		match self.state.clone().wait_for(|state| state.closed.is_some()).await {
+			Ok(state) => state.closed.clone().unwrap(),
+			// close or abort was not called
+			Err(_) => Err(Error::Dropped),
+		}
 	}
 }

@@ -53,6 +53,7 @@ async fn main() -> anyhow::Result<()> {
 	let track = Track {
 		name: config.track,
 		priority: 0,
+		expires: Default::default(),
 	};
 
 	match config.role {

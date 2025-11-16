@@ -67,6 +67,8 @@ impl BroadcastProducer {
 	}
 
 	/// Return the next requested track.
+	//
+	// TODO Improve this API so it's optional to support requests.
 	pub async fn requested_track(&mut self) -> Option<TrackProducer> {
 		self.requested.1.recv().await.ok()
 	}
@@ -142,7 +144,7 @@ impl Drop for BroadcastProducer {
 		self.requested.0.close();
 
 		// Drain any remaining requests.
-		while let Ok(producer) = self.requested.1.try_recv() {
+		while let Ok(mut producer) = self.requested.1.try_recv() {
 			producer.abort(Error::Cancel);
 		}
 
@@ -203,7 +205,7 @@ impl BroadcastConsumer {
 
 		// Otherwise we have never seen this track before and need to create a new producer.
 		let track = track.clone().produce();
-		let producer = track.producer;
+		let mut producer = track.producer;
 		let consumer = track.consumer;
 
 		// Insert the producer into the lookup so we will deduplicate requests.
@@ -269,7 +271,7 @@ mod test {
 
 		// Make sure we can insert before a consumer is created.
 		producer.insert_track(track1.consumer);
-		track1.producer.append_group();
+		track1.producer.append_group().expect("not closed");
 
 		let consumer = producer.consume();
 
@@ -283,7 +285,7 @@ mod test {
 		let mut track2_consumer = consumer2.subscribe_track(&track2.producer.info);
 		track2_consumer.assert_no_group();
 
-		track2.producer.append_group();
+		track2.producer.append_group().expect("not closed");
 
 		track2_consumer.assert_group();
 	}
@@ -331,7 +333,7 @@ mod test {
 
 		// Create a new track and insert it into the broadcast.
 		let mut track1 = Track::new("track1").produce();
-		track1.producer.append_group();
+		track1.producer.append_group().expect("not closed");
 		producer.insert_track(track1.consumer);
 
 		let mut track1c = consumer.subscribe_track(&track1.producer.info);
@@ -387,7 +389,7 @@ mod test {
 		track3.consume().assert_is_clone(&track1);
 
 		// Append a group and make sure they all get it.
-		track3.append_group();
+		track3.append_group().expect("not closed");
 		track1.assert_group();
 		track2.assert_group();
 

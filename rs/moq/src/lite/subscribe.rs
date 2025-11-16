@@ -15,6 +15,7 @@ pub struct Subscribe<'a> {
 	pub broadcast: Path<'a>,
 	pub track: Cow<'a, str>,
 	pub priority: u8,
+	pub expires: std::time::Duration,
 }
 
 impl<'a> Message for Subscribe<'a> {
@@ -23,12 +24,14 @@ impl<'a> Message for Subscribe<'a> {
 		let broadcast = Path::decode(r)?;
 		let track = Cow::<str>::decode(r)?;
 		let priority = u8::decode(r)?;
+		let expires = std::time::Duration::from_millis(u64::decode(r)?);
 
 		Ok(Self {
 			id,
 			broadcast,
 			track,
 			priority,
+			expires,
 		})
 	}
 
@@ -37,21 +40,19 @@ impl<'a> Message for Subscribe<'a> {
 		self.broadcast.encode(w);
 		self.track.encode(w);
 		self.priority.encode(w);
+
+		let expires: u64 = self.expires.as_millis().try_into().expect("duration too large");
+		expires.encode(w);
 	}
 }
 
 #[derive(Clone, Debug)]
-pub struct SubscribeOk {
-	pub priority: u8,
-}
+pub struct SubscribeOk {}
 
+// Yes it literally has zero length.
 impl Message for SubscribeOk {
-	fn encode<W: bytes::BufMut>(&self, w: &mut W) {
-		self.priority.encode(w);
-	}
-
-	fn decode<R: bytes::Buf>(r: &mut R) -> Result<Self, DecodeError> {
-		let priority = u8::decode(r)?;
-		Ok(Self { priority })
+	fn encode<W: bytes::BufMut>(&self, _: &mut W) {}
+	fn decode<R: bytes::Buf>(_: &mut R) -> Result<Self, DecodeError> {
+		Ok(Self {})
 	}
 }

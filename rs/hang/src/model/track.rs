@@ -17,9 +17,11 @@ use moq_lite::coding::*;
 /// - When a keyframe is written, the current group is finished and a new one begins.
 /// - Non-keyframes are appended to the current group.
 /// - Each frame includes a timestamp header for proper playback timing.
-#[derive(Clone)]
 pub struct TrackProducer {
 	pub inner: moq_lite::TrackProducer,
+
+	// The current group that we are writing.
+	// NOTE: This struct is not Clone for simplicity, otherwise we'd need a mutex here.
 	group: Option<moq_lite::GroupProducer>,
 }
 
@@ -44,21 +46,21 @@ impl TrackProducer {
 		timestamp.encode(&mut header);
 
 		if frame.keyframe {
-			if let Some(group) = self.group.take() {
-				group.close();
+			if let Some(mut group) = self.group.take() {
+				group.close().expect("impossible");
 			}
 		}
 
 		let mut group = match self.group.take() {
 			Some(group) => group,
-			None => self.inner.append_group(),
+			None => self.inner.append_group().expect("impossible"),
 		};
 
 		let size = header.len() + frame.payload.len();
-		let mut chunked = group.create_frame(size.into());
-		chunked.write_chunk(header.freeze());
-		chunked.write_chunk(frame.payload);
-		chunked.close();
+		let mut chunked = group.create_frame(size.into()).expect("impossible");
+		chunked.write_chunk(header.freeze()).expect("impossible");
+		chunked.write_chunk(frame.payload).expect("impossible");
+		chunked.close().expect("impossible");
 
 		self.group.replace(group);
 	}
