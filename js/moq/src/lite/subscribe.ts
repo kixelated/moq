@@ -4,18 +4,22 @@ import * as Message from "./message.ts";
 
 export class SubscribeUpdate {
 	priority: number;
+	expires: DOMHighResTimeStamp;
 
-	constructor(priority: number) {
+	constructor({ priority = 0, expires = 0 }: { priority: number; expires: DOMHighResTimeStamp }) {
 		this.priority = priority;
+		this.expires = expires;
 	}
 
 	async #encode(w: Writer) {
 		await w.u8(this.priority);
+		await w.u53(this.expires);
 	}
 
 	static async #decode(r: Reader): Promise<SubscribeUpdate> {
 		const priority = await r.u8();
-		return new SubscribeUpdate(priority);
+		const expires = await r.u53();
+		return new SubscribeUpdate({ priority, expires });
 	}
 
 	async encode(w: Writer): Promise<void> {
@@ -36,12 +40,20 @@ export class Subscribe {
 	broadcast: Path.Valid;
 	track: string;
 	priority: number;
+	expires: DOMHighResTimeStamp;
 
-	constructor(id: bigint, broadcast: Path.Valid, track: string, priority: number) {
+	constructor({
+		id,
+		broadcast,
+		track,
+		priority = 0,
+		expires = 0,
+	}: { id: bigint; broadcast: Path.Valid; track: string; priority: number; expires: DOMHighResTimeStamp }) {
 		this.id = id;
 		this.broadcast = broadcast;
 		this.track = track;
 		this.priority = priority;
+		this.expires = expires;
 	}
 
 	async #encode(w: Writer) {
@@ -49,6 +61,7 @@ export class Subscribe {
 		await w.string(this.broadcast);
 		await w.string(this.track);
 		await w.u8(this.priority);
+		await w.u53(this.expires);
 	}
 
 	static async #decode(r: Reader): Promise<Subscribe> {
@@ -56,7 +69,8 @@ export class Subscribe {
 		const broadcast = Path.from(await r.string());
 		const track = await r.string();
 		const priority = await r.u8();
-		return new Subscribe(id, broadcast, track, priority);
+		const expires = await r.u53();
+		return new Subscribe({ id, broadcast, track, priority, expires });
 	}
 
 	async encode(w: Writer): Promise<void> {
@@ -69,19 +83,9 @@ export class Subscribe {
 }
 
 export class SubscribeOk {
-	priority: number;
-
-	constructor(priority: number) {
-		this.priority = priority;
-	}
-
-	async #encode(w: Writer) {
-		await w.u8(this.priority);
-	}
-
-	static async #decode(r: Reader): Promise<SubscribeOk> {
-		const priority = await r.u8();
-		return new SubscribeOk(priority);
+	async #encode(_: Writer) {}
+	static async #decode(_: Reader): Promise<SubscribeOk> {
+		return new SubscribeOk();
 	}
 
 	async encode(w: Writer): Promise<void> {

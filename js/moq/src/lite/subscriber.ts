@@ -1,5 +1,5 @@
 import { Announced } from "../announced.ts";
-import { Broadcast, type TrackRequest } from "../broadcast.ts";
+import { Broadcast } from "../broadcast.ts";
 import { Group } from "../group.ts";
 import * as Path from "../path.ts";
 import { type Reader, Stream } from "../stream.ts";
@@ -46,7 +46,7 @@ export class Subscriber {
 
 		try {
 			// Open a stream and send the announce interest.
-			const stream = await Stream.open(this.#quic);
+			const stream = await Stream.open(this.#quic, { sendOrder: 255 });
 			await stream.writer.u53(StreamId.Announce);
 			await msg.encode(stream.writer);
 
@@ -89,44 +89,48 @@ export class Subscriber {
 
 		(async () => {
 			for (;;) {
-				const request = await broadcast.requested();
-				if (!request) break;
-				this.#runSubscribe(path, request);
+				const track = await broadcast.requested();
+				if (!track) break;
+				this.#runSubscribe(path, track);
 			}
 		})();
 
 		return broadcast;
 	}
 
-	async #runSubscribe(broadcast: Path.Valid, request: TrackRequest) {
+	async #runSubscribe(broadcast: Path.Valid, track: Track) {
 		const id = this.#subscribeNext++;
 
 		// Save the writer so we can append groups to it.
-		this.#subscribes.set(id, request.track);
+		this.#subscribes.set(id, track);
 
-		console.debug(`subscribe start: id=${id} broadcast=${broadcast} track=${request.track.name}`);
+		console.debug(`subscribe start: id=${id} broadcast=${broadcast} track=${track.name}`);
 
-		const msg = new Subscribe(id, broadcast, request.track.name, request.priority);
+		const msg = new Subscribe({
+			id,
+			broadcast,
+			track: track.name,
+			priority: track.priority,
+			expires: track.expires,
+		});
 
-		const stream = await Stream.open(this.#quic);
+		const stream = await Stream.open(this.#quic, { sendOrder: track.priority });
 		await stream.writer.u53(StreamId.Subscribe);
 		await msg.encode(stream.writer);
 
 		try {
 			await SubscribeOk.decode(stream.reader);
-			console.debug(`subscribe ok: id=${id} broadcast=${broadcast} track=${request.track.name}`);
+			console.debug(`subscribe ok: id=${id} broadcast=${broadcast} track=${track.name}`);
 
-			await Promise.race([stream.reader.closed, request.track.closed]);
+			await Promise.race([stream.reader.closed, track.closed]);
 
-			request.track.close();
+			track.close();
 			stream.close();
-			console.debug(`subscribe close: id=${id} broadcast=${broadcast} track=${request.track.name}`);
+			console.debug(`subscribe close: id=${id} broadcast=${broadcast} track=${track.name}`);
 		} catch (err) {
 			const e = error(err);
-			request.track.close(e);
-			console.warn(
-				`subscribe error: id=${id} broadcast=${broadcast} track=${request.track.name} error=${e.message}`,
-			);
+			track.close(e);
+			console.warn(`subscribe error: id=${id} broadcast=${broadcast} track=${track.name} error=${e.message}`);
 			stream.abort(e);
 		} finally {
 			this.#subscribes.delete(id);

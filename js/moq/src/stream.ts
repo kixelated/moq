@@ -33,8 +33,8 @@ export class Stream {
 		}
 	}
 
-	static async open(quic: WebTransport, priority?: number): Promise<Stream> {
-		return new Stream(await quic.createBidirectionalStream({ sendOrder: priority }));
+	static async open(quic: WebTransport, { sendOrder }: { sendOrder?: number } = {}): Promise<Stream> {
+		return new Stream(await quic.createBidirectionalStream({ sendOrder }));
 	}
 
 	close() {
@@ -296,8 +296,8 @@ export class Writer {
 		this.#writer.abort(reason).catch(() => void 0);
 	}
 
-	static async open(quic: WebTransport): Promise<Writer> {
-		const writable = (await quic.createUnidirectionalStream()) as WritableStream<Uint8Array>;
+	static async open(quic: WebTransport, { sendOrder }: { sendOrder?: number } = {}): Promise<Writer> {
+		const writable = (await quic.createUnidirectionalStream({ sendOrder })) as WritableStream<Uint8Array>;
 		return new Writer(writable);
 	}
 }

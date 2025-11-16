@@ -2,7 +2,7 @@ import type { Broadcast } from "../broadcast.ts";
 import type { Group } from "../group.ts";
 import type * as Path from "../path.ts";
 import { Writer } from "../stream.ts";
-import type { Track } from "../track.ts";
+import { Track } from "../track.js";
 import { error } from "../util/error.ts";
 import type * as Control from "./control.ts";
 import { Frame, Group as GroupMessage } from "./object.ts";
@@ -94,7 +94,8 @@ export class Publisher {
 			return;
 		}
 
-		const track = broadcast.subscribe(msg.trackName, msg.subscriberPriority);
+		const track = new Track({ name: msg.trackName, priority: msg.subscriberPriority, expires: 0 });
+		broadcast.subscribe(track);
 
 		// Send SUBSCRIBE_OK response on control stream
 		const okMsg = new SubscribeOk(msg.requestId, msg.requestId);
@@ -118,7 +119,7 @@ export class Publisher {
 			for (;;) {
 				const group = await track.nextGroup();
 				if (!group) break;
-				void this.#runGroup(requestId, group);
+				void this.#runGroup(requestId, track, group);
 			}
 
 			console.debug(`publish done: broadcast=${broadcast} track=${track.name}`);
@@ -141,10 +142,10 @@ export class Publisher {
 	 *
 	 * @internal
 	 */
-	async #runGroup(requestId: bigint, group: Group) {
+	async #runGroup(requestId: bigint, track: Track, group: Group) {
 		try {
 			// Create a new unidirectional stream for this group
-			const stream = await Writer.open(this.#quic);
+			const stream = await Writer.open(this.#quic, { sendOrder: track.priority });
 
 			// Write STREAM_HEADER_SUBGROUP
 			const header = new GroupMessage(requestId, group.sequence, 0, 0, {
