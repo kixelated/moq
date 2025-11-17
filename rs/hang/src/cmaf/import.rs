@@ -8,9 +8,9 @@ use mp4_atom::{Any, AsyncReadFrom, Atom, DecodeMaybe, Mdat, Moof, Moov, Tfdt, Tr
 use std::{collections::HashMap, time::Duration};
 use tokio::io::{AsyncRead, AsyncReadExt};
 
-// Keep transmitting groups for at most 4 seconds, configurable based on the viewer.
+// Keep transmitting groups for at most 10 seconds, configurable based on the viewer.
 // TODO: Make this configurable
-const MAX_EXPIRES: std::time::Duration = std::time::Duration::from_secs(4);
+const MAX_EXPIRES: std::time::Duration = std::time::Duration::from_secs(10);
 
 /// Converts fMP4/CMAF files into hang broadcast streams.
 ///

@@ -15,13 +15,14 @@
 use futures::StreamExt;
 use tokio::sync::watch;
 
-use crate::{Error, Produce, Result};
+use crate::{model::GroupProducerWeak, Error, Produce, Result};
 
 use super::{Group, GroupConsumer, GroupProducer};
 
 use std::{
 	collections::{HashSet, VecDeque},
 	future::Future,
+	sync::{atomic, Arc},
 };
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -142,13 +143,22 @@ impl TrackState {
 		self.closed = Some(Ok(()));
 		Ok(())
 	}
+
+	fn abort(&mut self, err: Error) -> bool {
+		if let Some(Err(_)) = &self.closed {
+			return false;
+		}
+
+		self.closed = Some(Err(err));
+		true
+	}
 }
 
 /// A producer for a track, used to create new groups.
-#[derive(Clone)]
 pub struct TrackProducer {
 	pub info: Track,
 	state: watch::Sender<TrackState>,
+	refs: Arc<atomic::AtomicUsize>,
 }
 
 impl TrackProducer {
@@ -156,6 +166,7 @@ impl TrackProducer {
 		Self {
 			info,
 			state: Default::default(),
+			refs: Arc::new(atomic::AtomicUsize::new(1)),
 		}
 	}
 
@@ -173,7 +184,7 @@ impl TrackProducer {
 		});
 
 		let expires = result?;
-		web_async::spawn(self.clone().expire(group, expires));
+		web_async::spawn(self.weak().expire(group.weak(), expires));
 		Ok(())
 	}
 
@@ -189,7 +200,7 @@ impl TrackProducer {
 		});
 
 		let (producer, expires) = result?;
-		web_async::spawn(self.clone().expire(producer.clone(), expires));
+		web_async::spawn(self.weak().expire(producer.weak(), expires));
 		Ok(producer)
 	}
 
@@ -205,7 +216,7 @@ impl TrackProducer {
 		});
 
 		let producer = result?;
-		web_async::spawn(self.clone().expire(producer.clone(), self.info.expires));
+		web_async::spawn(self.weak().expire(producer.weak(), self.info.expires));
 		Ok(producer)
 	}
 
@@ -265,8 +276,12 @@ impl TrackProducer {
 		result
 	}
 
+	pub fn is_closed(&self) -> bool {
+		self.state.borrow().closed.is_some()
+	}
+
 	pub fn abort(&mut self, err: Error) {
-		self.state.send_modify(|state| state.closed = Some(Err(err)));
+		self.state.send_if_modified(|state| state.abort(err));
 	}
 
 	/// Create a new consumer for the track.
@@ -291,46 +306,64 @@ impl TrackProducer {
 		self.state.same_channel(&other.state)
 	}
 
-	async fn expire(self, mut group: GroupProducer, expires: std::time::Duration) {
-		let consumer = group.consume();
-		let mut state = self.state.subscribe();
-
-		let sequence = group.info.sequence;
-
-		tokio::select! {
-			// Abort early if the group is aborted.
-			_ = consumer.aborted() => (),
-			_ = async {
-				// Wait until this group is no longer the latest group.
-				let closed = state
-					.wait_for(|state| state.closed.is_some() || state.next > sequence + 1)
-					.await.unwrap().closed.clone();
-
-				match closed {
-					Some(Err(err)) => group.abort(err),
-					_ => {
-						// Start the timer to expire the group.
-						tokio::time::sleep(expires).await;
-
-						// Expire the group.
-						group.abort(Error::Expired);
-					}
-				};
-
-			} => (),
-		};
-
-		// Remove the group from the list of active groups.
-		self.state.send_if_modified(|state| {
-			state.groups.retain(|(active, _)| active.info.sequence != sequence);
-			false
-		});
+	fn weak(&self) -> TrackProducerWeak {
+		TrackProducerWeak {
+			state: self.state.clone(),
+		}
 	}
 }
 
 impl From<Track> for TrackProducer {
 	fn from(info: Track) -> Self {
 		TrackProducer::new(info)
+	}
+}
+
+impl Drop for TrackProducer {
+	fn drop(&mut self) {
+		let refs = self.refs.fetch_sub(1, atomic::Ordering::Relaxed);
+		if refs == 1 && !self.is_closed() {
+			self.abort(Error::Dropped);
+		}
+	}
+}
+
+impl Clone for TrackProducer {
+	fn clone(&self) -> Self {
+		self.refs.fetch_add(1, atomic::Ordering::Relaxed);
+		Self {
+			info: self.info.clone(),
+			state: self.state.clone(),
+			refs: self.refs.clone(),
+		}
+	}
+}
+
+struct TrackProducerWeak {
+	state: watch::Sender<TrackState>,
+}
+
+impl TrackProducerWeak {
+	// Start a timer to expire the group, but don't hold a reference to the GroupProducer.
+	async fn expire(self, group: GroupProducerWeak, expires: std::time::Duration) {
+		let mut state = self.state.subscribe();
+		let sequence = group.info.sequence;
+
+		// Wait until this group is no longer the latest group.
+		let _ = state
+			.wait_for(|state| state.closed.is_some() || state.next > sequence + 1)
+			.await;
+
+		// Start the timer to expire the group.
+		tokio::time::sleep(expires).await;
+
+		group.abort(Error::Expired);
+
+		// Remove the group from the list of active groups.
+		self.state.send_if_modified(|state| {
+			state.groups.retain(|(active, _)| active.info.sequence != sequence);
+			false
+		});
 	}
 }
 
@@ -418,7 +451,7 @@ impl TrackConsumer {
 	pub async fn closed(&self) -> Result<()> {
 		match self.state.clone().wait_for(|state| state.closed.is_some()).await {
 			Ok(state) => state.closed.clone().unwrap(),
-			Err(_) => Err(Error::Cancel),
+			Err(_) => Err(Error::Dropped),
 		}
 	}
 

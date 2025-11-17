@@ -7,7 +7,10 @@
 //! The reader can be cloned, in which case each reader receives a copy of each frame. (fanout)
 //!
 //! The stream is closed with [ServeError::MoqError] when all writers or readers are dropped.
-use std::future::Future;
+use std::{
+	future::Future,
+	sync::{atomic, Arc},
+};
 
 use bytes::Bytes;
 use futures::StreamExt;
@@ -89,22 +92,31 @@ impl GroupState {
 		Ok(())
 	}
 
-	pub fn abort(&mut self, err: Error) {
+	pub fn abort(&mut self, err: Error) -> bool {
+		if let Some(Err(_)) = &self.closed {
+			return false;
+		}
+
 		for frame in &mut self.frames {
 			frame.abort(err.clone());
 		}
 		self.closed = Some(Err(err));
+
+		true
 	}
 }
 
 /// Create a group, frame-by-frame.
-#[derive(Clone)]
 pub struct GroupProducer {
+	// Immutable stream state.
+	pub info: Group,
+
 	// Mutable stream state.
 	state: watch::Sender<GroupState>,
 
-	// Immutable stream state.
-	pub info: Group,
+	// Incremented by one for each clone.
+	// We need this for group expiration, because we don't want it to count it as a ref.
+	refs: Arc<atomic::AtomicUsize>,
 }
 
 impl GroupProducer {
@@ -112,6 +124,7 @@ impl GroupProducer {
 		Self {
 			info,
 			state: Default::default(),
+			refs: Arc::new(atomic::AtomicUsize::new(1)),
 		}
 	}
 
@@ -165,9 +178,13 @@ impl GroupProducer {
 		result
 	}
 
+	pub fn is_closed(&self) -> bool {
+		self.state.borrow().closed.is_some()
+	}
+
 	/// Immediately abort the group with an error.
 	pub fn abort(&mut self, err: Error) {
-		self.state.send_modify(|state| state.abort(err));
+		self.state.send_if_modified(|state| state.abort(err));
 	}
 
 	/// Create a new consumer for the group.
@@ -228,11 +245,51 @@ impl GroupProducer {
 			}
 		}
 	}
+
+	pub(super) fn weak(&self) -> GroupProducerWeak {
+		GroupProducerWeak {
+			info: self.info.clone(),
+			state: self.state.clone(),
+		}
+	}
 }
 
 impl From<Group> for GroupProducer {
 	fn from(info: Group) -> Self {
 		GroupProducer::new(info)
+	}
+}
+
+impl Clone for GroupProducer {
+	fn clone(&self) -> Self {
+		self.refs.fetch_add(1, atomic::Ordering::Relaxed);
+		Self {
+			info: self.info.clone(),
+			state: self.state.clone(),
+			refs: self.refs.clone(),
+		}
+	}
+}
+
+impl Drop for GroupProducer {
+	fn drop(&mut self) {
+		let refs = self.refs.fetch_sub(1, atomic::Ordering::Relaxed);
+		if refs == 1 && !self.is_closed() {
+			self.abort(Error::Dropped);
+		}
+	}
+}
+
+#[derive(Clone)]
+pub(super) struct GroupProducerWeak {
+	pub info: Group,
+	// Mutable stream state.
+	state: watch::Sender<GroupState>,
+}
+
+impl GroupProducerWeak {
+	pub fn abort(self, err: Error) {
+		self.state.send_if_modified(|state| state.abort(err));
 	}
 }
 
@@ -299,24 +356,6 @@ impl GroupConsumer {
 			if self.state.changed().await.is_err() {
 				return Err(Error::Cancel);
 			}
-		}
-	}
-
-	// Used to terminate the timeout task if we're already aborted.
-	pub(super) async fn aborted(&self) -> Error {
-		let mut state = self.state.clone();
-
-		let state = state
-			.wait_for(|state| state.closed.as_ref().map(|result| result.is_err()).unwrap_or(false))
-			.await;
-
-		match state {
-			Ok(state) => match state.closed.clone() {
-				Some(Ok(_)) => Error::Closed,
-				Some(Err(err)) => err.clone(),
-				None => Error::Cancel,
-			},
-			Err(_) => Error::Cancel,
 		}
 	}
 

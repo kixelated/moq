@@ -68,6 +68,15 @@ impl FrameState {
 		self.closed = Some(Ok(()));
 		Ok(())
 	}
+
+	pub fn abort(&mut self, err: Error) -> bool {
+		if let Some(Err(_)) = &self.closed {
+			return false;
+		}
+
+		self.closed = Some(Err(err));
+		true
+	}
 }
 
 /// Used to write a frame's worth of data in chunks.
@@ -136,7 +145,7 @@ impl FrameProducer {
 	///
 	/// This returns an error immediately to any consumers.
 	pub fn abort(&mut self, err: Error) {
-		self.state.send_modify(|state| state.closed = Some(Err(err)));
+		self.state.send_if_modified(|state| state.abort(err));
 	}
 
 	/// Create a new consumer for the frame.

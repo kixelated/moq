@@ -1,6 +1,6 @@
 import { Signal } from "@kixelated/signals";
 import { Group } from "./group.ts";
-import { type Defer, defer } from "./util/promise.ts";
+import { defer } from "./util/promise.ts";
 
 class TrackState {
 	groups = new Signal<Group[]>([]);
