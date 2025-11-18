@@ -1,6 +1,10 @@
 use num_enum::{IntoPrimitive, TryFromPrimitive};
 
-use crate::{coding::*, lite::Message, Path};
+use crate::{
+	coding::*,
+	lite::{Message, Version},
+	Path,
+};
 
 /// Sent by the publisher to announce the availability of a track.
 /// The payload contains the contents of the wildcard.
@@ -18,26 +22,26 @@ pub enum Announce<'a> {
 }
 
 impl<'a> Message for Announce<'a> {
-	fn decode<R: bytes::Buf>(r: &mut R) -> Result<Self, DecodeError> {
-		Ok(match AnnounceStatus::decode(r)? {
+	fn decode<R: bytes::Buf>(r: &mut R, version: Version) -> Result<Self, DecodeError> {
+		Ok(match AnnounceStatus::decode(r, version)? {
 			AnnounceStatus::Active => Self::Active {
-				suffix: Path::decode(r)?,
+				suffix: Path::decode(r, version)?,
 			},
 			AnnounceStatus::Ended => Self::Ended {
-				suffix: Path::decode(r)?,
+				suffix: Path::decode(r, version)?,
 			},
 		})
 	}
 
-	fn encode<W: bytes::BufMut>(&self, w: &mut W) {
+	fn encode<W: bytes::BufMut>(&self, w: &mut W, version: Version) {
 		match self {
 			Self::Active { suffix } => {
-				AnnounceStatus::Active.encode(w);
-				suffix.encode(w);
+				AnnounceStatus::Active.encode(w, version);
+				suffix.encode(w, version);
 			}
 			Self::Ended { suffix } => {
-				AnnounceStatus::Ended.encode(w);
-				suffix.encode(w);
+				AnnounceStatus::Ended.encode(w, version);
+				suffix.encode(w, version);
 			}
 		}
 	}
@@ -51,13 +55,13 @@ pub struct AnnouncePlease<'a> {
 }
 
 impl<'a> Message for AnnouncePlease<'a> {
-	fn decode<R: bytes::Buf>(r: &mut R) -> Result<Self, DecodeError> {
-		let prefix = Path::decode(r)?;
+	fn decode<R: bytes::Buf>(r: &mut R, version: Version) -> Result<Self, DecodeError> {
+		let prefix = Path::decode(r, version)?;
 		Ok(Self { prefix })
 	}
 
-	fn encode<W: bytes::BufMut>(&self, w: &mut W) {
-		self.prefix.encode(w)
+	fn encode<W: bytes::BufMut>(&self, w: &mut W, version: Version) {
+		self.prefix.encode(w, version)
 	}
 }
 
@@ -69,16 +73,16 @@ enum AnnounceStatus {
 	Active = 1,
 }
 
-impl Decode for AnnounceStatus {
-	fn decode<R: bytes::Buf>(r: &mut R) -> Result<Self, DecodeError> {
-		let status = u8::decode(r)?;
+impl<V> Decode<V> for AnnounceStatus {
+	fn decode<R: bytes::Buf>(r: &mut R, version: V) -> Result<Self, DecodeError> {
+		let status = u8::decode(r, version)?;
 		status.try_into().map_err(|_| DecodeError::InvalidValue)
 	}
 }
 
-impl Encode for AnnounceStatus {
-	fn encode<W: bytes::BufMut>(&self, w: &mut W) {
-		(*self as u8).encode(w)
+impl<V> Encode<V> for AnnounceStatus {
+	fn encode<W: bytes::BufMut>(&self, w: &mut W, version: V) {
+		(*self as u8).encode(w, version)
 	}
 }
 
@@ -92,23 +96,23 @@ pub struct AnnounceInit<'a> {
 }
 
 impl<'a> Message for AnnounceInit<'a> {
-	fn decode<R: bytes::Buf>(r: &mut R) -> Result<Self, DecodeError> {
-		let count = u64::decode(r)?;
+	fn decode<R: bytes::Buf>(r: &mut R, version: Version) -> Result<Self, DecodeError> {
+		let count = u64::decode(r, version)?;
 
 		// Don't allocate more than 1024 elements upfront
 		let mut paths = Vec::with_capacity(count.min(1024) as usize);
 
 		for _ in 0..count {
-			paths.push(Path::decode(r)?);
+			paths.push(Path::decode(r, version)?);
 		}
 
 		Ok(Self { suffixes: paths })
 	}
 
-	fn encode<W: bytes::BufMut>(&self, w: &mut W) {
-		(self.suffixes.len() as u64).encode(w);
+	fn encode<W: bytes::BufMut>(&self, w: &mut W, version: Version) {
+		(self.suffixes.len() as u64).encode(w, version);
 		for path in &self.suffixes {
-			path.encode(w);
+			path.encode(w, version);
 		}
 	}
 }

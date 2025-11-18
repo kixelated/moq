@@ -5,7 +5,7 @@ use std::{
 
 use crate::{
 	coding::Reader,
-	ietf::{self, Control, FetchHeader, FilterType, GroupFlags, GroupOrder, RequestId},
+	ietf::{self, Control, FetchHeader, FilterType, GroupFlags, GroupOrder, RequestId, Version},
 	model::BroadcastProducer,
 	Broadcast, Error, Frame, FrameProducer, Group, GroupProducer, OriginProducer, Path, PathOwned, Track,
 	TrackProducer,
@@ -47,15 +47,18 @@ pub(super) struct Subscriber<S: web_transport_trait::Session> {
 	origin: Option<OriginProducer>,
 	state: Lock<State>,
 	control: Control,
+
+	version: Version,
 }
 
 impl<S: web_transport_trait::Session> Subscriber<S> {
-	pub fn new(session: S, origin: Option<OriginProducer>, control: Control) -> Self {
+	pub fn new(session: S, origin: Option<OriginProducer>, control: Control, version: Version) -> Self {
 		Self {
 			session,
 			origin,
 			state: Default::default(),
 			control,
+			version,
 		}
 	}
 
@@ -188,7 +191,7 @@ impl<S: web_transport_trait::Session> Subscriber<S> {
 				.await
 				.map_err(|err| Error::Transport(Arc::new(err)))?;
 
-			let stream = Reader::new(stream);
+			let stream = Reader::new(stream, self.version);
 			let this = self.clone();
 
 			web_async::spawn(async move {
@@ -199,7 +202,7 @@ impl<S: web_transport_trait::Session> Subscriber<S> {
 		}
 	}
 
-	async fn run_uni_stream(mut self, mut stream: Reader<S::RecvStream>) -> Result<(), Error> {
+	async fn run_uni_stream(mut self, mut stream: Reader<S::RecvStream, Version>) -> Result<(), Error> {
 		let kind: u64 = stream.decode_peek().await?;
 
 		match kind {
@@ -282,7 +285,7 @@ impl<S: web_transport_trait::Session> Subscriber<S> {
 		Ok(())
 	}
 
-	pub async fn recv_group(&mut self, stream: &mut Reader<S::RecvStream>) -> Result<(), Error> {
+	pub async fn recv_group(&mut self, stream: &mut Reader<S::RecvStream, Version>) -> Result<(), Error> {
 		let group: ietf::GroupHeader = stream.decode().await?;
 		tracing::trace!(?group, "received group header");
 
@@ -333,7 +336,7 @@ impl<S: web_transport_trait::Session> Subscriber<S> {
 	async fn run_group(
 		&mut self,
 		group: ietf::GroupHeader,
-		stream: &mut Reader<S::RecvStream>,
+		stream: &mut Reader<S::RecvStream, Version>,
 		mut producer: GroupProducer,
 	) -> Result<(), Error> {
 		while let Some(id_delta) = stream.decode_maybe::<u64>().await? {
@@ -375,7 +378,11 @@ impl<S: web_transport_trait::Session> Subscriber<S> {
 		Ok(())
 	}
 
-	async fn run_frame(&mut self, stream: &mut Reader<S::RecvStream>, mut frame: FrameProducer) -> Result<(), Error> {
+	async fn run_frame(
+		&mut self,
+		stream: &mut Reader<S::RecvStream, Version>,
+		mut frame: FrameProducer,
+	) -> Result<(), Error> {
 		let mut remain = frame.info.size;
 
 		tracing::trace!(size = %frame.info.size, "reading frame");

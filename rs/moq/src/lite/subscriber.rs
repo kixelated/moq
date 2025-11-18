@@ -5,7 +5,7 @@ use std::{
 
 use crate::{
 	coding::{Reader, Stream},
-	lite,
+	lite::{self, Version},
 	model::BroadcastProducer,
 	AsPath, Broadcast, Error, Frame, FrameProducer, Group, GroupProducer, OriginProducer, Path, PathOwned,
 	TrackProducer,
@@ -21,15 +21,17 @@ pub(super) struct Subscriber<S: web_transport_trait::Session> {
 	origin: Option<OriginProducer>,
 	subscribes: Lock<HashMap<u64, TrackProducer>>,
 	next_id: Arc<atomic::AtomicU64>,
+	version: Version,
 }
 
 impl<S: web_transport_trait::Session> Subscriber<S> {
-	pub fn new(session: S, origin: Option<OriginProducer>) -> Self {
+	pub fn new(session: S, origin: Option<OriginProducer>, version: Version) -> Self {
 		Self {
 			session,
 			origin,
 			subscribes: Default::default(),
 			next_id: Default::default(),
+			version,
 		}
 	}
 
@@ -49,7 +51,7 @@ impl<S: web_transport_trait::Session> Subscriber<S> {
 				.await
 				.map_err(|err| Error::Transport(Arc::new(err)))?;
 
-			let stream = Reader::new(stream);
+			let stream = Reader::new(stream, self.version);
 			let this = self.clone();
 
 			web_async::spawn(async move {
@@ -60,7 +62,7 @@ impl<S: web_transport_trait::Session> Subscriber<S> {
 		}
 	}
 
-	async fn run_uni_stream(mut self, mut stream: Reader<S::RecvStream>) -> Result<(), Error> {
+	async fn run_uni_stream(mut self, mut stream: Reader<S::RecvStream, Version>) -> Result<(), Error> {
 		let kind = stream.decode().await?;
 
 		let res = match kind {
@@ -81,7 +83,7 @@ impl<S: web_transport_trait::Session> Subscriber<S> {
 			return Ok(());
 		}
 
-		let mut stream = Stream::open(&self.session).await?;
+		let mut stream = Stream::open(&self.session, self.version).await?;
 		stream.writer.encode(&lite::ControlType::Announce).await?;
 
 		tracing::trace!(root = %self.log_path(""), "announced start");
@@ -180,6 +182,7 @@ impl<S: web_transport_trait::Session> Subscriber<S> {
 			track: (&track.info.name).into(),
 			priority: track.info.priority,
 			expires: track.info.expires,
+			version: self.version,
 		};
 
 		tracing::info!(id, broadcast = %self.log_path(&broadcast), track = %track.info.name, "subscribe started");
@@ -206,7 +209,7 @@ impl<S: web_transport_trait::Session> Subscriber<S> {
 	}
 
 	async fn run_track(&mut self, msg: lite::Subscribe<'_>) -> Result<(), Error> {
-		let mut stream = Stream::open(&self.session).await?;
+		let mut stream = Stream::open(&self.session, self.version).await?;
 		stream.writer.encode(&lite::ControlType::Subscribe).await?;
 
 		if let Err(err) = self.run_track_stream(&mut stream, msg).await {
@@ -218,7 +221,11 @@ impl<S: web_transport_trait::Session> Subscriber<S> {
 		stream.writer.closed().await
 	}
 
-	async fn run_track_stream(&mut self, stream: &mut Stream<S>, msg: lite::Subscribe<'_>) -> Result<(), Error> {
+	async fn run_track_stream(
+		&mut self,
+		stream: &mut Stream<S, Version>,
+		msg: lite::Subscribe<'_>,
+	) -> Result<(), Error> {
 		stream.writer.encode(&msg).await?;
 
 		// TODO use the response correctly populate the track info
@@ -230,7 +237,7 @@ impl<S: web_transport_trait::Session> Subscriber<S> {
 		Ok(())
 	}
 
-	pub async fn recv_group(&mut self, stream: &mut Reader<S::RecvStream>) -> Result<(), Error> {
+	pub async fn recv_group(&mut self, stream: &mut Reader<S::RecvStream, Version>) -> Result<(), Error> {
 		let hdr: lite::Group = stream.decode().await?;
 
 		let mut group = {
@@ -264,7 +271,11 @@ impl<S: web_transport_trait::Session> Subscriber<S> {
 		Ok(())
 	}
 
-	async fn run_group(&mut self, stream: &mut Reader<S::RecvStream>, mut group: GroupProducer) -> Result<(), Error> {
+	async fn run_group(
+		&mut self,
+		stream: &mut Reader<S::RecvStream, Version>,
+		mut group: GroupProducer,
+	) -> Result<(), Error> {
 		while let Some(size) = stream.decode_maybe::<u64>().await? {
 			let mut frame = group.create_frame(Frame { size })?;
 
@@ -279,7 +290,11 @@ impl<S: web_transport_trait::Session> Subscriber<S> {
 		Ok(())
 	}
 
-	async fn run_frame(&mut self, stream: &mut Reader<S::RecvStream>, mut frame: FrameProducer) -> Result<(), Error> {
+	async fn run_frame(
+		&mut self,
+		stream: &mut Reader<S::RecvStream, Version>,
+		mut frame: FrameProducer,
+	) -> Result<(), Error> {
 		let mut remain = frame.info.size;
 
 		tracing::trace!(size = %frame.info.size, "reading frame");

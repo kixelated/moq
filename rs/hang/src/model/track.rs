@@ -4,7 +4,7 @@ use crate::model::{Frame, GroupConsumer, Timestamp};
 use crate::Error;
 use futures::{stream::FuturesUnordered, StreamExt};
 
-use moq_lite::coding::*;
+use moq_lite::{coding::*, lite};
 
 /// A producer for media tracks.
 ///
@@ -43,7 +43,7 @@ impl TrackProducer {
 	pub fn write(&mut self, frame: Frame) {
 		let timestamp = frame.timestamp.as_micros() as u64;
 		let mut header = BytesMut::new();
-		timestamp.encode(&mut header);
+		timestamp.encode(&mut header, lite::Version::Draft03);
 
 		if frame.keyframe {
 			if let Some(mut group) = self.group.take() {

@@ -1,6 +1,6 @@
 use crate::{
 	coding::{Decode, DecodeError, Encode},
-	ietf::Message,
+	ietf::{Message, Version},
 };
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
@@ -20,15 +20,15 @@ impl std::fmt::Display for RequestId {
 	}
 }
 
-impl Encode for RequestId {
-	fn encode<W: bytes::BufMut>(&self, w: &mut W) {
-		self.0.encode(w);
+impl<V> Encode<V> for RequestId {
+	fn encode<W: bytes::BufMut>(&self, w: &mut W, version: V) {
+		self.0.encode(w, version);
 	}
 }
 
-impl Decode for RequestId {
-	fn decode<R: bytes::Buf>(r: &mut R) -> Result<Self, DecodeError> {
-		let request_id = u64::decode(r)?;
+impl<V> Decode<V> for RequestId {
+	fn decode<R: bytes::Buf>(r: &mut R, version: V) -> Result<Self, DecodeError> {
+		let request_id = u64::decode(r, version)?;
 		Ok(Self(request_id))
 	}
 }
@@ -41,12 +41,12 @@ pub struct MaxRequestId {
 impl Message for MaxRequestId {
 	const ID: u64 = 0x15;
 
-	fn encode<W: bytes::BufMut>(&self, w: &mut W) {
-		self.request_id.encode(w);
+	fn encode<W: bytes::BufMut>(&self, w: &mut W, version: Version) {
+		self.request_id.encode(w, version);
 	}
 
-	fn decode<R: bytes::Buf>(r: &mut R) -> Result<Self, DecodeError> {
-		let request_id = RequestId::decode(r)?;
+	fn decode<R: bytes::Buf>(r: &mut R, version: Version) -> Result<Self, DecodeError> {
+		let request_id = RequestId::decode(r, version)?;
 		Ok(Self { request_id })
 	}
 }
@@ -59,12 +59,12 @@ pub struct RequestsBlocked {
 impl Message for RequestsBlocked {
 	const ID: u64 = 0x1a;
 
-	fn encode<W: bytes::BufMut>(&self, w: &mut W) {
-		self.request_id.encode(w);
+	fn encode<W: bytes::BufMut>(&self, w: &mut W, version: Version) {
+		self.request_id.encode(w, version);
 	}
 
-	fn decode<R: bytes::Buf>(r: &mut R) -> Result<Self, DecodeError> {
-		let request_id = RequestId::decode(r)?;
+	fn decode<R: bytes::Buf>(r: &mut R, version: Version) -> Result<Self, DecodeError> {
+		let request_id = RequestId::decode(r, version)?;
 		Ok(Self { request_id })
 	}
 }

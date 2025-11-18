@@ -5,5 +5,3 @@ export const Version = {
 } as const;
 
 export type Version = (typeof Version)[keyof typeof Version];
-
-export const SUPPORTED: Version[] = [Version.DRAFT_03, Version.DRAFT_02, Version.DRAFT_01];

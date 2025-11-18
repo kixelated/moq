@@ -18,17 +18,17 @@ pub enum ControlType {
 	ServerCompatV14 = 0x21,
 }
 
-impl Decode for ControlType {
-	fn decode<R: bytes::Buf>(r: &mut R) -> Result<Self, DecodeError> {
-		let t = u64::decode(r)?;
+impl<V> Decode<V> for ControlType {
+	fn decode<R: bytes::Buf>(r: &mut R, version: V) -> Result<Self, DecodeError> {
+		let t = u64::decode(r, version)?;
 		t.try_into().map_err(|_| DecodeError::InvalidValue)
 	}
 }
 
-impl Encode for ControlType {
-	fn encode<W: bytes::BufMut>(&self, w: &mut W) {
+impl<V> Encode<V> for ControlType {
+	fn encode<W: bytes::BufMut>(&self, w: &mut W, version: V) {
 		let v: u64 = (*self).into();
-		v.encode(w)
+		v.encode(w, version)
 	}
 }
 
@@ -38,16 +38,16 @@ pub enum DataType {
 	Group = 0,
 }
 
-impl Decode for DataType {
-	fn decode<R: bytes::Buf>(r: &mut R) -> Result<Self, DecodeError> {
-		let t = u64::decode(r)?;
+impl<V> Decode<V> for DataType {
+	fn decode<R: bytes::Buf>(r: &mut R, version: V) -> Result<Self, DecodeError> {
+		let t = u64::decode(r, version)?;
 		t.try_into().map_err(|_| DecodeError::InvalidValue)
 	}
 }
 
-impl Encode for DataType {
-	fn encode<W: bytes::BufMut>(&self, w: &mut W) {
+impl<V> Encode<V> for DataType {
+	fn encode<W: bytes::BufMut>(&self, w: &mut W, version: V) {
 		let v: u64 = (*self).into();
-		v.encode(w)
+		v.encode(w, version)
 	}
 }

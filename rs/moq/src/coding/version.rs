@@ -6,61 +6,9 @@ use std::{fmt, ops::Deref};
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Version(pub u64);
 
-impl Version {
-	/// <https://www.ietf.org/archive/id/draft-ietf-moq-transport-00.html>
-	pub const IETF_00: Version = Version(0xff000000);
-
-	/// <https://www.ietf.org/archive/id/draft-ietf-moq-transport-01.html>
-	pub const IETF_01: Version = Version(0xff000001);
-
-	/// <https://www.ietf.org/archive/id/draft-ietf-moq-transport-02.html>
-	pub const IETF_02: Version = Version(0xff000002);
-
-	/// <https://www.ietf.org/archive/id/draft-ietf-moq-transport-03.html>
-	pub const IETF_03: Version = Version(0xff000003);
-
-	/// <https://www.ietf.org/archive/id/draft-ietf-moq-transport-04.html>
-	pub const IETF_04: Version = Version(0xff000004);
-
-	/// <https://www.ietf.org/archive/id/draft-ietf-moq-transport-07.html>
-	pub const IETF_07: Version = Version(0xff000007);
-
-	/// <https://www.ietf.org/archive/id/draft-ietf-moq-transport-14.html>
-	pub const IETF_14: Version = Version(0xff00000e);
-
-	pub const IETF_LATEST: Version = Self::IETF_14;
-
-	/// <https://www.ietf.org/archive/id/draft-lcurley-moq-transfork-00.html>
-	pub const FORK_00: Version = Version(0xff0bad00);
-
-	/// <https://www.ietf.org/archive/id/draft-lcurley-moq-transfork-01.html>
-	pub const FORK_01: Version = Version(0xff0bad01);
-
-	/// <https://www.ietf.org/archive/id/draft-lcurley-moq-transfork-02.html>
-	pub const FORK_02: Version = Version(0xff0bad02);
-
-	/// <https://www.ietf.org/archive/id/draft-lcurley-moq-transfork-03.html>
-	pub const FORK_03: Version = Version(0xff0bad03);
-
-	/// Unpublished: <https://kixelated.github.io/moq-drafts/draft-lcurley-moq-transfork.html>
-	pub const FORK_04: Version = Version(0xff0bad04);
-
-	pub const LITE_00: Version = Version(0xff0dad00);
-	pub const LITE_01: Version = Version(0xff0dad01);
-	pub const LITE_LATEST: Version = Self::LITE_01;
-}
-
 /// A version number negotiated during the setup.
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Alpn(pub &'static str);
-
-impl Alpn {
-	pub const LITE_00: Alpn = Alpn("moql-00");
-	pub const LITE_01: Alpn = Alpn("moql-01");
-	pub const LITE_LATEST: Alpn = Self::LITE_01;
-
-	pub const IETF_LATEST: Alpn = Alpn("moq-00");
-}
 
 impl From<u64> for Version {
 	fn from(v: u64) -> Self {
@@ -74,17 +22,17 @@ impl From<Version> for u64 {
 	}
 }
 
-impl Decode for Version {
+impl<V> Decode<V> for Version {
 	/// Decode the version number.
-	fn decode<R: bytes::Buf>(r: &mut R) -> Result<Self, DecodeError> {
-		let v = u64::decode(r)?;
+	fn decode<R: bytes::Buf>(r: &mut R, version: V) -> Result<Self, DecodeError> {
+		let v = u64::decode(r, version)?;
 		Ok(Self(v))
 	}
 }
 
-impl Encode for Version {
-	fn encode<W: bytes::BufMut>(&self, w: &mut W) {
-		self.0.encode(w);
+impl<V> Encode<V> for Version {
+	fn encode<W: bytes::BufMut>(&self, w: &mut W, version: V) {
+		self.0.encode(w, version);
 	}
 }
 
@@ -98,14 +46,14 @@ impl fmt::Debug for Version {
 #[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]
 pub struct Versions(Vec<Version>);
 
-impl Decode for Versions {
+impl<V: Clone> Decode<V> for Versions {
 	/// Decode the version list.
-	fn decode<R: bytes::Buf>(r: &mut R) -> Result<Self, DecodeError> {
-		let count = u64::decode(r)?;
+	fn decode<R: bytes::Buf>(r: &mut R, version: V) -> Result<Self, DecodeError> {
+		let count = u64::decode(r, version.clone())?;
 		let mut vs = Vec::new();
 
 		for _ in 0..count {
-			let v = Version::decode(r)?;
+			let v = Version::decode(r, version.clone())?;
 			vs.push(v);
 		}
 
@@ -113,13 +61,13 @@ impl Decode for Versions {
 	}
 }
 
-impl Encode for Versions {
+impl<V: Clone> Encode<V> for Versions {
 	/// Encode the version list.
-	fn encode<W: bytes::BufMut>(&self, w: &mut W) {
-		self.0.len().encode(w);
+	fn encode<W: bytes::BufMut>(&self, w: &mut W, version: V) {
+		self.0.len().encode(w, version.clone());
 
 		for v in &self.0 {
-			v.encode(w);
+			v.encode(w, version.clone());
 		}
 	}
 }

@@ -122,10 +122,9 @@ export class SubscribeOk {
 	}
 
 	async #encode(w: Writer) {
-		if (this.version === Version.DRAFT_03) {
+		if (this.version === Version.DRAFT_03 || this.version === Version.DRAFT_02) {
 			// noop
-		} else if (this.version === Version.DRAFT_02 || this.version === Version.DRAFT_01) {
-			// Technically, draft-02 is supposed to be empty but wasn't implemented like that.
+		} else if (this.version === Version.DRAFT_01) {
 			await w.u8(this.priority ?? 0);
 		} else {
 			const version: never = this.version;
@@ -135,10 +134,9 @@ export class SubscribeOk {
 
 	static async #decode(version: Version, r: Reader): Promise<SubscribeOk> {
 		let priority: number | undefined;
-		if (version === Version.DRAFT_03) {
+		if (version === Version.DRAFT_03 || version === Version.DRAFT_02) {
 			// noop
-		} else if (version === Version.DRAFT_02 || version === Version.DRAFT_01) {
-			// Technically, draft-02 is supposed to be empty but wasn't implemented like that.
+		} else if (version === Version.DRAFT_01) {
 			priority = await r.u8();
 		} else {
 			const v: never = version;

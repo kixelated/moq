@@ -16,6 +16,7 @@ mod subscribe;
 mod subscribe_namespace;
 mod subscriber;
 mod track;
+mod version;
 
 use control::*;
 pub use fetch::*;
@@ -34,5 +35,4 @@ pub use subscribe::*;
 pub use subscribe_namespace::*;
 use subscriber::*;
 pub use track::*;
-
-pub const ALPN: &str = crate::coding::Alpn::IETF_LATEST.0;
+pub use version::*;

@@ -110,7 +110,7 @@ use crate::{
 	coding::{Decode, DecodeError, Encode},
 	ietf::{
 		namespace::{decode_namespace, encode_namespace},
-		FilterType, GroupOrder, Location, Message, Parameters, RequestId,
+		FilterType, GroupOrder, Location, Message, Parameters, RequestId, Version,
 	},
 	Path,
 };
@@ -127,18 +127,18 @@ pub struct PublishDone<'a> {
 impl<'a> Message for PublishDone<'a> {
 	const ID: u64 = 0x0b;
 
-	fn encode<W: bytes::BufMut>(&self, w: &mut W) {
-		self.request_id.encode(w);
-		self.status_code.encode(w);
-		self.stream_count.encode(w);
-		self.reason_phrase.encode(w);
+	fn encode<W: bytes::BufMut>(&self, w: &mut W, version: Version) {
+		self.request_id.encode(w, version);
+		self.status_code.encode(w, version);
+		self.stream_count.encode(w, version);
+		self.reason_phrase.encode(w, version);
 	}
 
-	fn decode<R: bytes::Buf>(r: &mut R) -> Result<Self, DecodeError> {
-		let request_id = RequestId::decode(r)?;
-		let status_code = u64::decode(r)?;
-		let stream_count = u64::decode(r)?;
-		let reason_phrase = Cow::<str>::decode(r)?;
+	fn decode<R: bytes::Buf>(r: &mut R, version: Version) -> Result<Self, DecodeError> {
+		let request_id = RequestId::decode(r, version)?;
+		let status_code = u64::decode(r, version)?;
+		let stream_count = u64::decode(r, version)?;
+		let reason_phrase = Cow::<str>::decode(r, version)?;
 
 		Ok(Self {
 			request_id,
@@ -164,38 +164,38 @@ pub struct Publish<'a> {
 impl<'a> Message for Publish<'a> {
 	const ID: u64 = 0x1D;
 
-	fn encode<W: bytes::BufMut>(&self, w: &mut W) {
-		self.request_id.encode(w);
-		encode_namespace(w, &self.track_namespace);
-		self.track_name.encode(w);
-		self.track_alias.encode(w);
-		self.group_order.encode(w);
+	fn encode<W: bytes::BufMut>(&self, w: &mut W, version: Version) {
+		self.request_id.encode(w, version);
+		encode_namespace(w, &self.track_namespace, version);
+		self.track_name.encode(w, version);
+		self.track_alias.encode(w, version);
+		self.group_order.encode(w, version);
 		if let Some(location) = &self.largest_location {
-			true.encode(w);
-			location.encode(w);
+			true.encode(w, version);
+			location.encode(w, version);
 		} else {
-			false.encode(w);
+			false.encode(w, version);
 		}
 
-		self.forward.encode(w);
+		self.forward.encode(w, version);
 		// parameters
-		0u8.encode(w);
+		0u8.encode(w, version);
 	}
 
-	fn decode<R: bytes::Buf>(r: &mut R) -> Result<Self, DecodeError> {
-		let request_id = RequestId::decode(r)?;
-		let track_namespace = decode_namespace(r)?;
-		let track_name = Cow::<str>::decode(r)?;
-		let track_alias = u64::decode(r)?;
-		let group_order = GroupOrder::decode(r)?;
-		let content_exists = bool::decode(r)?;
+	fn decode<R: bytes::Buf>(r: &mut R, version: Version) -> Result<Self, DecodeError> {
+		let request_id = RequestId::decode(r, version)?;
+		let track_namespace = decode_namespace(r, version)?;
+		let track_name = Cow::<str>::decode(r, version)?;
+		let track_alias = u64::decode(r, version)?;
+		let group_order = GroupOrder::decode(r, version)?;
+		let content_exists = bool::decode(r, version)?;
 		let largest_location = match content_exists {
-			true => Some(Location::decode(r)?),
+			true => Some(Location::decode(r, version)?),
 			false => None,
 		};
-		let forward = bool::decode(r)?;
+		let forward = bool::decode(r, version)?;
 		// parameters
-		let _params = Parameters::decode(r)?;
+		let _params = Parameters::decode(r, version)?;
 		Ok(Self {
 			request_id,
 			track_namespace,
@@ -221,39 +221,39 @@ pub struct PublishOk {
 impl Message for PublishOk {
 	const ID: u64 = 0x1E;
 
-	fn encode<W: bytes::BufMut>(&self, w: &mut W) {
-		self.request_id.encode(w);
-		self.forward.encode(w);
-		self.subscriber_priority.encode(w);
-		self.group_order.encode(w);
-		self.filter_type.encode(w);
+	fn encode<W: bytes::BufMut>(&self, w: &mut W, version: Version) {
+		self.request_id.encode(w, version);
+		self.forward.encode(w, version);
+		self.subscriber_priority.encode(w, version);
+		self.group_order.encode(w, version);
+		self.filter_type.encode(w, version);
 		assert!(
 			matches!(self.filter_type, FilterType::LargestObject | FilterType::NextGroup),
 			"absolute subscribe not supported"
 		);
 		// no parameters
-		0u8.encode(w);
+		0u8.encode(w, version);
 	}
 
-	fn decode<R: bytes::Buf>(r: &mut R) -> Result<Self, DecodeError> {
-		let request_id = RequestId::decode(r)?;
-		let forward = bool::decode(r)?;
-		let subscriber_priority = u8::decode(r)?;
-		let group_order = GroupOrder::decode(r)?;
-		let filter_type = FilterType::decode(r)?;
+	fn decode<R: bytes::Buf>(r: &mut R, version: Version) -> Result<Self, DecodeError> {
+		let request_id = RequestId::decode(r, version)?;
+		let forward = bool::decode(r, version)?;
+		let subscriber_priority = u8::decode(r, version)?;
+		let group_order = GroupOrder::decode(r, version)?;
+		let filter_type = FilterType::decode(r, version)?;
 		match filter_type {
 			FilterType::AbsoluteStart => {
-				let _start = Location::decode(r)?;
+				let _start = Location::decode(r, version)?;
 			}
 			FilterType::AbsoluteRange => {
-				let _start = Location::decode(r)?;
-				let _end_group = u64::decode(r)?;
+				let _start = Location::decode(r, version)?;
+				let _end_group = u64::decode(r, version)?;
 			}
 			FilterType::NextGroup | FilterType::LargestObject => {}
 		};
 
 		// no parameters
-		let _params = Parameters::decode(r)?;
+		let _params = Parameters::decode(r, version)?;
 
 		Ok(Self {
 			request_id,
@@ -274,16 +274,16 @@ pub struct PublishError<'a> {
 impl<'a> Message for PublishError<'a> {
 	const ID: u64 = 0x1F;
 
-	fn encode<W: bytes::BufMut>(&self, w: &mut W) {
-		self.request_id.encode(w);
-		self.error_code.encode(w);
-		self.reason_phrase.encode(w);
+	fn encode<W: bytes::BufMut>(&self, w: &mut W, version: Version) {
+		self.request_id.encode(w, version);
+		self.error_code.encode(w, version);
+		self.reason_phrase.encode(w, version);
 	}
 
-	fn decode<R: bytes::Buf>(r: &mut R) -> Result<Self, DecodeError> {
-		let request_id = RequestId::decode(r)?;
-		let error_code = u64::decode(r)?;
-		let reason_phrase = Cow::<str>::decode(r)?;
+	fn decode<R: bytes::Buf>(r: &mut R, version: Version) -> Result<Self, DecodeError> {
+		let request_id = RequestId::decode(r, version)?;
+		let error_code = u64::decode(r, version)?;
+		let reason_phrase = Cow::<str>::decode(r, version)?;
 		Ok(Self {
 			request_id,
 			error_code,

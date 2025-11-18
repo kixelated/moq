@@ -1,6 +1,6 @@
 use crate::{
 	coding::{Reader, Stream},
-	ietf::{self, Control, Message, RequestId},
+	ietf::{self, Control, Message, RequestId, Version},
 	Error, OriginConsumer, OriginProducer,
 };
 
@@ -8,14 +8,25 @@ use super::{Publisher, Subscriber};
 
 pub(crate) async fn start<S: web_transport_trait::Session>(
 	session: S,
-	setup: Stream<S>,
+	setup: Stream<S, Version>,
 	request_id_max: RequestId,
 	client: bool,
 	publish: Option<OriginConsumer>,
 	subscribe: Option<OriginProducer>,
+	version: Version,
 ) -> Result<(), Error> {
 	web_async::spawn(async move {
-		match run(session.clone(), setup, request_id_max, client, publish, subscribe).await {
+		match run(
+			session.clone(),
+			setup,
+			request_id_max,
+			client,
+			publish,
+			subscribe,
+			version,
+		)
+		.await
+		{
 			Err(Error::Transport(_)) => {
 				tracing::info!("session terminated");
 				session.close(1, "");
@@ -36,16 +47,17 @@ pub(crate) async fn start<S: web_transport_trait::Session>(
 
 async fn run<S: web_transport_trait::Session>(
 	session: S,
-	setup: Stream<S>,
+	setup: Stream<S, Version>,
 	request_id_max: RequestId,
 	client: bool,
 	publish: Option<OriginConsumer>,
 	subscribe: Option<OriginProducer>,
+	version: Version,
 ) -> Result<(), Error> {
 	let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
-	let control = Control::new(tx, request_id_max, client);
-	let publisher = Publisher::new(session.clone(), publish, control.clone());
-	let subscriber = Subscriber::new(session.clone(), subscribe, control.clone());
+	let control = Control::new(tx, request_id_max, client, version);
+	let publisher = Publisher::new(session.clone(), publish, control.clone(), version);
+	let subscriber = Subscriber::new(session.clone(), subscribe, control.clone(), version);
 
 	tokio::select! {
 		res = subscriber.clone().run() => res,
@@ -56,7 +68,7 @@ async fn run<S: web_transport_trait::Session>(
 }
 
 async fn run_control_read<S: web_transport_trait::Session>(
-	mut reader: Reader<S::RecvStream>,
+	mut reader: Reader<S::RecvStream, Version>,
 	control: Control,
 	mut publisher: Publisher<S>,
 	mut subscriber: Subscriber<S>,
@@ -75,122 +87,122 @@ async fn run_control_read<S: web_transport_trait::Session>(
 
 		match id {
 			ietf::Subscribe::ID => {
-				let msg = ietf::Subscribe::decode(&mut data)?;
+				let msg = ietf::Subscribe::decode(&mut data, ietf::Version::Draft14)?;
 				tracing::debug!(message = ?msg, "received control message");
 				publisher.recv_subscribe(msg)?;
 			}
 			ietf::SubscribeUpdate::ID => {
-				let msg = ietf::SubscribeUpdate::decode(&mut data)?;
+				let msg = ietf::SubscribeUpdate::decode(&mut data, ietf::Version::Draft14)?;
 				tracing::debug!(message = ?msg, "received control message");
 				publisher.recv_subscribe_update(msg)?;
 			}
 			ietf::SubscribeOk::ID => {
-				let msg = ietf::SubscribeOk::decode(&mut data)?;
+				let msg = ietf::SubscribeOk::decode(&mut data, ietf::Version::Draft14)?;
 				tracing::debug!(message = ?msg, "received control message");
 				subscriber.recv_subscribe_ok(msg)?;
 			}
 			ietf::SubscribeError::ID => {
-				let msg = ietf::SubscribeError::decode(&mut data)?;
+				let msg = ietf::SubscribeError::decode(&mut data, ietf::Version::Draft14)?;
 				tracing::debug!(message = ?msg, "received control message");
 				subscriber.recv_subscribe_error(msg)?;
 			}
 			ietf::PublishNamespace::ID => {
-				let msg = ietf::PublishNamespace::decode(&mut data)?;
+				let msg = ietf::PublishNamespace::decode(&mut data, ietf::Version::Draft14)?;
 				tracing::debug!(message = ?msg, "received control message");
 				subscriber.recv_publish_namespace(msg)?;
 			}
 			ietf::PublishNamespaceOk::ID => {
-				let msg = ietf::PublishNamespaceOk::decode(&mut data)?;
+				let msg = ietf::PublishNamespaceOk::decode(&mut data, ietf::Version::Draft14)?;
 				tracing::debug!(message = ?msg, "received control message");
 				publisher.recv_publish_namespace_ok(msg)?;
 			}
 			ietf::PublishNamespaceError::ID => {
-				let msg = ietf::PublishNamespaceError::decode(&mut data)?;
+				let msg = ietf::PublishNamespaceError::decode(&mut data, ietf::Version::Draft14)?;
 				tracing::debug!(message = ?msg, "received control message");
 				publisher.recv_publish_namespace_error(msg)?;
 			}
 			ietf::PublishNamespaceDone::ID => {
-				let msg = ietf::PublishNamespaceDone::decode(&mut data)?;
+				let msg = ietf::PublishNamespaceDone::decode(&mut data, ietf::Version::Draft14)?;
 				tracing::debug!(message = ?msg, "received control message");
 				subscriber.recv_publish_namespace_done(msg)?;
 			}
 			ietf::Unsubscribe::ID => {
-				let msg = ietf::Unsubscribe::decode(&mut data)?;
+				let msg = ietf::Unsubscribe::decode(&mut data, ietf::Version::Draft14)?;
 				tracing::debug!(message = ?msg, "received control message");
 				publisher.recv_unsubscribe(msg)?;
 			}
 			ietf::PublishDone::ID => {
-				let msg = ietf::PublishDone::decode(&mut data)?;
+				let msg = ietf::PublishDone::decode(&mut data, ietf::Version::Draft14)?;
 				tracing::debug!(message = ?msg, "received control message");
 				subscriber.recv_publish_done(msg)?;
 			}
 			ietf::PublishNamespaceCancel::ID => {
-				let msg = ietf::PublishNamespaceCancel::decode(&mut data)?;
+				let msg = ietf::PublishNamespaceCancel::decode(&mut data, ietf::Version::Draft14)?;
 				tracing::debug!(message = ?msg, "received control message");
 				publisher.recv_publish_namespace_cancel(msg)?;
 			}
 			ietf::TrackStatus::ID => {
-				let msg = ietf::TrackStatus::decode(&mut data)?;
+				let msg = ietf::TrackStatus::decode(&mut data, ietf::Version::Draft14)?;
 				tracing::debug!(message = ?msg, "received control message");
 				publisher.recv_track_status(msg)?;
 			}
 			ietf::GoAway::ID => {
-				let msg = ietf::GoAway::decode(&mut data)?;
+				let msg = ietf::GoAway::decode(&mut data, ietf::Version::Draft14)?;
 				tracing::debug!(message = ?msg, "received control message");
 				return Err(Error::Unsupported);
 			}
 			ietf::SubscribeNamespace::ID => {
-				let msg = ietf::SubscribeNamespace::decode(&mut data)?;
+				let msg = ietf::SubscribeNamespace::decode(&mut data, ietf::Version::Draft14)?;
 				tracing::debug!(message = ?msg, "received control message");
 				publisher.recv_subscribe_namespace(msg)?;
 			}
 			ietf::SubscribeNamespaceOk::ID => {
-				let msg = ietf::SubscribeNamespaceOk::decode(&mut data)?;
+				let msg = ietf::SubscribeNamespaceOk::decode(&mut data, ietf::Version::Draft14)?;
 				tracing::debug!(message = ?msg, "received control message");
 				subscriber.recv_subscribe_namespace_ok(msg)?;
 			}
 			ietf::SubscribeNamespaceError::ID => {
-				let msg = ietf::SubscribeNamespaceError::decode(&mut data)?;
+				let msg = ietf::SubscribeNamespaceError::decode(&mut data, ietf::Version::Draft14)?;
 				tracing::debug!(message = ?msg, "received control message");
 				subscriber.recv_subscribe_namespace_error(msg)?;
 			}
 			ietf::UnsubscribeNamespace::ID => {
-				let msg = ietf::UnsubscribeNamespace::decode(&mut data)?;
+				let msg = ietf::UnsubscribeNamespace::decode(&mut data, ietf::Version::Draft14)?;
 				tracing::debug!(message = ?msg, "received control message");
 				publisher.recv_unsubscribe_namespace(msg)?;
 			}
 			ietf::MaxRequestId::ID => {
-				let msg = ietf::MaxRequestId::decode(&mut data)?;
+				let msg = ietf::MaxRequestId::decode(&mut data, ietf::Version::Draft14)?;
 				tracing::debug!(message = ?msg, "received control message");
 				control.max_request_id(msg.request_id);
 			}
 			ietf::RequestsBlocked::ID => {
-				let msg = ietf::RequestsBlocked::decode(&mut data)?;
+				let msg = ietf::RequestsBlocked::decode(&mut data, ietf::Version::Draft14)?;
 				tracing::debug!(message = ?msg, "received control message");
 				tracing::warn!(?msg, "ignoring requests blocked");
 			}
 			ietf::Fetch::ID => {
-				let msg = ietf::Fetch::decode(&mut data)?;
+				let msg = ietf::Fetch::decode(&mut data, ietf::Version::Draft14)?;
 				tracing::debug!(message = ?msg, "received control message");
 				publisher.recv_fetch(msg)?;
 			}
 			ietf::FetchCancel::ID => {
-				let msg = ietf::FetchCancel::decode(&mut data)?;
+				let msg = ietf::FetchCancel::decode(&mut data, ietf::Version::Draft14)?;
 				tracing::debug!(message = ?msg, "received control message");
 				publisher.recv_fetch_cancel(msg)?;
 			}
 			ietf::FetchOk::ID => {
-				let msg = ietf::FetchOk::decode(&mut data)?;
+				let msg = ietf::FetchOk::decode(&mut data, ietf::Version::Draft14)?;
 				tracing::debug!(message = ?msg, "received control message");
 				subscriber.recv_fetch_ok(msg)?;
 			}
 			ietf::FetchError::ID => {
-				let msg = ietf::FetchError::decode(&mut data)?;
+				let msg = ietf::FetchError::decode(&mut data, ietf::Version::Draft14)?;
 				tracing::debug!(message = ?msg, "received control message");
 				subscriber.recv_fetch_error(msg)?;
 			}
 			ietf::Publish::ID => {
-				let msg = ietf::Publish::decode(&mut data)?;
+				let msg = ietf::Publish::decode(&mut data, ietf::Version::Draft14)?;
 				tracing::debug!(message = ?msg, "received control message");
 				subscriber.recv_publish(msg)?;
 			}

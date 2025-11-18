@@ -2,7 +2,7 @@ use std::borrow::Cow;
 
 use crate::{
 	coding::{Decode, DecodeError, Encode},
-	lite::Message,
+	lite::{Message, Version},
 	Path,
 };
 
@@ -16,15 +16,21 @@ pub struct Subscribe<'a> {
 	pub track: Cow<'a, str>,
 	pub priority: u8,
 	pub expires: std::time::Duration,
+	pub version: Version,
 }
 
 impl<'a> Message for Subscribe<'a> {
-	fn decode<R: bytes::Buf>(r: &mut R) -> Result<Self, DecodeError> {
-		let id = u64::decode(r)?;
-		let broadcast = Path::decode(r)?;
-		let track = Cow::<str>::decode(r)?;
-		let priority = u8::decode(r)?;
-		let expires = std::time::Duration::from_millis(u64::decode(r)?);
+	fn decode<R: bytes::Buf>(r: &mut R, version: Version) -> Result<Self, DecodeError> {
+		let id = u64::decode(r, version)?;
+		let broadcast = Path::decode(r, version)?;
+		let track = Cow::<str>::decode(r, version)?;
+		let priority = u8::decode(r, version)?;
+
+		let expires = if version == Version::Draft03 {
+			std::time::Duration::from_millis(u64::decode(r, version)?)
+		} else {
+			std::time::Duration::default()
+		};
 
 		Ok(Self {
 			id,
@@ -32,27 +38,42 @@ impl<'a> Message for Subscribe<'a> {
 			track,
 			priority,
 			expires,
+			version,
 		})
 	}
 
-	fn encode<W: bytes::BufMut>(&self, w: &mut W) {
-		self.id.encode(w);
-		self.broadcast.encode(w);
-		self.track.encode(w);
-		self.priority.encode(w);
+	fn encode<W: bytes::BufMut>(&self, w: &mut W, version: Version) {
+		self.id.encode(w, version);
+		self.broadcast.encode(w, version);
+		self.track.encode(w, version);
+		self.priority.encode(w, version);
 
-		let expires: u64 = self.expires.as_millis().try_into().expect("duration too large");
-		expires.encode(w);
+		if version == Version::Draft03 {
+			let expires: u64 = self.expires.as_millis().try_into().expect("duration too large");
+			expires.encode(w, version);
+		}
 	}
 }
 
 #[derive(Clone, Debug)]
-pub struct SubscribeOk {}
+pub struct SubscribeOk {
+	pub priority: u8,
+}
 
-// Yes it literally has zero length.
 impl Message for SubscribeOk {
-	fn encode<W: bytes::BufMut>(&self, _: &mut W) {}
-	fn decode<R: bytes::Buf>(_: &mut R) -> Result<Self, DecodeError> {
-		Ok(Self {})
+	fn encode<W: bytes::BufMut>(&self, w: &mut W, version: Version) {
+		if version == Version::Draft01 {
+			self.priority.encode(w, version);
+		}
+	}
+
+	fn decode<R: bytes::Buf>(r: &mut R, version: Version) -> Result<Self, DecodeError> {
+		let priority = if version == Version::Draft01 {
+			u8::decode(r, version)?
+		} else {
+			0
+		};
+
+		Ok(Self { priority })
 	}
 }

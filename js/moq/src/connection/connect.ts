@@ -97,7 +97,7 @@ export async function connect(url: URL, props?: ConnectProps): Promise<Establish
 	const server = await Ietf.ServerSetup.decode(stream.reader);
 	console.debug(url.toString(), "received server setup", server);
 
-	if (Lite.SUPPORTED.includes(server.version as Lite.Version)) {
+	if (Object.values(Lite.Version).includes(server.version as Lite.Version)) {
 		console.debug(url.toString(), "moq-lite session established");
 		return new Lite.Connection(url, quic, stream, server.version as Lite.Version);
 	} else if (server.version === Ietf.Version.DRAFT_14) {
