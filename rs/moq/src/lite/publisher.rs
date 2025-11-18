@@ -152,10 +152,12 @@ impl<S: web_transport_trait::Session> Publisher<S> {
 
 		let broadcast = self.origin.consume_broadcast(&subscribe.broadcast);
 		let priority = self.priority.clone();
+		let version = self.version;
 
 		let session = self.session.clone();
 		web_async::spawn(async move {
-			if let Err(err) = Self::run_subscribe(session, &mut stream, &subscribe, broadcast, priority).await {
+			if let Err(err) = Self::run_subscribe(session, &mut stream, &subscribe, broadcast, priority, version).await
+			{
 				match &err {
 					// TODO better classify WebTransport errors.
 					Error::Cancel | Error::Transport(_) => {
@@ -180,6 +182,7 @@ impl<S: web_transport_trait::Session> Publisher<S> {
 		subscribe: &lite::Subscribe<'_>,
 		consumer: Option<BroadcastConsumer>,
 		priority: PriorityQueue,
+		version: Version,
 	) -> Result<(), Error> {
 		let track = Track {
 			name: subscribe.track.to_string(),
@@ -194,7 +197,7 @@ impl<S: web_transport_trait::Session> Publisher<S> {
 		stream.writer.encode(&ok).await?;
 
 		tokio::select! {
-			res = Self::run_track(session, track, subscribe, priority, subscribe.version) => res?,
+			res = Self::run_track(session, track, subscribe, priority, version) => res?,
 			res = stream.reader.closed() => res?,
 		}
 
