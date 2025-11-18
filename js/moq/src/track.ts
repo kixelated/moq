@@ -51,7 +51,7 @@ export class Track {
 			this.#expire = deferExpires(this.expires, this.closed);
 		}
 
-		const group = new Group(this.#max ?? 0);
+		const group = new Group({ sequence: this.#max ?? 0 });
 		this.#expire?.promise.catch((err) => group.close(err));
 
 		this.#max = group.sequence + 1;

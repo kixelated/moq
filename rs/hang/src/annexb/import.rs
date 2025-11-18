@@ -8,8 +8,8 @@ use moq_lite::{BroadcastProducer, Track};
 use std::borrow::Cow;
 use tokio::io::AsyncReadExt;
 
-// Keep transmitting groups for at most 10 seconds, configurable based on the viewer.
-// TODO: Make this configurable
+// Keep transmitting groups for at most 10 seconds, can be shortened by the viewer.
+// TODO: Make this configurable by the publisher.
 const MAX_EXPIRES: std::time::Duration = std::time::Duration::from_secs(10);
 
 pub struct Import {

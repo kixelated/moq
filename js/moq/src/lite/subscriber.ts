@@ -160,7 +160,7 @@ export class Subscriber {
 			return;
 		}
 
-		const producer = new Group(group.sequence);
+		const producer = new Group({ sequence: group.sequence });
 		subscribe.writeGroup(producer);
 
 		try {

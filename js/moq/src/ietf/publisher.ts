@@ -2,7 +2,7 @@ import type { Broadcast } from "../broadcast.ts";
 import type { Group } from "../group.ts";
 import type * as Path from "../path.ts";
 import { Writer } from "../stream.ts";
-import { Track } from "../track.js";
+import { Track } from "../track.ts";
 import { error } from "../util/error.ts";
 import type * as Control from "./control.ts";
 import { Frame, Group as GroupMessage } from "./object.ts";

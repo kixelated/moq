@@ -1,7 +1,7 @@
 import { Announced } from "../announced.ts";
 import { Broadcast } from "../broadcast.ts";
 import { Group } from "../group.ts";
-import * as Path from "../path.js";
+import * as Path from "../path.ts";
 import type { Reader } from "../stream.ts";
 import type { Track } from "../track.ts";
 import { error } from "../util/error.ts";
@@ -196,7 +196,7 @@ export class Subscriber {
 	 * @internal
 	 */
 	async handleGroup(group: GroupMessage, stream: Reader) {
-		const producer = new Group(group.groupId);
+		const producer = new Group({ sequence: group.groupId });
 
 		if (group.subGroupId !== 0) {
 			console.warn("subgroup ID is not supported, ignoring");
