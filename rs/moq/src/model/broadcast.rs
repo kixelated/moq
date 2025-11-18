@@ -11,6 +11,10 @@ use crate::{Error, Produce, TrackConsumer, TrackProducer};
 use tokio::sync::watch;
 use web_async::Lock;
 
+// TODO Make this configurable.
+// But the relay needs to set an upper limit otherwise it'll run out of memory.
+const MAX_EXPIRES: std::time::Duration = std::time::Duration::from_secs(10);
+
 use super::Track;
 
 struct State {
@@ -195,42 +199,50 @@ impl BroadcastConsumer {
 
 		// Return any explictly published track.
 		if let Some(consumer) = state.published.get(&track.name).cloned() {
-			return consumer;
+			return consumer.expires(track.expires);
 		}
 
 		// Return any requested tracks.
 		if let Some(producer) = state.requested.get(&track.name) {
-			return producer.consume();
+			return producer.consume().expires(track.expires);
 		}
 
 		// Otherwise we have never seen this track before and need to create a new producer.
-		let track = track.clone().produce();
-		let mut producer = track.producer;
-		let consumer = track.consumer;
+		// However, we cap their expires value to avoid unbounded memory usage.
+		// TODO Make the max expires configurable.
+		// TODO Also figure out the strategy for priority; the first subscriber shouldn't take priority.
+		let mut track = Track {
+			name: track.name.clone(),
+			priority: track.priority,
+			expires: track.expires.min(MAX_EXPIRES),
+		}
+		.produce();
 
 		// Insert the producer into the lookup so we will deduplicate requests.
 		// This is not a subscriber so it doesn't count towards "used" subscribers.
-		match self.requested.try_send(producer.clone()) {
+		match self.requested.try_send(track.producer.clone()) {
 			Ok(()) => {}
 			Err(_) => {
 				// If the BroadcastProducer is closed, immediately close the track.
 				// This is a bit more ergonomic than returning None.
-				producer.abort(Error::Cancel);
-				return consumer;
+				track.producer.abort(Error::Cancel);
+				return track.consumer;
 			}
 		}
 
 		// Insert the producer into the lookup so we will deduplicate requests.
-		state.requested.insert(producer.info.name.clone(), producer.clone());
+		state
+			.requested
+			.insert(track.producer.info.name.clone(), track.producer.clone());
 
 		// Remove the track from the lookup when it's unused.
 		let state = self.state.clone();
 		web_async::spawn(async move {
-			producer.unused().await;
-			state.lock().requested.remove(&producer.info.name);
+			track.producer.unused().await;
+			state.lock().requested.remove(&track.producer.info.name);
 		});
 
-		consumer
+		track.consumer
 	}
 
 	pub fn closed(&self) -> impl Future<Output = ()> {
