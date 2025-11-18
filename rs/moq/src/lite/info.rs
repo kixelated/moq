@@ -1,4 +1,7 @@
-use crate::{coding::*, lite::Message};
+use crate::{
+	coding::*,
+	lite::{Message, Version},
+};
 
 #[derive(Clone, Debug)]
 pub struct SessionInfo {
@@ -6,8 +9,8 @@ pub struct SessionInfo {
 }
 
 impl Message for SessionInfo {
-	fn decode<R: bytes::Buf>(r: &mut R) -> Result<Self, DecodeError> {
-		let bitrate = match u64::decode(r)? {
+	fn decode<R: bytes::Buf>(r: &mut R, version: Version) -> Result<Self, DecodeError> {
+		let bitrate = match u64::decode(r, version)? {
 			0 => None,
 			bitrate => Some(bitrate),
 		};
@@ -15,7 +18,7 @@ impl Message for SessionInfo {
 		Ok(Self { bitrate })
 	}
 
-	fn encode<W: bytes::BufMut>(&self, w: &mut W) {
-		self.bitrate.unwrap_or(0).encode(w);
+	fn encode<W: bytes::BufMut>(&self, w: &mut W, version: Version) {
+		self.bitrate.unwrap_or(0).encode(w, version);
 	}
 }

@@ -1,0 +1,33 @@
+use crate::coding;
+
+pub const ALPN: &str = "moq-00";
+
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
+#[repr(u64)]
+pub enum Version {
+	Draft14 = 0xff00000e,
+}
+
+impl TryFrom<coding::Version> for Version {
+	type Error = ();
+
+	fn try_from(value: coding::Version) -> Result<Self, Self::Error> {
+		if value == Self::Draft14.into() {
+			Ok(Self::Draft14)
+		} else {
+			Err(())
+		}
+	}
+}
+
+impl From<Version> for coding::Version {
+	fn from(value: Version) -> Self {
+		Self(value as u64)
+	}
+}
+
+impl Version {
+	pub const fn coding(self) -> coding::Version {
+		coding::Version(self as u64)
+	}
+}

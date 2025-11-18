@@ -288,15 +288,15 @@ impl<'a> Display for Path<'a> {
 	}
 }
 
-impl<'a> Decode for Path<'a> {
-	fn decode<R: bytes::Buf>(r: &mut R) -> Result<Self, DecodeError> {
-		Ok(String::decode(r)?.into())
+impl<'a, V> Decode<V> for Path<'a> {
+	fn decode<R: bytes::Buf>(r: &mut R, version: V) -> Result<Self, DecodeError> {
+		Ok(String::decode(r, version)?.into())
 	}
 }
 
-impl<'a> Encode for Path<'a> {
-	fn encode<W: bytes::BufMut>(&self, w: &mut W) {
-		self.as_str().encode(w)
+impl<'a, V> Encode<V> for Path<'a> {
+	fn encode<W: bytes::BufMut>(&self, w: &mut W, version: V) {
+		self.as_str().encode(w, version)
 	}
 }
 

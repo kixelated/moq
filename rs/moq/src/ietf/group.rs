@@ -10,15 +10,15 @@ pub enum GroupOrder {
 	Descending = 0x2,
 }
 
-impl Encode for GroupOrder {
-	fn encode<W: bytes::BufMut>(&self, w: &mut W) {
-		u8::from(*self).encode(w);
+impl<V> Encode<V> for GroupOrder {
+	fn encode<W: bytes::BufMut>(&self, w: &mut W, version: V) {
+		u8::from(*self).encode(w, version);
 	}
 }
 
-impl Decode for GroupOrder {
-	fn decode<R: bytes::Buf>(r: &mut R) -> Result<Self, DecodeError> {
-		Self::try_from(u8::decode(r)?).map_err(|_| DecodeError::InvalidValue)
+impl<V> Decode<V> for GroupOrder {
+	fn decode<R: bytes::Buf>(r: &mut R, version: V) -> Result<Self, DecodeError> {
+		Self::try_from(u8::decode(r, version)?).map_err(|_| DecodeError::InvalidValue)
 	}
 }
 
@@ -108,37 +108,37 @@ pub struct GroupHeader {
 	pub flags: GroupFlags,
 }
 
-impl Encode for GroupHeader {
-	fn encode<W: bytes::BufMut>(&self, w: &mut W) {
-		self.flags.encode().encode(w);
-		self.track_alias.encode(w);
-		self.group_id.encode(w);
+impl<V: Clone> Encode<V> for GroupHeader {
+	fn encode<W: bytes::BufMut>(&self, w: &mut W, version: V) {
+		self.flags.encode().encode(w, version.clone());
+		self.track_alias.encode(w, version.clone());
+		self.group_id.encode(w, version.clone());
 
 		if !self.flags.has_subgroup && self.sub_group_id != 0 {
 			panic!("sub_group_id must be 0 if has_subgroup is false");
 		}
 
 		if self.flags.has_subgroup {
-			self.sub_group_id.encode(w);
+			self.sub_group_id.encode(w, version.clone());
 		}
 
 		// Publisher priority
-		self.publisher_priority.encode(w);
+		self.publisher_priority.encode(w, version);
 	}
 }
 
-impl Decode for GroupHeader {
-	fn decode<R: bytes::Buf>(r: &mut R) -> Result<Self, DecodeError> {
-		let flags = GroupFlags::decode(u64::decode(r)?)?;
-		let track_alias = u64::decode(r)?;
-		let group_id = u64::decode(r)?;
+impl<V: Clone> Decode<V> for GroupHeader {
+	fn decode<R: bytes::Buf>(r: &mut R, version: V) -> Result<Self, DecodeError> {
+		let flags = GroupFlags::decode(u64::decode(r, version.clone())?)?;
+		let track_alias = u64::decode(r, version.clone())?;
+		let group_id = u64::decode(r, version.clone())?;
 
 		let sub_group_id = match flags.has_subgroup {
-			true => u64::decode(r)?,
+			true => u64::decode(r, version.clone())?,
 			false => 0,
 		};
 
-		let publisher_priority = u8::decode(r)?;
+		let publisher_priority = u8::decode(r, version)?;
 
 		Ok(Self {
 			track_alias,

@@ -6,7 +6,7 @@ use num_enum::{IntoPrimitive, TryFromPrimitive};
 
 use crate::{
 	coding::*,
-	ietf::{GroupOrder, Location, Message, Parameters, RequestId},
+	ietf::{GroupOrder, Location, Message, Parameters, RequestId, Version},
 	Path,
 };
 
@@ -21,15 +21,15 @@ pub enum FilterType {
 	AbsoluteRange = 0x4,
 }
 
-impl Encode for FilterType {
-	fn encode<W: bytes::BufMut>(&self, w: &mut W) {
-		u64::from(*self).encode(w);
+impl<V> Encode<V> for FilterType {
+	fn encode<W: bytes::BufMut>(&self, w: &mut W, version: V) {
+		u64::from(*self).encode(w, version);
 	}
 }
 
-impl Decode for FilterType {
-	fn decode<R: bytes::Buf>(r: &mut R) -> Result<Self, DecodeError> {
-		Self::try_from(u64::decode(r)?).map_err(|_| DecodeError::InvalidValue)
+impl<V> Decode<V> for FilterType {
+	fn decode<R: bytes::Buf>(r: &mut R, version: V) -> Result<Self, DecodeError> {
+		Self::try_from(u64::decode(r, version)?).map_err(|_| DecodeError::InvalidValue)
 	}
 }
 
@@ -48,36 +48,36 @@ pub struct Subscribe<'a> {
 impl<'a> Message for Subscribe<'a> {
 	const ID: u64 = 0x03;
 
-	fn decode<R: bytes::Buf>(r: &mut R) -> Result<Self, DecodeError> {
-		let request_id = RequestId::decode(r)?;
+	fn decode<R: bytes::Buf>(r: &mut R, version: Version) -> Result<Self, DecodeError> {
+		let request_id = RequestId::decode(r, version)?;
 
 		// Decode namespace (tuple of strings)
-		let track_namespace = decode_namespace(r)?;
+		let track_namespace = decode_namespace(r, version)?;
 
-		let track_name = Cow::<str>::decode(r)?;
-		let subscriber_priority = u8::decode(r)?;
+		let track_name = Cow::<str>::decode(r, version)?;
+		let subscriber_priority = u8::decode(r, version)?;
 
-		let group_order = GroupOrder::decode(r)?;
+		let group_order = GroupOrder::decode(r, version)?;
 
-		let forward = bool::decode(r)?;
+		let forward = bool::decode(r, version)?;
 		if !forward {
 			return Err(DecodeError::Unsupported);
 		}
 
-		let filter_type = FilterType::decode(r)?;
+		let filter_type = FilterType::decode(r, version)?;
 		match filter_type {
 			FilterType::AbsoluteStart => {
-				let _start = Location::decode(r)?;
+				let _start = Location::decode(r, version)?;
 			}
 			FilterType::AbsoluteRange => {
-				let _start = Location::decode(r)?;
-				let _end_group = u64::decode(r)?;
+				let _start = Location::decode(r, version)?;
+				let _end_group = u64::decode(r, version)?;
 			}
 			FilterType::NextGroup | FilterType::LargestObject => {}
 		};
 
 		// Ignore parameters, who cares.
-		let _params = Parameters::decode(r)?;
+		let _params = Parameters::decode(r, version)?;
 
 		Ok(Self {
 			request_id,
@@ -89,21 +89,21 @@ impl<'a> Message for Subscribe<'a> {
 		})
 	}
 
-	fn encode<W: bytes::BufMut>(&self, w: &mut W) {
-		self.request_id.encode(w);
-		encode_namespace(w, &self.track_namespace);
-		self.track_name.encode(w);
-		self.subscriber_priority.encode(w);
-		GroupOrder::Descending.encode(w);
-		true.encode(w); // forward
+	fn encode<W: bytes::BufMut>(&self, w: &mut W, version: Version) {
+		self.request_id.encode(w, version);
+		encode_namespace(w, &self.track_namespace, version);
+		self.track_name.encode(w, version);
+		self.subscriber_priority.encode(w, version);
+		GroupOrder::Descending.encode(w, version);
+		true.encode(w, version); // forward
 
 		assert!(
 			!matches!(self.filter_type, FilterType::AbsoluteStart | FilterType::AbsoluteRange),
 			"Absolute subscribe not supported"
 		);
 
-		self.filter_type.encode(w);
-		0u8.encode(w); // no parameters
+		self.filter_type.encode(w, version);
+		0u8.encode(w, version); // no parameters
 	}
 }
 
@@ -117,35 +117,35 @@ pub struct SubscribeOk {
 impl Message for SubscribeOk {
 	const ID: u64 = 0x04;
 
-	fn encode<W: bytes::BufMut>(&self, w: &mut W) {
-		self.request_id.encode(w);
-		self.track_alias.encode(w);
-		0u64.encode(w); // expires = 0
-		GroupOrder::Descending.encode(w);
-		false.encode(w); // no content
-		0u8.encode(w); // no parameters
+	fn encode<W: bytes::BufMut>(&self, w: &mut W, version: Version) {
+		self.request_id.encode(w, version);
+		self.track_alias.encode(w, version);
+		0u64.encode(w, version); // expires = 0
+		GroupOrder::Descending.encode(w, version);
+		false.encode(w, version); // no content
+		0u8.encode(w, version); // no parameters
 	}
 
-	fn decode<R: bytes::Buf>(r: &mut R) -> Result<Self, DecodeError> {
-		let request_id = RequestId::decode(r)?;
-		let track_alias = u64::decode(r)?;
+	fn decode<R: bytes::Buf>(r: &mut R, version: Version) -> Result<Self, DecodeError> {
+		let request_id = RequestId::decode(r, version)?;
+		let track_alias = u64::decode(r, version)?;
 
-		let expires = u64::decode(r)?;
+		let expires = u64::decode(r, version)?;
 		if expires != 0 {
 			return Err(DecodeError::Unsupported);
 		}
 
 		// Ignore group order, who cares.
-		let _group_order = u8::decode(r)?;
+		let _group_order = u8::decode(r, version)?;
 
 		// TODO: We don't support largest group/object yet
-		if bool::decode(r)? {
-			let _group = u64::decode(r)?;
-			let _object = u64::decode(r)?;
+		if bool::decode(r, version)? {
+			let _group = u64::decode(r, version)?;
+			let _object = u64::decode(r, version)?;
 		}
 
 		// Ignore parameters, who cares.
-		let _params = Parameters::decode(r)?;
+		let _params = Parameters::decode(r, version)?;
 
 		Ok(Self {
 			request_id,
@@ -165,15 +165,15 @@ pub struct SubscribeError<'a> {
 impl<'a> Message for SubscribeError<'a> {
 	const ID: u64 = 0x05;
 
-	fn encode<W: bytes::BufMut>(&self, w: &mut W) {
-		self.request_id.encode(w);
-		self.error_code.encode(w);
-		self.reason_phrase.encode(w);
+	fn encode<W: bytes::BufMut>(&self, w: &mut W, version: Version) {
+		self.request_id.encode(w, version);
+		self.error_code.encode(w, version);
+		self.reason_phrase.encode(w, version);
 	}
-	fn decode<R: bytes::Buf>(r: &mut R) -> Result<Self, DecodeError> {
-		let request_id = RequestId::decode(r)?;
-		let error_code = u64::decode(r)?;
-		let reason_phrase = Cow::<str>::decode(r)?;
+	fn decode<R: bytes::Buf>(r: &mut R, version: Version) -> Result<Self, DecodeError> {
+		let request_id = RequestId::decode(r, version)?;
+		let error_code = u64::decode(r, version)?;
+		let reason_phrase = Cow::<str>::decode(r, version)?;
 
 		Ok(Self {
 			request_id,
@@ -192,12 +192,12 @@ pub struct Unsubscribe {
 impl Message for Unsubscribe {
 	const ID: u64 = 0x0a;
 
-	fn encode<W: bytes::BufMut>(&self, w: &mut W) {
-		self.request_id.encode(w);
+	fn encode<W: bytes::BufMut>(&self, w: &mut W, version: Version) {
+		self.request_id.encode(w, version);
 	}
 
-	fn decode<R: bytes::Buf>(r: &mut R) -> Result<Self, DecodeError> {
-		let request_id = RequestId::decode(r)?;
+	fn decode<R: bytes::Buf>(r: &mut R, version: Version) -> Result<Self, DecodeError> {
+		let request_id = RequestId::decode(r, version)?;
 		Ok(Self { request_id })
 	}
 }
@@ -228,24 +228,24 @@ pub struct SubscribeUpdate {
 impl Message for SubscribeUpdate {
 	const ID: u64 = 0x02;
 
-	fn encode<W: bytes::BufMut>(&self, w: &mut W) {
-		self.request_id.encode(w);
-		self.subscription_request_id.encode(w);
-		self.start_location.encode(w);
-		self.end_group.encode(w);
-		self.subscriber_priority.encode(w);
-		self.forward.encode(w);
-		0u8.encode(w); // no parameters
+	fn encode<W: bytes::BufMut>(&self, w: &mut W, version: Version) {
+		self.request_id.encode(w, version);
+		self.subscription_request_id.encode(w, version);
+		self.start_location.encode(w, version);
+		self.end_group.encode(w, version);
+		self.subscriber_priority.encode(w, version);
+		self.forward.encode(w, version);
+		0u8.encode(w, version); // no parameters
 	}
 
-	fn decode<R: bytes::Buf>(r: &mut R) -> Result<Self, DecodeError> {
-		let request_id = RequestId::decode(r)?;
-		let subscription_request_id = RequestId::decode(r)?;
-		let start_location = Location::decode(r)?;
-		let end_group = u64::decode(r)?;
-		let subscriber_priority = u8::decode(r)?;
-		let forward = bool::decode(r)?;
-		let _parameters = Parameters::decode(r)?;
+	fn decode<R: bytes::Buf>(r: &mut R, version: Version) -> Result<Self, DecodeError> {
+		let request_id = RequestId::decode(r, version)?;
+		let subscription_request_id = RequestId::decode(r, version)?;
+		let start_location = Location::decode(r, version)?;
+		let end_group = u64::decode(r, version)?;
+		let subscriber_priority = u8::decode(r, version)?;
+		let forward = bool::decode(r, version)?;
+		let _parameters = Parameters::decode(r, version)?;
 
 		Ok(Self {
 			request_id,
@@ -265,13 +265,13 @@ mod tests {
 
 	fn encode_message<M: Message>(msg: &M) -> Vec<u8> {
 		let mut buf = BytesMut::new();
-		msg.encode(&mut buf);
+		msg.encode(&mut buf, Version::Draft14);
 		buf.to_vec()
 	}
 
 	fn decode_message<M: Message>(bytes: &[u8]) -> Result<M, DecodeError> {
 		let mut buf = bytes::Bytes::from(bytes.to_vec());
-		M::decode(&mut buf)
+		M::decode(&mut buf, Version::Draft14)
 	}
 
 	#[test]
