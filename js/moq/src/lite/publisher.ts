@@ -8,6 +8,7 @@ import { error } from "../util/error.ts";
 import { Announce, AnnounceInit, type AnnounceInterest } from "./announce.ts";
 import { Group as GroupMessage } from "./group.ts";
 import { type Subscribe, SubscribeOk, SubscribeUpdate } from "./subscribe.ts";
+import type { Version } from "./version.ts";
 
 /**
  * Handles publishing broadcasts and managing their lifecycle.
@@ -15,6 +16,9 @@ import { type Subscribe, SubscribeOk, SubscribeUpdate } from "./subscribe.ts";
  * @internal
  */
 export class Publisher {
+	// The version of the connection.
+	readonly version: Version;
+
 	#quic: WebTransport;
 
 	// Our published broadcasts.
@@ -27,8 +31,9 @@ export class Publisher {
 	 *
 	 * @internal
 	 */
-	constructor(quic: WebTransport) {
+	constructor(quic: WebTransport, version: Version) {
 		this.#quic = quic;
+		this.version = version;
 	}
 
 	/**
@@ -137,7 +142,7 @@ export class Publisher {
 		broadcast.subscribe(track);
 
 		try {
-			const info = new SubscribeOk();
+			const info = new SubscribeOk({ version: this.version });
 			await info.encode(stream.writer);
 
 			console.debug(`publish ok: broadcast=${msg.broadcast} track=${track.name}`);

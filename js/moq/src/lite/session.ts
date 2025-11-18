@@ -1,22 +1,6 @@
 import type { Reader, Writer } from "../stream.ts";
 import * as Message from "./message.ts";
 
-export const Version = {
-	DRAFT_00: 0xff000000,
-	DRAFT_01: 0xff000001,
-	DRAFT_02: 0xff000002,
-	DRAFT_03: 0xff000003,
-	FORK_00: 0xff0bad00,
-	FORK_01: 0xff0bad01,
-	FORK_02: 0xff0bad02,
-	FORK_03: 0xff0bad03,
-	FORK_04: 0xff0bad04,
-	LITE_00: 0xff0dad00,
-	LITE_01: 0xff0dad01,
-} as const;
-
-export const CURRENT_VERSION = Version.LITE_01;
-
 export class Extensions {
 	entries: Map<bigint, Uint8Array>;
 
