@@ -6,7 +6,7 @@ use web_transport_trait::SendStream;
 
 use crate::{
 	coding::Writer,
-	ietf::{self, Control, FetchHeader, FetchType, FilterType, GroupOrder, Location, RequestId},
+	ietf::{self, Control, FetchHeader, FetchType, FilterType, GroupOrder, Location, RequestId, Version},
 	model::GroupConsumer,
 	Error, Origin, OriginConsumer, Track, TrackConsumer,
 };
@@ -19,10 +19,12 @@ pub(super) struct Publisher<S: web_transport_trait::Session> {
 
 	// Drop in order to cancel the subscribe.
 	subscribes: Lock<HashMap<RequestId, oneshot::Sender<()>>>,
+
+	version: Version,
 }
 
 impl<S: web_transport_trait::Session> Publisher<S> {
-	pub fn new(session: S, origin: Option<OriginConsumer>, control: Control) -> Self {
+	pub fn new(session: S, origin: Option<OriginConsumer>, control: Control, version: Version) -> Self {
 		// Default to a dummy origin that is immediately closed.
 		let origin = origin.unwrap_or_else(|| Origin::produce().consumer);
 		Self {
@@ -30,6 +32,7 @@ impl<S: web_transport_trait::Session> Publisher<S> {
 			origin,
 			control,
 			subscribes: Default::default(),
+			version,
 		}
 	}
 
@@ -108,9 +111,10 @@ impl<S: web_transport_trait::Session> Publisher<S> {
 		let control = self.control.clone();
 		let request_id = msg.request_id;
 		let subscribes = self.subscribes.clone();
+		let version = self.version;
 
 		web_async::spawn(async move {
-			if let Err(err) = Self::run_track(session, track, request_id, rx).await {
+			if let Err(err) = Self::run_track(session, track, request_id, rx, version).await {
 				control
 					.send(ietf::PublishDone {
 						request_id,
@@ -149,6 +153,7 @@ impl<S: web_transport_trait::Session> Publisher<S> {
 		mut track: TrackConsumer,
 		request_id: RequestId,
 		mut cancel: oneshot::Receiver<()>,
+		version: Version,
 	) -> Result<(), Error> {
 		// TODO use a BTreeMap serve the latest N groups by sequence.
 		// Until then, we'll implement N=2 manually.
@@ -205,7 +210,13 @@ impl<S: web_transport_trait::Session> Publisher<S> {
 
 			// Spawn a task to serve this group, ignoring any errors because they don't really matter.
 			// TODO add some logging at least.
-			let handle = Box::pin(Self::run_group(session.clone(), msg, track.info.priority, group));
+			let handle = Box::pin(Self::run_group(
+				session.clone(),
+				msg,
+				track.info.priority,
+				group,
+				version,
+			));
 
 			// Terminate the old group if it's still running.
 			if let Some(old_sequence) = old_sequence.take() {
@@ -233,6 +244,7 @@ impl<S: web_transport_trait::Session> Publisher<S> {
 		msg: ietf::GroupHeader,
 		priority: u8,
 		mut group: GroupConsumer,
+		version: Version,
 	) -> Result<(), Error> {
 		// TODO add a way to open in priority order.
 		let mut stream = session
@@ -241,7 +253,9 @@ impl<S: web_transport_trait::Session> Publisher<S> {
 			.map_err(|err| Error::Transport(Arc::new(err)))?;
 		stream.set_priority(priority);
 
-		let mut stream = Writer::new(stream);
+		let mut stream = Writer::new(stream, version);
+
+		// Encode the GroupHeader
 		stream.encode(&msg).await?;
 
 		tracing::trace!(?msg, "sending group header");
@@ -387,9 +401,10 @@ impl<S: web_transport_trait::Session> Publisher<S> {
 
 		let session = self.session.clone();
 		let request_id = msg.request_id;
+		let version = self.version;
 
 		web_async::spawn(async move {
-			if let Err(err) = Self::run_fetch(session, request_id).await {
+			if let Err(err) = Self::run_fetch(session, request_id, version).await {
 				tracing::warn!(?err, "error running fetch");
 			}
 		});
@@ -398,15 +413,18 @@ impl<S: web_transport_trait::Session> Publisher<S> {
 	}
 
 	// We literally just create a stream and FIN it.
-	async fn run_fetch(session: S, request_id: RequestId) -> Result<(), Error> {
+	async fn run_fetch(session: S, request_id: RequestId, version: Version) -> Result<(), Error> {
 		let stream = session
 			.open_uni()
 			.await
 			.map_err(|err| Error::Transport(Arc::new(err)))?;
 
-		let mut writer = Writer::new(stream);
+		let mut writer = Writer::new(stream, version);
+
+		// Encode the stream type and FetchHeader
 		writer.encode(&FetchHeader::TYPE).await?;
 		writer.encode(&FetchHeader { request_id }).await?;
+
 		writer.finish()?;
 		writer.closed().await?;
 

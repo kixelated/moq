@@ -4,23 +4,28 @@ use bytes::{Buf, Bytes, BytesMut};
 
 use crate::{coding::*, Error};
 
-pub struct Reader<S: web_transport_trait::RecvStream> {
+pub struct Reader<S: web_transport_trait::RecvStream, V> {
 	stream: S,
 	buffer: BytesMut,
+	version: V,
 }
 
-impl<S: web_transport_trait::RecvStream> Reader<S> {
-	pub fn new(stream: S) -> Self {
+impl<S: web_transport_trait::RecvStream, V> Reader<S, V> {
+	pub fn new(stream: S, version: V) -> Self {
 		Self {
 			stream,
 			buffer: Default::default(),
+			version,
 		}
 	}
 
-	pub async fn decode<T: Decode + Debug>(&mut self) -> Result<T, Error> {
+	pub async fn decode<T: Decode<V> + Debug>(&mut self) -> Result<T, Error>
+	where
+		V: Clone,
+	{
 		loop {
 			let mut cursor = io::Cursor::new(&self.buffer);
-			match T::decode(&mut cursor) {
+			match T::decode(&mut cursor, self.version.clone()) {
 				Ok(msg) => {
 					self.buffer.advance(cursor.position() as usize);
 					return Ok(msg);
@@ -44,7 +49,10 @@ impl<S: web_transport_trait::RecvStream> Reader<S> {
 	}
 
 	// Decode optional messages at the end of a stream
-	pub async fn decode_maybe<T: Decode + Debug>(&mut self) -> Result<Option<T>, Error> {
+	pub async fn decode_maybe<T: Decode<V> + Debug>(&mut self) -> Result<Option<T>, Error>
+	where
+		V: Clone,
+	{
 		match self.closed().await {
 			Ok(()) => Ok(None),
 			Err(Error::Decode(DecodeError::ExpectedEnd)) => Ok(Some(self.decode().await?)),
@@ -52,10 +60,13 @@ impl<S: web_transport_trait::RecvStream> Reader<S> {
 		}
 	}
 
-	pub async fn decode_peek<T: Decode + Debug>(&mut self) -> Result<T, Error> {
+	pub async fn decode_peek<T: Decode<V> + Debug>(&mut self) -> Result<T, Error>
+	where
+		V: Clone,
+	{
 		loop {
 			let mut cursor = io::Cursor::new(&self.buffer);
-			match T::decode(&mut cursor) {
+			match T::decode(&mut cursor, self.version.clone()) {
 				Ok(msg) => return Ok(msg),
 				Err(DecodeError::Short) => {
 					// Try to read more data
@@ -148,5 +159,13 @@ impl<S: web_transport_trait::RecvStream> Reader<S> {
 
 	pub fn abort(&mut self, err: &Error) {
 		self.stream.stop(err.to_code());
+	}
+
+	pub fn with_version<O>(self, version: O) -> Reader<S, O> {
+		Reader {
+			stream: self.stream,
+			buffer: self.buffer,
+			version,
+		}
 	}
 }

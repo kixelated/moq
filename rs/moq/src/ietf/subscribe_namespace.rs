@@ -4,7 +4,7 @@ use std::borrow::Cow;
 
 use crate::{
 	coding::*,
-	ietf::{Message, Parameters, RequestId},
+	ietf::{Message, Parameters, RequestId, Version},
 	Path,
 };
 
@@ -20,18 +20,18 @@ pub struct SubscribeNamespace<'a> {
 impl<'a> Message for SubscribeNamespace<'a> {
 	const ID: u64 = 0x11;
 
-	fn encode<W: bytes::BufMut>(&self, w: &mut W) {
-		self.request_id.encode(w);
-		encode_namespace(w, &self.namespace);
-		0u8.encode(w); // no parameters
+	fn encode<W: bytes::BufMut>(&self, w: &mut W, version: Version) {
+		self.request_id.encode(w, version);
+		encode_namespace(w, &self.namespace, version);
+		0u8.encode(w, version); // no parameters
 	}
 
-	fn decode<R: bytes::Buf>(r: &mut R) -> Result<Self, DecodeError> {
-		let request_id = RequestId::decode(r)?;
-		let namespace = decode_namespace(r)?;
+	fn decode<R: bytes::Buf>(r: &mut R, version: Version) -> Result<Self, DecodeError> {
+		let request_id = RequestId::decode(r, version)?;
+		let namespace = decode_namespace(r, version)?;
 
 		// Ignore parameters, who cares.
-		let _params = Parameters::decode(r)?;
+		let _params = Parameters::decode(r, version)?;
 
 		Ok(Self { namespace, request_id })
 	}
@@ -46,12 +46,12 @@ pub struct SubscribeNamespaceOk {
 impl Message for SubscribeNamespaceOk {
 	const ID: u64 = 0x12;
 
-	fn encode<W: bytes::BufMut>(&self, w: &mut W) {
-		self.request_id.encode(w);
+	fn encode<W: bytes::BufMut>(&self, w: &mut W, version: Version) {
+		self.request_id.encode(w, version);
 	}
 
-	fn decode<R: bytes::Buf>(r: &mut R) -> Result<Self, DecodeError> {
-		let request_id = RequestId::decode(r)?;
+	fn decode<R: bytes::Buf>(r: &mut R, version: Version) -> Result<Self, DecodeError> {
+		let request_id = RequestId::decode(r, version)?;
 		Ok(Self { request_id })
 	}
 }
@@ -66,16 +66,16 @@ pub struct SubscribeNamespaceError<'a> {
 impl<'a> Message for SubscribeNamespaceError<'a> {
 	const ID: u64 = 0x13;
 
-	fn encode<W: bytes::BufMut>(&self, w: &mut W) {
-		self.request_id.encode(w);
-		self.error_code.encode(w);
-		self.reason_phrase.encode(w);
+	fn encode<W: bytes::BufMut>(&self, w: &mut W, version: Version) {
+		self.request_id.encode(w, version);
+		self.error_code.encode(w, version);
+		self.reason_phrase.encode(w, version);
 	}
 
-	fn decode<R: bytes::Buf>(r: &mut R) -> Result<Self, DecodeError> {
-		let request_id = RequestId::decode(r)?;
-		let error_code = u64::decode(r)?;
-		let reason_phrase = Cow::<str>::decode(r)?;
+	fn decode<R: bytes::Buf>(r: &mut R, version: Version) -> Result<Self, DecodeError> {
+		let request_id = RequestId::decode(r, version)?;
+		let error_code = u64::decode(r, version)?;
+		let reason_phrase = Cow::<str>::decode(r, version)?;
 
 		Ok(Self {
 			request_id,
@@ -94,12 +94,12 @@ pub struct UnsubscribeNamespace {
 impl Message for UnsubscribeNamespace {
 	const ID: u64 = 0x14;
 
-	fn encode<W: bytes::BufMut>(&self, w: &mut W) {
-		self.request_id.encode(w);
+	fn encode<W: bytes::BufMut>(&self, w: &mut W, version: Version) {
+		self.request_id.encode(w, version);
 	}
 
-	fn decode<R: bytes::Buf>(r: &mut R) -> Result<Self, DecodeError> {
-		let request_id = RequestId::decode(r)?;
+	fn decode<R: bytes::Buf>(r: &mut R, version: Version) -> Result<Self, DecodeError> {
+		let request_id = RequestId::decode(r, version)?;
 		Ok(Self { request_id })
 	}
 }

@@ -7,6 +7,7 @@ use crate::{
 	lite::{
 		self,
 		priority::{PriorityHandle, PriorityQueue},
+		Version,
 	},
 	model::GroupConsumer,
 	AsPath, BroadcastConsumer, Error, Origin, OriginConsumer, Track, TrackConsumer,
@@ -16,22 +17,24 @@ pub(super) struct Publisher<S: web_transport_trait::Session> {
 	session: S,
 	origin: OriginConsumer,
 	priority: PriorityQueue,
+	version: Version,
 }
 
 impl<S: web_transport_trait::Session> Publisher<S> {
-	pub fn new(session: S, origin: Option<OriginConsumer>) -> Self {
+	pub fn new(session: S, origin: Option<OriginConsumer>, version: Version) -> Self {
 		// Default to a dummy origin that is immediately closed.
 		let origin = origin.unwrap_or_else(|| Origin::produce().consumer);
 		Self {
 			session,
 			origin,
 			priority: Default::default(),
+			version,
 		}
 	}
 
 	pub async fn run(mut self) -> Result<(), Error> {
 		loop {
-			let mut stream = Stream::accept(&self.session).await?;
+			let mut stream = Stream::accept(&self.session, self.version).await?;
 
 			// To avoid cloning the origin, we process each control stream in received order.
 			// This adds some head-of-line blocking but it delays an expensive clone.
@@ -47,7 +50,7 @@ impl<S: web_transport_trait::Session> Publisher<S> {
 		}
 	}
 
-	pub async fn recv_announce(&mut self, mut stream: Stream<S>) -> Result<(), Error> {
+	pub async fn recv_announce(&mut self, mut stream: Stream<S, Version>) -> Result<(), Error> {
 		let interest = stream.reader.decode::<lite::AnnouncePlease>().await?;
 		let prefix = interest.prefix.to_owned();
 
@@ -83,7 +86,7 @@ impl<S: web_transport_trait::Session> Publisher<S> {
 	}
 
 	async fn run_announce(
-		stream: &mut Stream<S>,
+		stream: &mut Stream<S, Version>,
 		origin: &mut OriginConsumer,
 		prefix: impl AsPath,
 	) -> Result<(), Error> {
@@ -138,7 +141,7 @@ impl<S: web_transport_trait::Session> Publisher<S> {
 		}
 	}
 
-	pub async fn recv_subscribe(&mut self, mut stream: Stream<S>) -> Result<(), Error> {
+	pub async fn recv_subscribe(&mut self, mut stream: Stream<S, Version>) -> Result<(), Error> {
 		let subscribe = stream.reader.decode::<lite::Subscribe>().await?;
 
 		let id = subscribe.id;
@@ -149,10 +152,12 @@ impl<S: web_transport_trait::Session> Publisher<S> {
 
 		let broadcast = self.origin.consume_broadcast(&subscribe.broadcast);
 		let priority = self.priority.clone();
+		let version = self.version;
 
 		let session = self.session.clone();
 		web_async::spawn(async move {
-			if let Err(err) = Self::run_subscribe(session, &mut stream, &subscribe, broadcast, priority).await {
+			if let Err(err) = Self::run_subscribe(session, &mut stream, &subscribe, broadcast, priority, version).await
+			{
 				match &err {
 					// TODO better classify WebTransport errors.
 					Error::Cancel | Error::Transport(_) => {
@@ -173,10 +178,11 @@ impl<S: web_transport_trait::Session> Publisher<S> {
 
 	async fn run_subscribe(
 		session: S,
-		stream: &mut Stream<S>,
+		stream: &mut Stream<S, Version>,
 		subscribe: &lite::Subscribe<'_>,
 		consumer: Option<BroadcastConsumer>,
 		priority: PriorityQueue,
+		version: Version,
 	) -> Result<(), Error> {
 		let track = Track {
 			name: subscribe.track.to_string(),
@@ -195,7 +201,7 @@ impl<S: web_transport_trait::Session> Publisher<S> {
 		stream.writer.encode(&info).await?;
 
 		tokio::select! {
-			res = Self::run_track(session, track, subscribe, priority) => res?,
+			res = Self::run_track(session, track, subscribe, priority, version) => res?,
 			res = stream.reader.closed() => res?,
 		}
 
@@ -208,6 +214,7 @@ impl<S: web_transport_trait::Session> Publisher<S> {
 		mut track: TrackConsumer,
 		subscribe: &lite::Subscribe<'_>,
 		priority: PriorityQueue,
+		version: Version,
 	) -> Result<(), Error> {
 		// TODO use a BTreeMap serve the latest N groups by sequence.
 		// Until then, we'll implement N=2 manually.
@@ -262,7 +269,7 @@ impl<S: web_transport_trait::Session> Publisher<S> {
 
 			// Spawn a task to serve this group, ignoring any errors because they don't really matter.
 			// TODO add some logging at least.
-			let handle = Box::pin(Self::serve_group(session.clone(), msg, priority, group));
+			let handle = Box::pin(Self::serve_group(session.clone(), msg, priority, group, version));
 
 			// Terminate the old group if it's still running.
 			if let Some(old_sequence) = old_sequence.take() {
@@ -290,6 +297,7 @@ impl<S: web_transport_trait::Session> Publisher<S> {
 		msg: lite::Group,
 		mut priority: PriorityHandle,
 		mut group: GroupConsumer,
+		version: Version,
 	) -> Result<(), Error> {
 		// TODO add a way to open in priority order.
 		let stream = session
@@ -297,7 +305,7 @@ impl<S: web_transport_trait::Session> Publisher<S> {
 			.await
 			.map_err(|err| Error::Transport(Arc::new(err)))?;
 
-		let mut stream = Writer::new(stream);
+		let mut stream = Writer::new(stream, version);
 		stream.set_priority(priority.current());
 		stream.encode(&lite::DataType::Group).await?;
 		stream.encode(&msg).await?;

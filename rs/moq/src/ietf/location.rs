@@ -6,17 +6,17 @@ pub struct Location {
 	pub object: u64,
 }
 
-impl Encode for Location {
-	fn encode<W: bytes::BufMut>(&self, w: &mut W) {
-		self.group.encode(w);
-		self.object.encode(w);
+impl<V: Clone> Encode<V> for Location {
+	fn encode<W: bytes::BufMut>(&self, w: &mut W, version: V) {
+		self.group.encode(w, version.clone());
+		self.object.encode(w, version);
 	}
 }
 
-impl Decode for Location {
-	fn decode<B: bytes::Buf>(buf: &mut B) -> Result<Self, DecodeError> {
-		let group = u64::decode(buf)?;
-		let object = u64::decode(buf)?;
+impl<V: Clone> Decode<V> for Location {
+	fn decode<B: bytes::Buf>(buf: &mut B, version: V) -> Result<Self, DecodeError> {
+		let group = u64::decode(buf, version.clone())?;
+		let object = u64::decode(buf, version)?;
 		Ok(Self { group, object })
 	}
 }

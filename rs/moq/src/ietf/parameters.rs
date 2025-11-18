@@ -32,32 +32,32 @@ pub struct Parameters {
 	bytes: HashMap<ParameterBytes, Vec<u8>>,
 }
 
-impl Decode for Parameters {
-	fn decode<R: bytes::Buf>(mut r: &mut R) -> Result<Self, DecodeError> {
+impl<V: Clone> Decode<V> for Parameters {
+	fn decode<R: bytes::Buf>(mut r: &mut R, version: V) -> Result<Self, DecodeError> {
 		let mut vars = HashMap::new();
 		let mut bytes = HashMap::new();
 
 		// I hate this encoding so much; let me encode my role and get on with my life.
-		let count = u64::decode(r)?;
+		let count = u64::decode(r, version.clone())?;
 
 		if count > MAX_PARAMS {
 			return Err(DecodeError::TooMany);
 		}
 
 		for _ in 0..count {
-			let kind = u64::decode(r)?;
+			let kind = u64::decode(r, version.clone())?;
 
 			if kind % 2 == 0 {
 				let kind = ParameterVarInt::from(kind);
 				match vars.entry(kind) {
 					hash_map::Entry::Occupied(_) => return Err(DecodeError::Duplicate),
-					hash_map::Entry::Vacant(entry) => entry.insert(u64::decode(&mut r)?),
+					hash_map::Entry::Vacant(entry) => entry.insert(u64::decode(&mut r, version.clone())?),
 				};
 			} else {
 				let kind = ParameterBytes::from(kind);
 				match bytes.entry(kind) {
 					hash_map::Entry::Occupied(_) => return Err(DecodeError::Duplicate),
-					hash_map::Entry::Vacant(entry) => entry.insert(Vec::<u8>::decode(&mut r)?),
+					hash_map::Entry::Vacant(entry) => entry.insert(Vec::<u8>::decode(&mut r, version.clone())?),
 				};
 			}
 		}
@@ -66,18 +66,18 @@ impl Decode for Parameters {
 	}
 }
 
-impl Encode for Parameters {
-	fn encode<W: bytes::BufMut>(&self, w: &mut W) {
-		(self.vars.len() + self.bytes.len()).encode(w);
+impl<V: Clone> Encode<V> for Parameters {
+	fn encode<W: bytes::BufMut>(&self, w: &mut W, version: V) {
+		(self.vars.len() + self.bytes.len()).encode(w, version.clone());
 
 		for (kind, value) in self.vars.iter() {
-			u64::from(*kind).encode(w);
-			value.encode(w);
+			u64::from(*kind).encode(w, version.clone());
+			value.encode(w, version.clone());
 		}
 
 		for (kind, value) in self.bytes.iter() {
-			u64::from(*kind).encode(w);
-			value.encode(w);
+			u64::from(*kind).encode(w, version.clone());
+			value.encode(w, version.clone());
 		}
 	}
 }

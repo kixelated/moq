@@ -4,7 +4,7 @@ use std::borrow::Cow;
 
 use crate::{
 	coding::*,
-	ietf::{Message, Parameters, RequestId},
+	ietf::{Message, Parameters, RequestId, Version},
 	Path,
 };
 
@@ -21,18 +21,18 @@ pub struct PublishNamespace<'a> {
 impl<'a> Message for PublishNamespace<'a> {
 	const ID: u64 = 0x06;
 
-	fn encode<W: bytes::BufMut>(&self, w: &mut W) {
-		self.request_id.encode(w);
-		encode_namespace(w, &self.track_namespace);
-		0u8.encode(w); // number of parameters
+	fn encode<W: bytes::BufMut>(&self, w: &mut W, version: Version) {
+		self.request_id.encode(w, version);
+		encode_namespace(w, &self.track_namespace, version);
+		0u8.encode(w, version); // number of parameters
 	}
 
-	fn decode<R: bytes::Buf>(r: &mut R) -> Result<Self, DecodeError> {
-		let request_id = RequestId::decode(r)?;
-		let track_namespace = decode_namespace(r)?;
+	fn decode<R: bytes::Buf>(r: &mut R, version: Version) -> Result<Self, DecodeError> {
+		let request_id = RequestId::decode(r, version)?;
+		let track_namespace = decode_namespace(r, version)?;
 
 		// Ignore parameters, who cares.
-		let _params = Parameters::decode(r)?;
+		let _params = Parameters::decode(r, version)?;
 
 		Ok(Self {
 			request_id,
@@ -50,12 +50,12 @@ pub struct PublishNamespaceOk {
 impl Message for PublishNamespaceOk {
 	const ID: u64 = 0x07;
 
-	fn encode<W: bytes::BufMut>(&self, w: &mut W) {
-		self.request_id.encode(w);
+	fn encode<W: bytes::BufMut>(&self, w: &mut W, version: Version) {
+		self.request_id.encode(w, version);
 	}
 
-	fn decode<R: bytes::Buf>(r: &mut R) -> Result<Self, DecodeError> {
-		let request_id = RequestId::decode(r)?;
+	fn decode<R: bytes::Buf>(r: &mut R, version: Version) -> Result<Self, DecodeError> {
+		let request_id = RequestId::decode(r, version)?;
 		Ok(Self { request_id })
 	}
 }
@@ -71,16 +71,16 @@ pub struct PublishNamespaceError<'a> {
 impl<'a> Message for PublishNamespaceError<'a> {
 	const ID: u64 = 0x08;
 
-	fn encode<W: bytes::BufMut>(&self, w: &mut W) {
-		self.request_id.encode(w);
-		self.error_code.encode(w);
-		self.reason_phrase.encode(w);
+	fn encode<W: bytes::BufMut>(&self, w: &mut W, version: Version) {
+		self.request_id.encode(w, version);
+		self.error_code.encode(w, version);
+		self.reason_phrase.encode(w, version);
 	}
 
-	fn decode<R: bytes::Buf>(r: &mut R) -> Result<Self, DecodeError> {
-		let request_id = RequestId::decode(r)?;
-		let error_code = u64::decode(r)?;
-		let reason_phrase = Cow::<str>::decode(r)?;
+	fn decode<R: bytes::Buf>(r: &mut R, version: Version) -> Result<Self, DecodeError> {
+		let request_id = RequestId::decode(r, version)?;
+		let error_code = u64::decode(r, version)?;
+		let reason_phrase = Cow::<str>::decode(r, version)?;
 
 		Ok(Self {
 			request_id,
@@ -98,12 +98,12 @@ pub struct PublishNamespaceDone<'a> {
 impl<'a> Message for PublishNamespaceDone<'a> {
 	const ID: u64 = 0x09;
 
-	fn encode<W: bytes::BufMut>(&self, w: &mut W) {
-		encode_namespace(w, &self.track_namespace);
+	fn encode<W: bytes::BufMut>(&self, w: &mut W, version: Version) {
+		encode_namespace(w, &self.track_namespace, version);
 	}
 
-	fn decode<R: bytes::Buf>(r: &mut R) -> Result<Self, DecodeError> {
-		let track_namespace = decode_namespace(r)?;
+	fn decode<R: bytes::Buf>(r: &mut R, version: Version) -> Result<Self, DecodeError> {
+		let track_namespace = decode_namespace(r, version)?;
 		Ok(Self { track_namespace })
 	}
 }
@@ -119,16 +119,16 @@ pub struct PublishNamespaceCancel<'a> {
 impl<'a> Message for PublishNamespaceCancel<'a> {
 	const ID: u64 = 0x0c;
 
-	fn encode<W: bytes::BufMut>(&self, w: &mut W) {
-		encode_namespace(w, &self.track_namespace);
-		self.error_code.encode(w);
-		self.reason_phrase.encode(w);
+	fn encode<W: bytes::BufMut>(&self, w: &mut W, version: Version) {
+		encode_namespace(w, &self.track_namespace, version);
+		self.error_code.encode(w, version);
+		self.reason_phrase.encode(w, version);
 	}
 
-	fn decode<R: bytes::Buf>(r: &mut R) -> Result<Self, DecodeError> {
-		let track_namespace = decode_namespace(r)?;
-		let error_code = u64::decode(r)?;
-		let reason_phrase = Cow::<str>::decode(r)?;
+	fn decode<R: bytes::Buf>(r: &mut R, version: Version) -> Result<Self, DecodeError> {
+		let track_namespace = decode_namespace(r, version)?;
+		let error_code = u64::decode(r, version)?;
+		let reason_phrase = Cow::<str>::decode(r, version)?;
 		Ok(Self {
 			track_namespace,
 			error_code,
@@ -144,13 +144,13 @@ mod tests {
 
 	fn encode_message<M: Message>(msg: &M) -> Vec<u8> {
 		let mut buf = BytesMut::new();
-		msg.encode(&mut buf);
+		msg.encode(&mut buf, Version::Draft14);
 		buf.to_vec()
 	}
 
 	fn decode_message<M: Message>(bytes: &[u8]) -> Result<M, DecodeError> {
 		let mut buf = bytes::Bytes::from(bytes.to_vec());
-		M::decode(&mut buf)
+		M::decode(&mut buf, Version::Draft14)
 	}
 
 	#[test]

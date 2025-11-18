@@ -1,20 +1,26 @@
 use tokio::sync::oneshot;
 
-use crate::{coding::Stream, lite::SessionInfo, Error, OriginConsumer, OriginProducer};
+use crate::{
+	coding::Stream,
+	lite::{SessionInfo, Version},
+	Error, OriginConsumer, OriginProducer,
+};
 
 use super::{Publisher, Subscriber};
 
 pub(crate) async fn start<S: web_transport_trait::Session>(
 	session: S,
 	// The stream used to setup the session, after exchanging setup messages.
-	setup: Stream<S>,
+	setup: Stream<S, Version>,
 	// We will publish any local broadcasts from this origin.
 	publish: Option<OriginConsumer>,
 	// We will consume any remote broadcasts, inserting them into this origin.
 	subscribe: Option<OriginProducer>,
+	// The version of the protocol to use.
+	version: Version,
 ) -> Result<(), Error> {
-	let publisher = Publisher::new(session.clone(), publish);
-	let subscriber = Subscriber::new(session.clone(), subscribe);
+	let publisher = Publisher::new(session.clone(), publish, version);
+	let subscriber = Subscriber::new(session.clone(), subscribe, version);
 
 	let init = oneshot::channel();
 
@@ -51,7 +57,7 @@ pub(crate) async fn start<S: web_transport_trait::Session>(
 }
 
 // TODO do something useful with this
-async fn run_session<S: web_transport_trait::Session>(mut stream: Stream<S>) -> Result<(), Error> {
+async fn run_session<S: web_transport_trait::Session>(mut stream: Stream<S, Version>) -> Result<(), Error> {
 	while let Some(_info) = stream.reader.decode_maybe::<SessionInfo>().await? {}
 	Err(Error::Cancel)
 }

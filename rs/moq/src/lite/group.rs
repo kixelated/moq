@@ -1,4 +1,7 @@
-use crate::{coding::*, lite::Message};
+use crate::{
+	coding::*,
+	lite::{Message, Version},
+};
 
 #[derive(Clone, Debug)]
 pub struct Group {
@@ -10,15 +13,15 @@ pub struct Group {
 }
 
 impl Message for Group {
-	fn decode<R: bytes::Buf>(r: &mut R) -> Result<Self, DecodeError> {
+	fn decode<R: bytes::Buf>(r: &mut R, version: Version) -> Result<Self, DecodeError> {
 		Ok(Self {
-			subscribe: u64::decode(r)?,
-			sequence: u64::decode(r)?,
+			subscribe: u64::decode(r, version)?,
+			sequence: u64::decode(r, version)?,
 		})
 	}
 
-	fn encode<W: bytes::BufMut>(&self, w: &mut W) {
-		self.subscribe.encode(w);
-		self.sequence.encode(w);
+	fn encode<W: bytes::BufMut>(&self, w: &mut W, version: Version) {
+		self.subscribe.encode(w, version);
+		self.sequence.encode(w, version);
 	}
 }

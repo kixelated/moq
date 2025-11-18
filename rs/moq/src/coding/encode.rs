@@ -1,51 +1,44 @@
 use std::{borrow::Cow, sync::Arc};
 
-pub trait Encode: Sized {
+pub trait Encode<V>: Sized {
 	// Encode the value to the given writer.
 	// This will panic if the Buf is not large enough; use a Vec or encode_size() to check.
-	fn encode<W: bytes::BufMut>(&self, w: &mut W);
+	fn encode<W: bytes::BufMut>(&self, w: &mut W, version: V);
 }
 
-impl Encode for bool {
-	fn encode<W: bytes::BufMut>(&self, w: &mut W) {
+impl<V> Encode<V> for bool {
+	fn encode<W: bytes::BufMut>(&self, w: &mut W, _: V) {
 		w.put_u8(*self as u8);
 	}
 }
 
-impl Encode for u8 {
-	fn encode<W: bytes::BufMut>(&self, w: &mut W) {
+impl<V> Encode<V> for u8 {
+	fn encode<W: bytes::BufMut>(&self, w: &mut W, _: V) {
 		w.put_u8(*self);
 	}
 }
 
-impl Encode for u16 {
-	fn encode<W: bytes::BufMut>(&self, w: &mut W) {
+impl<V> Encode<V> for u16 {
+	fn encode<W: bytes::BufMut>(&self, w: &mut W, _: V) {
 		w.put_u16(*self);
 	}
 }
 
-impl Encode for String {
-	fn encode<W: bytes::BufMut>(&self, w: &mut W) {
-		self.as_str().encode(w)
+impl<V> Encode<V> for String {
+	fn encode<W: bytes::BufMut>(&self, w: &mut W, version: V) {
+		self.as_str().encode(w, version)
 	}
 }
 
-impl Encode for &str {
-	fn encode<W: bytes::BufMut>(&self, w: &mut W) {
-		self.len().encode(w);
+impl<V> Encode<V> for &str {
+	fn encode<W: bytes::BufMut>(&self, w: &mut W, version: V) {
+		self.len().encode(w, version);
 		w.put(self.as_bytes());
 	}
 }
 
-impl Encode for std::time::Duration {
-	fn encode<W: bytes::BufMut>(&self, w: &mut W) {
-		let v: u64 = self.as_micros().try_into().expect("duration too large");
-		v.encode(w);
-	}
-}
-
-impl Encode for i8 {
-	fn encode<W: bytes::BufMut>(&self, w: &mut W) {
+impl<V> Encode<V> for i8 {
+	fn encode<W: bytes::BufMut>(&self, w: &mut W, _: V) {
 		// This is not the usual way of encoding negative numbers.
 		// i8 doesn't exist in the draft, but we use it instead of u8 for priority.
 		// A default of 0 is more ergonomic for the user than a default of 128.
@@ -53,38 +46,38 @@ impl Encode for i8 {
 	}
 }
 
-impl<T: Encode> Encode for &[T] {
-	fn encode<W: bytes::BufMut>(&self, w: &mut W) {
-		self.len().encode(w);
+impl<T: Encode<V>, V: Clone> Encode<V> for &[T] {
+	fn encode<W: bytes::BufMut>(&self, w: &mut W, version: V) {
+		self.len().encode(w, version.clone());
 		for item in self.iter() {
-			item.encode(w);
+			item.encode(w, version.clone());
 		}
 	}
 }
 
-impl Encode for Vec<u8> {
-	fn encode<W: bytes::BufMut>(&self, w: &mut W) {
-		self.len().encode(w);
+impl<V> Encode<V> for Vec<u8> {
+	fn encode<W: bytes::BufMut>(&self, w: &mut W, version: V) {
+		self.len().encode(w, version);
 		w.put_slice(self);
 	}
 }
 
-impl Encode for bytes::Bytes {
-	fn encode<W: bytes::BufMut>(&self, w: &mut W) {
-		self.len().encode(w);
+impl<V> Encode<V> for bytes::Bytes {
+	fn encode<W: bytes::BufMut>(&self, w: &mut W, version: V) {
+		self.len().encode(w, version);
 		w.put_slice(self);
 	}
 }
 
-impl<T: Encode> Encode for Arc<T> {
-	fn encode<W: bytes::BufMut>(&self, w: &mut W) {
-		(**self).encode(w);
+impl<T: Encode<V>, V> Encode<V> for Arc<T> {
+	fn encode<W: bytes::BufMut>(&self, w: &mut W, version: V) {
+		(**self).encode(w, version);
 	}
 }
 
-impl Encode for Cow<'_, str> {
-	fn encode<W: bytes::BufMut>(&self, w: &mut W) {
-		self.len().encode(w);
+impl<V> Encode<V> for Cow<'_, str> {
+	fn encode<W: bytes::BufMut>(&self, w: &mut W, version: V) {
+		self.len().encode(w, version);
 		w.put(self.as_bytes());
 	}
 }

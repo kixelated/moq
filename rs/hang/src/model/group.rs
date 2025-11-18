@@ -4,6 +4,7 @@ use crate::model::{Frame, Timestamp};
 use crate::Result;
 
 use moq_lite::coding::Decode;
+use moq_lite::lite;
 
 /// A consumer for a group of frames.
 ///
@@ -64,7 +65,7 @@ impl GroupConsumer {
 			None => return Ok(None),
 		};
 
-		let micros = u64::decode(&mut payload)?;
+		let micros = u64::decode(&mut payload, lite::Version::Draft02)?;
 		let timestamp = Timestamp::from_micros(micros);
 
 		let frame = Frame {

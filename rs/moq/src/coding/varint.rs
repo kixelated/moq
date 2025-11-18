@@ -157,9 +157,9 @@ impl fmt::Display for VarInt {
 	}
 }
 
-impl Decode for VarInt {
+impl<V> Decode<V> for VarInt {
 	/// Decode a varint from the given reader.
-	fn decode<R: bytes::Buf>(r: &mut R) -> Result<Self, DecodeError> {
+	fn decode<R: bytes::Buf>(r: &mut R, _: V) -> Result<Self, DecodeError> {
 		if !r.has_remaining() {
 			return Err(DecodeError::Short);
 		}
@@ -200,9 +200,9 @@ impl Decode for VarInt {
 	}
 }
 
-impl Encode for VarInt {
+impl<V> Encode<V> for VarInt {
 	/// Encode a varint to the given writer.
-	fn encode<W: bytes::BufMut>(&self, w: &mut W) {
+	fn encode<W: bytes::BufMut>(&self, w: &mut W, _: V) {
 		if self.0 < (1u64 << 6) {
 			w.put_u8(self.0 as u8);
 		} else if self.0 < (1u64 << 14) {
@@ -215,45 +215,45 @@ impl Encode for VarInt {
 	}
 }
 
-impl Encode for u64 {
+impl<V> Encode<V> for u64 {
 	/// Encode a varint to the given writer.
-	fn encode<W: bytes::BufMut>(&self, w: &mut W) {
+	fn encode<W: bytes::BufMut>(&self, w: &mut W, version: V) {
 		// TODO use VarInt everywhere instead of u64
 		let v = VarInt::try_from(*self).expect("u64 too large");
-		v.encode(w)
+		v.encode(w, version)
 	}
 }
 
-impl Decode for u64 {
-	fn decode<R: bytes::Buf>(r: &mut R) -> Result<Self, DecodeError> {
-		VarInt::decode(r).map(|v| v.into_inner())
+impl<V> Decode<V> for u64 {
+	fn decode<R: bytes::Buf>(r: &mut R, version: V) -> Result<Self, DecodeError> {
+		VarInt::decode(r, version).map(|v| v.into_inner())
 	}
 }
 
-impl Encode for usize {
+impl<V> Encode<V> for usize {
 	/// Encode a varint to the given writer.
-	fn encode<W: bytes::BufMut>(&self, w: &mut W) {
+	fn encode<W: bytes::BufMut>(&self, w: &mut W, version: V) {
 		// TODO use VarInt everywhere instead of usize
 		let v = VarInt::try_from(*self).expect("usize too large");
-		v.encode(w)
+		v.encode(w, version)
 	}
 }
 
-impl Decode for usize {
-	fn decode<R: bytes::Buf>(r: &mut R) -> Result<Self, DecodeError> {
-		VarInt::decode(r).map(|v| v.into_inner() as usize)
+impl<V> Decode<V> for usize {
+	fn decode<R: bytes::Buf>(r: &mut R, version: V) -> Result<Self, DecodeError> {
+		VarInt::decode(r, version).map(|v| v.into_inner() as usize)
 	}
 }
 
-impl Encode for u32 {
-	fn encode<W: bytes::BufMut>(&self, w: &mut W) {
-		VarInt::from(*self).encode(w)
+impl<V> Encode<V> for u32 {
+	fn encode<W: bytes::BufMut>(&self, w: &mut W, version: V) {
+		VarInt::from(*self).encode(w, version)
 	}
 }
 
-impl Decode for u32 {
-	fn decode<R: bytes::Buf>(r: &mut R) -> Result<Self, DecodeError> {
-		let v = VarInt::decode(r)?;
+impl<V> Decode<V> for u32 {
+	fn decode<R: bytes::Buf>(r: &mut R, version: V) -> Result<Self, DecodeError> {
+		let v = VarInt::decode(r, version)?;
 		let v = v.try_into().map_err(|_| DecodeError::BoundsExceeded)?;
 		Ok(v)
 	}

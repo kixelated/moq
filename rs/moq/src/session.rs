@@ -1,9 +1,7 @@
 use std::sync::Arc;
 
-use bytes::BytesMut;
-
 use crate::{
-	coding::{self, Encode, Stream},
+	coding::{self, Stream},
 	ietf::{self, Message, ParameterBytes, ParameterVarInt, RequestId},
 	lite, Error, OriginConsumer, OriginProducer,
 };
@@ -15,7 +13,14 @@ pub struct Session<S: web_transport_trait::Session> {
 /// The versions of MoQ that are supported by this implementation.
 ///
 /// Ordered by preference, with the client's preference taking priority.
-const SUPPORTED: [coding::Version; 2] = [coding::Version::LITE_LATEST, coding::Version::IETF_LATEST];
+pub const VERSIONS: [coding::Version; 3] = [
+	lite::Version::Draft02.coding(),
+	lite::Version::Draft01.coding(),
+	ietf::Version::Draft14.coding(),
+];
+
+/// The ALPN strings for supported versions.
+pub const ALPNS: [&str; 2] = [lite::ALPN, ietf::ALPN];
 
 impl<S: web_transport_trait::Session> Session<S> {
 	fn new(session: S) -> Self {
@@ -31,28 +36,23 @@ impl<S: web_transport_trait::Session> Session<S> {
 		publish: impl Into<Option<OriginConsumer>>,
 		subscribe: impl Into<Option<OriginProducer>>,
 	) -> Result<Self, Error> {
-		let mut stream = Stream::open(&session).await?;
-
-		let mut buf = BytesMut::new();
+		let mut stream = Stream::open(&session, ietf::Version::Draft14).await?;
 
 		// Encode 0x20 on the wire so it's backwards compatible with moq-transport draft 10+
 		// Unfortunately, we have to choose one value blind as the client.
-		lite::ControlType::ClientCompatV14.encode(&mut buf);
+		stream.writer.encode(&lite::ControlType::ClientCompatV14).await?;
 
 		let mut parameters = ietf::Parameters::default();
 		parameters.set_varint(ParameterVarInt::MaxRequestId, u32::MAX as u64);
 		parameters.set_bytes(ParameterBytes::Implementation, b"moq-lite-rs".to_vec());
 
 		let client = ietf::ClientSetup {
-			versions: SUPPORTED.into(),
+			versions: VERSIONS.into(),
 			parameters,
 		};
 
 		tracing::trace!(?client, "sending client setup");
-
-		client.encode_size().encode(&mut buf);
-		client.encode(&mut buf);
-		stream.writer.write_all(&mut buf).await?;
+		stream.writer.encode(&client).await?;
 
 		// We expect 0x21 as the response.
 		let server_compat: lite::ControlType = stream.reader.decode().await?;
@@ -61,35 +61,33 @@ impl<S: web_transport_trait::Session> Session<S> {
 			return Err(Error::UnexpectedStream);
 		}
 
-		// This is a little manual, but whatever.
+		// Decode server setup manually
 		let size: u16 = stream.reader.decode().await?;
 		let mut buf = stream.reader.read_exact(size as usize).await?;
-
-		let server = ietf::ServerSetup::decode(&mut buf)?;
-		tracing::trace!(?server, "received server setup");
-
+		let server = ietf::ServerSetup::decode(&mut buf, ietf::Version::Draft14)?;
 		if !buf.is_empty() {
 			return Err(Error::WrongSize);
 		}
+		tracing::trace!(?server, "received server setup");
 
 		let request_id_max = RequestId(server.parameters.get_varint(ParameterVarInt::MaxRequestId).unwrap_or(0));
 
-		match server.version {
-			coding::Version::LITE_LATEST => {
-				lite::start(session.clone(), stream, publish.into(), subscribe.into()).await?;
-			}
-			coding::Version::IETF_LATEST => {
-				ietf::start(
-					session.clone(),
-					stream,
-					request_id_max,
-					true,
-					publish.into(),
-					subscribe.into(),
-				)
-				.await?;
-			}
-			_ => return Err(Error::Version(client.versions, [server.version].into())),
+		if let Ok(version) = lite::Version::try_from(server.version) {
+			let stream = stream.with_version(version);
+			lite::start(session.clone(), stream, publish.into(), subscribe.into(), version).await?;
+		} else if let Ok(version) = ietf::Version::try_from(server.version) {
+			ietf::start(
+				session.clone(),
+				stream,
+				request_id_max,
+				true,
+				publish.into(),
+				subscribe.into(),
+				version,
+			)
+			.await?;
+		} else {
+			return Err(Error::Version(client.versions, [server.version].into()));
 		}
 
 		tracing::debug!(version = ?server.version, "connected");
@@ -106,94 +104,125 @@ impl<S: web_transport_trait::Session> Session<S> {
 		publish: impl Into<Option<OriginConsumer>>,
 		subscribe: impl Into<Option<OriginProducer>>,
 	) -> Result<Self, Error> {
-		let mut stream = Stream::accept(&session).await?;
+		// Accept with an initial version; we'll switch to the negotiated version later
+		let mut stream = Stream::accept(&session, ietf::Version::Draft14).await?;
 		let kind: lite::ControlType = stream.reader.decode().await?;
 
-		let (versions, request_id_max) = match kind {
-			lite::ControlType::Session | lite::ControlType::ClientCompatV7 => {
-				let client: lite::ClientSetup = stream.reader.decode().await?;
-				(client.versions, None)
-			}
-			// If it's draft-14 client, we need to write back a u16 for the size.
-			lite::ControlType::ClientCompatV14 => {
-				// TODO make this less manual
-				let size: u16 = stream.reader.decode().await?;
-				let mut buf = stream.reader.read_exact(size as usize).await?;
-				let client: ietf::ClientSetup = ietf::ClientSetup::decode(&mut buf)?;
-				if !buf.is_empty() {
-					return Err(Error::WrongSize);
-				}
-				let request_id_max = client.parameters.get_varint(ParameterVarInt::MaxRequestId).unwrap_or(0);
-				(client.versions, Some(RequestId(request_id_max)))
-			}
-			_ => return Err(Error::UnexpectedStream),
-		};
-
-		let version = versions
-			.iter()
-			.find(|v| SUPPORTED.contains(v))
-			.copied()
-			.ok_or_else(|| Error::Version(versions, SUPPORTED.into()))?;
-
-		// Backwards compatibility with moq-transport-07
 		match kind {
 			lite::ControlType::ClientCompatV14 => {
-				stream.writer.encode(&lite::ControlType::ServerCompatV14).await?;
-
-				let mut parameters = ietf::Parameters::default();
-				parameters.set_varint(ParameterVarInt::MaxRequestId, u32::MAX as u64);
-				parameters.set_bytes(ParameterBytes::Implementation, b"moq-lite-rs".to_vec());
-
-				// This type doesn't implement Encode (yet), so we have to do it manually.
-				let setup = ietf::ServerSetup { version, parameters };
-
-				let mut buf = BytesMut::new();
-				setup.encode_size().encode(&mut buf);
-				setup.encode(&mut buf);
-				stream.writer.write_all(&mut buf).await?;
+				Self::accept_ietf(session, stream.with_version(ietf::Version::Draft14), publish, subscribe).await
 			}
-			lite::ControlType::ClientCompatV7 => {
-				// Encode the ID so it's backwards compatibile.
-				stream.writer.encode(&lite::ControlType::ServerCompatV7).await?;
+			lite::ControlType::Session | lite::ControlType::ClientCompatV7 => {
+				Self::accept_lite(
+					session,
+					kind,
+					stream.with_version(lite::Version::Draft02),
+					publish,
+					subscribe,
+				)
+				.await
+			}
+			_ => Err(Error::UnexpectedStream),
+		}
+	}
 
-				// NOTE: This is a lite message, but it's the same encoding as the IETF message.
-				stream
-					.writer
-					.encode(&lite::ServerSetup {
-						version,
-						parameters: Default::default(),
-					})
-					.await?;
-			}
-			lite::ControlType::Session => {
-				// No ID needed for moq-lite responses.
-				stream
-					.writer
-					.encode(&lite::ServerSetup {
-						version,
-						parameters: Default::default(),
-					})
-					.await?;
-			}
-			_ => unreachable!(),
+	// When the first byte is a ClientCompatV7 or Session
+	// NOTE: The negotiated version could still be IETF, but unlikely.
+	async fn accept_lite(
+		session: S,
+		kind: lite::ControlType,
+		mut stream: Stream<S, lite::Version>,
+		publish: impl Into<Option<OriginConsumer>>,
+		subscribe: impl Into<Option<OriginProducer>>,
+	) -> Result<Self, Error> {
+		let client: lite::ClientSetup = stream.reader.decode().await?;
+
+		let version = client
+			.versions
+			.iter()
+			.find(|v| VERSIONS.contains(v))
+			.copied()
+			.ok_or_else(|| Error::Version(client.versions.clone(), VERSIONS.into()))?;
+
+		if kind == lite::ControlType::ClientCompatV7 {
+			// Encode the ID so it's backwards compatibile.
+			stream.writer.encode(&lite::ControlType::ServerCompatV7).await?;
 		}
 
-		match version {
-			coding::Version::LITE_LATEST => {
-				lite::start(session.clone(), stream, publish.into(), subscribe.into()).await?;
-			}
-			coding::Version::IETF_LATEST => {
-				ietf::start(
-					session.clone(),
-					stream,
-					request_id_max.unwrap_or(RequestId(0)),
-					false,
-					publish.into(),
-					subscribe.into(),
-				)
-				.await?;
-			}
-			_ => unreachable!(),
+		let server = lite::ServerSetup {
+			version,
+			parameters: Default::default(),
+		};
+
+		stream.writer.encode(&server).await?;
+
+		if let Ok(version) = lite::Version::try_from(version) {
+			let stream = stream.with_version(version);
+			lite::start(session.clone(), stream, publish.into(), subscribe.into(), version).await?;
+		} else if let Ok(version) = ietf::Version::try_from(version) {
+			let stream = stream.with_version(version);
+			ietf::start(
+				session.clone(),
+				stream,
+				RequestId(0),
+				false,
+				publish.into(),
+				subscribe.into(),
+				version,
+			)
+			.await?;
+		} else {
+			return Err(Error::Version(client.versions, VERSIONS.into()));
+		}
+
+		tracing::debug!(?version, "connected");
+
+		Ok(Self::new(session))
+	}
+
+	// When the first byte is a ClientCompatV14
+	// NOTE: The negotiated version could still be LITE.
+	async fn accept_ietf(
+		session: S,
+		mut stream: Stream<S, ietf::Version>,
+		publish: impl Into<Option<OriginConsumer>>,
+		subscribe: impl Into<Option<OriginProducer>>,
+	) -> Result<Self, Error> {
+		let client: ietf::ClientSetup = stream.reader.decode().await?;
+		let version = client
+			.versions
+			.iter()
+			.find(|v| VERSIONS.contains(v))
+			.copied()
+			.ok_or_else(|| Error::Version(client.versions.clone(), VERSIONS.into()))?;
+		let request_id_max = RequestId(client.parameters.get_varint(ParameterVarInt::MaxRequestId).unwrap_or(0));
+
+		stream.writer.encode(&lite::ControlType::ServerCompatV14).await?;
+
+		let mut parameters = ietf::Parameters::default();
+		parameters.set_varint(ParameterVarInt::MaxRequestId, u32::MAX as u64);
+		parameters.set_bytes(ParameterBytes::Implementation, b"moq-lite-rs".to_vec());
+
+		let server = ietf::ServerSetup { version, parameters };
+		stream.writer.encode(&server).await?;
+
+		if let Ok(version) = lite::Version::try_from(version) {
+			let stream = stream.with_version(version);
+			lite::start(session.clone(), stream, publish.into(), subscribe.into(), version).await?;
+		} else if let Ok(version) = ietf::Version::try_from(version) {
+			let stream = stream.with_version(version);
+			ietf::start(
+				session.clone(),
+				stream,
+				request_id_max,
+				false,
+				publish.into(),
+				subscribe.into(),
+				version,
+			)
+			.await?;
+		} else {
+			return Err(Error::Version(client.versions, VERSIONS.into()));
 		}
 
 		tracing::debug!(?version, "connected");

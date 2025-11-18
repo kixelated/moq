@@ -1,6 +1,6 @@
 use crate::{
 	coding::*,
-	ietf::{Message, Parameters},
+	ietf::{Message, Parameters, Version as IetfVersion},
 };
 
 /// Sent by the client to setup the session.
@@ -17,17 +17,17 @@ impl Message for ClientSetup {
 	const ID: u64 = 0x20;
 
 	/// Decode a client setup message.
-	fn decode<R: bytes::Buf>(r: &mut R) -> Result<Self, DecodeError> {
-		let versions = Versions::decode(r)?;
-		let parameters = Parameters::decode(r)?;
+	fn decode<R: bytes::Buf>(r: &mut R, version: IetfVersion) -> Result<Self, DecodeError> {
+		let versions = Versions::decode(r, version)?;
+		let parameters = Parameters::decode(r, version)?;
 
 		Ok(Self { versions, parameters })
 	}
 
 	/// Encode a client setup message.
-	fn encode<W: bytes::BufMut>(&self, w: &mut W) {
-		self.versions.encode(w);
-		self.parameters.encode(w);
+	fn encode<W: bytes::BufMut>(&self, w: &mut W, version: IetfVersion) {
+		self.versions.encode(w, version);
+		self.parameters.encode(w, version);
 	}
 }
 
@@ -44,14 +44,14 @@ pub struct ServerSetup {
 impl Message for ServerSetup {
 	const ID: u64 = 0x21;
 
-	fn encode<W: bytes::BufMut>(&self, w: &mut W) {
-		self.version.encode(w);
-		self.parameters.encode(w);
+	fn encode<W: bytes::BufMut>(&self, w: &mut W, version: IetfVersion) {
+		self.version.encode(w, version);
+		self.parameters.encode(w, version);
 	}
 
-	fn decode<R: bytes::Buf>(r: &mut R) -> Result<Self, DecodeError> {
-		let version = Version::decode(r)?;
-		let parameters = Parameters::decode(r)?;
+	fn decode<R: bytes::Buf>(r: &mut R, version: IetfVersion) -> Result<Self, DecodeError> {
+		let version = Version::decode(r, version)?;
+		let parameters = Parameters::decode(r, version)?;
 
 		Ok(Self { version, parameters })
 	}

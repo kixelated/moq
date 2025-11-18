@@ -10,6 +10,7 @@ import { SessionInfo } from "./session.ts";
 import { StreamId } from "./stream.ts";
 import { Subscribe } from "./subscribe.ts";
 import { Subscriber } from "./subscriber.ts";
+import type { Version } from "./version.ts";
 
 /**
  * Represents a connection to a MoQ server.
@@ -19,6 +20,9 @@ import { Subscriber } from "./subscriber.ts";
 export class Connection implements Established {
 	// The URL of the connection.
 	readonly url: URL;
+
+	// The version of the connection.
+	readonly version: Version;
 
 	// The established WebTransport session.
 	#quic: WebTransport;
@@ -43,13 +47,14 @@ export class Connection implements Established {
 	 *
 	 * @internal
 	 */
-	constructor(url: URL, quic: WebTransport, session: Stream) {
+	constructor(url: URL, quic: WebTransport, session: Stream, version: Version) {
 		this.url = url;
 		this.#quic = quic;
 		this.#session = session;
+		this.version = version;
 
-		this.#publisher = new Publisher(this.#quic);
-		this.#subscriber = new Subscriber(this.#quic);
+		this.#publisher = new Publisher(this.#quic, this.version);
+		this.#subscriber = new Subscriber(this.#quic, this.version);
 
 		this.#run();
 	}

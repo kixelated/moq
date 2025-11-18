@@ -10,6 +10,7 @@ mod setup;
 mod stream;
 mod subscribe;
 mod subscriber;
+mod version;
 
 pub use announce::*;
 pub use group::*;
@@ -22,5 +23,4 @@ pub use setup::*;
 pub use stream::*;
 pub use subscribe::*;
 use subscriber::*;
-
-pub const ALPN: &str = crate::coding::Alpn::LITE_LATEST.0;
+pub use version::*;

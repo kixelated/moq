@@ -3,25 +3,32 @@ use std::{fmt::Debug, sync::Arc};
 use crate::{coding::*, Error};
 
 // A wrapper around a SendStream that will reset on Drop
-pub struct Writer<S: web_transport_trait::SendStream> {
-	stream: S,
+pub struct Writer<S: web_transport_trait::SendStream, V> {
+	stream: Option<S>,
 	buffer: bytes::BytesMut,
+	version: V,
 }
 
-impl<S: web_transport_trait::SendStream> Writer<S> {
-	pub fn new(stream: S) -> Self {
+impl<S: web_transport_trait::SendStream, V> Writer<S, V> {
+	pub fn new(stream: S, version: V) -> Self {
 		Self {
-			stream,
+			stream: Some(stream),
 			buffer: Default::default(),
+			version,
 		}
 	}
 
-	pub async fn encode<T: Encode + Debug>(&mut self, msg: &T) -> Result<(), Error> {
+	pub async fn encode<T: Encode<V> + Debug>(&mut self, msg: &T) -> Result<(), Error>
+	where
+		V: Clone,
+	{
 		self.buffer.clear();
-		msg.encode(&mut self.buffer);
+		msg.encode(&mut self.buffer, self.version.clone());
 
 		while !self.buffer.is_empty() {
 			self.stream
+				.as_mut()
+				.unwrap()
 				.write_buf(&mut self.buffer)
 				.await
 				.map_err(|e| Error::Transport(Arc::new(e)))?;
@@ -33,6 +40,8 @@ impl<S: web_transport_trait::SendStream> Writer<S> {
 	// Not public to avoid accidental partial writes.
 	async fn write<Buf: bytes::Buf + Send>(&mut self, buf: &mut Buf) -> Result<usize, Error> {
 		self.stream
+			.as_mut()
+			.unwrap()
 			.write_buf(buf)
 			.await
 			.map_err(|e| Error::Transport(Arc::new(e)))
@@ -48,26 +57,46 @@ impl<S: web_transport_trait::SendStream> Writer<S> {
 
 	/// A clean termination of the stream, waiting for the peer to close.
 	pub fn finish(&mut self) -> Result<(), Error> {
-		self.stream.finish().map_err(|e| Error::Transport(Arc::new(e)))
+		self.stream
+			.as_mut()
+			.unwrap()
+			.finish()
+			.map_err(|e| Error::Transport(Arc::new(e)))
 	}
 
 	pub fn abort(&mut self, err: &Error) {
-		self.stream.reset(err.to_code());
+		self.stream.as_mut().unwrap().reset(err.to_code());
 	}
 
 	pub async fn closed(&mut self) -> Result<(), Error> {
-		self.stream.closed().await.map_err(|e| Error::Transport(Arc::new(e)))?;
+		self.stream
+			.as_mut()
+			.unwrap()
+			.closed()
+			.await
+			.map_err(|e| Error::Transport(Arc::new(e)))?;
 		Ok(())
 	}
 
 	pub fn set_priority(&mut self, priority: u8) {
-		self.stream.set_priority(priority);
+		self.stream.as_mut().unwrap().set_priority(priority);
+	}
+
+	pub fn with_version<O>(mut self, version: O) -> Writer<S, O> {
+		Writer {
+			// We need to use an Option so Drop doesn't reset the stream.
+			stream: self.stream.take(),
+			buffer: std::mem::take(&mut self.buffer),
+			version,
+		}
 	}
 }
 
-impl<S: web_transport_trait::SendStream> Drop for Writer<S> {
+impl<S: web_transport_trait::SendStream, V> Drop for Writer<S, V> {
 	fn drop(&mut self) {
-		// Unlike the Quinn default, we abort the stream on drop.
-		self.stream.reset(Error::Cancel.to_code());
+		if let Some(mut stream) = self.stream.take() {
+			// Unlike the Quinn default, we abort the stream on drop.
+			stream.reset(Error::Cancel.to_code());
+		}
 	}
 }

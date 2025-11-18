@@ -3,30 +3,43 @@ use std::sync::Arc;
 use crate::coding::{Reader, Writer};
 use crate::Error;
 
-pub struct Stream<S: web_transport_trait::Session> {
-	pub writer: Writer<S::SendStream>,
-	pub reader: Reader<S::RecvStream>,
+pub struct Stream<S: web_transport_trait::Session, V> {
+	pub writer: Writer<S::SendStream, V>,
+	pub reader: Reader<S::RecvStream, V>,
 }
 
-impl<S: web_transport_trait::Session> Stream<S> {
-	pub async fn open(session: &S) -> Result<Self, Error> {
+impl<S: web_transport_trait::Session, V> Stream<S, V> {
+	pub async fn open(session: &S, version: V) -> Result<Self, Error>
+	where
+		V: Clone,
+	{
 		let (send, recv) = session.open_bi().await.map_err(|err| Error::Transport(Arc::new(err)))?;
 
-		let writer = Writer::new(send);
-		let reader = Reader::new(recv);
+		let writer = Writer::new(send, version.clone());
+		let reader = Reader::new(recv, version);
 
 		Ok(Stream { writer, reader })
 	}
 
-	pub async fn accept(session: &S) -> Result<Self, Error> {
+	pub async fn accept(session: &S, version: V) -> Result<Self, Error>
+	where
+		V: Clone,
+	{
 		let (send, recv) = session
 			.accept_bi()
 			.await
 			.map_err(|err| Error::Transport(Arc::new(err)))?;
 
-		let writer = Writer::new(send);
-		let reader = Reader::new(recv);
+		let writer = Writer::new(send, version.clone());
+		let reader = Reader::new(recv, version);
 
 		Ok(Stream { writer, reader })
+	}
+
+	pub fn with_version<O: Clone>(self, version: O) -> Stream<S, O> {
+		Stream {
+			writer: self.writer.with_version(version.clone()),
+			reader: self.reader.with_version(version),
+		}
 	}
 }

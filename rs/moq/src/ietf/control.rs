@@ -4,7 +4,7 @@ use tokio::sync::Notify;
 
 use crate::{
 	coding::{Encode, Writer},
-	ietf::{Message, RequestId},
+	ietf::{Message, RequestId, Version},
 	Error,
 };
 
@@ -18,10 +18,16 @@ struct ControlState {
 pub(super) struct Control {
 	tx: tokio::sync::mpsc::UnboundedSender<Vec<u8>>,
 	state: Arc<Mutex<ControlState>>,
+	version: Version,
 }
 
 impl Control {
-	pub fn new(tx: tokio::sync::mpsc::UnboundedSender<Vec<u8>>, request_id_max: RequestId, client: bool) -> Self {
+	pub fn new(
+		tx: tokio::sync::mpsc::UnboundedSender<Vec<u8>>,
+		request_id_max: RequestId,
+		client: bool,
+		version: Version,
+	) -> Self {
 		Self {
 			tx,
 			state: Arc::new(Mutex::new(ControlState {
@@ -29,20 +35,16 @@ impl Control {
 				request_id_max,
 				request_id_notify: Arc::new(Notify::new()),
 			})),
+			version,
 		}
 	}
 
 	pub fn send<T: Message>(&self, msg: T) -> Result<(), Error> {
 		tracing::debug!(message = ?msg, "sending control message");
 
-		// TODO Always encode 2 bytes for the size, then go back and populate it later.
-		// That way we can avoid calculating the size upfront.
-		let size: u16 = msg.encode_size();
-
 		let mut buf = Vec::new();
-		T::ID.encode(&mut buf);
-		size.encode(&mut buf);
-		msg.encode(&mut buf);
+		T::ID.encode(&mut buf, self.version);
+		msg.encode(&mut buf, self.version);
 
 		tracing::trace!(id = T::ID, size = buf.len(), hex = %hex::encode(&buf), "encoded control message");
 
@@ -51,7 +53,7 @@ impl Control {
 	}
 
 	pub async fn run<S: web_transport_trait::Session>(
-		mut stream: Writer<S::SendStream>,
+		mut stream: Writer<S::SendStream, Version>,
 		mut rx: tokio::sync::mpsc::UnboundedReceiver<Vec<u8>>,
 	) -> Result<(), Error> {
 		while let Some(msg) = rx.recv().await {
