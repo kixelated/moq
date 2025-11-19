@@ -345,6 +345,7 @@ struct TrackProducerWeak {
 
 impl TrackProducerWeak {
 	// Start a timer to expire the group, but don't hold a reference to the GroupProducer.
+	// TODO: This should be a task per track, not a task per group.
 	async fn expire(self, group: GroupProducerWeak, expires: std::time::Duration) {
 		let mut state = self.state.subscribe();
 		let sequence = group.info.sequence;

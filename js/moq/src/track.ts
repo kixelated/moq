@@ -46,13 +46,11 @@ export class Track {
 	appendGroup(): Group {
 		if (this.state.closed.peek()) throw new Error("track is closed");
 
-		if (this.#expire) {
-			this.#expire.resolve();
-			this.#expire = deferExpires(this.expires, this.closed);
-		}
+		this.#expire?.resolve();
+		this.#expire = deferExpires(this.expires, this.closed);
 
 		const group = new Group({ sequence: this.#max ?? 0 });
-		this.#expire?.promise.catch((err) => group.close(err));
+		this.#expire.promise.then((err) => group.close(err));
 
 		this.#max = group.sequence + 1;
 		this.state.groups.mutate((groups) => {
@@ -70,18 +68,15 @@ export class Track {
 	writeGroup(group: Group) {
 		if (this.state.closed.peek()) throw new Error("track is closed");
 
-		if (this.#max && group.sequence < this.#max) {
-			// Reuse the existing expiration promise for this group.
-			this.#expire?.promise.catch((err) => group.close(err));
-		} else {
+		if (!this.#max || group.sequence > this.#max) {
 			this.#max = group.sequence;
 
 			// Start expiring older groups.
-			if (this.#expire) {
-				this.#expire.resolve();
-				this.#expire = deferExpires(this.expires, this.closed);
-			}
+			this.#expire?.resolve();
+			this.#expire = deferExpires(this.expires, this.closed);
 		}
+
+		this.#expire?.promise.then((err) => group.close(err));
 
 		this.state.groups.mutate((groups) => {
 			groups.push(group);
@@ -216,17 +211,18 @@ export class Track {
 }
 
 type DeferExpires = {
-	promise: Promise<void>;
+	promise: Promise<Error | undefined>;
 	resolve: () => void;
 };
 
 function deferExpires(delay: DOMHighResTimeStamp, closed: Promise<Error | undefined>): DeferExpires {
-	const d = defer<never>();
+	const d = defer<Error | undefined>();
 
 	const start = () => {
-		setTimeout(() => d.reject(new Error("expired")), delay);
+		const timeout = setTimeout(() => d.resolve(new Error("expired")), delay);
 		closed.then((err) => {
-			if (err) d.reject(err);
+			if (err) d.resolve(err);
+			clearTimeout(timeout);
 		});
 	};
 
