@@ -17,7 +17,7 @@ impl Message for ClientSetup {
 	const ID: u64 = 0x20;
 
 	/// Decode a client setup message.
-	fn decode<R: bytes::Buf>(r: &mut R, version: IetfVersion) -> Result<Self, DecodeError> {
+	fn decode_msg<R: bytes::Buf>(r: &mut R, version: IetfVersion) -> Result<Self, DecodeError> {
 		let versions = Versions::decode(r, version)?;
 		let parameters = Parameters::decode(r, version)?;
 
@@ -25,7 +25,7 @@ impl Message for ClientSetup {
 	}
 
 	/// Encode a client setup message.
-	fn encode<W: bytes::BufMut>(&self, w: &mut W, version: IetfVersion) {
+	fn encode_msg<W: bytes::BufMut>(&self, w: &mut W, version: IetfVersion) {
 		self.versions.encode(w, version);
 		self.parameters.encode(w, version);
 	}
@@ -44,12 +44,12 @@ pub struct ServerSetup {
 impl Message for ServerSetup {
 	const ID: u64 = 0x21;
 
-	fn encode<W: bytes::BufMut>(&self, w: &mut W, version: IetfVersion) {
+	fn encode_msg<W: bytes::BufMut>(&self, w: &mut W, version: IetfVersion) {
 		self.version.encode(w, version);
 		self.parameters.encode(w, version);
 	}
 
-	fn decode<R: bytes::Buf>(r: &mut R, version: IetfVersion) -> Result<Self, DecodeError> {
+	fn decode_msg<R: bytes::Buf>(r: &mut R, version: IetfVersion) -> Result<Self, DecodeError> {
 		let version = Version::decode(r, version)?;
 		let parameters = Parameters::decode(r, version)?;
 

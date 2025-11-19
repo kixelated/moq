@@ -9,7 +9,7 @@ pub struct SessionInfo {
 }
 
 impl Message for SessionInfo {
-	fn decode<R: bytes::Buf>(r: &mut R, version: Version) -> Result<Self, DecodeError> {
+	fn decode_msg<R: bytes::Buf>(r: &mut R, version: Version) -> Result<Self, DecodeError> {
 		let bitrate = match u64::decode(r, version)? {
 			0 => None,
 			bitrate => Some(bitrate),
@@ -18,7 +18,7 @@ impl Message for SessionInfo {
 		Ok(Self { bitrate })
 	}
 
-	fn encode<W: bytes::BufMut>(&self, w: &mut W, version: Version) {
+	fn encode_msg<W: bytes::BufMut>(&self, w: &mut W, version: Version) {
 		self.bitrate.unwrap_or(0).encode(w, version);
 	}
 }

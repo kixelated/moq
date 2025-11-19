@@ -22,7 +22,7 @@ pub enum Announce<'a> {
 }
 
 impl<'a> Message for Announce<'a> {
-	fn decode<R: bytes::Buf>(r: &mut R, version: Version) -> Result<Self, DecodeError> {
+	fn decode_msg<R: bytes::Buf>(r: &mut R, version: Version) -> Result<Self, DecodeError> {
 		Ok(match AnnounceStatus::decode(r, version)? {
 			AnnounceStatus::Active => Self::Active {
 				suffix: Path::decode(r, version)?,
@@ -33,7 +33,7 @@ impl<'a> Message for Announce<'a> {
 		})
 	}
 
-	fn encode<W: bytes::BufMut>(&self, w: &mut W, version: Version) {
+	fn encode_msg<W: bytes::BufMut>(&self, w: &mut W, version: Version) {
 		match self {
 			Self::Active { suffix } => {
 				AnnounceStatus::Active.encode(w, version);
@@ -55,12 +55,12 @@ pub struct AnnouncePlease<'a> {
 }
 
 impl<'a> Message for AnnouncePlease<'a> {
-	fn decode<R: bytes::Buf>(r: &mut R, version: Version) -> Result<Self, DecodeError> {
+	fn decode_msg<R: bytes::Buf>(r: &mut R, version: Version) -> Result<Self, DecodeError> {
 		let prefix = Path::decode(r, version)?;
 		Ok(Self { prefix })
 	}
 
-	fn encode<W: bytes::BufMut>(&self, w: &mut W, version: Version) {
+	fn encode_msg<W: bytes::BufMut>(&self, w: &mut W, version: Version) {
 		self.prefix.encode(w, version)
 	}
 }
@@ -96,7 +96,7 @@ pub struct AnnounceInit<'a> {
 }
 
 impl<'a> Message for AnnounceInit<'a> {
-	fn decode<R: bytes::Buf>(r: &mut R, version: Version) -> Result<Self, DecodeError> {
+	fn decode_msg<R: bytes::Buf>(r: &mut R, version: Version) -> Result<Self, DecodeError> {
 		let count = u64::decode(r, version)?;
 
 		// Don't allocate more than 1024 elements upfront
@@ -109,7 +109,7 @@ impl<'a> Message for AnnounceInit<'a> {
 		Ok(Self { suffixes: paths })
 	}
 
-	fn encode<W: bytes::BufMut>(&self, w: &mut W, version: Version) {
+	fn encode_msg<W: bytes::BufMut>(&self, w: &mut W, version: Version) {
 		(self.suffixes.len() as u64).encode(w, version);
 		for path in &self.suffixes {
 			path.encode(w, version);

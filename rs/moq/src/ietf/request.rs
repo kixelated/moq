@@ -41,11 +41,11 @@ pub struct MaxRequestId {
 impl Message for MaxRequestId {
 	const ID: u64 = 0x15;
 
-	fn encode<W: bytes::BufMut>(&self, w: &mut W, version: Version) {
+	fn encode_msg<W: bytes::BufMut>(&self, w: &mut W, version: Version) {
 		self.request_id.encode(w, version);
 	}
 
-	fn decode<R: bytes::Buf>(r: &mut R, version: Version) -> Result<Self, DecodeError> {
+	fn decode_msg<R: bytes::Buf>(r: &mut R, version: Version) -> Result<Self, DecodeError> {
 		let request_id = RequestId::decode(r, version)?;
 		Ok(Self { request_id })
 	}
@@ -59,11 +59,11 @@ pub struct RequestsBlocked {
 impl Message for RequestsBlocked {
 	const ID: u64 = 0x1a;
 
-	fn encode<W: bytes::BufMut>(&self, w: &mut W, version: Version) {
+	fn encode_msg<W: bytes::BufMut>(&self, w: &mut W, version: Version) {
 		self.request_id.encode(w, version);
 	}
 
-	fn decode<R: bytes::Buf>(r: &mut R, version: Version) -> Result<Self, DecodeError> {
+	fn decode_msg<R: bytes::Buf>(r: &mut R, version: Version) -> Result<Self, DecodeError> {
 		let request_id = RequestId::decode(r, version)?;
 		Ok(Self { request_id })
 	}
