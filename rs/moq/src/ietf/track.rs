@@ -23,7 +23,7 @@ pub struct TrackStatus<'a> {
 impl<'a> Message for TrackStatus<'a> {
 	const ID: u64 = 0x0d;
 
-	fn encode<W: bytes::BufMut>(&self, w: &mut W, version: Version) {
+	fn encode_msg<W: bytes::BufMut>(&self, w: &mut W, version: Version) {
 		self.request_id.encode(w, version);
 		encode_namespace(w, &self.track_namespace, version);
 		self.track_name.encode(w, version);
@@ -34,7 +34,7 @@ impl<'a> Message for TrackStatus<'a> {
 		0u8.encode(w, version); // no parameters
 	}
 
-	fn decode<R: bytes::Buf>(r: &mut R, version: Version) -> Result<Self, DecodeError> {
+	fn decode_msg<R: bytes::Buf>(r: &mut R, version: Version) -> Result<Self, DecodeError> {
 		let request_id = RequestId::decode(r, version)?;
 		let track_namespace = decode_namespace(r, version)?;
 		let track_name = Cow::<str>::decode(r, version)?;

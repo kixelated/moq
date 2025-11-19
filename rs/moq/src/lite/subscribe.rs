@@ -18,7 +18,7 @@ pub struct Subscribe<'a> {
 }
 
 impl<'a> Message for Subscribe<'a> {
-	fn decode<R: bytes::Buf>(r: &mut R, version: Version) -> Result<Self, DecodeError> {
+	fn decode_msg<R: bytes::Buf>(r: &mut R, version: Version) -> Result<Self, DecodeError> {
 		let id = u64::decode(r, version)?;
 		let broadcast = Path::decode(r, version)?;
 		let track = Cow::<str>::decode(r, version)?;
@@ -32,7 +32,7 @@ impl<'a> Message for Subscribe<'a> {
 		})
 	}
 
-	fn encode<W: bytes::BufMut>(&self, w: &mut W, version: Version) {
+	fn encode_msg<W: bytes::BufMut>(&self, w: &mut W, version: Version) {
 		self.id.encode(w, version);
 		self.broadcast.encode(w, version);
 		self.track.encode(w, version);
@@ -46,13 +46,13 @@ pub struct SubscribeOk {
 }
 
 impl Message for SubscribeOk {
-	fn encode<W: bytes::BufMut>(&self, w: &mut W, version: Version) {
+	fn encode_msg<W: bytes::BufMut>(&self, w: &mut W, version: Version) {
 		if version == Version::Draft01 {
 			self.priority.encode(w, version);
 		}
 	}
 
-	fn decode<R: bytes::Buf>(r: &mut R, version: Version) -> Result<Self, DecodeError> {
+	fn decode_msg<R: bytes::Buf>(r: &mut R, version: Version) -> Result<Self, DecodeError> {
 		let priority = if version == Version::Draft01 {
 			u8::decode(r, version)?
 		} else {

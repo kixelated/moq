@@ -64,7 +64,7 @@ impl<S: web_transport_trait::Session> Session<S> {
 		// Decode server setup manually
 		let size: u16 = stream.reader.decode().await?;
 		let mut buf = stream.reader.read_exact(size as usize).await?;
-		let server = ietf::ServerSetup::decode(&mut buf, ietf::Version::Draft14)?;
+		let server = ietf::ServerSetup::decode_msg(&mut buf, ietf::Version::Draft14)?;
 		if !buf.is_empty() {
 			return Err(Error::WrongSize);
 		}

@@ -13,14 +13,14 @@ pub struct Group {
 }
 
 impl Message for Group {
-	fn decode<R: bytes::Buf>(r: &mut R, version: Version) -> Result<Self, DecodeError> {
+	fn decode_msg<R: bytes::Buf>(r: &mut R, version: Version) -> Result<Self, DecodeError> {
 		Ok(Self {
 			subscribe: u64::decode(r, version)?,
 			sequence: u64::decode(r, version)?,
 		})
 	}
 
-	fn encode<W: bytes::BufMut>(&self, w: &mut W, version: Version) {
+	fn encode_msg<W: bytes::BufMut>(&self, w: &mut W, version: Version) {
 		self.subscribe.encode(w, version);
 		self.sequence.encode(w, version);
 	}

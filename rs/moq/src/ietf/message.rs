@@ -14,10 +14,10 @@ pub trait Message: Sized + Debug {
 	const ID: u64;
 
 	/// Encode this message with a size prefix.
-	fn encode<W: BufMut>(&self, w: &mut W, version: Version);
+	fn encode_msg<W: BufMut>(&self, w: &mut W, version: Version);
 
 	/// Decode a size-prefixed message, ensuring exact size consumption.
-	fn decode<B: Buf>(buf: &mut B, version: Version) -> Result<Self, DecodeError>;
+	fn decode_msg<B: Buf>(buf: &mut B, version: Version) -> Result<Self, DecodeError>;
 }
 
 impl<T: Message> coding::Encode<Version> for T {
@@ -25,10 +25,10 @@ impl<T: Message> coding::Encode<Version> for T {
 		// TODO Always encode 2 bytes for the size, then go back and populate it later.
 		// That way we can avoid calculating the size upfront.
 		let mut sizer = Sizer::default();
-		self.encode(&mut sizer, version);
+		self.encode_msg(&mut sizer, version);
 		let size: u16 = sizer.size.try_into().expect("message too large");
 		size.encode(w, version);
-		self.encode(w, version);
+		self.encode_msg(w, version);
 	}
 }
 
@@ -36,7 +36,7 @@ impl<T: Message> coding::Decode<Version> for T {
 	fn decode<B: Buf>(buf: &mut B, version: Version) -> Result<Self, DecodeError> {
 		let size = u16::decode(buf, version)?;
 		let mut limited = buf.take(size as usize);
-		let result = Self::decode(&mut limited, version)?;
+		let result = Self::decode_msg(&mut limited, version)?;
 		if limited.remaining() > 0 {
 			return Err(DecodeError::Long);
 		}

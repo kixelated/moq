@@ -113,7 +113,7 @@ pub struct Fetch<'a> {
 impl<'a> Message for Fetch<'a> {
 	const ID: u64 = 0x16;
 
-	fn encode<W: bytes::BufMut>(&self, w: &mut W, version: Version) {
+	fn encode_msg<W: bytes::BufMut>(&self, w: &mut W, version: Version) {
 		self.request_id.encode(w, version);
 		self.subscriber_priority.encode(w, version);
 		self.group_order.encode(w, version);
@@ -122,7 +122,7 @@ impl<'a> Message for Fetch<'a> {
 		0u8.encode(w, version);
 	}
 
-	fn decode<B: bytes::Buf>(buf: &mut B, version: Version) -> Result<Self, DecodeError> {
+	fn decode_msg<B: bytes::Buf>(buf: &mut B, version: Version) -> Result<Self, DecodeError> {
 		let request_id = RequestId::decode(buf, version)?;
 		let subscriber_priority = u8::decode(buf, version)?;
 		let group_order = GroupOrder::decode(buf, version)?;
@@ -149,7 +149,7 @@ pub struct FetchOk {
 impl Message for FetchOk {
 	const ID: u64 = 0x18;
 
-	fn encode<W: bytes::BufMut>(&self, w: &mut W, version: Version) {
+	fn encode_msg<W: bytes::BufMut>(&self, w: &mut W, version: Version) {
 		self.request_id.encode(w, version);
 		self.group_order.encode(w, version);
 		self.end_of_track.encode(w, version);
@@ -158,7 +158,7 @@ impl Message for FetchOk {
 		0u8.encode(w, version);
 	}
 
-	fn decode<B: bytes::Buf>(buf: &mut B, version: Version) -> Result<Self, DecodeError> {
+	fn decode_msg<B: bytes::Buf>(buf: &mut B, version: Version) -> Result<Self, DecodeError> {
 		let request_id = RequestId::decode(buf, version)?;
 		let group_order = GroupOrder::decode(buf, version)?;
 		let end_of_track = bool::decode(buf, version)?;
@@ -184,13 +184,13 @@ pub struct FetchError<'a> {
 impl<'a> Message for FetchError<'a> {
 	const ID: u64 = 0x19;
 
-	fn encode<W: bytes::BufMut>(&self, w: &mut W, version: Version) {
+	fn encode_msg<W: bytes::BufMut>(&self, w: &mut W, version: Version) {
 		self.request_id.encode(w, version);
 		self.error_code.encode(w, version);
 		self.reason_phrase.encode(w, version);
 	}
 
-	fn decode<B: bytes::Buf>(buf: &mut B, version: Version) -> Result<Self, DecodeError> {
+	fn decode_msg<B: bytes::Buf>(buf: &mut B, version: Version) -> Result<Self, DecodeError> {
 		let request_id = RequestId::decode(buf, version)?;
 		let error_code = u64::decode(buf, version)?;
 		let reason_phrase = Cow::<str>::decode(buf, version)?;
@@ -209,11 +209,11 @@ pub struct FetchCancel {
 impl Message for FetchCancel {
 	const ID: u64 = 0x17;
 
-	fn encode<W: bytes::BufMut>(&self, w: &mut W, version: Version) {
+	fn encode_msg<W: bytes::BufMut>(&self, w: &mut W, version: Version) {
 		self.request_id.encode(w, version);
 	}
 
-	fn decode<B: bytes::Buf>(buf: &mut B, version: Version) -> Result<Self, DecodeError> {
+	fn decode_msg<B: bytes::Buf>(buf: &mut B, version: Version) -> Result<Self, DecodeError> {
 		let request_id = RequestId::decode(buf, version)?;
 		Ok(Self { request_id })
 	}
