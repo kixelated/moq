@@ -45,6 +45,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.9.7](https://github.com/kixelated/moq/compare/moq-clock-v0.9.6...moq-clock-v0.9.7) - 2025-11-19
+
+### Other
+
+- Improve moq-clock subscriber. ([#671](https://github.com/kixelated/moq/pull/671))
+
 ## [0.9.5](https://github.com/kixelated/moq/compare/moq-clock-v0.7.10...moq-clock-v0.9.5) - 2025-10-25
 
 ### Other
