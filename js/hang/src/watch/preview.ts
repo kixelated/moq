@@ -37,7 +37,8 @@ export class Preview {
 			if (!catalog) return;
 
 			// Subscribe to the preview.json track directly
-			const track = broadcast.subscribe(catalog.name, catalog.priority);
+			const track = new Moq.Track({ name: catalog.name, priority: catalog.priority });
+			broadcast.subscribe(track);
 			effect.cleanup(() => track.close());
 
 			effect.spawn(async () => {

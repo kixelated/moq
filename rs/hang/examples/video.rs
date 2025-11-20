@@ -47,8 +47,9 @@ async fn run_session(origin: moq_lite::OriginConsumer) -> anyhow::Result<()> {
 fn create_track(broadcast: &mut moq_lite::BroadcastProducer) -> hang::TrackProducer {
 	// Basic information about the video track.
 	let video_track = moq_lite::Track {
-		name: "video".to_string(),
-		priority: 1, // Video typically has lower priority than audio
+		name: "video".to_string(),                   // Call it whatever you want.
+		priority: 1,                                 // Video typically has lower priority than audio
+		expires: std::time::Duration::from_secs(10), // Drop old video groups after at most 10 seconds.
 	};
 
 	// Example video configuration

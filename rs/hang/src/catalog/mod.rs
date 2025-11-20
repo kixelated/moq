@@ -7,7 +7,6 @@
 
 mod audio;
 mod chat;
-mod location;
 mod preview;
 mod root;
 mod track;
@@ -16,7 +15,6 @@ mod video;
 
 pub use audio::*;
 pub use chat::*;
-pub use location::*;
 pub use preview::*;
 pub use root::*;
 pub use track::*;

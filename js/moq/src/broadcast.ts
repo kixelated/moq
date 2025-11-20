@@ -1,13 +1,8 @@
 import { Signal } from "@kixelated/signals";
-import { Track } from "./track.ts";
-
-export interface TrackRequest {
-	track: Track;
-	priority: number;
-}
+import type { Track } from "./track.ts";
 
 export class BroadcastState {
-	requested = new Signal<TrackRequest[]>([]);
+	requested = new Signal<Track[]>([]);
 	closed = new Signal<boolean | Error>(false);
 }
 
@@ -34,7 +29,7 @@ export class Broadcast {
 	/**
 	 * A track requested over the network.
 	 */
-	async requested(): Promise<TrackRequest | undefined> {
+	async requested(): Promise<Track | undefined> {
 		for (;;) {
 			// We use pop instead of shift because it's slightly more efficient.
 			const track = this.state.requested.peek().pop();
@@ -51,14 +46,12 @@ export class Broadcast {
 	/**
 	 * Populates the provided track over the network.
 	 */
-	subscribe(name: string, priority: number): Track {
-		const track = new Track(name);
-
+	subscribe(track: Track) {
 		if (this.state.closed.peek()) {
 			throw new Error(`broadcast is closed: ${this.state.closed.peek()}`);
 		}
 		this.state.requested.mutate((requested) => {
-			requested.push({ track, priority });
+			requested.push(track);
 			// Sort the tracks by priority in ascending order (we will pop)
 			requested.sort((a, b) => a.priority - b.priority);
 		});
@@ -73,7 +66,7 @@ export class Broadcast {
 	 */
 	close(abort?: Error) {
 		this.state.closed.set(abort ?? true);
-		for (const { track } of this.state.requested.peek()) {
+		for (const track of this.state.requested.peek()) {
 			track.close(abort);
 		}
 		this.state.requested.mutate((requested) => {

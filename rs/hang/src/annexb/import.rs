@@ -8,6 +8,10 @@ use moq_lite::{BroadcastProducer, Track};
 use std::borrow::Cow;
 use tokio::io::AsyncReadExt;
 
+// Keep transmitting groups for at most 10 seconds, can be shortened by the viewer.
+// TODO: Make this configurable by the publisher.
+const MAX_EXPIRES: std::time::Duration = std::time::Duration::from_secs(10);
+
 pub struct Import {
 	broadcast: BroadcastProducer,
 
@@ -75,6 +79,7 @@ impl Import {
 							let track = Track {
 								name: track_name.clone(),
 								priority: 2,
+								expires: MAX_EXPIRES,
 							};
 							let track_produce = track.produce();
 							self.broadcast.insert_track(track_produce.consumer);
@@ -100,17 +105,17 @@ impl Import {
 							let mut renditions = std::collections::HashMap::new();
 							renditions.insert(track_name, config);
 
-							let video = Video {
-								renditions,
-								priority: 2,
-								display: None,
-								rotation: None,
-								flip: None,
-							};
+							self.catalog.update(|catalog| {
+								catalog.video = Some(Video {
+									renditions,
+									priority: 2,
+									display: None,
+									rotation: None,
+									flip: None,
+								});
+							})?;
 
-							self.catalog.set_video(Some(video));
 							tp = Some(track_produce.producer.into());
-							self.catalog.publish();
 						}
 					}
 				}

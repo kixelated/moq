@@ -65,7 +65,7 @@ impl GroupConsumer {
 			None => return Ok(None),
 		};
 
-		let micros = u64::decode(&mut payload, lite::Version::Draft02)?;
+		let micros = u64::decode(&mut payload, lite::Version::Draft03)?;
 		let timestamp = Timestamp::from_micros(micros);
 
 		let frame = Frame {

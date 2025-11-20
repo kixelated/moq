@@ -1,4 +1,4 @@
-import type * as Moq from "@kixelated/moq";
+import * as Moq from "@kixelated/moq";
 import { Effect, Signal } from "@kixelated/signals";
 import type * as Catalog from "../../catalog";
 import * as Frame from "../../frame";
@@ -173,8 +173,11 @@ export class Source {
 	}
 
 	#runTrack(effect: Effect, broadcast: Moq.Broadcast, name: string, config: RequiredDecoderConfig): void {
-		const sub = broadcast.subscribe(name, PRIORITY.video); // TODO use priority from catalog
+		// TODO add support for updating the latency signal
+		const sub = new Moq.Track({ name: name, priority: PRIORITY.video, expires: this.latency.peek() });
 		effect.cleanup(() => sub.close());
+
+		broadcast.subscribe(sub);
 
 		// Create consumer that reorders groups/frames up to the provided latency.
 		const consumer = new Frame.Consumer(sub, {

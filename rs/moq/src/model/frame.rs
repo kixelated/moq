@@ -1,5 +1,3 @@
-use std::future::Future;
-
 use bytes::{Bytes, BytesMut};
 use tokio::sync::watch;
 
@@ -52,6 +50,35 @@ struct FrameState {
 	closed: Option<Result<()>>,
 }
 
+impl FrameState {
+	pub fn write_chunk(&mut self, chunk: Bytes) -> Result<()> {
+		if let Some(res) = &self.closed {
+			return Err(res.clone().err().unwrap_or(Error::Closed));
+		}
+
+		self.chunks.push(chunk);
+		Ok(())
+	}
+
+	pub fn close(&mut self) -> Result<()> {
+		if let Some(Err(err)) = &self.closed {
+			return Err(err.clone());
+		}
+
+		self.closed = Some(Ok(()));
+		Ok(())
+	}
+
+	pub fn abort(&mut self, err: Error) -> bool {
+		if let Some(Err(_)) = &self.closed {
+			return false;
+		}
+
+		self.closed = Some(Err(err));
+		true
+	}
+}
+
 /// Used to write a frame's worth of data in chunks.
 #[derive(Clone)]
 pub struct FrameProducer {
@@ -74,24 +101,51 @@ impl FrameProducer {
 		}
 	}
 
-	pub fn write_chunk<B: Into<Bytes>>(&mut self, chunk: B) {
+	/// Write a chunk to the frame.
+	///
+	/// Returns an error if the chunk is too large or the frame has already been aborted.
+	pub fn write_chunk<B: Into<Bytes>>(&mut self, chunk: B) -> Result<()> {
 		let chunk = chunk.into();
-		self.written += chunk.len();
-		assert!(self.written <= self.info.size as usize);
+		let len = chunk.len();
 
-		self.state.send_modify(|state| {
-			assert!(state.closed.is_none());
-			state.chunks.push(chunk);
+		if self.written + len > self.info.size as usize {
+			return Err(Error::WrongSize);
+		}
+
+		let mut result = Ok(());
+		self.state.send_if_modified(|state| {
+			result = state.write_chunk(chunk);
+			result.is_ok()
 		});
+
+		result?;
+		self.written += len;
+
+		Ok(())
 	}
 
-	pub fn close(self) {
-		assert!(self.written == self.info.size as usize);
-		self.state.send_modify(|state| state.closed = Some(Ok(())));
+	/// Close the producer once the last chunk has been written.
+	///
+	/// Returns an error if the frame is not full or has already been aborted.
+	pub fn close(&mut self) -> Result<()> {
+		if self.written != self.info.size as usize {
+			return Err(Error::WrongSize);
+		}
+
+		let mut result = Ok(());
+		self.state.send_if_modified(|state| {
+			result = state.close();
+			result.is_ok()
+		});
+
+		result
 	}
 
-	pub fn abort(self, err: Error) {
-		self.state.send_modify(|state| state.closed = Some(Err(err)));
+	/// Immediately abort the producer with an error.
+	///
+	/// This returns an error immediately to any consumers.
+	pub fn abort(&mut self, err: Error) {
+		self.state.send_if_modified(|state| state.abort(err));
 	}
 
 	/// Create a new consumer for the frame.
@@ -103,12 +157,35 @@ impl FrameProducer {
 		}
 	}
 
-	// Returns a Future so &self is not borrowed during the future.
-	pub fn unused(&self) -> impl Future<Output = ()> {
-		let state = self.state.clone();
-		async move {
-			state.closed().await;
+	/// Proxy all chunks and errors from the given consumer.
+	///
+	/// This takes ownership of the frame and publishes identical chunks to the other consumer.
+	/// Returns an error on an unexpected close, which can happen if the [FrameProducer] is cloned.
+	pub async fn proxy(mut self, other: FrameConsumer) -> Result<()> {
+		let mut chunks = Some(other.clone());
+		loop {
+			tokio::select! {
+				biased;
+				Some(chunk) = async { Some(chunks.as_mut()?.read_chunk().await) } => match chunk {
+					Ok(Some(chunk)) => self.write_chunk(chunk)?,
+					Ok(None) => {
+						chunks = None;
+						self.close()?
+					},
+					Err(err) => {
+						self.abort(err);
+						break
+					},
+				},
+				Err(err) = other.closed() => {
+					self.abort(err);
+					break
+				},
+				else => break,
+			}
 		}
+
+		Ok(())
 	}
 }
 
@@ -133,26 +210,28 @@ pub struct FrameConsumer {
 }
 
 impl FrameConsumer {
-	// Return the next chunk.
+	// Return the next chunk, or None if the frame is finished.
 	pub async fn read_chunk(&mut self) -> Result<Option<Bytes>> {
 		loop {
 			{
 				let state = self.state.borrow_and_update();
+
+				if let Some(Err(err)) = &state.closed {
+					return Err(err.clone());
+				}
 
 				if let Some(chunk) = state.chunks.get(self.index).cloned() {
 					self.index += 1;
 					return Ok(Some(chunk));
 				}
 
-				match &state.closed {
-					Some(Ok(_)) => return Ok(None),
-					Some(Err(err)) => return Err(err.clone()),
-					_ => {}
+				if let Some(Ok(_)) = &state.closed {
+					return Ok(None);
 				}
 			}
 
 			if self.state.changed().await.is_err() {
-				return Err(Error::Cancel);
+				return Err(Error::Dropped);
 			}
 		}
 	}
@@ -168,7 +247,7 @@ impl FrameConsumer {
 				}
 				state
 			}
-			Err(_) => return Err(Error::Cancel),
+			Err(_) => return Err(Error::Dropped),
 		};
 
 		// Get all of the remaining chunks.
@@ -187,5 +266,149 @@ impl FrameConsumer {
 		}
 
 		Ok(buf.freeze())
+	}
+
+	/// Block until the frame is closed.
+	pub async fn closed(&self) -> Result<()> {
+		match self.state.clone().wait_for(|state| state.closed.is_some()).await {
+			Ok(state) => state.closed.clone().unwrap(),
+			// close or abort was not called
+			Err(_) => Err(Error::Dropped),
+		}
+	}
+}
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+
+	#[tokio::test]
+	async fn test_frame_basic_write_read() {
+		let frame = Frame::produce(10u64.into());
+		let mut producer = frame.producer;
+		let mut consumer = frame.consumer;
+
+		producer.write_chunk(&b"hello"[..]).unwrap();
+		producer.write_chunk(&b"world"[..]).unwrap();
+		producer.close().unwrap();
+
+		let chunk1 = consumer.read_chunk().await.unwrap();
+		assert_eq!(chunk1, Some(Bytes::from_static(b"hello")));
+
+		let chunk2 = consumer.read_chunk().await.unwrap();
+		assert_eq!(chunk2, Some(Bytes::from_static(b"world")));
+
+		let chunk3 = consumer.read_chunk().await.unwrap();
+		assert_eq!(chunk3, None);
+	}
+
+	#[tokio::test]
+	async fn test_frame_read_all() {
+		let frame = Frame::produce(10u64.into());
+		let mut producer = frame.producer;
+		let mut consumer = frame.consumer;
+
+		producer.write_chunk(&b"hello"[..]).unwrap();
+		producer.write_chunk(&b"world"[..]).unwrap();
+		producer.close().unwrap();
+
+		let all = consumer.read_all().await.unwrap();
+		assert_eq!(all, Bytes::from_static(b"helloworld"));
+	}
+
+	#[tokio::test]
+	async fn test_frame_wrong_size_too_large() {
+		let frame = Frame::produce(5u64.into());
+		let mut producer = frame.producer;
+
+		let result = producer.write_chunk(&b"toolong"[..]);
+		assert!(result.is_err());
+	}
+
+	#[tokio::test]
+	async fn test_frame_wrong_size_too_small() {
+		let frame = Frame::produce(10u64.into());
+		let mut producer = frame.producer;
+
+		producer.write_chunk(&b"short"[..]).unwrap();
+		let result = producer.close();
+		assert!(result.is_err());
+	}
+
+	#[tokio::test]
+	async fn test_frame_abort() {
+		let frame = Frame::produce(10u64.into());
+		let mut producer = frame.producer;
+		let mut consumer = frame.consumer;
+
+		producer.write_chunk(&b"hello"[..]).unwrap();
+		producer.abort(Error::Expired);
+
+		let result = consumer.read_chunk().await;
+		assert!(result.is_err());
+	}
+
+	#[tokio::test]
+	async fn test_frame_abort_before_read() {
+		let frame = Frame::produce(10u64.into());
+		let mut producer = frame.producer;
+		let consumer = frame.consumer;
+
+		producer.abort(Error::Expired);
+
+		let result = consumer.closed().await;
+		assert!(result.is_err());
+	}
+
+	#[tokio::test]
+	async fn test_frame_multiple_consumers() {
+		let frame = Frame::produce(10u64.into());
+		let mut producer = frame.producer;
+		let mut consumer1 = frame.consumer.clone();
+		let mut consumer2 = frame.consumer;
+
+		producer.write_chunk(&b"hello"[..]).unwrap();
+		producer.write_chunk(&b"world"[..]).unwrap();
+		producer.close().unwrap();
+
+		let all1 = consumer1.read_all().await.unwrap();
+		let all2 = consumer2.read_all().await.unwrap();
+
+		assert_eq!(all1, Bytes::from_static(b"helloworld"));
+		assert_eq!(all2, Bytes::from_static(b"helloworld"));
+	}
+
+	#[tokio::test]
+	async fn test_frame_write_after_close() {
+		let frame = Frame::produce(5u64.into());
+		let mut producer = frame.producer;
+
+		producer.write_chunk(&b"hello"[..]).unwrap();
+		producer.close().unwrap();
+
+		let result = producer.write_chunk(&b"extra"[..]);
+		assert!(result.is_err());
+	}
+
+	#[tokio::test]
+	async fn test_frame_proxy() {
+		let source = Frame::produce(10u64.into());
+		let mut source_producer = source.producer;
+		let source_consumer = source.consumer;
+
+		let dest = Frame::produce(10u64.into());
+		let dest_producer = dest.producer;
+		let mut dest_consumer = dest.consumer;
+
+		source_producer.write_chunk(&b"hello"[..]).unwrap();
+		source_producer.write_chunk(&b"world"[..]).unwrap();
+		source_producer.close().unwrap();
+
+		let proxy_task = tokio::spawn(dest_producer.proxy(source_consumer));
+
+		let all = dest_consumer.read_all().await.unwrap();
+		assert_eq!(all, Bytes::from_static(b"helloworld"));
+
+		proxy_task.await.unwrap().unwrap();
 	}
 }

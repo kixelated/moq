@@ -131,7 +131,8 @@ export class Broadcast {
 
 		this.status.set("loading");
 
-		const catalog = broadcast.subscribe("catalog.json", PRIORITY.catalog);
+		const catalog = new Moq.Track({ name: "catalog.json", priority: PRIORITY.catalog });
+		broadcast.subscribe(catalog);
 		effect.cleanup(() => catalog.close());
 
 		effect.spawn(this.#fetchCatalog.bind(this, catalog));

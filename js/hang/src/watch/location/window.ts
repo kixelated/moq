@@ -50,8 +50,10 @@ export class Window {
 			const updates = effect.get(this.#catalog)?.track;
 			if (!updates) return;
 
-			const track = broadcast.subscribe(updates.name, updates.priority);
+			const track = new Moq.Track({ name: updates.name, priority: updates.priority });
 			effect.cleanup(() => track.close());
+
+			broadcast.subscribe(track);
 
 			effect.spawn(this.#runTrack.bind(this, track));
 		});

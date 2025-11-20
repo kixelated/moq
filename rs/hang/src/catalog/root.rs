@@ -1,10 +1,10 @@
 //! This module contains the structs and functions for the MoQ catalog format
-use std::sync::{Arc, Mutex, MutexGuard};
+use std::sync::{Arc, Mutex};
 
 /// The catalog format is a JSON file that describes the tracks available in a broadcast.
 use serde::{Deserialize, Serialize};
 
-use crate::catalog::{Audio, Chat, Location, Track, User, Video};
+use crate::catalog::{Audio, Chat, Track, User, Video};
 use crate::Result;
 use moq_lite::Produce;
 
@@ -27,11 +27,6 @@ pub struct Catalog {
 	/// based on their preferences (codec, bitrate, language, etc).
 	#[serde(default)]
 	pub audio: Option<Audio>,
-
-	/// A location track, used to indicate the desired position of the broadcaster from -1 to 1.
-	/// This is primarily used for audio panning but can also be used for video.
-	#[serde(default)]
-	pub location: Option<Location>,
 
 	/// User metadata for the broadcaster
 	#[serde(default)]
@@ -100,14 +95,12 @@ impl Catalog {
 		moq_lite::Track {
 			name: Catalog::DEFAULT_NAME.to_string(),
 			priority: 100,
+			expires: Default::default(),
 		}
 	}
 }
 
 /// Produces a catalog track that describes the available media tracks.
-///
-/// The JSON catalog is updated when tracks are added/removed but is *not* automatically published.
-/// You'll have to call [`publish`](Self::publish) once all updates are complete.
 #[derive(Clone)]
 pub struct CatalogProducer {
 	/// Access to the underlying track producer.
@@ -124,70 +117,32 @@ impl CatalogProducer {
 		}
 	}
 
-	/// Set the video track information in the catalog.
-	pub fn set_video(&mut self, video: Option<Video>) {
-		let mut current = self.current.lock().unwrap();
-		current.video = video;
-	}
-
-	/// Set the audio track information in the catalog.
-	pub fn set_audio(&mut self, audio: Option<Audio>) {
-		let mut current = self.current.lock().unwrap();
-		current.audio = audio;
-	}
-
-	/// Set the location information in the catalog.
-	pub fn set_location(&mut self, location: Option<Location>) {
-		let mut current = self.current.lock().unwrap();
-		current.location = location;
-	}
-
-	/// Set the user information in the catalog.
-	pub fn set_user(&mut self, user: Option<User>) {
-		let mut current = self.current.lock().unwrap();
-		current.user = user;
-	}
-
-	/// Set the chat track information in the catalog.
-	pub fn set_chat(&mut self, chat: Option<Chat>) {
-		let mut current = self.current.lock().unwrap();
-		current.chat = chat;
-	}
-
-	/// Set the preview track in the catalog.
-	pub fn set_preview(&mut self, preview: Option<Track>) {
-		let mut current = self.current.lock().unwrap();
-		current.preview = preview;
-	}
-
-	/// Get mutable access to the catalog for manual updates.
-	/// Remember to call [`publish`](Self::publish) after making changes.
-	pub fn update(&mut self) -> MutexGuard<'_, Catalog> {
-		self.current.lock().unwrap()
-	}
-
-	/// Publish the current catalog to all subscribers.
+	/// Get mutable access to the catalog to update it.
 	///
-	/// This serializes the catalog to JSON and sends it as a new group on the
-	/// catalog track. All changes made since the last publish will be included.
-	pub fn publish(&mut self) {
-		let current = self.current.lock().unwrap();
-		let mut group = self.track.append_group();
+	/// Returns an error if the catalog track is already closed or can't be serialized to JSON.
+	pub fn update(&mut self, f: impl FnOnce(&mut Catalog)) -> Result<()> {
+		let mut current = self.current.lock().unwrap();
+		f(&mut current);
 
-		// TODO decide if this should return an error, or be impossible to fail
-		let frame = current.to_string().expect("invalid catalog");
-		group.write_frame(frame);
-		group.close();
+		let mut group = self.track.append_group()?;
+		let frame = current.to_string()?;
+		group.write_frame(frame)?;
+		group.close()?;
+
+		Ok(())
 	}
 
-	/// Create a consumer for this catalog, receiving updates as they're [published](Self::publish).
+	/// Create a consumer for this catalog, receiving updates as they're published.
 	pub fn consume(&self) -> CatalogConsumer {
 		CatalogConsumer::new(self.track.consume())
 	}
 
 	/// Finish publishing to this catalog and close the track.
-	pub fn close(self) {
-		self.track.close();
+	///
+	/// Returns an error if the catalog track is already closed.
+	pub fn close(&mut self) -> Result<()> {
+		self.track.close()?;
+		Ok(())
 	}
 }
 
@@ -205,13 +160,12 @@ impl From<moq_lite::TrackProducer> for CatalogProducer {
 pub struct CatalogConsumer {
 	/// Access to the underlying track consumer.
 	pub track: moq_lite::TrackConsumer,
-	group: Option<moq_lite::GroupConsumer>,
 }
 
 impl CatalogConsumer {
 	/// Create a new catalog consumer from a MoQ track consumer.
 	pub fn new(track: moq_lite::TrackConsumer) -> Self {
-		Self { track, group: None }
+		Self { track }
 	}
 
 	/// Get the next catalog update.
@@ -219,23 +173,24 @@ impl CatalogConsumer {
 	/// This method waits for the next catalog publication and returns the
 	/// catalog data. If there are no more updates, `None` is returned.
 	pub async fn next(&mut self) -> Result<Option<Catalog>> {
+		let mut track = Some(&mut self.track);
+		let mut group: Option<moq_lite::GroupConsumer> = None;
+
 		loop {
 			tokio::select! {
-				res = self.track.next_group() => {
-					match res? {
-						Some(group) => {
-							// Use the new group.
-							self.group = Some(group);
-						}
-						// The track has ended, so we should return None.
-						None => return Ok(None),
-					}
+				biased;
+				Some(res) = async { Some(track.as_mut()?.next_group().await) } => match res? {
+					// Use the new group going forward.
+					Some(next) => group = Some(next),
+					// The track has ended
+					None => track = None,
 				},
-				Some(frame) = async { self.group.as_mut()?.read_frame().await.transpose() } => {
-					self.group.take(); // We don't support deltas yet
+				// TODO add support for deltas
+				Some(frame) = async { group.take()?.read_frame().await.transpose() } => {
 					let catalog = Catalog::from_slice(&frame?)?;
 					return Ok(Some(catalog));
 				}
+				else => return Ok(None),
 			}
 		}
 	}
