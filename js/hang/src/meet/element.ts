@@ -209,8 +209,27 @@ class HangMeetInstance {
 				width: "100%",
 				height: "100%",
 				objectFit: "contain",
+				display: "block", // Prevents extra spacing
 			},
-		});
+		}) as HTMLCanvasElement;
+
+		// FIX: Prevent pixelation by syncing canvas buffer to display size
+		const resizeCanvas = () => {
+			const parent = canvas.parentElement;
+			if (!parent) return;
+
+			const rect = parent.getBoundingClientRect();
+			const w = Math.round(rect.width);
+			const h = Math.round(rect.height);
+
+			if (canvas.width !== w || canvas.height !== h) {
+				canvas.width = w;
+				canvas.height = h;
+			}
+		};
+
+		resizeCanvas();
+		new ResizeObserver(resizeCanvas).observe(canvas.parentElement!);
 
 		const renderer = new Watch.Video.Renderer(broadcast.video, { canvas });
 		const emitter = new Watch.Audio.Emitter(broadcast.audio);
