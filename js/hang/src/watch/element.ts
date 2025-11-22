@@ -486,10 +486,10 @@ export class HangWatchInstance {
 		effect.effect((effect) => {
 			const syncWaitStatus = effect.get(this.video.source.syncWaitStatus);
 			const bufferStatus = effect.get(this.video.source.bufferStatus);
-
-			if (syncWaitStatus.reason === PlayerStatusReason.SYNC_WAIT || bufferStatus.reason === PlayerStatusReason.BUFFER_EMPTY) {
+			const shouldShow = syncWaitStatus.reason === PlayerStatusReason.SYNC_WAIT || bufferStatus.reason === PlayerStatusReason.BUFFER_EMPTY;
+			if (shouldShow) {
 				container.style.display = "flex";
-			} else if (syncWaitStatus.reason === PlayerStatusReason.SYNC_READY && bufferStatus.reason === PlayerStatusReason.BUFFER_FILLED) {
+			} else {
 				container.style.display = "none";
 			}
 		});

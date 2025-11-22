@@ -136,13 +136,15 @@ export class Source {
 			if (isBufferEmpty && this.#bufferStallStartTime === null) {
 				this.#bufferStallStartTime = Date.now();
 				this.bufferStatus.set({ reason: PlayerStatusReason.BUFFER_EMPTY });
-			} else if (!isBufferEmpty && this.#bufferStallStartTime !== null) {
+			} else if (enabled && !isBufferEmpty && this.#bufferStallStartTime !== null) {
 				// How long the buffer was empty/stalled
 				const stallDuration: number = Date.now() - this.#bufferStallStartTime;
 				this.bufferStatus.set({
 					reason: PlayerStatusReason.BUFFER_FILLED,
 					stallDuration,
 				});
+				this.#bufferStallStartTime = null;
+			} else if (!enabled && this.#bufferStallStartTime !== null) {
 				this.#bufferStallStartTime = null;
 			}
 		});
