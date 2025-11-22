@@ -9,7 +9,7 @@ import * as Source from "./source";
 const OBSERVED = ["url", "name", "path", "device", "audio", "video", "controls", "source"] as const;
 type Observed = (typeof OBSERVED)[number];
 
-type SourceType = "camera" | "screen";
+type SourceType = "camera" | "screen" | "file";
 
 export interface HangPublishSignals {
 	url: Signal<URL | undefined>;
@@ -19,6 +19,7 @@ export interface HangPublishSignals {
 	video: Signal<boolean>;
 	controls: Signal<boolean>;
 	source: Signal<SourceType | undefined>;
+	file: Signal<File | undefined>;
 }
 
 export default class HangPublish extends HTMLElement {
@@ -32,6 +33,7 @@ export default class HangPublish extends HTMLElement {
 		video: new Signal<boolean>(false),
 		controls: new Signal(false),
 		source: new Signal<SourceType | undefined>(undefined),
+		file: new Signal<File | undefined>(undefined),
 	};
 
 	active = new Signal<HangPublishInstance | undefined>(undefined);
@@ -55,7 +57,7 @@ export default class HangPublish extends HTMLElement {
 		} else if (name === "name" || name === "path") {
 			this.path = newValue ?? undefined;
 		} else if (name === "device" || name === "source") {
-			if (newValue === "camera" || newValue === "screen" || newValue === null) {
+			if (newValue === "camera" || newValue === "screen" || newValue === "file" || newValue === null) {
 				this.source = newValue ?? undefined;
 			} else {
 				throw new Error(`Invalid device: ${newValue}`);
@@ -113,6 +115,14 @@ export default class HangPublish extends HTMLElement {
 		this.signals.source.set(source);
 	}
 
+	get file(): File | undefined {
+		return this.signals.file.peek();
+	}
+
+	set file(file: File | undefined) {
+		this.signals.file.set(file);
+	}
+
 	get audio(): boolean {
 		return this.signals.audio.peek();
 	}
@@ -146,6 +156,7 @@ export class HangPublishInstance {
 	#preview: Signal<HTMLVideoElement | undefined>;
 	#video = new Signal<Source.Camera | Source.Screen | undefined>(undefined);
 	#audio = new Signal<Source.Microphone | Source.Screen | undefined>(undefined);
+	#file = new Signal<Source.File | undefined>(undefined);
 
 	#signals = new Effect();
 
@@ -261,6 +272,33 @@ export class HangPublishInstance {
 
 			return;
 		}
+
+		if (source === "file") {
+			const fileSource = new Source.File({
+				enabled: new Signal(true),
+			});
+
+			effect.effect((effect) => {
+				const file = effect.get(this.parent.signals.file);
+				if (file) {
+					fileSource.setFile(file);
+				}
+			});
+
+			fileSource.signals.effect((effect) => {
+				const source = effect.get(fileSource.source);
+				effect.set(this.broadcast.video.source, source.video);
+				effect.set(this.broadcast.audio.source, source.audio);
+			});
+
+			effect.set(this.#file, fileSource);
+
+			effect.cleanup(() => {
+				fileSource.close();
+			});
+
+			return;
+		}
 	}
 
 	#renderControls(effect: Effect) {
@@ -300,6 +338,7 @@ export class HangPublishInstance {
 		this.#renderMicrophone(container, effect);
 		this.#renderCamera(container, effect);
 		this.#renderScreen(container, effect);
+		this.#renderFile(container, effect);
 		this.#renderNothing(container, effect);
 
 		DOM.render(effect, parent, container);
@@ -500,6 +539,44 @@ export class HangPublishInstance {
 		});
 
 		DOM.render(effect, parent, screen);
+	}
+
+	#renderFile(parent: HTMLDivElement, effect: Effect) {
+		const fileInput = DOM.create("input", {
+			type: "file",
+			accept: "video/*,audio/*,image/*",
+			style: { display: "none" },
+		});
+
+		const button = DOM.create(
+			"button",
+			{
+				type: "button",
+				title: "Upload File",
+				style: { cursor: "pointer" },
+			},
+			"📁",
+		);
+
+		DOM.render(effect, parent, fileInput);
+		DOM.render(effect, parent, button);
+
+		effect.event(button, "click", () => fileInput.click());
+
+		effect.event(fileInput, "change", (e) => {
+			const file = (e.target as HTMLInputElement).files?.[0];
+			if (file) {
+				this.parent.file = file;
+				this.parent.source = "file";
+				this.parent.video = true;
+				this.parent.audio = true;
+			}
+		});
+
+		effect.effect((effect) => {
+			const selected = effect.get(this.parent.signals.source);
+			button.style.opacity = selected === "file" ? "1" : "0.5";
+		});
 	}
 
 	#renderNothing(parent: HTMLDivElement, effect: Effect) {

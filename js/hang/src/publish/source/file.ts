@@ -1,0 +1,106 @@
+import { Signal, Effect } from "@kixelated/signals";
+import type { StreamTrack as VideoStreamTrack } from "../video/types";
+import type { StreamTrack as AudioStreamTrack } from "../audio/types";
+
+export interface FileSourceConfig {
+  enabled: Signal<boolean>;
+}
+
+export class File {
+  #file = new Signal<globalThis.File | undefined>(undefined);
+  signals = new Effect();
+
+  source = new Signal<{ video?: VideoStreamTrack; audio?: AudioStreamTrack }>({});
+  enabled: Signal<boolean>;
+
+  constructor(config: FileSourceConfig) {
+    this.enabled = config.enabled;
+
+    this.signals.effect((effect) => {
+      const file = effect.get(this.#file);
+      const enabled = effect.get(this.enabled);
+
+      if (!file || !enabled) {
+        effect.set(this.source, {}, {});
+        return;
+      }
+
+      this.#decode(file, effect);
+    });
+  }
+
+  setFile(file: globalThis.File) {
+    this.#file.set(file);
+  }
+
+  async #decode(file: globalThis.File, effect: Effect) {
+    const type = file.type;
+
+    if (type.startsWith('image/')) {
+      await this.#decodeImage(file, effect);
+    } else if (type.startsWith('video/') || type.startsWith('audio/')) {
+      await this.#decodeMedia(file, effect);
+    } else {
+      throw new Error(`Unsupported file type: ${type}`);
+    }
+  }
+
+  async #decodeImage(file: globalThis.File, effect: Effect) {
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.src = url;
+    await img.decode();
+
+    effect.cleanup(() => URL.revokeObjectURL(url));
+
+    const canvas = document.createElement('canvas');
+    canvas.width = img.width;
+    canvas.height = img.height;
+    const ctx = canvas.getContext('2d')!;
+
+    const interval = setInterval(() => {
+      ctx.drawImage(img, 0, 0);
+    }, 1000 / 30);
+
+    effect.cleanup(() => clearInterval(interval));
+
+    const stream = canvas.captureStream(30);
+    const videoTrack = stream.getVideoTracks()[0];
+    effect.set(this.source, { video: videoTrack as VideoStreamTrack }, {});
+  }
+
+  async #decodeMedia(file: globalThis.File, effect: Effect) {
+    const video = document.createElement('video') as HTMLVideoElement & {
+      captureStream(): MediaStream;
+    };
+
+    const url = URL.createObjectURL(file);
+    video.src = url;
+    video.loop = true;
+    video.muted = true;
+
+    await new Promise<void>((resolve, reject) => {
+      video.onloadedmetadata = () => resolve();
+      video.onerror = () => reject(new Error('Failed to load video'));
+    });
+
+    await video.play();
+
+    effect.cleanup(() => {
+      video.pause();
+      URL.revokeObjectURL(url);
+    });
+
+    const stream = video.captureStream();
+    const videoTrack = stream.getVideoTracks()[0];
+    const audioTrack = stream.getAudioTracks()[0];
+    effect.set(this.source, {
+      video: videoTrack as VideoStreamTrack,
+      audio: audioTrack as AudioStreamTrack
+    }, {});
+  }
+
+  close() {
+    this.signals.close();
+  }
+}
