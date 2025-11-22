@@ -4,7 +4,7 @@ import * as DOM from "@kixelated/signals/dom";
 import type * as Time from "../time";
 import * as Audio from "./audio";
 import { Broadcast } from "./broadcast";
-import * as Video from "./video";
+import { PlayerStatusReason, Renderer } from "./video";
 
 const OBSERVED = ["url", "name", "path", "paused", "volume", "muted", "controls", "reload", "latency"] as const;
 type Observed = (typeof OBSERVED)[number];
@@ -59,6 +59,8 @@ export default class HangWatch extends HTMLElement {
 	// Annoyingly, we have to use these callbacks to figure out when the element is connected to the DOM.
 	// This wouldn't be so bad if there was a destructor for web components to clean up our effects.
 	connectedCallback() {
+		this.style.display = "block";
+		this.style.position = "relative";
 		this.active.set(new HangWatchInstance(this));
 	}
 
@@ -182,7 +184,7 @@ export class HangWatchInstance {
 	// However be warned that the API is still in flux and may change.
 	connection: Moq.Connection.Reload;
 	broadcast: Broadcast;
-	video: Video.Renderer;
+	video: Renderer;
 	audio: Audio.Emitter;
 	#signals: Effect;
 
@@ -216,7 +218,7 @@ export class HangWatchInstance {
 		observer.observe(this.parent, { childList: true, subtree: true });
 		this.#signals.cleanup(() => observer.disconnect());
 
-		this.video = new Video.Renderer(this.broadcast.video, { canvas, paused: this.parent.signals.paused });
+		this.video = new Renderer(this.broadcast.video, { canvas, paused: this.parent.signals.paused });
 		this.audio = new Audio.Emitter(this.broadcast.audio, {
 			volume: this.parent.signals.volume,
 			muted: this.parent.signals.muted,
@@ -313,6 +315,7 @@ export class HangWatchInstance {
 			this.#renderVolume(controls, effect);
 			this.#renderStatus(controls, effect);
 			this.#renderFullscreen(controls, effect);
+			this.#renderBuffering(effect);
 		});
 	}
 
@@ -435,6 +438,63 @@ export class HangWatchInstance {
 		});
 
 		DOM.render(effect, parent, button);
+	}
+
+	#renderBuffering(effect: Effect) {
+		if (!document.getElementById("buffer-spinner-animation")) {
+			const style = document.createElement("style");
+			style.id = "buffer-spinner-animation";
+			style.textContent = `
+				@keyframes buffer-spin {
+					0% { transform: rotate(0deg); }
+					100% { transform: rotate(360deg); }
+				}
+			`;
+			document.head.appendChild(style);
+		}
+
+		const container = DOM.create("div", {
+			style: {
+				position: "absolute",
+				display: "none",
+				justifyContent: "center",
+				alignItems: "center",
+				width: "100%",
+				height: "100%",
+				top: "0",
+				left: "0",
+				zIndex: "1",
+				backgroundColor: "rgba(0, 0, 0, 0.4)",
+				backdropFilter: "blur(2px)",
+				pointerEvents: "auto",
+			},
+		});
+
+		const spinner = DOM.create("div", {
+			style: {
+				width: "40px",
+				height: "40px",
+				border: "4px solid rgba(255, 255, 255, 0.2)",
+				borderTop: "4px solid #fff",
+				borderRadius: "50%",
+				animation: "buffer-spin 1s linear infinite",
+			},
+		});
+
+		container.appendChild(spinner);
+
+		effect.effect((effect) => {
+			const syncWaitStatus = effect.get(this.video.source.syncWaitStatus);
+			const bufferStatus = effect.get(this.video.source.bufferStatus);
+
+			if (syncWaitStatus.reason === PlayerStatusReason.SYNC_WAIT || bufferStatus.reason === PlayerStatusReason.BUFFER_EMPTY) {
+				container.style.display = "flex";
+			} else if (syncWaitStatus.reason === PlayerStatusReason.SYNC_READY && bufferStatus.reason === PlayerStatusReason.BUFFER_FILLED) {
+				container.style.display = "none";
+			}
+		});
+
+		DOM.render(effect, this.parent, container);
 	}
 }
 

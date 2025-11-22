@@ -26,8 +26,32 @@ export type Target = {
 // This way we can keep the current subscription active.
 type RequiredDecoderConfig = Omit<Catalog.VideoConfig, "codedWidth" | "codedHeight">;
 
+export const PlayerStatusReason = {
+	BUFFER_EMPTY: "BUFFER_EMPTY",
+	BUFFER_FILLED: "BUFFER_FILLED",
+	SYNC_WAIT: "SYNC_WAIT",
+	SYNC_READY: "SYNC_READY",
+} as const;
+
+type PlayerStatusReason = typeof PlayerStatusReason[keyof typeof PlayerStatusReason];
+
+type BufferStatus = {
+	reason: typeof PlayerStatusReason.BUFFER_EMPTY | typeof PlayerStatusReason.BUFFER_FILLED;
+	stallDuration?: number;
+};
+
+type SyncStatus = {
+	reason: typeof PlayerStatusReason.SYNC_WAIT | typeof PlayerStatusReason.SYNC_READY;
+	elapsedWait?: number;
+	bufferDuration?: number;
+};
+
+type PlayerStatusEvent = BufferStatus | SyncStatus;
+
 // Responsible for switching between video tracks and buffering frames.
 export class Source {
+	#MIN_SYNC_WAIT_MS = 50 as Time.Milli;
+
 	broadcast: Signal<Moq.Broadcast | undefined>;
 	enabled: Signal<boolean>; // Don't download any longer
 
@@ -70,6 +94,11 @@ export class Source {
 	// The latency after we've accounted for the extra frame buffering and jitter buffer.
 	#jitter: Signal<Time.Milli>;
 
+	bufferStatus = new Signal<PlayerStatusEvent>({ reason: PlayerStatusReason.BUFFER_EMPTY });
+	#bufferStallStartTime: number | null = null;
+
+	syncWaitStatus = new Signal<PlayerStatusEvent>({ reason: PlayerStatusReason.SYNC_READY });
+
 	#signals = new Effect();
 
 	constructor(
@@ -96,6 +125,27 @@ export class Source {
 		this.#signals.effect(this.#runPending.bind(this));
 		this.#signals.effect(this.#runDisplay.bind(this));
 		this.#signals.effect(this.#runJitter.bind(this));
+
+		this.#signals.effect((effect) => {
+			const currentFrame = effect.get(this.frame);
+			const nextFrame = this.#next;
+			const enabled = effect.get(this.enabled);
+
+			const isBufferEmpty = enabled && !currentFrame && !nextFrame;
+
+			if (isBufferEmpty && this.#bufferStallStartTime === null) {
+				this.#bufferStallStartTime = Date.now();
+				this.bufferStatus.set({ reason: PlayerStatusReason.BUFFER_EMPTY });
+			} else if (!isBufferEmpty && this.#bufferStallStartTime !== null) {
+				// How long the buffer was empty/stalled
+				const stallDuration: number = Date.now() - this.#bufferStallStartTime;
+				this.bufferStatus.set({
+					reason: PlayerStatusReason.BUFFER_FILLED,
+					stallDuration,
+				});
+				this.#bufferStallStartTime = null;
+			}
+		});
 	}
 
 	#runSupported(effect: Effect): void {
@@ -265,8 +315,25 @@ export class Source {
 					this.#reference = ref;
 				} else {
 					const sleep = this.#reference - ref + this.#jitter.peek();
+					const isWaitRequired = sleep >= this.#MIN_SYNC_WAIT_MS;
 					if (sleep > 0) {
+						const startTime: number = Date.now();
+						// The planned jitter buffer size
+						const bufferDuration: Time.Milli = this.#jitter.peek();
+
+						if (isWaitRequired) {
+							this.syncWaitStatus.set({ reason: PlayerStatusReason.SYNC_WAIT, bufferDuration });
+						}
+
 						await new Promise((resolve) => setTimeout(resolve, sleep));
+
+						if (isWaitRequired) {
+							// How long the sync wait actually took
+							const elapsedWait: number = Date.now() - startTime;
+							this.syncWaitStatus.set({ reason: PlayerStatusReason.SYNC_READY, elapsedWait, bufferDuration });
+						}
+					} else {
+						this.syncWaitStatus.set({ reason: PlayerStatusReason.SYNC_READY });
 					}
 				}
 
