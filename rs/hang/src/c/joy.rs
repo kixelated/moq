@@ -47,7 +47,7 @@ pub extern "C" fn hang_stop_from_c() {
 }
 
 #[no_mangle]
-pub extern "C" fn hang_write_video_packet_from_c(data: *const c_void, size: usize, keyframe: i32, dts: u64) {
+pub extern "C" fn hang_write_video_packet_from_c(data: *const u8, size: usize, keyframe: i32, dts: u64) {
     unsafe
     {
         if let Some(ref mut import) = IMPORT {
@@ -177,9 +177,9 @@ impl ImportJoy {
             coded_width: Some(1280),
             coded_height: Some(720),
             codec: H264 {
-                profile: 0x42,
-                constraints: 0x0,
-                level: 0x1f,
+                profile: 0x4d,
+                constraints: 0x00,
+                level: 0x29,
             }
             .into(),
             description: None,
@@ -194,7 +194,7 @@ impl ImportJoy {
 		(name, config)
 	}
 
-	pub fn write_video_frame(&mut self, data: *const c_void, size: usize, keyframe: bool, dts: u64) -> () {
+	pub fn write_video_frame(&mut self, data: *const u8, size: usize, keyframe: bool, dts: u64) -> () {
         if (!self.sent_one_keyframe) {
             if (!keyframe) {
                 return;
@@ -207,13 +207,13 @@ impl ImportJoy {
         let _track = self.tracks.get_mut(&zero);
 
         let bytes: &[u8] = unsafe {
-            std::slice::from_raw_parts(data as *const u8, size)
+            std::slice::from_raw_parts(data, size)
         };
 		let payload = Bytes::from(bytes);
 
-        let timestamp = Timestamp::from_millis(dts);
+        let timestamp = Timestamp::from_micros(dts);
 
-        // println!("Hello, world: joy {:?}", timestamp);
+        // println!("Hello, world: joy {} size {} keyframe {}", dts, size, keyframe);
 
         if let Some(track) = _track {
             let frame = Frame {
