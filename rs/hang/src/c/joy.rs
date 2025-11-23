@@ -97,9 +97,6 @@ pub async fn client(
 }
 
 pub struct ImportJoy {
-	// Any partial data in the input buffer
-	buffer: BytesMut,
-
 	// The broadcast being produced
 	broadcast: BroadcastProducer,
 
@@ -119,7 +116,6 @@ impl ImportJoy {
 		broadcast.insert_track(catalog.consumer.track);
 
 		Self {
-			buffer: BytesMut::new(),
 			broadcast,
 			catalog: catalog.producer,
 			tracks: HashMap::default(),
@@ -209,7 +205,8 @@ impl ImportJoy {
         let bytes: &[u8] = unsafe {
             std::slice::from_raw_parts(data, size)
         };
-		let payload = Bytes::from(bytes);
+        let payload = Bytes::from(bytes);
+        let mut payload_mut = BytesMut::from(payload);
 
         let timestamp = Timestamp::from_micros(dts);
 
@@ -219,10 +216,12 @@ impl ImportJoy {
             let frame = Frame {
                 timestamp,
                 keyframe,
-                payload,
+                payload: payload_mut.into(),
             };
 
             track.write(frame);
+
+            // std::fs::write(format!("/tmp/moq-hang/{:09}.h264", dts), bytes);
         }
     }
 }
