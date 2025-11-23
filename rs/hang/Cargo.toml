@@ -13,12 +13,14 @@ categories = ["multimedia", "network-programming", "web-programming"]
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+anyhow = { version = "1", features = ["backtrace"] }
 bytes = "1.10"
 futures = "0.3"
 h264-parser = "0.4.0"
 hex = "0.4"
 lazy_static = "1"
 moq-lite = { workspace = true, features = ["serde"] }
+moq-native = { workspace = true }
 mp4-atom = { version = "0.9.0", features = ["tokio", "bytes", "serde"] }
 regex = "1"
 serde = { workspace = true }
@@ -27,6 +29,7 @@ serde_with = { version = "3", features = ["hex"] }
 thiserror = "2"
 tokio = { workspace = true, features = ["macros"] }
 tracing = "0.1"
+url = "2"
 
 [dependencies.derive_more]
 version = "2"
@@ -36,3 +39,6 @@ features = ["from", "display", "debug"]
 anyhow = "1"
 moq-native = { workspace = true }
 url = "2"
+
+[lib]
+crate-type = ["cdylib"] # or ["staticlib"]

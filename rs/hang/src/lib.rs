@@ -18,6 +18,7 @@ mod model;
 
 pub mod annexb;
 pub mod catalog;
+pub mod c;
 pub mod cmaf;
 pub mod feedback;
 
