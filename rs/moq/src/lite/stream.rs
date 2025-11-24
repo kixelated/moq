@@ -8,14 +8,6 @@ pub enum ControlType {
 	Session = 0,
 	Announce = 1,
 	Subscribe = 2,
-
-	// Backwards compatibility with moq-transport 07-09
-	ClientCompatV7 = 0x40,
-	ServerCompatV7 = 0x41,
-
-	// Backwards compatibility with moq-transport 10-14
-	ClientCompatV14 = 0x20,
-	ServerCompatV14 = 0x21,
 }
 
 impl<V> Decode<V> for ControlType {
