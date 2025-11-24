@@ -7,7 +7,9 @@ use hang::{Catalog, CatalogProducer};
 use hang::catalog::{Video, VideoConfig, H264};
 use moq_lite::{BroadcastProducer, OriginConsumer, OriginProducer, Produce, Track};
 use std::{collections::HashMap, time::Duration};
+use std::ffi::CStr;
 use std::ffi::c_void;
+use std::os::raw::c_char;
 use std::thread;
 use std::thread::JoinHandle;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -17,12 +19,17 @@ static mut HANDLE: Option<JoinHandle<()>> = None;
 static RUNNING: AtomicBool = AtomicBool::new(false);
 
 #[no_mangle]
-pub extern "C" fn hang_start_from_c() {
+pub extern "C" fn hang_start_from_c(c_server_url: *const c_char, c_path: *const c_char, c_profile: *const c_char) {
     let rt = Runtime::new().unwrap();
 
-    let url = Url::parse("http://localhost:4443/anon").expect("joy");
+    let cstr_server_url = unsafe { CStr::from_ptr(c_server_url) };
+    let server_url = cstr_server_url.to_str().expect("Invalid server_url");
+    let url = Url::parse(server_url).expect("Invalid url parse");
 
-    let name = String::from("bbb");
+    let cstr_path = unsafe { CStr::from_ptr(c_path) };
+    let path = cstr_path.to_str().expect("Invalid path").to_string();
+
+    // println!("Hello, world: url {} path {}", url, path);
  
     RUNNING.store(true, Ordering::Relaxed);
 
@@ -32,7 +39,7 @@ pub extern "C" fn hang_start_from_c() {
             let rt = Runtime::new().unwrap();
 
             rt.block_on(async {
-                let _ = client(url, name).await;
+                let _ = client(url, path).await;
             });
         }));
     }
