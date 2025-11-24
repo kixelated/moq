@@ -1,10 +1,8 @@
 import * as Moq from "@kixelated/moq";
 import { Effect, Signal } from "@kixelated/signals";
-import * as DOM from "@kixelated/signals/dom";
 import { Broadcast } from "./broadcast";
 import * as Source from "./source";
 import type { HangPublishControlsElement, PublishSourceType } from "@kixelated/hang-ui/publish/element";
-import { th } from "zod/locales";
 
 // TODO: remove device; it's a backwards compatible alias for source.
 // TODO remove name; it's a backwards compatible alias for path.
@@ -365,6 +363,22 @@ export class HangPublishInstance {
 			this.#controlsElement.selectedMicrophoneSource = effect.get(audio.device.requested);
 		});
 
+		// Update active sources.
+		effect.effect((effect) => {
+			if (!this.#controlsElement) return;
+
+			const activeSources: PublishSourceType[] = [];
+			const audio = effect.get(this.#audio);
+			const videoSource = effect.get(this.parent.signals.source);
+
+			// update active sources while we have values 
+			if (audio) activeSources.push("microphone");
+			if (videoSource === "camera") activeSources.push("camera");
+			if (videoSource === "screen") activeSources.push("screen");
+
+			this.#controlsElement.activeSources = activeSources;
+		});
+
 		function hideShowControls(element: HangPublishControlsElement | undefined, show: boolean) {
 			if (!element) return;
 			
@@ -376,254 +390,10 @@ export class HangPublishInstance {
 		}
 	}
 
-	#renderSelect(parent: HTMLDivElement, effect: Effect) {
-		const container = DOM.create(
-			"div",
-			{
-				style: {
-					display: "flex",
-					gap: "16px",
-				},
-			},
-			"Source:",
-		);
-
-		this.#renderMicrophone(container, effect);
-		// this.#renderCamera(container, effect);
-		this.#renderScreen(container, effect);
-		this.#renderNothing(container, effect);
-
-		DOM.render(effect, parent, container);
-	}
-
-	#renderMicrophone(parent: HTMLDivElement, effect: Effect) {
-		const container = DOM.create("div", {
-			style: {
-				display: "flex",
-				position: "relative",
-				alignItems: "center",
-			},
-		});
-
-		const microphone = DOM.create(
-			"button",
-			{
-				type: "button",
-				title: "Microphone",
-				style: { cursor: "pointer" },
-			},
-			"🎤",
-		);
-
-		DOM.render(effect, container, microphone);
-
-		effect.event(microphone, "click", () => {
-			if (this.parent.source === "camera") {
-				// Camera already selected, toggle audio.
-				this.parent.audio = !this.parent.audio;
-			} else {
-				this.parent.source = "camera";
-				this.parent.audio = true;
-			}
-		});
-
-		effect.effect((effect) => {
-			const selected = effect.get(this.parent.signals.source);
-			const audio = effect.get(this.broadcast.audio.enabled);
-			microphone.style.opacity = selected === "camera" && audio ? "1" : "0.5";
-		});
-
-		// List of the available audio devices and show a drop down if there are multiple.
-		effect.effect((effect) => {
-			const audio = effect.get(this.#audio);
-			if (!(audio instanceof Source.Microphone)) return;
-
-			const enabled = effect.get(this.broadcast.audio.enabled);
-			if (!enabled) return;
-
-			const devices = effect.get(audio.device.available);
-			if (!devices || devices.length < 2) return;
-
-			const visible = new Signal(false);
-
-			const select = DOM.create("select", {
-				style: {
-					position: "absolute",
-					top: "100%",
-					transform: "translateX(-50%)",
-				},
-			});
-			effect.event(select, "change", () => {
-				audio.device.preferred.set(select.value);
-			});
-
-			for (const device of devices) {
-				const option = DOM.create("option", { value: device.deviceId }, device.label);
-				DOM.render(effect, select, option);
-			}
-
-			effect.effect((effect) => {
-				const active = effect.get(audio.device.requested);
-				select.value = active ?? "";
-			});
-
-			const caret = DOM.create("span", { style: { fontSize: "0.75em", cursor: "pointer" } }, "▼");
-			effect.event(caret, "click", () => visible.update((v) => !v));
-
-			effect.effect((effect) => {
-				const v = effect.get(visible);
-				caret.innerText = v ? "▼" : "▲";
-				select.style.display = v ? "block" : "none";
-			});
-
-			DOM.render(effect, container, caret);
-			DOM.render(effect, container, select);
-		});
-
-		DOM.render(effect, parent, container);
-	}
-
-	#setupCameraControls(parent: HTMLDivElement, effect: Effect) {
-		if (!this.#controlsElement) return;
-
-
-		const container = DOM.create("div", {
-			style: {
-				display: "flex",
-				position: "relative",
-				alignItems: "center",
-			},
-		});
-
-		const camera = DOM.create(
-			"button",
-			{
-				type: "button",
-				title: "Camera",
-				style: { cursor: "pointer" },
-			},
-			"📷",
-		);
-
-		DOM.render(effect, container, camera);
-
-		effect.event(camera, "click", () => {
-			if (this.parent.source === "camera") {
-				// Camera already selected, toggle video.
-				this.parent.video = !this.parent.video;
-			} else {
-				this.parent.source = "camera";
-				this.parent.video = true;
-			}
-		});
-
-		effect.effect((effect) => {
-			const selected = effect.get(this.parent.signals.source);
-			const video = effect.get(this.broadcast.video.hd.enabled);
-			camera.style.opacity = selected === "camera" && video ? "1" : "0.5";
-		});
-
-		// List of the available audio devices and show a drop down if there are multiple.
-		effect.effect((effect) => {
-			const video = effect.get(this.#video);
-			if (!(video instanceof Source.Camera)) return;
-
-			const enabled = effect.get(this.broadcast.video.hd.enabled);
-			if (!enabled) return;
-
-			const devices = effect.get(video.device.available);
-			if (!devices || devices.length < 2) return;
-
-			const visible = new Signal(false);
-
-			const select = DOM.create("select", {
-				style: {
-					position: "absolute",
-					top: "100%",
-					transform: "translateX(-50%)",
-				},
-			});
-			effect.event(select, "change", () => {
-				video.device.preferred.set(select.value);
-			});
-
-			for (const device of devices) {
-				const option = DOM.create("option", { value: device.deviceId }, device.label);
-				DOM.render(effect, select, option);
-			}
-
-			effect.effect((effect) => {
-				const requested = effect.get(video.device.requested);
-				select.value = requested ?? "";
-			});
-
-			const caret = DOM.create("span", { style: { fontSize: "0.75em", cursor: "pointer" } }, "▼");
-			effect.event(caret, "click", () => visible.update((v) => !v));
-
-			effect.effect((effect) => {
-				const v = effect.get(visible);
-				caret.innerText = v ? "▼" : "▲";
-				select.style.display = v ? "block" : "none";
-			});
-
-			DOM.render(effect, container, caret);
-			DOM.render(effect, container, select);
-		});
-
-		DOM.render(effect, parent, container);
-	}
-
-	#renderScreen(parent: HTMLDivElement, effect: Effect) {
-		const screen = DOM.create(
-			"button",
-			{
-				type: "button",
-				title: "Screen",
-				style: { cursor: "pointer" },
-			},
-			"🖥️",
-		);
-
-		effect.event(screen, "click", () => {
-			this.parent.source = "screen";
-		});
-
-		effect.effect((effect) => {
-			const selected = effect.get(this.parent.signals.source);
-			screen.style.opacity = selected === "screen" ? "1" : "0.5";
-		});
-
-		DOM.render(effect, parent, screen);
-	}
-
-	#renderNothing(parent: HTMLDivElement, effect: Effect) {
-		const nothing = DOM.create(
-			"button",
-			{
-				type: "button",
-				title: "Nothing",
-				style: { cursor: "pointer" },
-			},
-			"🚫",
-		);
-
-		effect.event(nothing, "click", () => {
-			this.parent.source = undefined;
-		});
-
-		effect.effect((effect) => {
-			const selected = effect.get(this.parent.signals.source);
-			nothing.style.opacity = selected === undefined ? "1" : "0.5";
-		});
-
-		DOM.render(effect, parent, nothing);
-	}
-
 	#setupStatusControls(effect: Effect) {
 		effect.effect((effect) => {
 			if (!this.#controlsElement) return;
 
-			const activeSources: PublishSourceType[] = [];
 			const url = effect.get(this.connection.url);
 			const status = effect.get(this.connection.status);
 			const audio = effect.get(this.broadcast.audio.source);
@@ -644,12 +414,6 @@ export class HangPublishInstance {
 			} else if (audio && video) {
 				this.#controlsElement.currentStatus = "live";
 			}
-
-			if (audio) activeSources.push("microphone");
-			if (this.parent.source === "camera") activeSources.push("camera");
-			if (this.parent.source === "screen") activeSources.push("screen");
-
-			this.#controlsElement.activeSources = activeSources;
 		});
 	}
 
