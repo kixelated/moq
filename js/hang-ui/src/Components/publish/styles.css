@@ -1,0 +1,32 @@
+.publishControlsContainer {
+    display: flex;
+    justify-content: space-around;
+    gap: 16px;
+    margin: 8px 0;
+    align-content: center;
+}
+
+.publishSourceSelectorContainer {
+    display: flex;
+    gap: 16px;
+}
+
+.publishSourceButtonContainer {
+    display: flex;
+    position: relative;
+    align-items: center;
+}
+
+.publishSourceButton {
+    cursor: pointer;
+    opacity: 0.5;
+}
+
+.publishSourceButton.active {
+    opacity: 1;
+}
+
+.mediaSourceVisibilityToggle {
+    font-size: 0.75em;
+    cursor: pointer;
+}

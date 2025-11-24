@@ -3,6 +3,7 @@ import { Effect, Signal } from "@kixelated/signals";
 import * as DOM from "@kixelated/signals/dom";
 import { Broadcast } from "./broadcast";
 import * as Source from "./source";
+import type { HangPublishControlsElement, PublishSourceType } from "@kixelated/hang-ui/publish/element";
 
 // TODO: remove device; it's a backwards compatible alias for source.
 // TODO remove name; it's a backwards compatible alias for path.
@@ -144,6 +145,7 @@ export class HangPublishInstance {
 	broadcast: Broadcast;
 
 	#preview: Signal<HTMLVideoElement | undefined>;
+	#controlsElement: HangPublishControlsElement | undefined;
 	#video = new Signal<Source.Camera | Source.Screen | undefined>(undefined);
 	#audio = new Signal<Source.Microphone | Source.Screen | undefined>(undefined);
 
@@ -154,6 +156,7 @@ export class HangPublishInstance {
 
 		// Watch to see if the preview element is added or removed.
 		this.#preview = new Signal(this.parent.querySelector("video") as HTMLVideoElement | undefined);
+		this.#controlsElement = this.parent.querySelector("hang-publish-controls") as HangPublishControlsElement | undefined;
 		const observer = new MutationObserver(() => {
 			this.#preview.set(this.parent.querySelector("video") as HTMLVideoElement | undefined);
 		});
@@ -199,7 +202,7 @@ export class HangPublishInstance {
 		});
 
 		this.#signals.effect(this.#runSource.bind(this));
-		this.#signals.effect(this.#renderControls.bind(this));
+		this.#signals.effect(this.#connectControls.bind(this));
 
 		// Keep device signal in sync with source signal for backwards compatibility
 		this.#signals.effect((effect) => {
@@ -263,26 +266,45 @@ export class HangPublishInstance {
 		}
 	}
 
-	#renderControls(effect: Effect) {
-		const controls = DOM.create("div", {
-			style: {
-				display: "flex",
-				justifyContent: "space-around",
-				gap: "16px",
-				margin: "8px 0",
-				alignContent: "center",
-			},
-		});
+	#connectControls(effect: Effect) {
+		if (!this.#controlsElement) {
+			console.warn("No controls element found");
+			return;
+		}
 
-		DOM.render(effect, this.parent, controls);
+		const shouldShowControls = effect.get(this.parent.signals.controls);
+		hideShowControls(this.#controlsElement, shouldShowControls);
 
 		effect.effect((effect) => {
-			const show = effect.get(this.parent.signals.controls);
-			if (!show) return;
-
-			this.#renderSelect(controls, effect);
-			this.#renderStatus(controls, effect);
+			const showControls = effect.get(this.parent.signals.controls);
+			hideShowControls(this.#controlsElement, showControls);
 		});
+
+		this.#setupStatusControls(effect);
+
+		effect.event(this.#controlsElement, "sourceselectionchange", (source: Event) => {
+			const detail = (source as CustomEvent).detail as PublishSourceType;
+			if (detail === 'camera') {
+				if (this.parent.source === "camera") {
+					// Camera already selected, toggle video.
+					this.parent.video = !this.parent.video;
+				} else {
+					this.parent.source = "camera";
+					this.parent.video = true;
+				}
+			}
+		});
+		// this.#setupCameraControls(effect);
+
+		function hideShowControls(element: HangPublishControlsElement | undefined, show: boolean) {
+			if (!element) return;
+			
+			if (show) {
+				element.style.display = "block";
+			} else {
+				element.style.display = "none";
+			}
+		}
 	}
 
 	#renderSelect(parent: HTMLDivElement, effect: Effect) {
@@ -298,7 +320,7 @@ export class HangPublishInstance {
 		);
 
 		this.#renderMicrophone(container, effect);
-		this.#renderCamera(container, effect);
+		// this.#renderCamera(container, effect);
 		this.#renderScreen(container, effect);
 		this.#renderNothing(container, effect);
 
@@ -392,7 +414,10 @@ export class HangPublishInstance {
 		DOM.render(effect, parent, container);
 	}
 
-	#renderCamera(parent: HTMLDivElement, effect: Effect) {
+	#setupCameraControls(parent: HTMLDivElement, effect: Effect) {
+		if (!this.#controlsElement) return;
+
+
 		const container = DOM.create("div", {
 			style: {
 				display: "flex",
@@ -525,34 +550,31 @@ export class HangPublishInstance {
 		DOM.render(effect, parent, nothing);
 	}
 
-	#renderStatus(parent: HTMLDivElement, effect: Effect) {
-		const container = DOM.create("div");
-
+	#setupStatusControls(effect: Effect) {
 		effect.effect((effect) => {
+			if (!this.#controlsElement) return;
+
 			const url = effect.get(this.connection.url);
 			const status = effect.get(this.connection.status);
 			const audio = effect.get(this.broadcast.audio.source);
 			const video = effect.get(this.broadcast.video.source);
 
 			if (!url) {
-				container.textContent = "🔴\u00A0No URL";
+				this.#controlsElement.currentStatus = "no-url";
 			} else if (status === "disconnected") {
-				container.textContent = "🔴\u00A0Disconnected";
+				this.#controlsElement.currentStatus = "disconnected";
 			} else if (status === "connecting") {
-				container.textContent = "🟡\u00A0Connecting...";
+				this.#controlsElement.currentStatus = "connecting";
 			} else if (!audio && !video) {
-				container.textContent = "🟡\u00A0Select Source";
+				this.#controlsElement.currentStatus = "select-source";
 			} else if (!audio && video) {
-				container.textContent = "🟢\u00A0Video Only";
+				this.#controlsElement.currentStatus = "video-only";
 			} else if (audio && !video) {
-				container.textContent = "🟢\u00A0Audio Only";
+				this.#controlsElement.currentStatus = "audio-only";
 			} else if (audio && video) {
-				container.textContent = "🟢\u00A0Live";
+				this.#controlsElement.currentStatus = "live";
 			}
 		});
-
-		parent.appendChild(container);
-		effect.cleanup(() => parent.removeChild(container));
 	}
 
 	close() {

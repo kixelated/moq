@@ -12,7 +12,8 @@
 		"fix": "biome check --fix"
 	},
 	"dependencies": {
-		"@kixelated/hang": "workspace:^"
+		"@kixelated/hang": "workspace:^",
+		"@kixelated/hang-ui": "workspace:^"
 	},
 	"devDependencies": {
 		"@tailwindcss/postcss": "^4.1.13",

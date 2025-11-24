@@ -1,0 +1,30 @@
+{
+    "name": "@kixelated/hang-ui",
+    "type": "module",
+    "version": "0.1.0",
+    "description": "Media over QUIC library UI components",
+    "license": "(MIT OR Apache-2.0)",
+    "repository": "github:kixelated/moq",
+    "main": "dist/publish-controls.esm.js",
+    "module": "dist/publish-controls.esm.js",
+    "exports": {
+        "./publish/element": {
+            "import": "./dist/publish-controls.esm.js",
+            "types": "./dist/Components/publish/publish-types.d.ts"
+        }
+    },
+    "scripts": {
+        "build": "rollup -c && npm run build:types",
+        "build:types": "tsc -p tsconfig.json",
+        "clean": "rm -rf dist"
+    },
+    "devDependencies": {
+        "@rollup/plugin-node-resolve": "^16.0.3",
+        "@rollup/plugin-typescript": "^12.3.0",
+        "rollup": "^4.53.3",
+        "rollup-plugin-string": "^3.0.0",
+        "solid-element": "^1.9.1",
+        "solid-js": "^1.9.10",
+        "unplugin-solid": "^1.0.0"
+    }
+}
