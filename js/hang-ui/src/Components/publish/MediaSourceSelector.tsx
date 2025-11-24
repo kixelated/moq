@@ -1,16 +1,12 @@
-import { createSignal } from 'solid-js';
+import { createSignal, Show } from 'solid-js';
 
 type MediaSourceSelectorProps = {
-    isActive: boolean;
     sources?: MediaDeviceInfo[];
+    selectedSource?: string;
     onSelected?: (sourceId: string) => void;
 };
 
-export default function MediaSourceSourceSelector({
-    isActive,
-    sources,
-    onSelected,
-}: MediaSourceSelectorProps) {
+export default function MediaSourceSelector(props: MediaSourceSelectorProps) {
     const [sourcesVisible, setSourcesVisible] = createSignal(false);
 
     const toggleSourcesVisible = () => {
@@ -22,28 +18,25 @@ export default function MediaSourceSourceSelector({
     };
 
     return (
-        isActive &&
-        sources?.length && (
-            <>
-                <span
-                    onClick={toggleSourcesVisible}
-                    class="mediaSourceVisibilityToggle"
+        <>
+            <span
+                onClick={toggleSourcesVisible}
+                class="mediaSourceVisibilityToggle"
+                title="Show Sources"
+            >
+                {sourcesVisible() ? '▼' : '▲'}
+            </span>
+            <Show when={sourcesVisible()}>
+                <select
+                    value={props.selectedSource}
+                    class="mediaSourceSelector"
+                    onChange={(e) => props.onSelected?.(e.currentTarget.value)}
                 >
-                    {sourcesVisible() ? '▼' : '▲'}
-                </span>
-                {sourcesVisible() && (
-                    <select
-                        class="mediaSourceSelector"
-                        onChange={(e) => onSelected?.(e.currentTarget.value)}
-                    >
-                        {sources.map((source) => (
-                            <option value={source.deviceId}>
-                                {source.label}
-                            </option>
-                        ))}
-                    </select>
-                )}
-            </>
-        )
+                    {props.sources?.map((source) => (
+                        <option value={source.deviceId}>{source.label}</option>
+                    ))}
+                </select>
+            </Show>
+        </>
     );
 }

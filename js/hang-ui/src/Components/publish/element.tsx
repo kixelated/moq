@@ -6,10 +6,12 @@ import type { PublishSourceType, PublishStatus } from './publish-types';
 customElement(
     'hang-publish-controls',
     {
-        activeSources: [],
+        activeSources: [] as PublishSourceType[],
+        selectedCameraSource: undefined,
+        selectedMicrophoneSource: undefined,
         currentStatus: 'no-url' as PublishStatus,
-        videoSources: [],
-        audioSources: [],
+        cameraSources: [],
+        microphoneSources: [],
     },
     function PublishControlsWebComponent(attributes, { element }) {
         const onSourceSelected = (newSource: PublishSourceType) => {
@@ -20,21 +22,21 @@ customElement(
             );
         };
 
-        const onAudioSourceSelected = (
+        const onMicrophoneSourceSelected = (
             selectedSource: MediaDeviceInfo['deviceId']
         ) => {
             element.dispatchEvent(
-                new CustomEvent('audiosourceselected', {
+                new CustomEvent('microphonesourceselected', {
                     detail: selectedSource,
                 })
             );
         };
 
-        const onVideoSourceSelected = (
+        const onCameraSourceSelected = (
             selectedSource: MediaDeviceInfo['deviceId']
         ) => {
             element.dispatchEvent(
-                new CustomEvent('videosourceselected', {
+                new CustomEvent('camerasourceselected', {
                     detail: selectedSource,
                 })
             );
@@ -44,10 +46,10 @@ customElement(
             <>
                 <style>{styles}</style>
                 <PublishControls
-                    {...attributes} // 👈 stays reactive
+                    {...attributes}
                     onSourceSelected={onSourceSelected}
-                    onAudioSourceSelected={onAudioSourceSelected}
-                    onVideoSourceSelected={onVideoSourceSelected}
+                    onMicrophoneSourceSelected={onMicrophoneSourceSelected}
+                    onCameraSourceSelected={onCameraSourceSelected}
                 />
             </>
         );

@@ -4,6 +4,7 @@ import * as DOM from "@kixelated/signals/dom";
 import { Broadcast } from "./broadcast";
 import * as Source from "./source";
 import type { HangPublishControlsElement, PublishSourceType } from "@kixelated/hang-ui/publish/element";
+import { th } from "zod/locales";
 
 // TODO: remove device; it's a backwards compatible alias for source.
 // TODO remove name; it's a backwards compatible alias for path.
@@ -283,8 +284,9 @@ export class HangPublishInstance {
 		this.#setupStatusControls(effect);
 
 		effect.event(this.#controlsElement, "sourceselectionchange", (source: Event) => {
-			const detail = (source as CustomEvent).detail as PublishSourceType;
-			if (detail === 'camera') {
+			const selection = (source as CustomEvent).detail as PublishSourceType;
+			
+			if (selection === 'camera') {
 				if (this.parent.source === "camera") {
 					// Camera already selected, toggle video.
 					this.parent.video = !this.parent.video;
@@ -293,8 +295,75 @@ export class HangPublishInstance {
 					this.parent.video = true;
 				}
 			}
+
+			if (selection === 'microphone') {
+				if (this.parent.source === "camera") {
+					// Camera already selected, toggle audio.
+					this.parent.audio = !this.parent.audio;
+				} else {
+					this.parent.source = "camera";
+					this.parent.audio = true;
+				}
+			}
+
+			if (selection === 'screen') {
+				this.parent.source = "screen";
+			}
+
+			if (selection === 'nothing') {
+				this.parent.source = undefined;
+			}
 		});
-		// this.#setupCameraControls(effect);
+
+		effect.event(this.#controlsElement, "camerasourceselected", (event: Event) => {
+			const detail = (event as CustomEvent).detail as MediaDeviceInfo['deviceId'];
+			const video = effect.get(this.#video);
+			if (video instanceof Source.Camera) {
+				video.device.preferred.set(detail);
+			}
+		});
+
+		effect.event(this.#controlsElement, "microphonesourceselected", (event: Event) => {
+			const detail = (event as CustomEvent).detail as MediaDeviceInfo['deviceId'];
+			const audio = effect.get(this.#audio);
+			if (audio instanceof Source.Microphone) {
+				audio.device.preferred.set(detail);
+			}
+		});
+
+		// Provide available video devices to PublishControls.
+		effect.effect((effect) => {
+			if (!this.#controlsElement) return;
+
+			const video = effect.get(this.#video);
+			if (!(video instanceof Source.Camera)) return;
+
+			const enabled = effect.get(this.broadcast.video.hd.enabled);
+			if (!enabled) return;
+
+			const devices = effect.get(video.device.available);
+			if (!devices || devices.length < 2) return;
+
+			this.#controlsElement.cameraSources = devices;
+			this.#controlsElement.selectedCameraSource = effect.get(video.device.requested);
+		});
+
+		// Provide available audio devices to PublishControls.
+		effect.effect((effect) => {
+			if (!this.#controlsElement) return;
+
+			const audio = effect.get(this.#audio);
+			if (!(audio instanceof Source.Microphone)) return;
+
+			const enabled = effect.get(this.broadcast.audio.enabled);
+			if (!enabled) return;
+
+			const devices = effect.get(audio.device.available);
+			if (!devices || devices.length < 2) return;
+
+			this.#controlsElement.microphoneSources = devices;
+			this.#controlsElement.selectedMicrophoneSource = effect.get(audio.device.requested);
+		});
 
 		function hideShowControls(element: HangPublishControlsElement | undefined, show: boolean) {
 			if (!element) return;
@@ -554,6 +623,7 @@ export class HangPublishInstance {
 		effect.effect((effect) => {
 			if (!this.#controlsElement) return;
 
+			const activeSources: PublishSourceType[] = [];
 			const url = effect.get(this.connection.url);
 			const status = effect.get(this.connection.status);
 			const audio = effect.get(this.broadcast.audio.source);
@@ -574,6 +644,12 @@ export class HangPublishInstance {
 			} else if (audio && video) {
 				this.#controlsElement.currentStatus = "live";
 			}
+
+			if (audio) activeSources.push("microphone");
+			if (this.parent.source === "camera") activeSources.push("camera");
+			if (this.parent.source === "screen") activeSources.push("screen");
+
+			this.#controlsElement.activeSources = activeSources;
 		});
 	}
 

@@ -3,8 +3,10 @@ export type PublishStatus = 'no-url' | 'disconnected' | 'connecting' | 'live' | 
 export interface HangPublishControlsElement extends HTMLElement {
     activeSources: PublishSourceType[];
     currentStatus: PublishStatus;
-    audioSources?: MediaDeviceInfo[];
-    videoSources?: MediaDeviceInfo[];
+    selectedCameraSource?: MediaDeviceInfo['deviceId'];
+    selectedMicrophoneSource?: MediaDeviceInfo['deviceId'];
+    microphoneSources?: MediaDeviceInfo[];
+    cameraSources?: MediaDeviceInfo[];
     screenSources?: MediaDeviceInfo[];
 }
 export interface PublishButtonProps {

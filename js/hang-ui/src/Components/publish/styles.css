@@ -18,8 +18,12 @@
 }
 
 .publishSourceButton {
+    all: unset;
     cursor: pointer;
     opacity: 0.5;
+    display: inline-block;
+    font: inherit;
+    color: inherit;
 }
 
 .publishSourceButton.active {
@@ -29,4 +33,12 @@
 .mediaSourceVisibilityToggle {
     font-size: 0.75em;
     cursor: pointer;
+    padding-left: 4px;
+}
+
+.mediaSourceSelector {
+    position: absolute;
+    top: 100%;
+    transform: translateX(-50%);
+    display: block;
 }
