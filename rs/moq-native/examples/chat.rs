@@ -52,6 +52,8 @@ async fn run_broadcast(origin: moq_lite::OriginProducer) -> anyhow::Result<()> {
 	let mut track = broadcast.producer.create_track(moq_lite::Track {
 		name: "chat".to_string(),
 		priority: 0,
+		// Drop old chat messages after at most 10 seconds.
+		expires: std::time::Duration::from_secs(10),
 	});
 
 	// NOTE: The path is empty because we're using the URL to scope the broadcast.
@@ -61,13 +63,13 @@ async fn run_broadcast(origin: moq_lite::OriginProducer) -> anyhow::Result<()> {
 
 	// Create a group.
 	// Each group is independent and the newest group(s) will be prioritized.
-	let mut group = track.append_group();
+	let mut group = track.append_group()?;
 
 	// Write frames to the group.
 	// Each frame is dependent on the previous frame, so older frames are prioritized.
-	group.write_frame(bytes::Bytes::from_static(b"Hello"));
-	group.write_frame(bytes::Bytes::from_static(b"World"));
-	group.close();
+	group.write_frame(bytes::Bytes::from_static(b"Hello"))?;
+	group.write_frame(bytes::Bytes::from_static(b"World"))?;
+	group.close()?;
 
 	tracing::info!("wrote hello + world");
 
@@ -75,7 +77,7 @@ async fn run_broadcast(origin: moq_lite::OriginProducer) -> anyhow::Result<()> {
 	tokio::time::sleep(tokio::time::Duration::from_secs(10)).await;
 
 	// There's also a helper method to create a group with a single frame.
-	track.write_frame(bytes::Bytes::from_static(b"foobarbaz"));
+	track.write_frame(bytes::Bytes::from_static(b"foobarbaz"))?;
 	tracing::info!("wrote foobarbaz");
 
 	// Sleep before exiting and closing the broadcast.

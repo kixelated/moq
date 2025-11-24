@@ -20,7 +20,7 @@ impl Publisher {
 		let mut sequence = start.minute();
 
 		loop {
-			let segment = self.track.create_group(sequence.into()).unwrap();
+			let segment = self.track.create_group(sequence.into()).expect("not closed");
 
 			sequence += 1;
 
@@ -44,11 +44,11 @@ impl Publisher {
 		// Everything but the second.
 		let base = now.format("%Y-%m-%d %H:%M:").to_string();
 
-		segment.write_frame(base.clone());
+		segment.write_frame(base.clone())?;
 
 		loop {
 			let delta = now.format("%S").to_string();
-			segment.write_frame(delta.clone());
+			segment.write_frame(delta.clone())?;
 
 			let next = now + chrono::Duration::try_seconds(1).unwrap();
 			let next = next.with_nanosecond(0).unwrap();
@@ -65,7 +65,7 @@ impl Publisher {
 			now = next;
 		}
 
-		segment.close();
+		segment.close()?;
 
 		Ok(())
 	}

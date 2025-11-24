@@ -1,4 +1,4 @@
-import type * as Moq from "@kixelated/moq";
+import * as Moq from "@kixelated/moq";
 import { Effect, type Getter, Signal } from "@kixelated/signals";
 import type * as Catalog from "../../catalog";
 import * as Frame from "../../frame";
@@ -156,8 +156,11 @@ export class Source {
 		const active = effect.get(this.active);
 		if (!active) return;
 
-		const sub = broadcast.subscribe(active, catalog.priority);
+		// TODO add support for updating the latency signal
+		const sub = new Moq.Track({ name: active, priority: catalog.priority, expires: this.latency.peek() });
 		effect.cleanup(() => sub.close());
+
+		broadcast.subscribe(sub);
 
 		// Create consumer with slightly less latency than the render worklet to avoid underflowing.
 		const consumer = new Frame.Consumer(sub, {

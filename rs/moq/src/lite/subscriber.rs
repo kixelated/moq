@@ -173,7 +173,7 @@ impl<S: web_transport_trait::Session> Subscriber<S> {
 		}
 	}
 
-	async fn run_subscribe(&mut self, id: u64, broadcast: Path<'_>, track: TrackProducer) {
+	async fn run_subscribe(&mut self, id: u64, broadcast: Path<'_>, mut track: TrackProducer) {
 		self.subscribes.lock().insert(id, track.clone());
 
 		let msg = lite::Subscribe {
@@ -181,6 +181,8 @@ impl<S: web_transport_trait::Session> Subscriber<S> {
 			broadcast: broadcast.to_owned(),
 			track: (&track.info.name).into(),
 			priority: track.info.priority,
+			expires: track.info.expires,
+			version: self.version,
 		};
 
 		tracing::info!(id, broadcast = %self.log_path(&broadcast), track = %track.info.name, "subscribe started");
@@ -201,7 +203,7 @@ impl<S: web_transport_trait::Session> Subscriber<S> {
 			}
 			_ => {
 				tracing::info!(id, broadcast = %self.log_path(&broadcast), track = %track.info.name, "subscribe complete");
-				track.close();
+				track.close().expect("impossible");
 			}
 		}
 	}
@@ -238,12 +240,12 @@ impl<S: web_transport_trait::Session> Subscriber<S> {
 	pub async fn recv_group(&mut self, stream: &mut Reader<S::RecvStream, Version>) -> Result<(), Error> {
 		let hdr: lite::Group = stream.decode().await?;
 
-		let group = {
+		let mut group = {
 			let mut subs = self.subscribes.lock();
 			let track = subs.get_mut(&hdr.subscribe).ok_or(Error::Cancel)?;
 
 			let group = Group { sequence: hdr.sequence };
-			track.create_group(group).ok_or(Error::Old)?
+			track.create_group(group)?
 		};
 
 		let res = tokio::select! {
@@ -262,7 +264,7 @@ impl<S: web_transport_trait::Session> Subscriber<S> {
 			}
 			_ => {
 				tracing::trace!(group = %group.info.sequence, "group complete");
-				group.close();
+				group.close()?;
 			}
 		}
 
@@ -275,20 +277,15 @@ impl<S: web_transport_trait::Session> Subscriber<S> {
 		mut group: GroupProducer,
 	) -> Result<(), Error> {
 		while let Some(size) = stream.decode_maybe::<u64>().await? {
-			let frame = group.create_frame(Frame { size });
+			let mut frame = group.create_frame(Frame { size })?;
 
-			let res = tokio::select! {
-				_ = frame.unused() => Err(Error::Cancel),
-				res = self.run_frame(stream, frame.clone()) => res,
-			};
-
-			if let Err(err) = res {
+			if let Err(err) = self.run_frame(stream, frame.clone()).await {
 				frame.abort(err.clone());
 				return Err(err);
 			}
 		}
 
-		group.close();
+		group.close()?;
 
 		Ok(())
 	}
@@ -309,12 +306,12 @@ impl<S: web_transport_trait::Session> Subscriber<S> {
 				.await?
 				.ok_or(Error::WrongSize)?;
 			remain = remain.checked_sub(chunk.len() as u64).ok_or(Error::WrongSize)?;
-			frame.write_chunk(chunk);
+			frame.write_chunk(chunk)?;
 		}
 
 		tracing::trace!(size = %frame.info.size, "read frame");
 
-		frame.close();
+		frame.close()?;
 
 		Ok(())
 	}

@@ -1,21 +1,34 @@
 import { Signal } from "@kixelated/signals";
 import { Group } from "./group.ts";
+import { defer } from "./util/promise.ts";
 
-export class TrackState {
+class TrackState {
 	groups = new Signal<Group[]>([]);
 	closed = new Signal<boolean | Error>(false);
 }
 
+interface TrackArgs {
+	name: string;
+	priority?: number;
+	expires?: DOMHighResTimeStamp;
+}
+
 export class Track {
 	readonly name: string;
+	readonly priority: number;
+	readonly expires: DOMHighResTimeStamp;
 
 	state = new TrackState();
-	#next?: number;
+	#max?: number;
+
+	#expire?: DeferExpires;
 
 	readonly closed: Promise<Error | undefined>;
 
-	constructor(name: string) {
+	constructor({ name, priority = 0, expires = 0 }: TrackArgs) {
 		this.name = name;
+		this.priority = priority;
+		this.expires = expires;
 
 		this.closed = new Promise((resolve) => {
 			const dispose = this.state.closed.subscribe((closed) => {
@@ -33,9 +46,13 @@ export class Track {
 	appendGroup(): Group {
 		if (this.state.closed.peek()) throw new Error("track is closed");
 
-		const group = new Group(this.#next ?? 0);
+		this.#expire?.resolve();
+		this.#expire = deferExpires(this.expires, this.closed);
 
-		this.#next = group.sequence + 1;
+		const group = new Group({ sequence: this.#max ?? 0 });
+		this.#expire.promise.then((err) => group.close(err));
+
+		this.#max = group.sequence + 1;
 		this.state.groups.mutate((groups) => {
 			groups.push(group);
 			groups.sort((a, b) => a.sequence - b.sequence);
@@ -51,12 +68,16 @@ export class Track {
 	writeGroup(group: Group) {
 		if (this.state.closed.peek()) throw new Error("track is closed");
 
-		if (group.sequence < (this.#next ?? 0)) {
-			group.close();
-			return;
+		if (!this.#max || group.sequence > this.#max) {
+			this.#max = group.sequence;
+
+			// Start expiring older groups.
+			this.#expire?.resolve();
+			this.#expire = deferExpires(this.expires, this.closed);
 		}
 
-		this.#next = group.sequence + 1;
+		this.#expire?.promise.then((err) => group.close(err));
+
 		this.state.groups.mutate((groups) => {
 			groups.push(group);
 			groups.sort((a, b) => a.sequence - b.sequence);
@@ -187,4 +208,26 @@ export class Track {
 			group.close(abort);
 		}
 	}
+}
+
+type DeferExpires = {
+	promise: Promise<Error | undefined>;
+	resolve: () => void;
+};
+
+function deferExpires(delay: DOMHighResTimeStamp, closed: Promise<Error | undefined>): DeferExpires {
+	const d = defer<Error | undefined>();
+
+	const start = () => {
+		const timeout = setTimeout(() => d.resolve(new Error("expired")), delay);
+		closed.then((err) => {
+			if (err) d.resolve(err);
+			clearTimeout(timeout);
+		});
+	};
+
+	return {
+		promise: d.promise,
+		resolve: start,
+	};
 }

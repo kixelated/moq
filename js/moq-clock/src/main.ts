@@ -80,13 +80,13 @@ async function publish(config: Config) {
 
 	// Wait until we get a subscription for the track
 	for (;;) {
-		const request = await broadcast.requested();
-		if (!request) break;
+		const track = await broadcast.requested();
+		if (!track) break;
 
-		if (request.track.name === config.track) {
-			publishTrack(request.track);
+		if (track.name === config.track) {
+			publishTrack(track);
 		} else {
-			request.track.close(new Error("not found"));
+			track.close(new Error("not found"));
 		}
 	}
 }
@@ -138,7 +138,8 @@ async function subscribe(config: Config) {
 	console.log("✅ Connected to relay:", config.url);
 
 	const broadcast = connection.consume(Moq.Path.from(config.broadcast));
-	const track = broadcast.subscribe(config.track, 0);
+	const track = new Moq.Track({ name: config.track, priority: 0 });
+	broadcast.subscribe(track);
 
 	console.log("✅ Subscribed to track:", config.track);
 

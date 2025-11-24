@@ -12,7 +12,7 @@ export class Group {
 	state = new GroupState();
 	readonly closed: Promise<Error | undefined>;
 
-	constructor(sequence: number) {
+	constructor({ sequence }: { sequence: number }) {
 		this.sequence = sequence;
 
 		// Cache the closed promise to avoid recreating it every time.

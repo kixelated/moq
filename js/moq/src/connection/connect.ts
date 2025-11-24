@@ -29,6 +29,8 @@ export interface ConnectProps {
 // Save if WebSocket won the last race, so we won't give QUIC a head start next time.
 const websocketWon = new Set<string>();
 
+const SUPPORTED = [Lite.Version.DRAFT_03, Lite.Version.DRAFT_02, Lite.Version.DRAFT_01, Ietf.Version.DRAFT_14];
+
 /**
  * Establishes a connection to a MOQ server.
  *
@@ -82,7 +84,7 @@ export async function connect(url: URL, props?: ConnectProps): Promise<Establish
 	params.setVarint(Ietf.Parameter.MaxRequestId, 42069n); // Allow a ton of request IDs.
 	params.setBytes(Ietf.Parameter.Implementation, encoder.encode("moq-lite-js")); // Put the implementation name in the parameters.
 
-	const client = new Ietf.ClientSetup([Lite.Version.DRAFT_02, Lite.Version.DRAFT_01, Ietf.Version.DRAFT_14], params);
+	const client = new Ietf.ClientSetup(SUPPORTED, params);
 	console.debug(url.toString(), "sending client setup", client);
 	await client.encode(stream.writer);
 
@@ -98,12 +100,12 @@ export async function connect(url: URL, props?: ConnectProps): Promise<Establish
 	if (Object.values(Lite.Version).includes(server.version as Lite.Version)) {
 		console.debug(url.toString(), "moq-lite session established");
 		return new Lite.Connection(url, quic, stream, server.version as Lite.Version);
-	} else if (Object.values(Ietf.Version).includes(server.version as Ietf.Version)) {
+	} else if (server.version === Ietf.Version.DRAFT_14) {
 		const maxRequestId = server.parameters.getVarint(Ietf.Parameter.MaxRequestId) ?? 0n;
 		console.debug(url.toString(), "moq-ietf session established");
 		return new Ietf.Connection(url, quic, stream, maxRequestId);
 	} else {
-		throw new Error(`unsupported server version: ${server.version.toString()}`);
+		throw new Error(`unsupported server version: ${server.version}`);
 	}
 }
 

@@ -3,7 +3,7 @@ import type { Broadcast } from "../broadcast.ts";
 import type { Group } from "../group.ts";
 import * as Path from "../path.ts";
 import { type Stream, Writer } from "../stream.ts";
-import type { Track } from "../track.ts";
+import { Track } from "../track.ts";
 import { error } from "../util/error.ts";
 import { Announce, AnnounceInit, type AnnounceInterest } from "./announce.ts";
 import { Group as GroupMessage } from "./group.ts";
@@ -138,10 +138,11 @@ export class Publisher {
 			return;
 		}
 
-		const track = broadcast.subscribe(msg.track, msg.priority);
+		const track = new Track({ name: msg.track, priority: msg.priority, expires: msg.expires });
+		broadcast.subscribe(track);
 
 		try {
-			const info = new SubscribeOk({ version: this.version, priority: msg.priority });
+			const info = new SubscribeOk({ version: this.version });
 			await info.encode(stream.writer);
 
 			console.debug(`publish ok: broadcast=${msg.broadcast} track=${track.name}`);
@@ -184,13 +185,15 @@ export class Publisher {
 		try {
 			for (;;) {
 				const next = track.nextGroup();
+
 				const group = await Promise.race([next, stream.closed]);
 				if (!group) {
+					// Close the pending promise if it's not been resolved yet.
 					next.then((group) => group?.close()).catch(() => {});
 					break;
 				}
 
-				void this.#runGroup(sub, group);
+				void this.#runGroup(sub, track, group);
 			}
 
 			console.debug(`publish close: broadcast=${broadcast} track=${track.name}`);
@@ -199,22 +202,16 @@ export class Publisher {
 		} catch (err: unknown) {
 			const e = error(err);
 			console.warn(`publish error: broadcast=${broadcast} track=${track.name} error=${e.message}`);
+
 			track.close(e);
 			stream.reset(e);
 		}
 	}
 
-	/**
-	 * Runs a group and sends its frames to the stream.
-	 * @param sub - The subscription ID
-	 * @param group - The group to run
-	 *
-	 * @internal
-	 */
-	async #runGroup(sub: bigint, group: Group) {
+	async #runGroup(sub: bigint, track: Track, group: Group) {
 		const msg = new GroupMessage(sub, group.sequence);
 		try {
-			const stream = await Writer.open(this.#quic);
+			const stream = await Writer.open(this.#quic, { sendOrder: track.priority });
 			await stream.u8(0); // stream type
 			await msg.encode(stream);
 

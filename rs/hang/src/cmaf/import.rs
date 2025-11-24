@@ -8,6 +8,10 @@ use mp4_atom::{Any, AsyncReadFrom, Atom, DecodeMaybe, Mdat, Moof, Moov, Tfdt, Tr
 use std::{collections::HashMap, time::Duration};
 use tokio::io::{AsyncRead, AsyncReadExt};
 
+// Keep transmitting groups for at most 10 seconds, can be shortened by the viewer.
+// TODO: Make this configurable by the publisher.
+const MAX_EXPIRES: std::time::Duration = std::time::Duration::from_secs(10);
+
 /// Converts fMP4/CMAF files into hang broadcast streams.
 ///
 /// This struct processes fragmented MP4 (fMP4) files and converts them into hang broadcasts.
@@ -123,6 +127,7 @@ impl Import {
 					let track = Track {
 						name: track_name.clone(),
 						priority: 2,
+						expires: MAX_EXPIRES,
 					};
 					let track_produce = track.produce();
 					self.broadcast.insert_track(track_produce.consumer);
@@ -134,6 +139,7 @@ impl Import {
 					let track = Track {
 						name: track_name.clone(),
 						priority: 2,
+						expires: MAX_EXPIRES,
 					};
 					let track_produce = track.produce();
 					self.broadcast.insert_track(track_produce.consumer);
@@ -147,26 +153,20 @@ impl Import {
 			self.tracks.insert(track_id, track.into());
 		}
 
-		if !video_renditions.is_empty() {
-			let video = Video {
+		self.catalog.update(|catalog| {
+			catalog.video = (!video_renditions.is_empty()).then(|| Video {
 				renditions: video_renditions,
 				priority: 2,
 				display: None,
 				rotation: None,
 				flip: None,
-			};
-			self.catalog.set_video(Some(video));
-		}
+			});
 
-		if !audio_renditions.is_empty() {
-			let audio = Audio {
+			catalog.audio = (!audio_renditions.is_empty()).then(|| Audio {
 				renditions: audio_renditions,
 				priority: 2,
-			};
-			self.catalog.set_audio(Some(audio));
-		}
-
-		self.catalog.publish();
+			});
+		})?;
 
 		self.moov = Some(moov);
 

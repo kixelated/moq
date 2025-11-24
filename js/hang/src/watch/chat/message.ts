@@ -1,6 +1,6 @@
 import * as Moq from "@kixelated/moq";
 import { Effect, type Getter, Signal } from "@kixelated/signals";
-import * as Catalog from "../../catalog";
+import type * as Catalog from "../../catalog";
 
 export interface MessageProps {
 	// Whether to start downloading the chat.
@@ -47,8 +47,10 @@ export class Message {
 		const broadcast = effect.get(this.broadcast);
 		if (!broadcast) return;
 
-		const track = broadcast.subscribe(catalog.name, catalog.priority);
+		const track = new Moq.Track({ name: catalog.name, priority: catalog.priority });
 		effect.cleanup(() => track.close());
+
+		broadcast.subscribe(track);
 
 		// Undefined is only when we're not subscribed to the track.
 		effect.set(this.#latest, "");
