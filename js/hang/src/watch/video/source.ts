@@ -3,7 +3,7 @@ import { Effect, Signal } from "@kixelated/signals";
 import type * as Catalog from "../../catalog";
 import * as Frame from "../../frame";
 import { PRIORITY } from "../../publish/priority";
-import * as Time from "../../time";
+import type * as Time from "../../time";
 import * as Hex from "../../util/hex";
 
 export type SourceProps = {
@@ -50,12 +50,10 @@ export class Source {
 	// Used as a tiebreaker when there are multiple tracks (HD vs SD).
 	target = new Signal<Target | undefined>(undefined);
 
-	// Unfortunately, browsers don't let us hold on to multiple VideoFrames.
-	// ex. Firefox only allows 2 outstanding VideoFrames at a time.
-	// In order to semi-support b-frames, we buffer two frames and expose the earliest one.
+	// Expose the current frame to render as a signal
 	frame = new Signal<VideoFrame | undefined>(undefined);
-	#next?: VideoFrame;
 
+	// The target latency in milliseconds.
 	latency: Signal<Time.Milli>;
 
 	// The display size of the video in pixels, ideally sourced from the catalog.
@@ -66,9 +64,6 @@ export class Source {
 
 	// Used to convert PTS to wall time.
 	#reference: DOMHighResTimeStamp | undefined;
-
-	// The latency after we've accounted for the extra frame buffering and jitter buffer.
-	#jitter: Signal<Time.Milli>;
 
 	#signals = new Effect();
 
@@ -81,10 +76,6 @@ export class Source {
 		this.latency = Signal.from(props?.latency ?? (100 as Time.Milli));
 		this.enabled = Signal.from(props?.enabled ?? false);
 
-		// We subtract a frame from the jitter buffer to account for the extra buffered frame.
-		// Assume 30fps by default.
-		this.#jitter = new Signal(Math.max(0, this.latency.peek() - 33) as Time.Milli);
-
 		this.#signals.effect((effect) => {
 			const c = effect.get(catalog)?.video;
 			effect.set(this.catalog, c);
@@ -95,7 +86,6 @@ export class Source {
 		this.#signals.effect(this.#runSelected.bind(this));
 		this.#signals.effect(this.#runPending.bind(this));
 		this.#signals.effect(this.#runDisplay.bind(this));
-		this.#signals.effect(this.#runJitter.bind(this));
 	}
 
 	#runSupported(effect: Effect): void {
@@ -156,9 +146,6 @@ export class Source {
 				return undefined;
 			});
 
-			this.#next?.close();
-			this.#next = undefined;
-
 			return;
 		}
 
@@ -178,54 +165,28 @@ export class Source {
 
 		// Create consumer that reorders groups/frames up to the provided latency.
 		const consumer = new Frame.Consumer(sub, {
-			latency: this.#jitter,
+			latency: this.latency,
 		});
 		effect.cleanup(() => consumer.close());
 
 		const decoder = new VideoDecoder({
-			output: (frame) => {
-				// Keep track of the two newest frames.
-				// this.frame is older than this.#next, if it exists.
-				const prev = this.frame.peek();
-				if (prev && prev.timestamp >= frame.timestamp) {
-					// NOTE: This can happen if you have more than 1 b-frame in a row.
-					// Sorry, blame Firefox.
-					frame.close();
-					return;
-				}
+			output: async (frame: VideoFrame) => {
+				// Sleep until it's time to decode the next frame.
+				const ref = performance.now() - frame.timestamp / 1000;
 
-				if (!prev) {
-					// As time-to-video optimization, use the first frame we see.
-					// We know this is an i-frame so there's no need to re-order it.
-					this.frame.set(frame);
-					return;
-				}
-
-				// If jitter is 0, then we disable buffering frames.
-				const jitter = this.#jitter.peek();
-				if (jitter === 0) {
-					prev.close();
-					this.frame.set(frame);
-					return;
-				}
-
-				if (!this.#next) {
-					// We know we're newer than the current frame, so buffer it.
-					this.#next = frame;
-					return;
-				}
-
-				// Close the previous frame, and check if we need to replace #next or this.frame.
-				prev.close();
-
-				if (this.#next.timestamp < frame.timestamp) {
-					// Replace #next with the new frame.
-					this.frame.set(this.#next);
-					this.#next = frame;
+				if (!this.#reference || ref < this.#reference) {
+					this.#reference = ref;
 				} else {
-					// #next is newer than this new frame, so keep it.
-					this.frame.set(frame);
+					const sleep = this.#reference - ref + this.latency.peek();
+					if (sleep > 0) {
+						await new Promise((resolve) => setTimeout(resolve, sleep));
+					}
 				}
+
+				this.frame.update((prev) => {
+					prev?.close();
+					return frame;
+				});
 			},
 			// TODO bubble up error
 			error: (error) => {
@@ -248,31 +209,13 @@ export class Source {
 				const next = await Promise.race([consumer.decode(), effect.cancel]);
 				if (!next) break;
 
-				// See if we can upgrade ourselves to the active track once we catch up.
-				// TODO: This is a racey when latency === 0, but I think it's fine.
+				// See if we can upgrade ourselves to the active track once we get close enough.
 				const prev = this.frame.peek();
 				if (this.#pending === effect && (!prev || next.timestamp > prev.timestamp)) {
 					this.#active?.close();
 					this.#active = effect;
 					this.#pending = undefined;
 					effect.set(this.active, name);
-				}
-
-				// Sleep until it's time to decode the next frame.
-				const ref = performance.now() - Time.Milli.fromMicro(next.timestamp);
-
-				if (!this.#reference || ref < this.#reference) {
-					this.#reference = ref;
-				} else {
-					const sleep = this.#reference - ref + this.#jitter.peek();
-					if (sleep > 0) {
-						await new Promise((resolve) => setTimeout(resolve, sleep));
-					}
-				}
-
-				if (decoder.state === "closed") {
-					// Closed during the sleep
-					break;
 				}
 
 				const chunk = new EncodedVideoChunk({
@@ -344,34 +287,11 @@ export class Source {
 		});
 	}
 
-	#runJitter(effect: Effect): void {
-		const config = effect.get(this.#selectedConfig);
-		if (!config) return;
-
-		// Use the framerate to compute the jitter buffer size.
-		// We always buffer a single frame, so subtract that from the jitter buffer.
-		const fps = config.framerate && config.framerate > 0 ? config.framerate : 30;
-		const delay = 1000 / fps;
-		const latency = effect.get(this.latency);
-
-		const jitter = Math.max(0, latency - delay) as Time.Milli;
-		this.#jitter.set(jitter);
-
-		// If we're not buffering any frames, then close the next frame.
-		if (jitter === 0 && this.#next) {
-			this.#next.close();
-			this.#next = undefined;
-		}
-	}
-
 	close() {
 		this.frame.update((prev) => {
 			prev?.close();
 			return undefined;
 		});
-
-		this.#next?.close();
-		this.#next = undefined;
 
 		this.#signals.close();
 	}
