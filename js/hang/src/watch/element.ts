@@ -4,7 +4,7 @@ import * as DOM from "@kixelated/signals/dom";
 import type * as Time from "../time";
 import * as Audio from "./audio";
 import { Broadcast } from "./broadcast";
-import { PlayerStatusReason, Renderer } from "./video";
+import { Renderer } from "./video";
 
 const OBSERVED = ["url", "name", "path", "paused", "volume", "muted", "controls", "reload", "latency"] as const;
 type Observed = (typeof OBSERVED)[number];
@@ -484,9 +484,9 @@ export class HangWatchInstance {
 		container.appendChild(spinner);
 
 		effect.effect((effect) => {
-			const syncWaitStatus = effect.get(this.video.source.syncWaitStatus);
+			const syncStatus = effect.get(this.video.source.syncStatus);
 			const bufferStatus = effect.get(this.video.source.bufferStatus);
-			const shouldShow = syncWaitStatus.reason === PlayerStatusReason.SYNC_WAIT || bufferStatus.reason === PlayerStatusReason.BUFFER_EMPTY;
+			const shouldShow = syncStatus.state === "wait" || bufferStatus.state === "empty";
 			if (shouldShow) {
 				container.style.display = "flex";
 			} else {
