@@ -3,104 +3,126 @@ import type { StreamTrack as VideoStreamTrack } from "../video/types";
 import type { StreamTrack as AudioStreamTrack } from "../audio/types";
 
 export interface FileSourceConfig {
-  enabled: Signal<boolean>;
+	enabled: Signal<boolean>;
 }
 
 export class File {
-  #file = new Signal<globalThis.File | undefined>(undefined);
-  signals = new Effect();
+	#file = new Signal<globalThis.File | undefined>(undefined);
+	signals = new Effect();
 
-  source = new Signal<{ video?: VideoStreamTrack; audio?: AudioStreamTrack }>({});
-  enabled: Signal<boolean>;
+	source = new Signal<{ video?: VideoStreamTrack; audio?: AudioStreamTrack }>(
+		{}
+	);
+	enabled: Signal<boolean>;
 
-  constructor(config: FileSourceConfig) {
-    this.enabled = config.enabled;
+	constructor(config: FileSourceConfig) {
+		this.enabled = config.enabled;
 
-    this.signals.effect((effect) => {
-      const file = effect.get(this.#file);
-      const enabled = effect.get(this.enabled);
+		this.signals.effect((effect) => {
+			const file = effect.get(this.#file);
+			const enabled = effect.get(this.enabled);
 
-      if (!file || !enabled) {
-        effect.set(this.source, {}, {});
-        return;
-      }
+			if (!file || !enabled) {
+				effect.set(this.source, {}, {});
+				return;
+			}
 
-      this.#decode(file, effect);
-    });
-  }
+			this.#decode(file, effect).catch((err) => {
+				console.error("Failed to decode file:", err);
+				effect.set(this.source, {}, {});
+			});
+		});
+	}
 
-  setFile(file: globalThis.File) {
-    this.#file.set(file);
-  }
+	setFile(file: globalThis.File) {
+		this.#file.set(file);
+	}
 
-  async #decode(file: globalThis.File, effect: Effect) {
-    const type = file.type;
+	async #decode(file: globalThis.File, effect: Effect) {
+		const type = file.type;
 
-    if (type.startsWith('image/')) {
-      await this.#decodeImage(file, effect);
-    } else if (type.startsWith('video/') || type.startsWith('audio/')) {
-      await this.#decodeMedia(file, effect);
-    } else {
-      throw new Error(`Unsupported file type: ${type}`);
-    }
-  }
+		if (type.startsWith("image/")) {
+			await this.#decodeImage(file, effect);
+		} else if (type.startsWith("video/") || type.startsWith("audio/")) {
+			await this.#decodeMedia(file, effect);
+		} else {
+			throw new Error(`Unsupported file type: ${type}`);
+		}
+	}
 
-  async #decodeImage(file: globalThis.File, effect: Effect) {
-    const img = new Image();
-    const url = URL.createObjectURL(file);
-    img.src = url;
-    await img.decode();
+	async #decodeImage(file: globalThis.File, effect: Effect) {
+		const img = new Image();
+		const url = URL.createObjectURL(file);
+		img.src = url;
+		await img.decode();
 
-    effect.cleanup(() => URL.revokeObjectURL(url));
+		effect.cleanup(() => URL.revokeObjectURL(url));
 
-    const canvas = document.createElement('canvas');
-    canvas.width = img.width;
-    canvas.height = img.height;
-    const ctx = canvas.getContext('2d')!;
+		const canvas = document.createElement("canvas");
+		canvas.width = img.width;
+		canvas.height = img.height;
+		const ctx = canvas.getContext("2d");
 
-    const interval = setInterval(() => {
-      ctx.drawImage(img, 0, 0);
-    }, 1000 / 30);
+		if (!ctx) {
+			throw new Error("Failed to create 2D canvas context");
+		}
 
-    effect.cleanup(() => clearInterval(interval));
+		const interval = setInterval(() => {
+			ctx.drawImage(img, 0, 0);
+		}, 1000 / 30);
 
-    const stream = canvas.captureStream(30);
-    const videoTrack = stream.getVideoTracks()[0];
-    effect.set(this.source, { video: videoTrack as VideoStreamTrack }, {});
-  }
+		effect.cleanup(() => clearInterval(interval));
 
-  async #decodeMedia(file: globalThis.File, effect: Effect) {
-    const video = document.createElement('video') as HTMLVideoElement & {
-      captureStream(): MediaStream;
-    };
+		const stream = canvas.captureStream(30);
+		const videoTrack = stream.getVideoTracks()[0];
 
-    const url = URL.createObjectURL(file);
-    video.src = url;
-    video.loop = true;
-    video.muted = true;
+		if (!videoTrack) {
+			throw new Error("Failed to capture video track from canvas stream");
+		}
 
-    await new Promise<void>((resolve, reject) => {
-      video.onloadedmetadata = () => resolve();
-      video.onerror = () => reject(new Error('Failed to load video'));
-    });
+		effect.set(this.source, { video: videoTrack as VideoStreamTrack }, {});
+	}
 
-    await video.play();
+	async #decodeMedia(file: globalThis.File, effect: Effect) {
+		const video = document.createElement("video") as HTMLVideoElement & {
+			captureStream(): MediaStream;
+		};
 
-    effect.cleanup(() => {
-      video.pause();
-      URL.revokeObjectURL(url);
-    });
+		const url = URL.createObjectURL(file);
+		video.src = url;
+		video.loop = true;
+		video.muted = true;
 
-    const stream = video.captureStream();
-    const videoTrack = stream.getVideoTracks()[0];
-    const audioTrack = stream.getAudioTracks()[0];
-    effect.set(this.source, {
-      video: videoTrack as VideoStreamTrack,
-      audio: audioTrack as AudioStreamTrack
-    }, {});
-  }
+		await new Promise<void>((resolve, reject) => {
+			video.onloadedmetadata = () => resolve();
+			video.onerror = () => reject(new Error("Failed to load video"));
+		});
 
-  close() {
-    this.signals.close();
-  }
+		await video.play();
+
+		effect.cleanup(() => {
+			video.pause();
+			URL.revokeObjectURL(url);
+		});
+
+		const stream = video.captureStream();
+		const videoTrack = stream.getVideoTracks()[0];
+		const audioTrack = stream.getAudioTracks()[0];
+
+		if (!videoTrack && !audioTrack) {
+			throw new Error("Failed to capture any tracks from video element");
+		}
+		effect.set(
+			this.source,
+			{
+				video: videoTrack as VideoStreamTrack,
+				audio: audioTrack as AudioStreamTrack,
+			},
+			{}
+		);
+	}
+
+	close() {
+		this.signals.close();
+	}
 }
