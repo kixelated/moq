@@ -1,9 +1,18 @@
 use std::{borrow::Cow, sync::Arc};
 
+use bytes::{Bytes, BytesMut};
+
 pub trait Encode<V>: Sized {
 	// Encode the value to the given writer.
 	// This will panic if the Buf is not large enough; use a Vec or encode_size() to check.
 	fn encode<W: bytes::BufMut>(&self, w: &mut W, version: V);
+
+	// Encode the value to a Bytes buffer.
+	fn encode_bytes(&self, v: V) -> Bytes {
+		let mut buf = BytesMut::new();
+		self.encode(&mut buf, v);
+		buf.freeze()
+	}
 }
 
 impl<V> Encode<V> for bool {

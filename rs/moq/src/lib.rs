@@ -18,6 +18,7 @@ mod error;
 mod model;
 mod path;
 mod session;
+mod setup;
 
 pub mod coding;
 pub mod ietf;
