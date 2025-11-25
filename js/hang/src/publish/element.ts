@@ -570,6 +570,7 @@ export class HangPublishInstance {
 				this.parent.source = "file";
 				this.parent.video = true;
 				this.parent.audio = true;
+				(e.target as HTMLInputElement).value = "";
 			}
 		});
 
