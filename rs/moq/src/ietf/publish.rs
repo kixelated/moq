@@ -127,14 +127,14 @@ pub struct PublishDone<'a> {
 impl<'a> Message for PublishDone<'a> {
 	const ID: u64 = 0x0b;
 
-	fn encode<W: bytes::BufMut>(&self, w: &mut W, version: Version) {
+	fn encode_msg<W: bytes::BufMut>(&self, w: &mut W, version: Version) {
 		self.request_id.encode(w, version);
 		self.status_code.encode(w, version);
 		self.stream_count.encode(w, version);
 		self.reason_phrase.encode(w, version);
 	}
 
-	fn decode<R: bytes::Buf>(r: &mut R, version: Version) -> Result<Self, DecodeError> {
+	fn decode_msg<R: bytes::Buf>(r: &mut R, version: Version) -> Result<Self, DecodeError> {
 		let request_id = RequestId::decode(r, version)?;
 		let status_code = u64::decode(r, version)?;
 		let stream_count = u64::decode(r, version)?;
@@ -164,7 +164,7 @@ pub struct Publish<'a> {
 impl<'a> Message for Publish<'a> {
 	const ID: u64 = 0x1D;
 
-	fn encode<W: bytes::BufMut>(&self, w: &mut W, version: Version) {
+	fn encode_msg<W: bytes::BufMut>(&self, w: &mut W, version: Version) {
 		self.request_id.encode(w, version);
 		encode_namespace(w, &self.track_namespace, version);
 		self.track_name.encode(w, version);
@@ -182,7 +182,7 @@ impl<'a> Message for Publish<'a> {
 		0u8.encode(w, version);
 	}
 
-	fn decode<R: bytes::Buf>(r: &mut R, version: Version) -> Result<Self, DecodeError> {
+	fn decode_msg<R: bytes::Buf>(r: &mut R, version: Version) -> Result<Self, DecodeError> {
 		let request_id = RequestId::decode(r, version)?;
 		let track_namespace = decode_namespace(r, version)?;
 		let track_name = Cow::<str>::decode(r, version)?;
@@ -221,7 +221,7 @@ pub struct PublishOk {
 impl Message for PublishOk {
 	const ID: u64 = 0x1E;
 
-	fn encode<W: bytes::BufMut>(&self, w: &mut W, version: Version) {
+	fn encode_msg<W: bytes::BufMut>(&self, w: &mut W, version: Version) {
 		self.request_id.encode(w, version);
 		self.forward.encode(w, version);
 		self.subscriber_priority.encode(w, version);
@@ -235,7 +235,7 @@ impl Message for PublishOk {
 		0u8.encode(w, version);
 	}
 
-	fn decode<R: bytes::Buf>(r: &mut R, version: Version) -> Result<Self, DecodeError> {
+	fn decode_msg<R: bytes::Buf>(r: &mut R, version: Version) -> Result<Self, DecodeError> {
 		let request_id = RequestId::decode(r, version)?;
 		let forward = bool::decode(r, version)?;
 		let subscriber_priority = u8::decode(r, version)?;
@@ -274,13 +274,13 @@ pub struct PublishError<'a> {
 impl<'a> Message for PublishError<'a> {
 	const ID: u64 = 0x1F;
 
-	fn encode<W: bytes::BufMut>(&self, w: &mut W, version: Version) {
+	fn encode_msg<W: bytes::BufMut>(&self, w: &mut W, version: Version) {
 		self.request_id.encode(w, version);
 		self.error_code.encode(w, version);
 		self.reason_phrase.encode(w, version);
 	}
 
-	fn decode<R: bytes::Buf>(r: &mut R, version: Version) -> Result<Self, DecodeError> {
+	fn decode_msg<R: bytes::Buf>(r: &mut R, version: Version) -> Result<Self, DecodeError> {
 		let request_id = RequestId::decode(r, version)?;
 		let error_code = u64::decode(r, version)?;
 		let reason_phrase = Cow::<str>::decode(r, version)?;

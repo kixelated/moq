@@ -48,7 +48,7 @@ pub struct Subscribe<'a> {
 impl<'a> Message for Subscribe<'a> {
 	const ID: u64 = 0x03;
 
-	fn decode<R: bytes::Buf>(r: &mut R, version: Version) -> Result<Self, DecodeError> {
+	fn decode_msg<R: bytes::Buf>(r: &mut R, version: Version) -> Result<Self, DecodeError> {
 		let request_id = RequestId::decode(r, version)?;
 
 		// Decode namespace (tuple of strings)
@@ -89,7 +89,7 @@ impl<'a> Message for Subscribe<'a> {
 		})
 	}
 
-	fn encode<W: bytes::BufMut>(&self, w: &mut W, version: Version) {
+	fn encode_msg<W: bytes::BufMut>(&self, w: &mut W, version: Version) {
 		self.request_id.encode(w, version);
 		encode_namespace(w, &self.track_namespace, version);
 		self.track_name.encode(w, version);
@@ -117,7 +117,7 @@ pub struct SubscribeOk {
 impl Message for SubscribeOk {
 	const ID: u64 = 0x04;
 
-	fn encode<W: bytes::BufMut>(&self, w: &mut W, version: Version) {
+	fn encode_msg<W: bytes::BufMut>(&self, w: &mut W, version: Version) {
 		self.request_id.encode(w, version);
 		self.track_alias.encode(w, version);
 		0u64.encode(w, version); // expires = 0
@@ -126,7 +126,7 @@ impl Message for SubscribeOk {
 		0u8.encode(w, version); // no parameters
 	}
 
-	fn decode<R: bytes::Buf>(r: &mut R, version: Version) -> Result<Self, DecodeError> {
+	fn decode_msg<R: bytes::Buf>(r: &mut R, version: Version) -> Result<Self, DecodeError> {
 		let request_id = RequestId::decode(r, version)?;
 		let track_alias = u64::decode(r, version)?;
 
@@ -165,12 +165,12 @@ pub struct SubscribeError<'a> {
 impl<'a> Message for SubscribeError<'a> {
 	const ID: u64 = 0x05;
 
-	fn encode<W: bytes::BufMut>(&self, w: &mut W, version: Version) {
+	fn encode_msg<W: bytes::BufMut>(&self, w: &mut W, version: Version) {
 		self.request_id.encode(w, version);
 		self.error_code.encode(w, version);
 		self.reason_phrase.encode(w, version);
 	}
-	fn decode<R: bytes::Buf>(r: &mut R, version: Version) -> Result<Self, DecodeError> {
+	fn decode_msg<R: bytes::Buf>(r: &mut R, version: Version) -> Result<Self, DecodeError> {
 		let request_id = RequestId::decode(r, version)?;
 		let error_code = u64::decode(r, version)?;
 		let reason_phrase = Cow::<str>::decode(r, version)?;
@@ -192,11 +192,11 @@ pub struct Unsubscribe {
 impl Message for Unsubscribe {
 	const ID: u64 = 0x0a;
 
-	fn encode<W: bytes::BufMut>(&self, w: &mut W, version: Version) {
+	fn encode_msg<W: bytes::BufMut>(&self, w: &mut W, version: Version) {
 		self.request_id.encode(w, version);
 	}
 
-	fn decode<R: bytes::Buf>(r: &mut R, version: Version) -> Result<Self, DecodeError> {
+	fn decode_msg<R: bytes::Buf>(r: &mut R, version: Version) -> Result<Self, DecodeError> {
 		let request_id = RequestId::decode(r, version)?;
 		Ok(Self { request_id })
 	}
@@ -228,7 +228,7 @@ pub struct SubscribeUpdate {
 impl Message for SubscribeUpdate {
 	const ID: u64 = 0x02;
 
-	fn encode<W: bytes::BufMut>(&self, w: &mut W, version: Version) {
+	fn encode_msg<W: bytes::BufMut>(&self, w: &mut W, version: Version) {
 		self.request_id.encode(w, version);
 		self.subscription_request_id.encode(w, version);
 		self.start_location.encode(w, version);
@@ -238,7 +238,7 @@ impl Message for SubscribeUpdate {
 		0u8.encode(w, version); // no parameters
 	}
 
-	fn decode<R: bytes::Buf>(r: &mut R, version: Version) -> Result<Self, DecodeError> {
+	fn decode_msg<R: bytes::Buf>(r: &mut R, version: Version) -> Result<Self, DecodeError> {
 		let request_id = RequestId::decode(r, version)?;
 		let subscription_request_id = RequestId::decode(r, version)?;
 		let start_location = Location::decode(r, version)?;
@@ -265,13 +265,13 @@ mod tests {
 
 	fn encode_message<M: Message>(msg: &M) -> Vec<u8> {
 		let mut buf = BytesMut::new();
-		msg.encode(&mut buf, Version::Draft14);
+		msg.encode_msg(&mut buf, Version::Draft14);
 		buf.to_vec()
 	}
 
 	fn decode_message<M: Message>(bytes: &[u8]) -> Result<M, DecodeError> {
 		let mut buf = bytes::Bytes::from(bytes.to_vec());
-		M::decode(&mut buf, Version::Draft14)
+		M::decode_msg(&mut buf, Version::Draft14)
 	}
 
 	#[test]
