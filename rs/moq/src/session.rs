@@ -43,7 +43,7 @@ impl<S: web_transport_trait::Session> Session<S> {
 		let parameters = parameters.encode_bytes(());
 
 		let client = setup::Client {
-			// Unfortuantely, we have to pick a single draft range to support.
+			// Unfortunately, we have to pick a single draft range to support.
 			// moq-lite can support this handshake.
 			kind: setup::ClientKind::Ietf14,
 			versions: VERSIONS.into(),
@@ -109,7 +109,8 @@ impl<S: web_transport_trait::Session> Session<S> {
 			.copied()
 			.ok_or_else(|| Error::Version(client.versions.clone(), VERSIONS.into()))?;
 
-		let parameters = if client.kind == setup::ClientKind::Ietf14 {
+		// Only encode parameters if we're using the IETF draft because it has max_request_id
+		let parameters = if ietf::Version::try_from(version).is_ok() && client.kind == setup::ClientKind::Ietf14 {
 			let mut parameters = ietf::Parameters::default();
 			parameters.set_varint(ietf::ParameterVarInt::MaxRequestId, u32::MAX as u64);
 			parameters.set_bytes(ietf::ParameterBytes::Implementation, b"moq-lite-rs".to_vec());

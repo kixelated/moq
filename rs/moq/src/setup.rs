@@ -82,11 +82,12 @@ impl<V: Clone> Encode<V> for Client {
 
 		let mut sizer = Sizer::default();
 		self.versions.encode(&mut sizer, v.clone());
+
 		let size = sizer.size + self.parameters.len();
 
 		match self.kind {
 			ClientKind::Lite | ClientKind::Ietf7 => (size as u64).encode(w, v.clone()),
-			ClientKind::Ietf14 => (size as u16).encode(w, v.clone()),
+			ClientKind::Ietf14 => u16::try_from(size).expect("message be huge").encode(w, v.clone()),
 		}
 
 		self.versions.encode(w, v);
@@ -136,7 +137,7 @@ impl Encode<ServerKind> for Server {
 
 		match v {
 			ServerKind::Lite | ServerKind::Ietf7 => (size as u64).encode(w, v),
-			ServerKind::Ietf14 => (size as u16).encode(w, v),
+			ServerKind::Ietf14 => u16::try_from(size).expect("message be huge").encode(w, v),
 		}
 
 		self.version.encode(w, v);
