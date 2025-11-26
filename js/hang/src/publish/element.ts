@@ -280,9 +280,7 @@ export class HangPublishInstance {
 
 			effect.effect((effect) => {
 				const file = effect.get(this.parent.signals.file);
-				if (file) {
-					fileSource.setFile(file);
-				}
+				fileSource.setFile(file);
 			});
 
 			fileSource.signals.effect((effect) => {

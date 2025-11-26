@@ -23,18 +23,16 @@ export class File {
 			const enabled = effect.get(this.enabled);
 
 			if (!file || !enabled) {
-				effect.set(this.source, {}, {});
 				return;
 			}
 
 			this.#decode(file, effect).catch((err) => {
 				console.error("Failed to decode file:", err);
-				effect.set(this.source, {}, {});
 			});
 		});
 	}
 
-	setFile(file: globalThis.File) {
+	setFile(file: globalThis.File | undefined) {
 		this.#file.set(file);
 	}
 
