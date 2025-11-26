@@ -260,6 +260,25 @@ dependencies = [
 ]
 
 [[package]]
+name = "cbindgen"
+version = "0.29.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "befbfd072a8e81c02f8c507aefce431fe5e7d051f83d48a23ffc9b9fe5a11799"
+dependencies = [
+ "clap",
+ "heck",
+ "indexmap 2.12.1",
+ "log",
+ "proc-macro2",
+ "quote",
+ "serde",
+ "serde_json",
+ "syn",
+ "tempfile",
+ "toml",
+]
+
+[[package]]
 name = "cc"
 version = "1.2.47"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -764,7 +783,7 @@ checksum = "ab2f85be813ce08f0569fcd816f256c6f4287c975d69a9a14ceacc309f1de967"
 
 [[package]]
 name = "hang"
-version = "0.6.1"
+version = "0.7.0"
 dependencies = [
  "anyhow",
  "bytes",
@@ -787,8 +806,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "hang-c"
+version = "0.7.0"
+dependencies = [
+ "anyhow",
+ "bytes",
+ "cbindgen",
+ "hang",
+ "moq-lite",
+ "moq-native",
+ "tokio",
+ "url",
+]
+
+[[package]]
 name = "hang-cli"
-version = "0.6.1"
+version = "0.7.0"
 dependencies = [
  "anyhow",
  "axum",
@@ -1299,7 +1332,7 @@ dependencies = [
 
 [[package]]
 name = "moq-clock"
-version = "0.9.6"
+version = "0.10.0"
 dependencies = [
  "anyhow",
  "chrono",
@@ -1313,7 +1346,7 @@ dependencies = [
 
 [[package]]
 name = "moq-lite"
-version = "0.9.6"
+version = "0.10.0"
 dependencies = [
  "async-channel",
  "bytes",
@@ -1330,7 +1363,7 @@ dependencies = [
 
 [[package]]
 name = "moq-native"
-version = "0.9.6"
+version = "0.10.0"
 dependencies = [
  "anyhow",
  "bytes",
@@ -1357,7 +1390,7 @@ dependencies = [
 
 [[package]]
 name = "moq-relay"
-version = "0.9.6"
+version = "0.10.0"
 dependencies = [
  "anyhow",
  "axum",
@@ -1386,7 +1419,7 @@ dependencies = [
 
 [[package]]
 name = "moq-token"
-version = "0.5.4"
+version = "0.5.5"
 dependencies = [
  "anyhow",
  "aws-lc-rs",
@@ -1399,7 +1432,7 @@ dependencies = [
 
 [[package]]
 name = "moq-token-cli"
-version = "0.5.4"
+version = "0.5.5"
 dependencies = [
  "anyhow",
  "clap",
