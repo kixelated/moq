@@ -840,6 +840,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "hang-c"
+version = "0.6.1"
+dependencies = [
+ "anyhow",
+ "bytes",
+ "hang",
+ "moq-lite",
+ "moq-native",
+ "tokio",
+ "url",
+]
+
+[[package]]
 name = "hang-cli"
 version = "0.6.1"
 dependencies = [
