@@ -14,12 +14,12 @@
 //! - **CMAF Import**: Convert a fMP4 file into a hang broadcast.
 //!
 mod error;
-mod model;
 
 pub mod annexb;
 pub mod catalog;
 pub mod cmaf;
 pub mod feedback;
+pub mod model;
 
 // export the moq-lite version in use
 pub use moq_lite;

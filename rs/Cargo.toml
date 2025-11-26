@@ -1,6 +1,7 @@
 [workspace]
 members = [
     "hang",
+    "hang-c",
     "hang-cli",
     "moq",
     "moq-clock",

@@ -7,6 +7,10 @@ name = "hang"
 version_group = "hang"
 
 [[package]]
+name = "hang-c"
+version_group = "hang"
+
+[[package]]
 name = "hang-cli"
 version_group = "hang"
 
