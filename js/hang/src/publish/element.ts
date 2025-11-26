@@ -275,12 +275,19 @@ export class HangPublishInstance {
 
 		if (source === "file") {
 			const fileSource = new Source.File({
-				enabled: new Signal(true),
+				enabled: new Signal(false),
 			});
 
 			effect.effect((effect) => {
 				const file = effect.get(this.parent.signals.file);
 				fileSource.setFile(file);
+				const audio = effect.get(this.parent.signals.audio);
+				const video = effect.get(this.parent.signals.video);
+				effect.set(
+					fileSource.enabled,
+					(audio || video) && Boolean(file),
+					false
+				);
 			});
 
 			fileSource.signals.effect((effect) => {
