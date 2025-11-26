@@ -1,6 +1,6 @@
 [package]
 name = "hang-c"
-description = "Media over QUIC C Interface"
+description = "Media over QUIC, C Interface"
 authors = ["Luke Curley <kixelated@gmail.com>", "Brian Medley <bpm@bmedley.org>"]
 repository = "https://github.com/kixelated/moq"
 license = "MIT OR Apache-2.0"
@@ -12,7 +12,8 @@ keywords = ["quic", "http3", "webtransport", "media", "live"]
 categories = ["multimedia", "network-programming", "web-programming"]
 
 [lib]
-crate-type = ["cdylib"] # or ["staticlib"]
+name = "hang"
+crate-type = ["cdylib", "staticlib"]
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
@@ -23,6 +24,9 @@ moq-lite = { workspace = true, features = ["serde"] }
 moq-native = { workspace = true }
 tokio = { workspace = true, features = ["macros"] }
 url = "2"
+
+[build-dependencies]
+cbindgen = "0.29"
 
 [dev-dependencies]
 anyhow = "1"
