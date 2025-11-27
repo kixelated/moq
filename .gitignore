@@ -7,6 +7,7 @@
 .idea
 
 # Build stuff.
+Cargo.lock
 target
 pkg
 dist
