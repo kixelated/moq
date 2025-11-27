@@ -1,0 +1,6 @@
+.watchContainer {
+    display: flex;
+	gap: 8px;
+    justify-content: space-around;
+	align-content: center;
+}

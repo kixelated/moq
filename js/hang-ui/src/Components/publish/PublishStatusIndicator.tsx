@@ -1,34 +1,20 @@
-import { Switch, Match, useContext } from 'solid-js';
-import { PublishControlsContext } from './PublishControlsContextProvider';
+import { Switch, Match, useContext } from "solid-js";
+import { PublishControlsContext } from "./PublishControlsContextProvider";
 
 export default function PublishStatusIndicator() {
-    const context = useContext(PublishControlsContext);
+	const context = useContext(PublishControlsContext);
 
-    return (
-        <div role="status" tabindex="0">
-            <Switch>
-                <Match when={context?.publishStatus() === 'no-url'}>
-                    🔴 No URL
-                </Match>
-                <Match when={context?.publishStatus() === 'disconnected'}>
-                    🔴 Disconnected
-                </Match>
-                <Match when={context?.publishStatus() === 'connecting'}>
-                    🟡 Connecting...
-                </Match>
-                <Match when={context?.publishStatus() === 'select-source'}>
-                    🟡 Select Source
-                </Match>
-                <Match when={context?.publishStatus() === 'video-only'}>
-                    🟢 Video Only
-                </Match>
-                <Match when={context?.publishStatus() === 'audio-only'}>
-                    🟢 Audio Only
-                </Match>
-                <Match when={context?.publishStatus() === 'live'}>
-                    🟢 Live
-                </Match>
-            </Switch>
-        </div>
-    );
+	return (
+		<div role="status" tabindex="0">
+			<Switch>
+				<Match when={context?.publishStatus() === "no-url"}>🔴 No URL</Match>
+				<Match when={context?.publishStatus() === "disconnected"}>🔴 Disconnected</Match>
+				<Match when={context?.publishStatus() === "connecting"}>🟡 Connecting...</Match>
+				<Match when={context?.publishStatus() === "select-source"}>🟡 Select Source</Match>
+				<Match when={context?.publishStatus() === "video-only"}>🟢 Video Only</Match>
+				<Match when={context?.publishStatus() === "audio-only"}>🟢 Audio Only</Match>
+				<Match when={context?.publishStatus() === "live"}>🟢 Live</Match>
+			</Switch>
+		</div>
+	);
 }

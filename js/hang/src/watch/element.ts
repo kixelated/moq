@@ -60,6 +60,12 @@ export default class HangWatch extends HTMLElement {
 	// This wouldn't be so bad if there was a destructor for web components to clean up our effects.
 	connectedCallback() {
 		this.active.set(new HangWatchInstance(this));
+
+		this.dispatchEvent(new CustomEvent('watch-instance-available', {
+			detail: {
+				instance: this.active,
+			}
+		}));
 	}
 
 	disconnectedCallback() {
@@ -184,7 +190,7 @@ export class HangWatchInstance {
 	broadcast: Broadcast;
 	video: Video.Renderer;
 	audio: Audio.Emitter;
-	#signals: Effect;
+	signals: Effect;
 
 	constructor(parent: HangWatch) {
 		this.parent = parent;
@@ -206,7 +212,7 @@ export class HangWatchInstance {
 			},
 		});
 
-		this.#signals = new Effect();
+		this.signals = new Effect();
 
 		// Watch to see if the canvas element is added or removed.
 		const canvas = new Signal(this.parent.querySelector("canvas") as HTMLCanvasElement | undefined);
@@ -214,7 +220,7 @@ export class HangWatchInstance {
 			canvas.set(this.parent.querySelector("canvas") as HTMLCanvasElement | undefined);
 		});
 		observer.observe(this.parent, { childList: true, subtree: true });
-		this.#signals.cleanup(() => observer.disconnect());
+		this.signals.cleanup(() => observer.disconnect());
 
 		this.video = new Video.Renderer(this.broadcast.video, { canvas, paused: this.parent.signals.paused });
 		this.audio = new Audio.Emitter(this.broadcast.audio, {
@@ -227,7 +233,7 @@ export class HangWatchInstance {
 		// This is kind of dangerous because it can create loops.
 		// NOTE: This only runs when the element is connected to the DOM, which is not obvious.
 		// This is because there's no destructor for web components to clean up our effects.
-		this.#signals.effect((effect) => {
+		this.signals.effect((effect) => {
 			const url = effect.get(this.parent.signals.url);
 			if (url) {
 				this.parent.setAttribute("url", url.toString());
@@ -236,7 +242,7 @@ export class HangWatchInstance {
 			}
 		});
 
-		this.#signals.effect((effect) => {
+		this.signals.effect((effect) => {
 			const broadcast = effect.get(this.parent.signals.path);
 			if (broadcast) {
 				this.parent.setAttribute("path", broadcast.toString());
@@ -245,7 +251,7 @@ export class HangWatchInstance {
 			}
 		});
 
-		this.#signals.effect((effect) => {
+		this.signals.effect((effect) => {
 			const muted = effect.get(this.parent.signals.muted);
 			if (muted) {
 				this.parent.setAttribute("muted", "");
@@ -254,7 +260,7 @@ export class HangWatchInstance {
 			}
 		});
 
-		this.#signals.effect((effect) => {
+		this.signals.effect((effect) => {
 			const paused = effect.get(this.parent.signals.paused);
 			if (paused) {
 				this.parent.setAttribute("paused", "true");
@@ -263,12 +269,12 @@ export class HangWatchInstance {
 			}
 		});
 
-		this.#signals.effect((effect) => {
+		this.signals.effect((effect) => {
 			const volume = effect.get(this.parent.signals.volume);
 			this.parent.setAttribute("volume", volume.toString());
 		});
 
-		this.#signals.effect((effect) => {
+		this.signals.effect((effect) => {
 			const controls = effect.get(this.parent.signals.controls);
 			if (controls) {
 				this.parent.setAttribute("controls", "");
@@ -277,12 +283,12 @@ export class HangWatchInstance {
 			}
 		});
 
-		this.#signals.effect((effect) => {
+		this.signals.effect((effect) => {
 			const latency = Math.floor(effect.get(this.parent.signals.latency));
 			this.parent.setAttribute("latency", latency.toString());
 		});
 
-		this.#signals.effect(this.#renderControls.bind(this));
+		this.signals.effect(this.#renderControls.bind(this));
 	}
 
 	close() {
@@ -290,7 +296,7 @@ export class HangWatchInstance {
 		this.broadcast.close();
 		this.video.close();
 		this.audio.close();
-		this.#signals.close();
+		this.signals.close();
 	}
 
 	#renderControls(effect: Effect) {
@@ -311,8 +317,6 @@ export class HangWatchInstance {
 
 			this.#renderPause(controls, effect);
 			this.#renderVolume(controls, effect);
-			this.#renderStatus(controls, effect);
-			this.#renderFullscreen(controls, effect);
 		});
 	}
 
@@ -386,55 +390,6 @@ export class HangWatchInstance {
 		DOM.render(effect, container, volumeSlider);
 		DOM.render(effect, container, volumeLabel);
 		DOM.render(effect, parent, container);
-	}
-
-	#renderStatus(parent: HTMLDivElement, effect: Effect) {
-		const container = DOM.create("div");
-
-		effect.effect((effect) => {
-			const url = effect.get(this.connection.url);
-			const connection = effect.get(this.connection.status);
-			const broadcast = effect.get(this.broadcast.status);
-
-			if (!url) {
-				container.textContent = "🔴\u00A0No URL";
-			} else if (connection === "disconnected") {
-				container.textContent = "🔴\u00A0Disconnected";
-			} else if (connection === "connecting") {
-				container.textContent = "🟡\u00A0Connecting...";
-			} else if (broadcast === "offline") {
-				container.textContent = "🔴\u00A0Offline";
-			} else if (broadcast === "loading") {
-				container.textContent = "🟡\u00A0Loading...";
-			} else if (broadcast === "live") {
-				container.textContent = "🟢\u00A0Live";
-			} else if (connection === "connected") {
-				container.textContent = "🟢\u00A0Connected";
-			}
-		});
-
-		DOM.render(effect, parent, container);
-	}
-
-	#renderFullscreen(parent: HTMLDivElement, effect: Effect) {
-		const button = DOM.create(
-			"button",
-			{
-				type: "button",
-				title: "Fullscreen",
-			},
-			"⛶",
-		);
-
-		effect.event(button, "click", () => {
-			if (document.fullscreenElement) {
-				document.exitFullscreen();
-			} else {
-				this.parent.requestFullscreen();
-			}
-		});
-
-		DOM.render(effect, parent, button);
 	}
 }
 

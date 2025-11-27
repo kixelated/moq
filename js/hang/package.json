@@ -13,7 +13,10 @@
 			"types": "./dist/publish/element.d.ts"
 		},
 		"./watch": "./src/watch/index.ts",
-		"./watch/element": "./src/watch/element.ts",
+		"./watch/element": {
+			"import": "./dist/watch/element.js",
+			"types": "./dist/watch/element.d.ts"
+		},
 		"./meet": "./src/meet/index.ts",
 		"./meet/element": "./src/meet/element.ts",
 		"./catalog": "./src/catalog/index.ts",
