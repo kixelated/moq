@@ -4,3 +4,23 @@
     justify-content: space-around;
 	align-content: center;
 }
+
+.watchControlButton {
+    all: unset;
+    cursor: pointer;
+    display: inline-block;
+    font: inherit;
+    color: inherit;
+}
+
+.volumeSliderContainer {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+}
+
+.volumeLabel {
+    display: inline-block;
+    width: 2em;
+    text-align: right;
+}

@@ -12,16 +12,57 @@ type WatchStatus = "no-url" | "disconnected" | "connecting" | "offline" | "loadi
 type WatchControlsContextValue = {
 	hangWatch: () => HangWatch | undefined;
 	watchStatus: () => WatchStatus;
+	isPlaying: () => boolean;
+	isMuted: () => boolean;
+	setVolume: (vol: number) => void;
+	currentVolume: () => number;
+	togglePlayback: () => void;
+	toggleMuted: () => void;
 };
 
 export const WatchControlsContext = createContext<WatchControlsContextValue>();
 
 export default function WatchControlsContextProvider(props: WatchControlsContextProviderProps) {
 	const [watchStatus, setWatchStatus] = createSignal<WatchStatus>("no-url");
+	const [isPlaying, setIsPlaying] = createSignal<boolean>(false);
+	const [isMuted, setIsMuted] = createSignal<boolean>(false);
+	const [currentVolume, setCurrentVolume] = createSignal<number>(0);
+
+	const togglePlayback = () => {
+		const hangWatchEl = props.hangWatch();
+
+		if (hangWatchEl) {
+			hangWatchEl.paused = !hangWatchEl.paused;
+		}
+	};
+
+	const setVolume = (volume: number) => {
+		const hangWatchEl = props.hangWatch();
+
+		if (hangWatchEl) {
+			hangWatchEl.volume = volume / 100;
+		}
+	};
+
+	const toggleMuted = () => {
+		setIsMuted(!isMuted());
+
+		const hangWatchEl = props.hangWatch();
+
+		if (hangWatchEl) {
+			hangWatchEl.muted = isMuted();
+		}
+	};
 
 	const value: WatchControlsContextValue = {
 		hangWatch: props.hangWatch,
 		watchStatus,
+		togglePlayback,
+		isPlaying,
+		setVolume,
+		isMuted,
+		currentVolume,
+		toggleMuted,
 	};
 
 	createEffect(() => {
@@ -32,14 +73,14 @@ export default function WatchControlsContextProvider(props: WatchControlsContext
 			// @ts-ignore ignore custom event - todo add event map
 			hangWatchEl.addEventListener("watch-instance-available", (event: CustomEvent) => {
 				const watchInstance = event.detail.instance.peek?.() as HangWatchInstance;
-				onWatchInstanceAvailable(hangWatchEl, watchInstance);
+				onWatchInstanceAvailable(watchInstance);
 			});
 		}
 	});
 
 	return <WatchControlsContext.Provider value={value}>{props.children}</WatchControlsContext.Provider>;
 
-	function onWatchInstanceAvailable(el: HangWatch, watchInstance: HangWatchInstance) {
+	function onWatchInstanceAvailable(watchInstance: HangWatchInstance) {
 		watchInstance?.signals.effect(function trackWatchStatus(effect) {
 			const url = effect.get(watchInstance?.connection.url);
 			const connection = effect.get(watchInstance?.connection.status);
@@ -60,6 +101,16 @@ export default function WatchControlsContextProvider(props: WatchControlsContext
 			} else if (connection === "connected") {
 				setWatchStatus("connected");
 			}
+		});
+
+		watchInstance?.signals.effect(function trackPlaying(effect) {
+			const paused = effect.get(watchInstance?.video.paused);
+			setIsPlaying(!paused);
+		});
+
+		watchInstance?.signals.effect(function trackVolume(effect) {
+			const volume = effect.get(watchInstance?.audio.volume);
+			setCurrentVolume(volume * 100);
 		});
 	}
 }

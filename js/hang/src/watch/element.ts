@@ -1,6 +1,5 @@
 import * as Moq from "@kixelated/moq";
 import { Effect, Signal } from "@kixelated/signals";
-import * as DOM from "@kixelated/signals/dom";
 import type * as Time from "../time";
 import * as Audio from "./audio";
 import { Broadcast } from "./broadcast";
@@ -287,8 +286,6 @@ export class HangWatchInstance {
 			const latency = Math.floor(effect.get(this.parent.signals.latency));
 			this.parent.setAttribute("latency", latency.toString());
 		});
-
-		this.signals.effect(this.#renderControls.bind(this));
 	}
 
 	close() {
@@ -297,99 +294,6 @@ export class HangWatchInstance {
 		this.video.close();
 		this.audio.close();
 		this.signals.close();
-	}
-
-	#renderControls(effect: Effect) {
-		const controls = DOM.create("div", {
-			style: {
-				display: "flex",
-				justifyContent: "space-around",
-				gap: "8px",
-				alignContent: "center",
-			},
-		});
-
-		DOM.render(effect, this.parent, controls);
-
-		effect.effect((effect) => {
-			const show = effect.get(this.parent.signals.controls);
-			if (!show) return;
-
-			this.#renderPause(controls, effect);
-			this.#renderVolume(controls, effect);
-		});
-	}
-
-	#renderPause(parent: HTMLDivElement, effect: Effect) {
-		const button = DOM.create("button", {
-			type: "button",
-			title: "Pause",
-		});
-
-		effect.event(button, "click", (e) => {
-			e.preventDefault();
-			this.video.paused.update((prev) => !prev);
-		});
-
-		effect.effect((effect) => {
-			const paused = effect.get(this.video.paused);
-			button.textContent = paused ? "▶️" : "⏸️";
-		});
-
-		DOM.render(effect, parent, button);
-	}
-
-	#renderVolume(parent: HTMLDivElement, effect: Effect) {
-		const container = DOM.create("div", {
-			style: {
-				display: "flex",
-				alignItems: "center",
-				gap: "0.25rem",
-			},
-		});
-
-		const muteButton = DOM.create("button", {
-			type: "button",
-			title: "Mute",
-		});
-
-		effect.event(muteButton, "click", () => {
-			this.audio.muted.update((p) => !p);
-		});
-
-		const volumeSlider = DOM.create("input", {
-			type: "range",
-			min: "0",
-			max: "100",
-		});
-
-		effect.event(volumeSlider, "input", (e) => {
-			const target = e.currentTarget as HTMLInputElement;
-			const volume = parseFloat(target.value) / 100;
-			this.audio.volume.set(volume);
-		});
-
-		const volumeLabel = DOM.create("span", {
-			style: {
-				display: "inline-block",
-				width: "2em",
-				textAlign: "right",
-			},
-		});
-
-		effect.effect((effect) => {
-			const volume = effect.get(this.audio.volume);
-			const rounded = Math.round(volume * 100);
-
-			muteButton.textContent = volume === 0 ? "🔇" : "🔊";
-			volumeSlider.value = (volume * 100).toString();
-			volumeLabel.textContent = `${rounded}%`;
-		});
-
-		DOM.render(effect, container, muteButton);
-		DOM.render(effect, container, volumeSlider);
-		DOM.render(effect, container, volumeLabel);
-		DOM.render(effect, parent, container);
 	}
 }
 

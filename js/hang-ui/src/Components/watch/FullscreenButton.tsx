@@ -12,7 +12,7 @@ export default function FullscreenButton() {
 	};
 
 	return (
-		<button title="fullscreen" onClick={onClick}>
+		<button title="Fullscreen" class="watchControlButton" onClick={onClick}>
 			⛶
 		</button>
 	);
