@@ -8,7 +8,7 @@ import * as Source from "./source";
 const OBSERVED = ["url", "name", "path", "device", "audio", "video", "controls", "source"] as const;
 type Observed = (typeof OBSERVED)[number];
 
-export type SourceType = "camera" | "screen";
+type SourceType = "camera" | "screen";
 
 export interface HangPublishSignals {
 	url: Signal<URL | undefined>;

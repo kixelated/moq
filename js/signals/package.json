@@ -6,10 +6,7 @@
 	"license": "(MIT OR Apache-2.0)",
 	"repository": "github:kixelated/moq",
 	"exports": {
-		".": {
-			"import": "./dist/index.js",
-			"types": "./dist/index.d.ts"
-		},
+		".": "./src/index.ts",
 		"./solid": "./src/solid.ts",
 		"./react": "./src/react.ts",
 		"./dom": "./src/dom.ts"

@@ -1,6 +1,6 @@
 import { createContext, createEffect, createSignal } from "solid-js";
 import type HangPublish from "@kixelated/hang/publish/element";
-import { HangPublishInstance } from "@kixelated/hang/publish/element";
+import type { HangPublishInstance } from "@kixelated/hang/publish/element";
 
 type PublishStatus = "no-url" | "disconnected" | "connecting" | "live" | "audio-only" | "video-only" | "select-source";
 

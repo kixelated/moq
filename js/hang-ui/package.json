@@ -24,7 +24,6 @@
 		"solid-element": "^1.9.1",
 		"solid-js": "^1.9.10",
 		"unplugin-solid": "^1.0.0",
-		"@kixelated/hang": "workspace:^0.7.0",
-		"@kixelated/signals": "workspace:^0.8.1"
+		"@kixelated/hang": "workspace:^0.7.0"
 	}
 }
