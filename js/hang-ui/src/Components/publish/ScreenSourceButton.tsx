@@ -9,6 +9,7 @@ export default function ScreenSourceButton() {
 
         hangPublishEl.source = 'screen';
         hangPublishEl.audio = false;
+        hangPublishEl.video = true;
     };
 
     return (

@@ -22,7 +22,15 @@
 		Feel free to hard-code it if you have public access configured, like `url="https://relay.moq.dev/anon"`
 		NOTE: `http` performs an insecure certificate check. You must use `https` in production.
 	-->
-	<hang-publish-ui url="%VITE_RELAY_URL%" path="me"></hang-publish-ui>
+	<hang-publish-ui>
+		<hang-publish url="%VITE_RELAY_URL%" path="me">
+			<video
+				style="width: 100%; height: auto; border-radius: 4px; margin: 0 auto;"
+				muted
+				autoplay
+			></video>
+		</hang-publish>
+	</hang-publish-ui>
 
 	<h3>Other demos:</h3>
 	<ul>
