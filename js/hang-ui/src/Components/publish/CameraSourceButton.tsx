@@ -1,30 +1,49 @@
 import MediaSourceSourceSelector from './MediaSourceSelector';
-import type { PublishButtonProps } from './publish-types';
-import { Show } from 'solid-js';
+import { Show, useContext } from 'solid-js';
+import { PublishControlsContext } from './PublishControlsContextProvider';
 
-interface CameraPublishSourceButtonProps extends PublishButtonProps {
-    cameraSources?: MediaDeviceInfo[];
-    selectedCameraSource?: MediaDeviceInfo['deviceId'];
-    onCameraSourceSelected?: (sourceId: string) => void;
-}
+export default function CameraSourceButton() {
+    const context = useContext(PublishControlsContext);
+    const onClick = () => {
+        const hangPublishEl = context?.hangPublish();
+        if (!hangPublishEl) return;
 
-export default function CameraSourceButton(
-    props: CameraPublishSourceButtonProps
-) {
+        if (hangPublishEl.source === 'camera') {
+            // Camera already selected, toggle video.
+            hangPublishEl.video = !hangPublishEl.video;
+        } else {
+            hangPublishEl.source = 'camera';
+            hangPublishEl.video = true;
+        }
+    };
+
+    const onSourceSelected = (sourceId: MediaDeviceInfo['deviceId']) => {
+        const hangPublishEl = context?.hangPublish();
+        if (!hangPublishEl) return;
+
+        hangPublishEl.videoDevice = sourceId;
+    };
+
     return (
         <div class="publishSourceButtonContainer">
             <button
                 title="Camera"
-                class={`publishSourceButton ${props.isActive ? 'active' : ''}`}
-                onClick={props.onClick}
+                class={`publishSourceButton ${
+                    context?.cameraActive?.() ? 'active' : ''
+                }`}
+                onClick={onClick}
             >
                 📷
             </button>
-            <Show when={props.isActive && props.cameraSources?.length}>
+            <Show
+                when={
+                    context?.cameraActive?.() && context?.cameraDevices().length
+                }
+            >
                 <MediaSourceSourceSelector
-                    sources={props.cameraSources}
-                    selectedSource={props.selectedCameraSource}
-                    onSelected={props.onCameraSourceSelected}
+                    sources={context?.cameraDevices()}
+                    selectedSource={context?.selectedCameraSource?.()}
+                    onSelected={onSourceSelected}
                 />
             </Show>
         </div>

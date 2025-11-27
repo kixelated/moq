@@ -1,14 +1,25 @@
-import { PublishButtonProps } from './publish-types';
+import { useContext } from 'solid-js';
+import { PublishControlsContext } from './PublishControlsContextProvider';
 
-interface NothingSourceButtonProps extends PublishButtonProps {}
+export default function NothingSourceButton() {
+    const context = useContext(PublishControlsContext);
+    const onClick = () => {
+        const hangPublishEl = context?.hangPublish();
+        if (!hangPublishEl) return;
 
-export default function NothingSourceButton(props: NothingSourceButtonProps) {
+        hangPublishEl.source = undefined;
+        hangPublishEl.video = false;
+        hangPublishEl.audio = false;
+    };
+
     return (
         <div class="publishSourceButtonContainer">
             <button
                 title="No Source"
-                class={`publishSourceButton ${props.isActive ? 'active' : ''}`}
-                onClick={props.onClick}
+                class={`publishSourceButton ${
+                    context?.nothingActive?.() ? 'active' : ''
+                }`}
+                onClick={onClick}
             >
                 🚫
             </button>

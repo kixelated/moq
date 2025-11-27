@@ -2,8 +2,8 @@ import { createSignal, Show } from 'solid-js';
 
 type MediaSourceSelectorProps = {
     sources?: MediaDeviceInfo[];
-    selectedSource?: string;
-    onSelected?: (sourceId: string) => void;
+    selectedSource?: MediaDeviceInfo['deviceId'];
+    onSelected?: (sourceId: MediaDeviceInfo['deviceId']) => void;
 };
 
 export default function MediaSourceSelector(props: MediaSourceSelectorProps) {
@@ -30,7 +30,11 @@ export default function MediaSourceSelector(props: MediaSourceSelectorProps) {
                 <select
                     value={props.selectedSource}
                     class="mediaSourceSelector"
-                    onChange={(e) => props.onSelected?.(e.currentTarget.value)}
+                    onChange={(e) =>
+                        props.onSelected?.(
+                            e.currentTarget.value as MediaDeviceInfo['deviceId']
+                        )
+                    }
                 >
                     {props.sources?.map((source) => (
                         <option value={source.deviceId}>{source.label}</option>

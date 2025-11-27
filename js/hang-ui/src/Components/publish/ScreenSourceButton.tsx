@@ -1,16 +1,24 @@
-import { PublishButtonProps } from './publish-types';
+import { useContext } from 'solid-js';
+import { PublishControlsContext } from './PublishControlsContextProvider';
 
-interface ScreenPublishSourceButtonProps extends PublishButtonProps {}
+export default function ScreenSourceButton() {
+    const context = useContext(PublishControlsContext);
+    const onClick = () => {
+        const hangPublishEl = context?.hangPublish();
+        if (!hangPublishEl) return;
 
-export default function ScreenSourceButton(
-    props: ScreenPublishSourceButtonProps
-) {
+        hangPublishEl.source = 'screen';
+        hangPublishEl.audio = false;
+    };
+
     return (
         <div class="publishSourceButtonContainer">
             <button
                 title="Screen"
-                class={`publishSourceButton ${props.isActive ? 'active' : ''}`}
-                onClick={props.onClick}
+                class={`publishSourceButton ${
+                    context?.screenActive?.() ? 'active' : ''
+                }`}
+                onClick={onClick}
             >
                 🖥️
             </button>

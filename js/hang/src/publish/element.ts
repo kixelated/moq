@@ -2,14 +2,14 @@ import * as Moq from "@kixelated/moq";
 import { Effect, Signal } from "@kixelated/signals";
 import { Broadcast } from "./broadcast";
 import * as Source from "./source";
-import type { HangPublishControlsElement, PublishSourceType } from "@kixelated/hang-ui/publish/element";
+// import type { HangPublishControlsElement, PublishSourceType } from "@kixelated/hang-ui/publish/element";
 
 // TODO: remove device; it's a backwards compatible alias for source.
 // TODO remove name; it's a backwards compatible alias for path.
 const OBSERVED = ["url", "name", "path", "device", "audio", "video", "controls", "source"] as const;
 type Observed = (typeof OBSERVED)[number];
 
-type SourceType = "camera" | "screen";
+export type SourceType = "camera" | "screen";
 
 export interface HangPublishSignals {
 	url: Signal<URL | undefined>;
@@ -38,6 +38,12 @@ export default class HangPublish extends HTMLElement {
 
 	connectedCallback() {
 		this.active.set(new HangPublishInstance(this));
+
+		this.dispatchEvent(new CustomEvent('publish-instance-available', {
+			detail: {
+				instance: this.active,
+			}
+		}));
 	}
 
 	disconnectedCallback() {
@@ -136,6 +142,28 @@ export default class HangPublish extends HTMLElement {
 	set controls(controls: boolean) {
 		this.signals.controls.set(controls);
 	}
+
+	set videoDevice(sourceId: MediaDeviceInfo['deviceId']) {
+		const hangPublishInstance = this.active.peek();
+        if (!hangPublishInstance) return;
+
+        const video = hangPublishInstance.video?.peek();
+
+        if (!video || !('device' in video)) return;
+
+        video.device.preferred.set(sourceId);
+	}
+
+	set audioDevice(sourceId: MediaDeviceInfo['deviceId']) {
+		const hangPublishInstance = this.active.peek();
+        if (!hangPublishInstance) return;
+
+        const audio = hangPublishInstance.audio?.peek();
+
+        if (!audio || !('device' in audio)) return;
+
+        audio.device.preferred.set(sourceId);
+	}
 }
 
 export class HangPublishInstance {
@@ -144,23 +172,24 @@ export class HangPublishInstance {
 	broadcast: Broadcast;
 
 	#preview: Signal<HTMLVideoElement | undefined>;
-	#controlsElement: HangPublishControlsElement | undefined;
-	#video = new Signal<Source.Camera | Source.Screen | undefined>(undefined);
-	#audio = new Signal<Source.Microphone | Source.Screen | undefined>(undefined);
+	// #controlsElement: HangPublishControlsElement | undefined;
+	video = new Signal<Source.Camera | Source.Screen | undefined>(undefined);
+	audio = new Signal<Source.Microphone | Source.Screen | undefined>(undefined);
+	signals = new Effect();
 
-	#signals = new Effect();
+	#controlsElement: unknown;
 
 	constructor(parent: HangPublish) {
 		this.parent = parent;
 
 		// Watch to see if the preview element is added or removed.
 		this.#preview = new Signal(this.parent.querySelector("video") as HTMLVideoElement | undefined);
-		this.#controlsElement = this.parent.querySelector("hang-publish-controls") as HangPublishControlsElement | undefined;
+		// this.#controlsElement = this.parent.querySelector("hang-publish-controls");
 		const observer = new MutationObserver(() => {
 			this.#preview.set(this.parent.querySelector("video") as HTMLVideoElement | undefined);
 		});
 		observer.observe(this.parent, { childList: true, subtree: true });
-		this.#signals.cleanup(() => observer.disconnect());
+		this.signals.cleanup(() => observer.disconnect());
 
 		this.connection = new Moq.Connection.Reload({
 			enabled: true,
@@ -182,7 +211,7 @@ export class HangPublishInstance {
 			},
 		});
 
-		this.#signals.effect((effect) => {
+		this.signals.effect((effect) => {
 			const preview = effect.get(this.#preview);
 			if (!preview) return;
 
@@ -200,11 +229,11 @@ export class HangPublishInstance {
 			});
 		});
 
-		this.#signals.effect(this.#runSource.bind(this));
-		this.#signals.effect(this.#connectControls.bind(this));
+		this.signals.effect(this.#runSource.bind(this));
+		this.signals.effect(this.#connectControls.bind(this));
 
 		// Keep device signal in sync with source signal for backwards compatibility
-		this.#signals.effect((effect) => {
+		this.signals.effect((effect) => {
 			const source = effect.get(this.parent.signals.source);
 			effect.set(this.parent.signals.device, source);
 		});
@@ -226,8 +255,8 @@ export class HangPublishInstance {
 				effect.set(this.broadcast.audio.source, source);
 			});
 
-			effect.set(this.#video, video);
-			effect.set(this.#audio, audio);
+			effect.set(this.video, video);
+			effect.set(this.audio, audio);
 
 			effect.cleanup(() => {
 				video.close();
@@ -254,8 +283,8 @@ export class HangPublishInstance {
 				effect.set(screen.enabled, audio || video, false);
 			});
 
-			effect.set(this.#video, screen);
-			effect.set(this.#audio, screen);
+			effect.set(this.video, screen);
+			effect.set(this.audio, screen);
 
 			effect.cleanup(() => {
 				screen.close();
@@ -265,160 +294,133 @@ export class HangPublishInstance {
 		}
 	}
 
-	#connectControls(effect: Effect) {
+	#connectControls() {
 		if (!this.#controlsElement) {
 			console.warn("No controls element found");
 			return;
 		}
 
-		const shouldShowControls = effect.get(this.parent.signals.controls);
-		hideShowControls(this.#controlsElement, shouldShowControls);
+		// const shouldShowControls = effect.get(this.parent.signals.controls);
+		// hideShowControls(this.#controlsElement, shouldShowControls);
 
-		effect.effect((effect) => {
-			const showControls = effect.get(this.parent.signals.controls);
-			hideShowControls(this.#controlsElement, showControls);
-		});
+		// effect.effect((effect) => {
+		// 	const showControls = effect.get(this.parent.signals.controls);
+		// 	hideShowControls(this.#controlsElement, showControls);
+		// });
 
-		this.#setupStatusControls(effect);
+		// this.#setupStatusControls(effect);
 
-		effect.event(this.#controlsElement, "sourceselectionchange", (source: Event) => {
-			const selection = (source as CustomEvent).detail as PublishSourceType;
+		// effect.event(this.#controlsElement, "sourceselectionchange", (source: Event) => {
+		// 	const selection = (source as CustomEvent).detail as PublishSourceType;
 			
-			if (selection === 'camera') {
-				if (this.parent.source === "camera") {
-					// Camera already selected, toggle video.
-					this.parent.video = !this.parent.video;
-				} else {
-					this.parent.source = "camera";
-					this.parent.video = true;
-				}
-			}
+		// 	if (selection === 'camera') {
+		// 		if (this.parent.source === "camera") {
+		// 			// Camera already selected, toggle video.
+		// 			this.parent.video = !this.parent.video;
+		// 		} else {
+		// 			this.parent.source = "camera";
+		// 			this.parent.video = true;
+		// 		}
+		// 	}
 
-			if (selection === 'microphone') {
-				if (this.parent.source === "camera") {
-					// Camera already selected, toggle audio.
-					this.parent.audio = !this.parent.audio;
-				} else {
-					this.parent.source = "camera";
-					this.parent.audio = true;
-				}
-			}
+		// 	if (selection === 'microphone') {
+		// 		if (this.parent.source === "camera") {
+		// 			// Camera already selected, toggle audio.
+		// 			this.parent.audio = !this.parent.audio;
+		// 		} else {
+		// 			this.parent.source = "camera";
+		// 			this.parent.audio = true;
+		// 		}
+		// 	}
 
-			if (selection === 'screen') {
-				this.parent.source = "screen";
-			}
+		// 	if (selection === 'screen') {
+		// 		this.parent.source = "screen";
+		// 	}
 
-			if (selection === 'nothing') {
-				this.parent.source = undefined;
-			}
-		});
+		// 	if (selection === 'nothing') {
+		// 		this.parent.source = undefined;
+		// 	}
+		// });
 
-		effect.event(this.#controlsElement, "camerasourceselected", (event: Event) => {
-			const detail = (event as CustomEvent).detail as MediaDeviceInfo['deviceId'];
-			const video = effect.get(this.#video);
-			if (video instanceof Source.Camera) {
-				video.device.preferred.set(detail);
-			}
-		});
+		// effect.event(this.#controlsElement, "camerasourceselected", (event: Event) => {
+		// 	const detail = (event as CustomEvent).detail as MediaDeviceInfo['deviceId'];
+		// 	const video = effect.get(this.#video);
+		// 	if (video instanceof Source.Camera) {
+		// 		video.device.preferred.set(detail);
+		// 	}
+		// });
 
-		effect.event(this.#controlsElement, "microphonesourceselected", (event: Event) => {
-			const detail = (event as CustomEvent).detail as MediaDeviceInfo['deviceId'];
-			const audio = effect.get(this.#audio);
-			if (audio instanceof Source.Microphone) {
-				audio.device.preferred.set(detail);
-			}
-		});
+		// effect.event(this.#controlsElement, "microphonesourceselected", (event: Event) => {
+		// 	const detail = (event as CustomEvent).detail as MediaDeviceInfo['deviceId'];
+		// 	const audio = effect.get(this.#audio);
+		// 	if (audio instanceof Source.Microphone) {
+		// 		audio.device.preferred.set(detail);
+		// 	}
+		// });
 
-		// Provide available video devices to PublishControls.
-		effect.effect((effect) => {
-			if (!this.#controlsElement) return;
+		// // Provide available video devices to PublishControls.
+		// effect.effect((effect) => {
+		// 	if (!this.#controlsElement) return;
 
-			const video = effect.get(this.#video);
-			if (!(video instanceof Source.Camera)) return;
+		// 	const video = effect.get(this.#video);
+		// 	if (!(video instanceof Source.Camera)) return;
 
-			const enabled = effect.get(this.broadcast.video.hd.enabled);
-			if (!enabled) return;
+		// 	const enabled = effect.get(this.broadcast.video.hd.enabled);
+		// 	if (!enabled) return;
 
-			const devices = effect.get(video.device.available);
-			if (!devices || devices.length < 2) return;
+		// 	const devices = effect.get(video.device.available);
+		// 	if (!devices || devices.length < 2) return;
 
-			this.#controlsElement.cameraSources = devices;
-			this.#controlsElement.selectedCameraSource = effect.get(video.device.requested);
-		});
+		// 	this.#controlsElement.cameraSources = devices;
+		// 	this.#controlsElement.selectedCameraSource = effect.get(video.device.requested);
+		// });
 
-		// Provide available audio devices to PublishControls.
-		effect.effect((effect) => {
-			if (!this.#controlsElement) return;
+		// // Provide available audio devices to PublishControls.
+		// effect.effect((effect) => {
+		// 	if (!this.#controlsElement) return;
 
-			const audio = effect.get(this.#audio);
-			if (!(audio instanceof Source.Microphone)) return;
+		// 	const audio = effect.get(this.#audio);
+		// 	if (!(audio instanceof Source.Microphone)) return;
 
-			const enabled = effect.get(this.broadcast.audio.enabled);
-			if (!enabled) return;
+		// 	const enabled = effect.get(this.broadcast.audio.enabled);
+		// 	if (!enabled) return;
 
-			const devices = effect.get(audio.device.available);
-			if (!devices || devices.length < 2) return;
+		// 	const devices = effect.get(audio.device.available);
+		// 	if (!devices || devices.length < 2) return;
 
-			this.#controlsElement.microphoneSources = devices;
-			this.#controlsElement.selectedMicrophoneSource = effect.get(audio.device.requested);
-		});
+		// 	this.#controlsElement.microphoneSources = devices;
+		// 	this.#controlsElement.selectedMicrophoneSource = effect.get(audio.device.requested);
+		// });
 
-		// Update active sources.
-		effect.effect((effect) => {
-			if (!this.#controlsElement) return;
+		// // Update active sources.
+		// effect.effect((effect) => {
+		// 	if (!this.#controlsElement) return;
 
-			const activeSources: PublishSourceType[] = [];
-			const audio = effect.get(this.#audio);
-			const videoSource = effect.get(this.parent.signals.source);
+		// 	const activeSources: PublishSourceType[] = [];
+		// 	const audio = effect.get(this.#audio);
+		// 	const videoSource = effect.get(this.parent.signals.source);
 
-			// update active sources while we have values 
-			if (audio) activeSources.push("microphone");
-			if (videoSource === "camera") activeSources.push("camera");
-			if (videoSource === "screen") activeSources.push("screen");
+		// 	// update active sources while we have values 
+		// 	if (audio) activeSources.push("microphone");
+		// 	if (videoSource === "camera") activeSources.push("camera");
+		// 	if (videoSource === "screen") activeSources.push("screen");
 
-			this.#controlsElement.activeSources = activeSources;
-		});
+		// 	this.#controlsElement.activeSources = activeSources;
+		// });
 
-		function hideShowControls(element: HangPublishControlsElement | undefined, show: boolean) {
-			if (!element) return;
+		// function hideShowControls(element: HangPublishControlsElement | undefined, show: boolean) {
+		// 	if (!element) return;
 			
-			if (show) {
-				element.style.display = "block";
-			} else {
-				element.style.display = "none";
-			}
-		}
-	}
-
-	#setupStatusControls(effect: Effect) {
-		effect.effect((effect) => {
-			if (!this.#controlsElement) return;
-
-			const url = effect.get(this.connection.url);
-			const status = effect.get(this.connection.status);
-			const audio = effect.get(this.broadcast.audio.source);
-			const video = effect.get(this.broadcast.video.source);
-
-			if (!url) {
-				this.#controlsElement.currentStatus = "no-url";
-			} else if (status === "disconnected") {
-				this.#controlsElement.currentStatus = "disconnected";
-			} else if (status === "connecting") {
-				this.#controlsElement.currentStatus = "connecting";
-			} else if (!audio && !video) {
-				this.#controlsElement.currentStatus = "select-source";
-			} else if (!audio && video) {
-				this.#controlsElement.currentStatus = "video-only";
-			} else if (audio && !video) {
-				this.#controlsElement.currentStatus = "audio-only";
-			} else if (audio && video) {
-				this.#controlsElement.currentStatus = "live";
-			}
-		});
+		// 	if (show) {
+		// 		element.style.display = "block";
+		// 	} else {
+		// 		element.style.display = "none";
+		// 	}
+		// }
 	}
 
 	close() {
-		this.#signals.close();
+		this.signals.close();
 		this.broadcast.close();
 		this.connection.close();
 	}

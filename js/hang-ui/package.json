@@ -11,10 +11,14 @@
         "./publish/element": {
             "import": "./dist/publish-controls.esm.js",
             "types": "./dist/Components/publish/publish-types.d.ts"
+        },
+        "./watch/element": {
+            "import": "./dist/watch-controls.esm.js",
+            "types": "./dist/Components/watch/watch-types.d.ts"
         }
     },
     "scripts": {
-        "build": "rollup -c && npm run build:types",
+        "build": "npm run clean && rollup -c && npm run build:types",
         "build:types": "tsc -p tsconfig.json",
         "clean": "rm -rf dist"
     },
@@ -25,6 +29,8 @@
         "rollup-plugin-string": "^3.0.0",
         "solid-element": "^1.9.1",
         "solid-js": "^1.9.10",
-        "unplugin-solid": "^1.0.0"
+        "unplugin-solid": "^1.0.0",
+        "@kixelated/hang": "workspace:^0.7.0",
+        "@kixelated/signals": "workspace:^0.8.1"
     }
 }

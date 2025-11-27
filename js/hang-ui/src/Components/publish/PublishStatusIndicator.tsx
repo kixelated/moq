@@ -1,31 +1,33 @@
-import type { PublishStatus } from './publish-types';
-import { Switch, Match } from 'solid-js';
+import { Switch, Match, useContext } from 'solid-js';
+import { PublishControlsContext } from './PublishControlsContextProvider';
 
-type PublishStatusProps = {
-    currentStatus: PublishStatus;
-};
+export default function PublishStatusIndicator() {
+    const context = useContext(PublishControlsContext);
 
-export default function PublishStatusIndicator(props: PublishStatusProps) {
     return (
         <div role="status" tabindex="0">
             <Switch>
-                <Match when={props.currentStatus === 'no-url'}>🔴 No URL</Match>
-                <Match when={props.currentStatus === 'disconnected'}>
+                <Match when={context?.publishStatus() === 'no-url'}>
+                    🔴 No URL
+                </Match>
+                <Match when={context?.publishStatus() === 'disconnected'}>
                     🔴 Disconnected
                 </Match>
-                <Match when={props.currentStatus === 'connecting'}>
+                <Match when={context?.publishStatus() === 'connecting'}>
                     🟡 Connecting...
                 </Match>
-                <Match when={props.currentStatus === 'select-source'}>
+                <Match when={context?.publishStatus() === 'select-source'}>
                     🟡 Select Source
                 </Match>
-                <Match when={props.currentStatus === 'video-only'}>
+                <Match when={context?.publishStatus() === 'video-only'}>
                     🟢 Video Only
                 </Match>
-                <Match when={props.currentStatus === 'audio-only'}>
+                <Match when={context?.publishStatus() === 'audio-only'}>
                     🟢 Audio Only
                 </Match>
-                <Match when={props.currentStatus === 'live'}>🟢 Live</Match>
+                <Match when={context?.publishStatus() === 'live'}>
+                    🟢 Live
+                </Match>
             </Switch>
         </div>
     );

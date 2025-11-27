@@ -6,8 +6,8 @@
 	"license": "(MIT OR Apache-2.0)",
 	"repository": "github:kixelated/moq",
 	"exports": {
-		".": "./src/index.ts",
-		"./zod": "./src/zod.ts"
+		".": "./dist/index.js",
+		"./zod": "./dist/zod.js"
 	},
 	"scripts": {
 		"build": "rimraf dist && tsc -b && bun ../scripts/package.ts",

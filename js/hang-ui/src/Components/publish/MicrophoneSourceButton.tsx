@@ -1,30 +1,50 @@
-import { PublishButtonProps } from './publish-types';
 import MediaSourceSourceSelector from './MediaSourceSelector';
-import { Show } from 'solid-js';
+import { Show, useContext } from 'solid-js';
+import { PublishControlsContext } from './PublishControlsContextProvider';
 
-interface MicrophonePublishSourceButtonProps extends PublishButtonProps {
-    microphoneSources?: MediaDeviceInfo[];
-    selectedMicrophoneSource?: MediaDeviceInfo['deviceId'];
-    onMicrophoneSourceSelected?: (sourceId: string) => void;
-}
+export default function MicrophoneSourceButton() {
+    const context = useContext(PublishControlsContext);
+    const onClick = () => {
+        const hangPublishEl = context?.hangPublish();
+        if (!hangPublishEl) return;
 
-export default function MicrophoneSourceButton(
-    props: MicrophonePublishSourceButtonProps
-) {
+        if (hangPublishEl.source === 'camera') {
+            // Camera already selected, toggle audio.
+            hangPublishEl.audio = !hangPublishEl.audio;
+        } else {
+            hangPublishEl.source = 'camera';
+            hangPublishEl.audio = true;
+        }
+    };
+
+    const onSourceSelected = (sourceId: MediaDeviceInfo['deviceId']) => {
+        const hangPublishEl = context?.hangPublish();
+        if (!hangPublishEl) return;
+
+        hangPublishEl.audioDevice = sourceId;
+    };
+
     return (
         <div class="publishSourceButtonContainer">
             <button
                 title="Microphone"
-                class={`publishSourceButton ${props.isActive ? 'active' : ''}`}
-                onClick={props.onClick}
+                class={`publishSourceButton ${
+                    context?.microphoneActive() ? 'active' : ''
+                }`}
+                onClick={onClick}
             >
                 🎤
             </button>
-            <Show when={props.isActive && props.microphoneSources?.length}>
+            <Show
+                when={
+                    context?.microphoneActive() &&
+                    context?.microphoneDevices().length
+                }
+            >
                 <MediaSourceSourceSelector
-                    sources={props.microphoneSources}
-                    selectedSource={props.selectedMicrophoneSource}
-                    onSelected={props.onMicrophoneSourceSelected}
+                    sources={context?.microphoneDevices()}
+                    selectedSource={context?.selectedMicrophoneSource?.()}
+                    onSelected={onSourceSelected}
                 />
             </Show>
         </div>

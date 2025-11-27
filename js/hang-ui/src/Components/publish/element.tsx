@@ -1,56 +1,36 @@
 import { customElement } from 'solid-element';
+import { createSignal } from 'solid-js';
 import PublishControls from './PublishControls';
 import styles from './styles.css';
-import type { PublishSourceType, PublishStatus } from './publish-types';
+import type HangPublish from '@kixelated/hang/publish/element';
+import PublishControlsContextProvider from './PublishControlsContextProvider';
 
 customElement(
-    'hang-publish-controls',
+    'hang-publish-ui',
     {
-        activeSources: [] as PublishSourceType[],
-        selectedCameraSource: undefined,
-        selectedMicrophoneSource: undefined,
-        currentStatus: 'no-url' as PublishStatus,
-        cameraSources: [],
-        microphoneSources: [],
+        url: '' as string,
+        path: '' as string,
     },
-    function PublishControlsWebComponent(attributes, { element }) {
-        const onSourceSelected = (newSource: PublishSourceType) => {
-            element.dispatchEvent(
-                new CustomEvent('sourceselectionchange', {
-                    detail: newSource,
-                })
-            );
-        };
-
-        const onMicrophoneSourceSelected = (
-            selectedSource: MediaDeviceInfo['deviceId']
-        ) => {
-            element.dispatchEvent(
-                new CustomEvent('microphonesourceselected', {
-                    detail: selectedSource,
-                })
-            );
-        };
-
-        const onCameraSourceSelected = (
-            selectedSource: MediaDeviceInfo['deviceId']
-        ) => {
-            element.dispatchEvent(
-                new CustomEvent('camerasourceselected', {
-                    detail: selectedSource,
-                })
-            );
-        };
+    function PublishControlsWebComponent(attributes) {
+        const [hangPublishEl, setHangPublishEl] = createSignal<HangPublish>();
 
         return (
             <>
                 <style>{styles}</style>
-                <PublishControls
-                    {...attributes}
-                    onSourceSelected={onSourceSelected}
-                    onMicrophoneSourceSelected={onMicrophoneSourceSelected}
-                    onCameraSourceSelected={onCameraSourceSelected}
-                />
+                <hang-publish
+                    url={attributes.url}
+                    path={attributes.path}
+                    ref={setHangPublishEl}
+                >
+                    <video
+                        style="width: 100%; height: auto; border-radius: 4px; margin: 0 auto;"
+                        muted
+                        autoplay
+                    ></video>
+                </hang-publish>
+                <PublishControlsContextProvider hangPublish={hangPublishEl}>
+                    <PublishControls />
+                </PublishControlsContextProvider>
             </>
         );
     }
