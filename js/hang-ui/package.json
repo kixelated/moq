@@ -12,9 +12,8 @@
 		"./watch/element": "./dist/watch-controls.esm.js"
 	},
 	"scripts": {
-		"build": "npm run clean && rollup -c && npm run build:types",
-		"build:types": "tsc -p tsconfig.json",
-		"clean": "rm -rf dist"
+		"build": "npm run clean && rollup -c",
+		"clean": "rimraf dist"
 	},
 	"devDependencies": {
 		"@rollup/plugin-node-resolve": "^16.0.3",
@@ -23,6 +22,8 @@
 		"rollup-plugin-string": "^3.0.0",
 		"solid-element": "^1.9.1",
 		"solid-js": "^1.9.10",
+		"@biomejs/biome": "^2.2.2",
+		"rimraf": "^6.0.1",
 		"unplugin-solid": "^1.0.0",
 		"@kixelated/hang": "workspace:^0.7.0"
 	}
