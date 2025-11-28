@@ -510,6 +510,9 @@ export class HangWatchInstance {
 	}
 
 	#renderBuffering(effect: Effect) {
+		const container = this.parent.querySelector("#watch-container") as HTMLElement;
+		if (!container) return;
+
 		if (!document.getElementById("buffer-spinner-animation")) {
 			const style = document.createElement("style");
 			style.id = "buffer-spinner-animation";
@@ -522,7 +525,7 @@ export class HangWatchInstance {
 			document.head.appendChild(style);
 		}
 
-		const container = DOM.create("div", {
+		const overlay = DOM.create("div", {
 			style: {
 				position: "absolute",
 				display: "none",
@@ -535,7 +538,7 @@ export class HangWatchInstance {
 				zIndex: "1",
 				backgroundColor: "rgba(0, 0, 0, 0.4)",
 				backdropFilter: "blur(2px)",
-				pointerEvents: "auto",
+				pointerEvents: "none",
 			},
 		});
 
@@ -550,20 +553,26 @@ export class HangWatchInstance {
 			},
 		});
 
-		container.appendChild(spinner);
+		overlay.appendChild(spinner);
+		container.appendChild(overlay);
 
 		effect.effect((effect) => {
 			const syncStatus = effect.get(this.video.source.syncStatus);
 			const bufferStatus = effect.get(this.video.source.bufferStatus);
 			const shouldShow = syncStatus.state === "wait" || bufferStatus.state === "empty";
+
 			if (shouldShow) {
-				container.style.display = "flex";
+				overlay.style.display = "flex";
 			} else {
-				container.style.display = "none";
+				overlay.style.display = "none";
 			}
 		});
 
-		DOM.render(effect, this.parent, container);
+		effect.cleanup(() => {
+			if (overlay.parentNode) {
+				overlay.parentNode.removeChild(overlay);
+			}
+		});
 	}
 }
 
