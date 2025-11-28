@@ -9,12 +9,12 @@ use moq_lite::{BroadcastProducer, Track};
 use std::ffi::CStr;
 use std::os::raw::c_char;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{Mutex, OnceLock};
+use std::sync::Mutex;
 use std::thread::JoinHandle;
 use std::{collections::HashMap, time::Duration};
 
-static IMPORT: OnceLock<Mutex<ImportJoy>> = OnceLock::new();
-static HANDLE: OnceLock<Mutex<JoinHandle<()>>> = OnceLock::new();
+static IMPORT: Mutex<Option<ImportJoy>> = Mutex::new(None);
+static HANDLE: Mutex<Option<JoinHandle<()>>> = Mutex::new(None);
 static RUNNING: AtomicBool = AtomicBool::new(false);
 
 /// # Safety
@@ -63,12 +63,22 @@ pub unsafe extern "C" fn hang_start_from_c(
 		});
 	});
 
-	let _ = HANDLE.set(Mutex::new(handle));
+	if let Ok(mut guard) = HANDLE.lock() {
+		*guard = Some(handle);
+	}
 }
 
 #[no_mangle]
 pub extern "C" fn hang_stop_from_c() {
 	RUNNING.store(false, Ordering::Relaxed);
+	if let Ok(mut guard) = HANDLE.lock() {
+		if let Some(handle) = guard.take() {
+			let _ = handle.join();
+		}
+	}
+	if let Ok(mut guard) = IMPORT.lock() {
+		*guard = None;
+	}
 }
 
 /// # Safety
@@ -83,8 +93,8 @@ pub unsafe extern "C" fn hang_write_video_packet_from_c(data: *const u8, size: u
 		return;
 	}
 
-	if let Some(import_mutex) = IMPORT.get() {
-		if let Ok(mut import) = import_mutex.lock() {
+	if let Ok(mut guard) = IMPORT.lock() {
+		if let Some(import) = guard.as_mut() {
 			// SAFETY: Caller of hang_write_video_packet_from_c guarantees data is valid
 			import.write_video_frame(data, size, keyframe > 0, dts);
 		}
@@ -103,8 +113,8 @@ pub unsafe extern "C" fn hang_write_audio_packet_from_c(data: *const u8, size: u
 		return;
 	}
 
-	if let Some(import_mutex) = IMPORT.get() {
-		if let Ok(mut import) = import_mutex.lock() {
+	if let Ok(mut guard) = IMPORT.lock() {
+		if let Some(import) = guard.as_mut() {
 			// SAFETY: Caller of hang_write_audio_packet_from_c guarantees data is valid
 			import.write_audio_frame(data, size, dts);
 		}
@@ -124,7 +134,9 @@ pub async fn client(url: Url, name: String) -> anyhow::Result<()> {
 
 	let mut import = ImportJoy::new(broadcast.producer);
 	import.init();
-	let _ = IMPORT.set(Mutex::new(import));
+	if let Ok(mut guard) = IMPORT.lock() {
+		*guard = Some(import);
+	}
 
 	origin.producer.publish_broadcast(&name, broadcast.consumer);
 
