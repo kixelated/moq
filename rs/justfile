@@ -172,3 +172,7 @@ upgrade:
 # Build the packages
 build:
 	cargo build
+
+# Build and package hang-c for release
+release-hang-c *args:
+	./hang-c/release.sh {{args}}
