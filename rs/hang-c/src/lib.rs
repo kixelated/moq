@@ -2,7 +2,7 @@ use tokio::runtime::Runtime;
 use url::Url;
 
 use bytes::Bytes;
-use hang::catalog::{Audio, AudioConfig, Video, VideoConfig, H264, AAC};
+use hang::catalog::{Audio, AudioConfig, Video, VideoConfig, AAC, H264};
 use hang::model::{Frame, Timestamp, TrackProducer};
 use hang::{Catalog, CatalogProducer};
 use moq_lite::{BroadcastProducer, Track};
@@ -14,7 +14,7 @@ use std::thread::JoinHandle;
 use std::{collections::HashMap, time::Duration};
 
 static IMPORT: Mutex<Option<ImportJoy>> = Mutex::new(None);
-static HANDLE: Mutex<Option<JoinHandle<()>>> = Mutex::new(None);
+static HANDLE: Mutex<Option<JoinHandle<anyhow::Result<()>>>> = Mutex::new(None);
 static RUNNING: AtomicBool = AtomicBool::new(false);
 
 /// # Safety
@@ -53,39 +53,32 @@ pub unsafe extern "C" fn hang_start_from_c(
 	RUNNING.store(true, Ordering::Relaxed);
 
 	let handle = std::thread::spawn(move || {
-		let rt = match Runtime::new() {
-			Ok(rt) => rt,
-			Err(_) => return,
-		};
-
-		rt.block_on(async {
-			let _ = client(url, path).await;
-		});
+		let rt = Runtime::new()?;
+		rt.block_on(client(url, path))
 	});
 
-	if let Ok(mut guard) = HANDLE.lock() {
-		*guard = Some(handle);
-	}
+	HANDLE.lock().unwrap().replace(handle);
 }
 
 #[no_mangle]
 pub extern "C" fn hang_stop_from_c() {
 	RUNNING.store(false, Ordering::Relaxed);
-	if let Ok(mut guard) = HANDLE.lock() {
-		if let Some(handle) = guard.take() {
-			let _ = handle.join();
+
+	// TODO: return an error code when HANDLE is None
+	if let Some(handle) = HANDLE.lock().unwrap().take() {
+		if let Err(e) = handle.join() {
+			// TODO: return an error code instead of printing
+			println!("error stopping hang client: {:?}", e);
 		}
 	}
-	if let Ok(mut guard) = IMPORT.lock() {
-		*guard = None;
-	}
+
+	IMPORT.lock().unwrap().take();
 }
 
 /// # Safety
 ///
 /// The caller must ensure that:
 /// - `data` points to a valid buffer of at least `size` bytes
-/// - The buffer remains valid for the duration of this function call
 #[no_mangle]
 pub unsafe extern "C" fn hang_write_video_packet_from_c(data: *const u8, size: usize, keyframe: i32, dts: u64) {
 	// Validate pointer and size
@@ -93,11 +86,10 @@ pub unsafe extern "C" fn hang_write_video_packet_from_c(data: *const u8, size: u
 		return;
 	}
 
-	if let Ok(mut guard) = IMPORT.lock() {
-		if let Some(import) = guard.as_mut() {
-			// SAFETY: Caller of hang_write_video_packet_from_c guarantees data is valid
-			import.write_video_frame(data, size, keyframe > 0, dts);
-		}
+	// TODO return an error code when IMPORT is None
+	if let Some(import) = IMPORT.lock().unwrap().as_mut() {
+		// SAFETY: Caller of hang_write_video_packet_from_c guarantees data is valid
+		import.write_video_frame(data, size, keyframe > 0, dts);
 	}
 }
 
@@ -105,7 +97,6 @@ pub unsafe extern "C" fn hang_write_video_packet_from_c(data: *const u8, size: u
 ///
 /// The caller must ensure that:
 /// - `data` points to a valid buffer of at least `size` bytes
-/// - The buffer remains valid for the duration of this function call
 #[no_mangle]
 pub unsafe extern "C" fn hang_write_audio_packet_from_c(data: *const u8, size: usize, dts: u64) {
 	// Validate pointer and size
@@ -113,11 +104,10 @@ pub unsafe extern "C" fn hang_write_audio_packet_from_c(data: *const u8, size: u
 		return;
 	}
 
-	if let Ok(mut guard) = IMPORT.lock() {
-		if let Some(import) = guard.as_mut() {
-			// SAFETY: Caller of hang_write_audio_packet_from_c guarantees data is valid
-			import.write_audio_frame(data, size, dts);
-		}
+	// TODO return an error code when IMPORT is None
+	if let Some(import) = IMPORT.lock().unwrap().as_mut() {
+		// SAFETY: Caller of hang_write_audio_packet_from_c guarantees data is valid
+		import.write_audio_frame(data, size, dts);
 	}
 }
 
@@ -134,12 +124,13 @@ pub async fn client(url: Url, name: String) -> anyhow::Result<()> {
 
 	let mut import = ImportJoy::new(broadcast.producer);
 	import.init();
-	if let Ok(mut guard) = IMPORT.lock() {
-		*guard = Some(import);
-	}
+
+	// TODO error if IMPORT is already set
+	IMPORT.lock().unwrap().replace(import);
 
 	origin.producer.publish_broadcast(&name, broadcast.consumer);
 
+	// TODO Remove this busy loop and use a channel to signal when the client is stopped.
 	while RUNNING.load(Ordering::Relaxed) {
 		tokio::time::sleep(Duration::from_millis(30)).await;
 	}
@@ -253,10 +244,7 @@ impl ImportJoy {
 		let name = String::from("audio1");
 
 		let config = AudioConfig {
-			codec: AAC {
-				profile: 2
-			}
-			.into(),
+			codec: AAC { profile: 2 }.into(),
 			sample_rate: 48000,
 			channel_count: 2,
 			bitrate: Some(128000),
@@ -272,6 +260,7 @@ impl ImportJoy {
 	pub unsafe fn write_video_frame(&mut self, data: *const u8, size: usize, keyframe: bool, dts: u64) {
 		if !self.sent_one_keyframe {
 			if !keyframe {
+				// TODO return an error
 				return;
 			}
 			self.sent_one_keyframe = true;
@@ -294,7 +283,6 @@ impl ImportJoy {
 
 		track.write(frame);
 	}
-
 
 	/// # Safety
 	///
