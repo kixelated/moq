@@ -316,6 +316,7 @@ export class HangWatchInstance {
 			this.#renderStatus(controls, effect);
 			this.#renderFullscreen(controls, effect);
 			this.#renderBuffering(effect);
+			this.#renderLatency(effect);
 		});
 	}
 
@@ -440,7 +441,78 @@ export class HangWatchInstance {
 		DOM.render(effect, parent, button);
 	}
 
+	#renderLatency(effect: Effect) {
+		const container = DOM.create("div", {
+			style: {
+				display: "flex",
+				alignItems: "center",
+				gap: "8px",
+				padding: "8px 12px",
+				background: "transparent",
+				borderRadius: "8px",
+				margin: "8px 0",
+			},
+		});
+
+		const label = DOM.create("span", {
+			style: {
+				fontSize: "20px",
+				fontWeight: "500",
+				color: "#fff",
+				whiteSpace: "nowrap",
+			},
+			textContent: "Latency:",
+		});
+
+		const slider = DOM.create("input", {
+			type: "range",
+			style: {
+				flex: "1",
+				height: "6px",
+				borderRadius: "3px",
+				background: "transparent",
+				cursor: "pointer",
+			},
+			min: "0",
+			max: "20000",
+			step: "100",
+		});
+
+		const valueDisplay = DOM.create("span", {
+			style: {
+				fontSize: "20px",
+				minWidth: "60px",
+				textAlign: "right",
+				color: "#fff",
+			},
+		});
+
+		effect.event(slider, "input", (e) => {
+			const target = e.currentTarget as HTMLInputElement;
+			const latency = parseFloat(target.value);
+			this.parent.signals.latency.set(latency as Time.Milli);
+		});
+
+		effect.effect((innerEffect) => {
+			const latency = innerEffect.get(this.parent.signals.latency);
+
+			if (document.activeElement !== slider) {
+				slider.value = latency.toString();
+			}
+
+			valueDisplay.textContent = `${Math.round(latency)}ms`;
+		});
+
+		DOM.render(effect, container, label);
+		DOM.render(effect, container, slider);
+		DOM.render(effect, container, valueDisplay);
+		DOM.render(effect, this.parent, container);
+	}
+
 	#renderBuffering(effect: Effect) {
+		const container = this.parent.querySelector("#watch-container") as HTMLElement;
+		if (!container) return;
+
 		if (!document.getElementById("buffer-spinner-animation")) {
 			const style = document.createElement("style");
 			style.id = "buffer-spinner-animation";
@@ -453,7 +525,7 @@ export class HangWatchInstance {
 			document.head.appendChild(style);
 		}
 
-		const container = DOM.create("div", {
+		const overlay = DOM.create("div", {
 			style: {
 				position: "absolute",
 				display: "none",
@@ -466,7 +538,7 @@ export class HangWatchInstance {
 				zIndex: "1",
 				backgroundColor: "rgba(0, 0, 0, 0.4)",
 				backdropFilter: "blur(2px)",
-				pointerEvents: "auto",
+				pointerEvents: "none",
 			},
 		});
 
@@ -481,20 +553,26 @@ export class HangWatchInstance {
 			},
 		});
 
-		container.appendChild(spinner);
+		overlay.appendChild(spinner);
+		container.appendChild(overlay);
 
 		effect.effect((effect) => {
 			const syncStatus = effect.get(this.video.source.syncStatus);
 			const bufferStatus = effect.get(this.video.source.bufferStatus);
 			const shouldShow = syncStatus.state === "wait" || bufferStatus.state === "empty";
+
 			if (shouldShow) {
-				container.style.display = "flex";
+				overlay.style.display = "flex";
 			} else {
-				container.style.display = "none";
+				overlay.style.display = "none";
 			}
 		});
 
-		DOM.render(effect, this.parent, container);
+		effect.cleanup(() => {
+			if (overlay.parentNode) {
+				overlay.parentNode.removeChild(overlay);
+			}
+		});
 	}
 }
 
