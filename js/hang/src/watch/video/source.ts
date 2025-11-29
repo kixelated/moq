@@ -38,6 +38,9 @@ type SyncStatus = {
 // TODO Maybe we need to detect b-frames and make this dynamic?
 const MIN_SYNC_WAIT_MS = 200 as Time.Milli;
 
+// The maximum number of concurrent b-frames that we support.
+const MAX_BFRAMES = 10;
+
 // Responsible for switching between video tracks and buffering frames.
 export class Source {
 	broadcast: Signal<Moq.Broadcast | undefined>;
@@ -185,9 +188,43 @@ export class Source {
 		});
 		effect.cleanup(() => consumer.close());
 
+		// We need a queue because VideoDecoder doesn't block on a Promise returned by output.
+		// NOTE: We will drain this queue almost immediately, so the highWaterMark is just a safety net.
+		const queue = new TransformStream<VideoFrame, VideoFrame>(
+			undefined,
+			{ highWaterMark: MAX_BFRAMES },
+			{ highWaterMark: MAX_BFRAMES },
+		);
+
+		const writer = queue.writable.getWriter();
+		effect.cleanup(() => writer.close());
+
+		const reader = queue.readable.getReader();
+		effect.cleanup(() => reader.cancel());
+
 		const decoder = new VideoDecoder({
-			// NOTE: WebCodecs will block outputting the next frame until this promise resolves.
 			output: async (frame: VideoFrame) => {
+				// Insert into a queue so we can perform ordered sleeps.
+				// If this were to block, I believe WritableStream is still ordered.
+				try {
+					await writer.write(frame);
+				} catch {
+					frame.close();
+				}
+			},
+			// TODO bubble up error
+			error: (error) => {
+				console.error(error);
+				effect.close();
+			},
+		});
+		effect.cleanup(() => decoder.close());
+
+		effect.spawn(async () => {
+			for (;;) {
+				const { value: frame } = await reader.read();
+				if (!frame) break;
+
 				// Sleep until it's time to decode the next frame.
 				const ref = performance.now() - frame.timestamp / 1000;
 
@@ -199,30 +236,37 @@ export class Source {
 					sleep = this.#reference - ref + this.latency.peek();
 				}
 
-				// TODO This isn't quite right for b-frames
 				if (sleep > MIN_SYNC_WAIT_MS) {
 					this.syncStatus.set({ state: "wait", bufferDuration: sleep });
 				}
 
 				if (sleep > 0) {
+					// NOTE: WebCodecs doesn't block on output promises (I think?), so these sleeps will occur concurrently.
+					// TODO: This cause the `syncStatus` to be racey especially
 					await new Promise((resolve) => setTimeout(resolve, sleep));
 				}
 
-				// Include how long we slept if it was above the threshold.
-				this.syncStatus.set({ state: "ready", bufferDuration: sleep > MIN_SYNC_WAIT_MS ? sleep : undefined });
+				if (sleep > MIN_SYNC_WAIT_MS) {
+					// Include how long we slept if it was above the threshold.
+					this.syncStatus.set({ state: "ready", bufferDuration: sleep });
+				} else {
+					this.syncStatus.set({ state: "ready" });
+
+					// If the track switch was pending, complete it now.
+					if (this.#pending === effect) {
+						this.#active?.close();
+						this.#active = effect;
+						this.#pending = undefined;
+						effect.set(this.active, name);
+					}
+				}
 
 				this.frame.update((prev) => {
 					prev?.close();
 					return frame;
 				});
-			},
-			// TODO bubble up error
-			error: (error) => {
-				console.error(error);
-				effect.close();
-			},
+			}
 		});
-		effect.cleanup(() => decoder.close());
 
 		decoder.configure({
 			...config,
@@ -236,15 +280,6 @@ export class Source {
 			for (;;) {
 				const next = await Promise.race([consumer.decode(), effect.cancel]);
 				if (!next) break;
-
-				// See if we can upgrade ourselves to the active track once we get close enough.
-				const prev = this.frame.peek();
-				if (this.#pending === effect && (!prev || next.timestamp > prev.timestamp)) {
-					this.#active?.close();
-					this.#active = effect;
-					this.#pending = undefined;
-					effect.set(this.active, name);
-				}
 
 				const chunk = new EncodedVideoChunk({
 					type: next.keyframe ? "key" : "delta",
