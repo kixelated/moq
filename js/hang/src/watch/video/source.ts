@@ -33,8 +33,10 @@ type SyncStatus = {
 	bufferDuration?: number;
 };
 
-// TODO This is not correct for b-frames. We need to a better way of detecting late frames.
-const MIN_SYNC_WAIT_MS = 50 as Time.Milli;
+// Only count it as buffering if we had to sleep for 200ms or more before rendering the next frame.
+// Unfortunately, this has to be quite high because of b-frames.
+// TODO Maybe we need to detect b-frames and make this dynamic?
+const MIN_SYNC_WAIT_MS = 200 as Time.Milli;
 
 // Responsible for switching between video tracks and buffering frames.
 export class Source {
