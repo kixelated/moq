@@ -1,7 +1,7 @@
 [package]
-name = "hang-cli"
-description = "Media over QUIC"
-authors = ["Luke Curley <kixelated@gmail.com>"]
+name = "hang-c"
+description = "Media over QUIC, C Interface"
+authors = ["Luke Curley <kixelated@gmail.com>", "Brian Medley <bpm@bmedley.org>"]
 repository = "https://github.com/kixelated/moq"
 license = "MIT OR Apache-2.0"
 
@@ -11,20 +11,24 @@ edition = "2021"
 keywords = ["quic", "http3", "webtransport", "media", "live"]
 categories = ["multimedia", "network-programming", "web-programming"]
 
-[[bin]]
+[lib]
 name = "hang"
-path = "src/main.rs"
+crate-type = ["cdylib", "staticlib"]
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
 anyhow = { version = "1", features = ["backtrace"] }
-axum = { version = "0.8", features = ["tokio"] }
-clap = { version = "4", features = ["derive"] }
+bytes = "1.10"
 hang = { workspace = true }
-hyper-serve = { version = "0.6", features = ["tls-rustls"] }
+moq-lite = { workspace = true, features = ["serde"] }
 moq-native = { workspace = true }
-sd-notify = "0.4"
-tokio = { workspace = true, features = ["full"] }
-tower-http = { version = "0.6", features = ["cors", "fs"] }
-tracing = "0.1"
+tokio = { workspace = true, features = ["macros"] }
+url = "2"
+
+[build-dependencies]
+cbindgen = "0.29"
+
+[dev-dependencies]
+anyhow = "1"
+moq-native = { workspace = true }
 url = "2"

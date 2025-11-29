@@ -5,8 +5,11 @@ authors = ["Luke Curley"]
 repository = "https://github.com/kixelated/moq"
 license = "MIT OR Apache-2.0"
 
-version = "0.9.6"
+version = "0.10.0"
 edition = "2021"
+
+[package.metadata.cargo-shear]
+ignored = ["hyper", "hyper-util"]
 
 keywords = ["quic", "http3", "webtransport", "media", "live"]
 categories = ["multimedia", "network-programming", "web-programming"]
@@ -19,9 +22,11 @@ bytes = "1"
 clap = { version = "4", features = ["derive"] }
 futures = "0.3"
 http-body = "1"
+hyper = "=1.7.0"
 hyper-serve = { version = "0.6", features = [
 	"tls-rustls",
 ] } # fork of axum-server
+hyper-util = "=0.1.17"
 moq-lite = { workspace = true, features = ["serde"] }
 moq-native = { workspace = true }
 moq-token = { workspace = true }

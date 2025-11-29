@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.7.0](https://github.com/kixelated/moq/compare/hang-v0.6.1...hang-v0.7.0) - 2025-11-26
+
+### Fixed
+
+- wait for the first keyframe before sending frames ([#673](https://github.com/kixelated/moq/pull/673))
+
+### Other
+
+- Add initial C bindings for hang ([#722](https://github.com/kixelated/moq/pull/722))
+- Add support for multiple versions ([#711](https://github.com/kixelated/moq/pull/711))
+- Upgrade web-transport ([#680](https://github.com/kixelated/moq/pull/680))
+- Remove AI features (for now) ([#664](https://github.com/kixelated/moq/pull/664))
+- hang: Handle multiple TRUN boxes within one TRAF ([#647](https://github.com/kixelated/moq/pull/647))
+
 ## [0.6.1](https://github.com/kixelated/moq/compare/hang-v0.6.0...hang-v0.6.1) - 2025-10-25
 
 ### Other

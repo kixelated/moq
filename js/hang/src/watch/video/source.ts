@@ -26,6 +26,16 @@ export type Target = {
 // This way we can keep the current subscription active.
 type RequiredDecoderConfig = Omit<Catalog.VideoConfig, "codedWidth" | "codedHeight">;
 
+type BufferStatus = { state: "empty" | "filled" };
+
+type SyncStatus = {
+	state: "ready" | "wait";
+	bufferDuration?: number;
+};
+
+// TODO This is not correct for b-frames. We need to a better way of detecting late frames.
+const MIN_SYNC_WAIT_MS = 50 as Time.Milli;
+
 // Responsible for switching between video tracks and buffering frames.
 export class Source {
 	broadcast: Signal<Moq.Broadcast | undefined>;
@@ -65,6 +75,9 @@ export class Source {
 	// Used to convert PTS to wall time.
 	#reference: DOMHighResTimeStamp | undefined;
 
+	bufferStatus = new Signal<BufferStatus>({ state: "empty" });
+	syncStatus = new Signal<SyncStatus>({ state: "ready" });
+
 	#signals = new Effect();
 
 	constructor(
@@ -86,6 +99,7 @@ export class Source {
 		this.#signals.effect(this.#runSelected.bind(this));
 		this.#signals.effect(this.#runPending.bind(this));
 		this.#signals.effect(this.#runDisplay.bind(this));
+		this.#signals.effect(this.#runBuffer.bind(this));
 	}
 
 	#runSupported(effect: Effect): void {
@@ -170,18 +184,30 @@ export class Source {
 		effect.cleanup(() => consumer.close());
 
 		const decoder = new VideoDecoder({
+			// NOTE: WebCodecs will block outputting the next frame until this promise resolves.
 			output: async (frame: VideoFrame) => {
 				// Sleep until it's time to decode the next frame.
 				const ref = performance.now() - frame.timestamp / 1000;
 
+				let sleep = 0;
 				if (!this.#reference || ref < this.#reference) {
 					this.#reference = ref;
+					// Don't sleep so we immediately render this frame.
 				} else {
-					const sleep = this.#reference - ref + this.latency.peek();
-					if (sleep > 0) {
-						await new Promise((resolve) => setTimeout(resolve, sleep));
-					}
+					sleep = this.#reference - ref + this.latency.peek();
 				}
+
+				// TODO This isn't quite right for b-frames
+				if (sleep > MIN_SYNC_WAIT_MS) {
+					this.syncStatus.set({ state: "wait", bufferDuration: sleep });
+				}
+
+				if (sleep > 0) {
+					await new Promise((resolve) => setTimeout(resolve, sleep));
+				}
+
+				// Include how long we slept if it was above the threshold.
+				this.syncStatus.set({ state: "ready", bufferDuration: sleep > MIN_SYNC_WAIT_MS ? sleep : undefined });
 
 				this.frame.update((prev) => {
 					prev?.close();
@@ -285,6 +311,18 @@ export class Source {
 			width: frame.displayWidth,
 			height: frame.displayHeight,
 		});
+	}
+
+	#runBuffer(effect: Effect): void {
+		const frame = effect.get(this.frame);
+		const enabled = effect.get(this.enabled);
+
+		const isBufferEmpty = enabled && !frame;
+		if (isBufferEmpty) {
+			this.bufferStatus.set({ state: "empty" });
+		} else {
+			this.bufferStatus.set({ state: "filled" });
+		}
 	}
 
 	close() {
