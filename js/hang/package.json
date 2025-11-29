@@ -11,6 +11,8 @@
 		"./publish/element": "./src/publish/element.ts",
 		"./watch": "./src/watch/index.ts",
 		"./watch/element": "./src/watch/element.ts",
+		"./stats": "./src/stats/index.ts",
+		"./stats/element": "./src/stats/element.ts",
 		"./meet": "./src/meet/index.ts",
 		"./meet/element": "./src/meet/element.ts",
 		"./catalog": "./src/catalog/index.ts",
@@ -21,7 +23,8 @@
 		"./src/publish/element.ts",
 		"./src/watch/element.ts",
 		"./src/support/element.ts",
-		"./src/meet/element.ts"
+		"./src/meet/element.ts",
+		"./src/stats/element.ts"
 	],
 	"scripts": {
 		"build": "rimraf dist && tsc -b && bun ../scripts/package.ts",
