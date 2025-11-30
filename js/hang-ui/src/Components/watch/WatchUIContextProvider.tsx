@@ -1,7 +1,7 @@
 import type HangWatch from "@kixelated/hang/watch/element";
 import type { HangWatchInstance } from "@kixelated/hang/watch/element";
 import type { JSX } from "solid-js";
-import { createContext, createEffect, createSignal } from "solid-js";
+import { createContext, createEffect, createSignal, onCleanup } from "solid-js";
 
 type WatchUIContextProviderProps = {
 	hangWatch: () => HangWatch | undefined;
@@ -73,16 +73,18 @@ export default function WatchUIContextProvider(props: WatchUIContextProviderProp
 		const hangWatchEl = props.hangWatch();
 		if (!hangWatchEl) return;
 
+		const onInstanceAvailable = (event: CustomEvent) => {
+			const watchInstance = event.detail.instance.peek?.() as HangWatchInstance;
+			onWatchInstanceAvailable(watchInstance);
+		};
+
 		if (!hangWatchEl.active) {
 			// @ts-expect-error ignore custom event - todo add event map
-			hangWatchEl.addEventListener(
-				"watch-instance-available",
-				(event: CustomEvent) => {
-					const watchInstance = event.detail.instance.peek?.() as HangWatchInstance;
-					onWatchInstanceAvailable(watchInstance);
-				},
-				{ once: true },
-			);
+			hangWatchEl.addEventListener("watch-instance-available", onInstanceAvailable);
+			onCleanup(() => {
+				// @ts-expect-error ignore custom event - todo add event map
+				hangWatchEl.removeEventListener("watch-instance-available", onInstanceAvailable);
+			});
 		} else {
 			const hangWatchInstance = hangWatchEl.active.peek?.() as HangWatchInstance;
 			onWatchInstanceAvailable(hangWatchInstance);

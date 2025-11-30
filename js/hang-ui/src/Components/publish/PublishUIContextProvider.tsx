@@ -1,7 +1,7 @@
 import type HangPublish from "@kixelated/hang/publish/element";
 import type { HangPublishInstance } from "@kixelated/hang/publish/element";
 import type { JSX } from "solid-js";
-import { createContext, createEffect, createSignal } from "solid-js";
+import { createContext, createEffect, createSignal, onCleanup } from "solid-js";
 
 type PublishStatus = "no-url" | "disconnected" | "connecting" | "live" | "audio-only" | "video-only" | "select-source";
 
@@ -71,16 +71,18 @@ export default function PublishUIContextProvider(props: PublishUIContextProvider
 		const hangPublishEl = props.hangPublish();
 		if (!hangPublishEl) return;
 
+		const onInstanceAvailable = (event: CustomEvent) => {
+			const publishInstance = event.detail.instance.peek?.() as HangPublishInstance;
+			onPublishInstanceAvailable(hangPublishEl, publishInstance);
+		};
+
 		if (!hangPublishEl.active) {
 			// @ts-expect-error ignore custom event - todo add event map
-			hangPublishEl.addEventListener(
-				"publish-instance-available",
-				(event: CustomEvent) => {
-					const publishInstance = event.detail.instance.peek?.() as HangPublishInstance;
-					onPublishInstanceAvailable(hangPublishEl, publishInstance);
-				},
-				{ once: true },
-			);
+			hangPublishEl.addEventListener("publish-instance-available", onInstanceAvailable);
+			onCleanup(() => {
+				// @ts-expect-error ignore custom event - todo add event map
+				hangPublishEl.removeEventListener("publish-instance-available", onInstanceAvailable);
+			});
 		} else {
 			const publishInstance = hangPublishEl.active.peek?.() as HangPublishInstance;
 			onPublishInstanceAvailable(hangPublishEl, publishInstance);
