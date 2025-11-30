@@ -19,12 +19,11 @@ export default function FileSourceButton() {
 		<>
 			<input
 				ref={setFileInputRef}
-				onClick={onClick}
 				onChange={onChange}
 				type="file"
 				class="hidden"
 				accept="video/*,audio/*,image/*"
-			></input>
+			/>
 			<button
 				type="button"
 				title="Upload File"
