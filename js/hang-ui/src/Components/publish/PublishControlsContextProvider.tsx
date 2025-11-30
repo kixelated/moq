@@ -12,9 +12,11 @@ type PublishControlsContextValue = {
 	microphoneActive: () => boolean;
 	cameraActive?: () => boolean;
 	screenActive?: () => boolean;
+	fileActive?: () => boolean;
 	nothingActive?: () => boolean;
 	selectedCameraSource?: () => MediaDeviceInfo["deviceId"] | undefined;
 	selectedMicrophoneSource?: () => MediaDeviceInfo["deviceId"] | undefined;
+	setFile: (file: File) => void;
 };
 
 type PublishControlsContextProviderProps = {
@@ -34,8 +36,20 @@ export default function PublishControlsContextProvider(props: PublishControlsCon
 	const [cameraActive, setCameraActive] = createSignal<boolean>(false);
 	const [screenActive, setScreenActive] = createSignal<boolean>(false);
 	const [microphoneActive, setMicrophoneActive] = createSignal<boolean>(false);
+	const [fileActive, setFileActive] = createSignal<boolean>(false);
 	const [nothingActive, setNothingActive] = createSignal<boolean>(false);
 	const [publishStatus, setPublishStatus] = createSignal<PublishStatus>("no-url");
+
+	const setFile = (file: File) => {
+		const hangPublishEl = props.hangPublish();
+		if (!hangPublishEl) return;
+
+		hangPublishEl.file = file;
+		hangPublishEl.source = "file";
+		hangPublishEl.video = true;
+		hangPublishEl.audio = true;
+		setFileActive(true);
+	};
 
 	const value: PublishControlsContextValue = {
 		hangPublish: props.hangPublish,
@@ -45,6 +59,8 @@ export default function PublishControlsContextProvider(props: PublishControlsCon
 		cameraActive,
 		screenActive,
 		microphoneActive,
+		fileActive,
+		setFile,
 		nothingActive,
 		selectedCameraSource,
 		selectedMicrophoneSource,
@@ -160,6 +176,11 @@ export default function PublishControlsContextProvider(props: PublishControlsCon
 			} else if (audio && video) {
 				setPublishStatus("live");
 			}
+		});
+
+		publishInstance?.signals.effect(function trackFileActive(effect) {
+			const selectedSource = effect.get(el.signals.source);
+			setFileActive(selectedSource === "file");
 		});
 	}
 }

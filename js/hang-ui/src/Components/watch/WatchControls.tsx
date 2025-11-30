@@ -5,7 +5,7 @@ import VolumeSlider from "./VolumeSlider";
 
 export default function WatchControls() {
 	return (
-		<div class="watchContainer">
+		<div class="watchControlsContainer">
 			<PlayPauseButton />
 			<VolumeSlider />
 			<WatchStatusIndicator />

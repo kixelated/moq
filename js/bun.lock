@@ -51,10 +51,11 @@
       "name": "@kixelated/hang-ui",
       "version": "0.1.0",
       "devDependencies": {
+        "@biomejs/biome": "^2.2.2",
         "@kixelated/hang": "workspace:^0.7.0",
-        "@kixelated/signals": "workspace:^0.8.1",
         "@rollup/plugin-node-resolve": "^16.0.3",
         "@rollup/plugin-typescript": "^12.3.0",
+        "rimraf": "^6.0.1",
         "rollup": "^4.53.3",
         "rollup-plugin-string": "^3.0.0",
         "solid-element": "^1.9.1",

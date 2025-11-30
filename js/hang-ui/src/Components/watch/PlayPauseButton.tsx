@@ -8,7 +8,12 @@ export default function PlayPauseButton() {
 	};
 
 	return (
-		<button title={context?.isPlaying() ? "Pause" : "Play"} class="watchControlButton" onClick={onClick}>
+		<button
+			type="button"
+			title={context?.isPlaying() ? "Pause" : "Play"}
+			class="watchControlButton"
+			onClick={onClick}
+		>
 			{context?.isPlaying() ? "⏸️" : "▶️"}
 		</button>
 	);

@@ -18,6 +18,7 @@ type WatchControlsContextValue = {
 	currentVolume: () => number;
 	togglePlayback: () => void;
 	toggleMuted: () => void;
+	buffering: () => boolean;
 };
 
 export const WatchControlsContext = createContext<WatchControlsContextValue>();
@@ -27,6 +28,7 @@ export default function WatchControlsContextProvider(props: WatchControlsContext
 	const [isPlaying, setIsPlaying] = createSignal<boolean>(false);
 	const [isMuted, setIsMuted] = createSignal<boolean>(false);
 	const [currentVolume, setCurrentVolume] = createSignal<number>(0);
+	const [buffering, setBuffering] = createSignal<boolean>(false);
 
 	const togglePlayback = () => {
 		const hangWatchEl = props.hangWatch();
@@ -63,6 +65,7 @@ export default function WatchControlsContextProvider(props: WatchControlsContext
 		isMuted,
 		currentVolume,
 		toggleMuted,
+		buffering,
 	};
 
 	createEffect(() => {
@@ -111,6 +114,14 @@ export default function WatchControlsContextProvider(props: WatchControlsContext
 		watchInstance?.signals.effect(function trackVolume(effect) {
 			const volume = effect.get(watchInstance?.audio.volume);
 			setCurrentVolume(volume * 100);
+		});
+
+		watchInstance?.signals.effect(function trackBuffering(effect) {
+			const syncStatus = effect.get(watchInstance?.video.source.syncStatus);
+			const bufferStatus = effect.get(watchInstance?.video.source.bufferStatus);
+			const shouldShow = syncStatus.state === "wait" || bufferStatus.state === "empty";
+
+			setBuffering(shouldShow);
 		});
 	}
 }

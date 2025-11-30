@@ -42,3 +42,7 @@
     transform: translateX(-50%);
     display: block;
 }
+
+.hidden {
+    display: none;
+}
