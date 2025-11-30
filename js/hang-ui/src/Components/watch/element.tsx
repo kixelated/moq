@@ -14,6 +14,15 @@ customElement("hang-watch-ui", {}, function PublishControlsWebComponent(_, { ele
 
 		if (watchEl) {
 			setHangWatchEl(watchEl);
+		} else {
+			element.addEventListener(
+				"watch-instance-available",
+				(event: CustomEvent) => {
+					const hangWatchEl = event.target as HangWatch;
+					setHangWatchEl(hangWatchEl);
+				},
+				{ once: true }
+			);
 		}
 	});
 

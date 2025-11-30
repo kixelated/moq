@@ -13,6 +13,15 @@ customElement("hang-publish-ui", {}, function PublishControlsWebComponent(_, { e
 
 		if (publishEl) {
 			setHangPublishEl(publishEl);
+		} else {
+			element.addEventListener(
+				"publish-instance-available",
+				(event: CustomEvent) => {
+					const hangPublishEl = event.target as HangPublish;
+					setHangPublishEl(hangPublishEl);
+				},
+				{ once: true }
+			);
 		}
 	});
 
