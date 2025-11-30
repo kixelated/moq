@@ -12,7 +12,8 @@
 }
 
 .publishButton {
-	all: unset;
+	background: transparent;
+	border: none;
 	cursor: pointer;
 	display: inline-block;
 	font: inherit;
