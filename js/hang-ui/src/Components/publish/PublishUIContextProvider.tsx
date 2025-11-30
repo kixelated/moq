@@ -73,10 +73,14 @@ export default function PublishUIContextProvider(props: PublishUIContextProvider
 
 		if (!hangPublishEl.active) {
 			// @ts-expect-error ignore custom event - todo add event map
-			hangPublishEl.addEventListener("publish-instance-available", (event: CustomEvent) => {
-				const publishInstance = event.detail.instance.peek?.() as HangPublishInstance;
-				onPublishInstanceAvailable(hangPublishEl, publishInstance);
-			});
+			hangPublishEl.addEventListener(
+				"publish-instance-available",
+				(event: CustomEvent) => {
+					const publishInstance = event.detail.instance.peek?.() as HangPublishInstance;
+					onPublishInstanceAvailable(hangPublishEl, publishInstance);
+				},
+				{ once: true }
+			);
 		} else {
 			const publishInstance = hangPublishEl.active.peek?.() as HangPublishInstance;
 			onPublishInstanceAvailable(hangPublishEl, publishInstance);
