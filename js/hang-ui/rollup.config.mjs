@@ -1,7 +1,21 @@
+// rollup.config.mjs / rollup.config.js
+import { readFileSync } from 'node:fs';
 import nodeResolve from '@rollup/plugin-node-resolve';
 import esbuild from 'rollup-plugin-esbuild';
-import { string } from 'rollup-plugin-string';
 import solid from 'unplugin-solid/rollup';
+
+function inlineCss() {
+    return {
+        name: 'inline-css',
+        load(id) {
+            if (id.endsWith('.css?inline')) {
+                const realId = id.replace(/\?inline$/, '');
+                const css = readFileSync(realId, 'utf8');
+                return `export default ${JSON.stringify(css)};`;
+            }
+        },
+    };
+}
 
 export default [
     {
@@ -12,12 +26,12 @@ export default [
             sourcemap: true,
         },
         plugins: [
-            string({ include: '**/*.css' }),
+            inlineCss(),
             solid({ dev: false, hydratable: false }),
             esbuild({
-                include: /\.[jt]sx?$/, // .js, .ts, .jsx, .tsx
-                jsx: 'preserve', // let unplugin-solid handle JSX
-                tsconfig: 'tsconfig.json', // optional; mainly for paths/aliases
+                include: /\.[jt]sx?$/,
+                jsx: 'preserve',
+                tsconfig: 'tsconfig.json',
             }),
             nodeResolve({ extensions: ['.js', '.ts', '.tsx'] }),
         ],
@@ -30,12 +44,12 @@ export default [
             sourcemap: true,
         },
         plugins: [
-            string({ include: '**/*.css' }),
+            inlineCss(),
             solid({ dev: false, hydratable: false }),
             esbuild({
-                include: /\.[jt]sx?$/, // .js, .ts, .jsx, .tsx
-                jsx: 'preserve', // let unplugin-solid handle JSX
-                tsconfig: 'tsconfig.json', // optional; mainly for paths/aliases
+                include: /\.[jt]sx?$/,
+                jsx: 'preserve',
+                tsconfig: 'tsconfig.json',
             }),
             nodeResolve({ extensions: ['.js', '.ts', '.tsx'] }),
         ],

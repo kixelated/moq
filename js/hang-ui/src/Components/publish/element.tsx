@@ -3,7 +3,7 @@ import { customElement } from 'solid-element';
 import { createSignal, onMount } from 'solid-js';
 import PublishControls from './PublishControls';
 import PublishControlsContextProvider from './PublishUIContextProvider';
-import styles from './styles.css';
+import styles from './styles.css?inline';
 
 customElement(
     'hang-publish-ui',

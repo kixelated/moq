@@ -16,6 +16,7 @@
 		"@kixelated/hang-ui": "workspace:^"
 	},
 	"devDependencies": {
+		"@biomejs/biome": "^2.2.2",
 		"@tailwindcss/postcss": "^4.1.13",
 		"@tailwindcss/typography": "^0.5.16",
 		"@tailwindcss/vite": "^4.1.13",
@@ -24,6 +25,6 @@
 		"typescript": "^5.9.2",
 		"vite": "^6.3.6",
 		"vite-plugin-html": "^3.2.2",
-		"@biomejs/biome": "^2.2.2"
+		"vite-plugin-solid": "^2.11.10"
 	}
 }
