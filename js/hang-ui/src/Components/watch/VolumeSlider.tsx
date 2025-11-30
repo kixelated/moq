@@ -18,7 +18,12 @@ export default function VolumeSlider() {
 
 	return (
 		<div class="volumeSliderContainer">
-			<button type="button" title="Muted" class="watchControlButton" onClick={() => context?.toggleMuted()}>
+			<button
+				type="button"
+				title={context?.isMuted() ? "Unmute" : "Mute"}
+				class="watchControlButton"
+				onClick={() => context?.toggleMuted()}
+			>
 				{context?.isMuted() ? "🔇" : "🔊"}
 			</button>
 			<input type="range" onChange={onInputChange} min="0" max="100" value={context?.currentVolume()} />
