@@ -14,7 +14,8 @@
 	],
 	"scripts": {
 		"check": "bun run --filter='*' check",
-		"fix": "bun run --filter='*' fix"
+		"fix": "bun run --filter='*' fix",
+		"postinstall": "bun run --filter='@kixelated/hang-ui' build"
 	},
 	"devDependencies": {
 		"concurrently": "^9.2.1"
