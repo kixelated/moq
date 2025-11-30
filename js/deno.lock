@@ -47,6 +47,20 @@
           ]
         }
       },
+      "hang-ui": {
+        "packageJson": {
+          "dependencies": [
+            "npm:@biomejs/biome@^2.2.2",
+            "npm:@rollup/plugin-node-resolve@^16.0.3",
+            "npm:rimraf@^6.0.1",
+            "npm:rollup-plugin-string@3",
+            "npm:rollup@^4.53.3",
+            "npm:solid-element@^1.9.1",
+            "npm:solid-js@^1.9.10",
+            "npm:unplugin-solid@1"
+          ]
+        }
+      },
       "moq": {
         "packageJson": {
           "dependencies": [
