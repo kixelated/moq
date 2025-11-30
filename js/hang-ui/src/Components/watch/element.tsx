@@ -7,7 +7,7 @@ import WatchControls from "./WatchControls";
 import WatchUIContextProvider from "./WatchUIContextProvider";
 
 customElement("hang-watch-ui", {}, function PublishControlsWebComponent(_, { element }) {
-	const [hangWatchhEl, setHangWatchEl] = createSignal<HangWatch>();
+	const [hangWatchEl, setHangWatchEl] = createSignal<HangWatch>();
 
 	onMount(() => {
 		const watchEl = element.querySelector("hang-watch");
@@ -27,7 +27,7 @@ customElement("hang-watch-ui", {}, function PublishControlsWebComponent(_, { ele
 	});
 
 	return (
-		<WatchUIContextProvider hangWatch={hangWatchhEl}>
+		<WatchUIContextProvider hangWatch={hangWatchEl}>
 			<style>{styles}</style>
 			<div class="watchVideoContainer">
 				<slot />
