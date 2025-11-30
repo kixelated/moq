@@ -1,7 +1,7 @@
+import path from "node:path";
 import tailwindcss from "@tailwindcss/vite";
 import { defineConfig } from "vite";
-import solidPlugin from 'vite-plugin-solid';
-import path from 'node:path';
+import solidPlugin from "vite-plugin-solid";
 
 export default defineConfig({
 	root: "src",
@@ -20,14 +20,11 @@ export default defineConfig({
 	},
 	resolve: {
 		alias: {
-      		'@kixelated/hang-ui/publish/element': path.resolve(
-        		__dirname,
-        		'../hang-ui/src/Components/publish/element.tsx'
-      		),
-      		'@kixelated/hang-ui/watch/element': path.resolve(
-        		__dirname,
-        		'../hang-ui/src/Components/watch/element.tsx'
-      		),
+			"@kixelated/hang-ui/publish/element": path.resolve(
+				__dirname,
+				"../hang-ui/src/Components/publish/element.tsx",
+			),
+			"@kixelated/hang-ui/watch/element": path.resolve(__dirname, "../hang-ui/src/Components/watch/element.tsx"),
 		},
 	},
 	server: {
