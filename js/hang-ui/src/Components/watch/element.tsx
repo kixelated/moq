@@ -4,7 +4,7 @@ import { createSignal, onMount } from "solid-js";
 import BufferingIndicator from "./BufferingIndicator";
 import styles from "./styles.css";
 import WatchControls from "./WatchControls";
-import WatchControlsContextProvider from "./WatchControlsContextProvider";
+import WatchUIContextProvider from "./WatchUIContextProvider";
 
 customElement("hang-watch-ui", {}, function PublishControlsWebComponent(_, { element }) {
 	const [hangWatchhEl, setHangWatchEl] = createSignal<HangWatch>();
@@ -18,13 +18,13 @@ customElement("hang-watch-ui", {}, function PublishControlsWebComponent(_, { ele
 	});
 
 	return (
-		<WatchControlsContextProvider hangWatch={hangWatchhEl}>
+		<WatchUIContextProvider hangWatch={hangWatchhEl}>
 			<style>{styles}</style>
 			<div class="watchVideoContainer">
 				<slot />
 				<BufferingIndicator />
 			</div>
 			<WatchControls />
-		</WatchControlsContextProvider>
+		</WatchUIContextProvider>
 	);
 });
