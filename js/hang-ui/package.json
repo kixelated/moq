@@ -1,30 +1,31 @@
 {
-	"name": "@kixelated/hang-ui",
-	"type": "module",
-	"version": "0.1.0",
-	"description": "Media over QUIC library UI components",
-	"license": "(MIT OR Apache-2.0)",
-	"repository": "github:kixelated/moq",
-	"main": "dist/publish-controls.esm.js",
-	"module": "dist/publish-controls.esm.js",
-	"exports": {
-		"./publish/element": "./dist/publish-controls.esm.js",
-		"./watch/element": "./dist/watch-controls.esm.js"
-	},
-	"scripts": {
-		"build": "npm run clean && rollup -c",
-		"check": "biome check",
-		"clean": "rimraf dist"
-	},
-	"devDependencies": {
-		"@rollup/plugin-node-resolve": "^16.0.3",
-		"rollup": "^4.53.3",
-		"rollup-plugin-string": "^3.0.0",
-		"solid-element": "^1.9.1",
-		"solid-js": "^1.9.10",
-		"@biomejs/biome": "^2.2.2",
-		"rimraf": "^6.0.1",
-		"unplugin-solid": "^1.0.0",
-		"@kixelated/hang": "workspace:^0.7.0"
-	}
+  "name": "@kixelated/hang-ui",
+  "type": "module",
+  "version": "0.1.0",
+  "description": "Media over QUIC library UI components",
+  "license": "(MIT OR Apache-2.0)",
+  "repository": "github:kixelated/moq",
+  "main": "dist/publish-controls.esm.js",
+  "module": "dist/publish-controls.esm.js",
+  "exports": {
+    "./publish/element": "./dist/publish-controls.esm.js",
+    "./watch/element": "./dist/watch-controls.esm.js"
+  },
+  "scripts": {
+    "build": "npm run clean && rollup -c",
+    "check": "biome check",
+    "clean": "rimraf dist"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^2.2.2",
+    "@kixelated/hang": "workspace:^0.7.0",
+    "@rollup/plugin-node-resolve": "^16.0.3",
+    "rimraf": "^6.0.1",
+    "rollup": "^4.53.3",
+    "rollup-plugin-esbuild": "^6.2.1",
+    "rollup-plugin-string": "^3.0.0",
+    "solid-element": "^1.9.1",
+    "solid-js": "^1.9.10",
+    "unplugin-solid": "^1.0.0"
+  }
 }
