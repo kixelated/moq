@@ -8,7 +8,7 @@ import * as Source from "./source";
 const OBSERVED = ["url", "name", "path", "device", "audio", "video", "controls", "source"] as const;
 type Observed = (typeof OBSERVED)[number];
 
-type SourceType = "camera" | "screen";
+type SourceType = "camera" | "screen" | "file";
 
 export interface HangPublishSignals {
 	url: Signal<URL | undefined>;
@@ -18,6 +18,7 @@ export interface HangPublishSignals {
 	video: Signal<boolean>;
 	controls: Signal<boolean>;
 	source: Signal<SourceType | undefined>;
+	file: Signal<File | undefined>;
 }
 
 export default class HangPublish extends HTMLElement {
@@ -31,6 +32,7 @@ export default class HangPublish extends HTMLElement {
 		video: new Signal<boolean>(false),
 		controls: new Signal(false),
 		source: new Signal<SourceType | undefined>(undefined),
+		file: new Signal<File | undefined>(undefined),
 	};
 
 	active = new Signal<HangPublishInstance | undefined>(undefined);
@@ -60,7 +62,7 @@ export default class HangPublish extends HTMLElement {
 		} else if (name === "name" || name === "path") {
 			this.path = newValue ?? undefined;
 		} else if (name === "device" || name === "source") {
-			if (newValue === "camera" || newValue === "screen" || newValue === null) {
+			if (newValue === "camera" || newValue === "screen" || newValue === "file" || newValue === null) {
 				this.source = newValue ?? undefined;
 			} else {
 				throw new Error(`Invalid device: ${newValue}`);
@@ -118,6 +120,14 @@ export default class HangPublish extends HTMLElement {
 		this.signals.source.set(source);
 	}
 
+	get file(): File | undefined {
+		return this.signals.file.peek();
+	}
+
+	set file(file: File | undefined) {
+		this.signals.file.set(file);
+	}
+
 	get audio(): boolean {
 		return this.signals.audio.peek();
 	}
@@ -173,6 +183,7 @@ export class HangPublishInstance {
 	#preview: Signal<HTMLVideoElement | undefined>;
 	video = new Signal<Source.Camera | Source.Screen | undefined>(undefined);
 	audio = new Signal<Source.Microphone | Source.Screen | undefined>(undefined);
+	file = new Signal<Source.File | undefined>(undefined);
 	signals = new Effect();
 
 	constructor(parent: HangPublish) {
@@ -282,6 +293,38 @@ export class HangPublishInstance {
 
 			effect.cleanup(() => {
 				screen.close();
+			});
+
+			return;
+		}
+
+		if (source === "file") {
+			const fileSource = new Source.File({
+				enabled: new Signal(false),
+			});
+
+			effect.effect((effect) => {
+				const file = effect.get(this.parent.signals.file);
+				fileSource.setFile(file);
+				const audio = effect.get(this.parent.signals.audio);
+				const video = effect.get(this.parent.signals.video);
+				effect.set(
+					fileSource.enabled,
+					(audio || video) && Boolean(file),
+					false
+				);
+			});
+
+			fileSource.signals.effect((effect) => {
+				const source = effect.get(fileSource.source);
+				effect.set(this.broadcast.video.source, source.video);
+				effect.set(this.broadcast.audio.source, source.audio);
+			});
+
+			effect.set(this.file, fileSource);
+
+			effect.cleanup(() => {
+				fileSource.close();
 			});
 
 			return;

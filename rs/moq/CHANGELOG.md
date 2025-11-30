@@ -7,6 +7,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.10.0](https://github.com/kixelated/moq/compare/moq-lite-v0.9.6...moq-lite-v0.10.0) - 2025-11-26
+
+### Other
+
+- Hopefully fix the handshake for old moq-lite clients. ([#720](https://github.com/kixelated/moq/pull/720))
+- Fix IETF encoding. ([#713](https://github.com/kixelated/moq/pull/713))
+- Add support for multiple versions ([#711](https://github.com/kixelated/moq/pull/711))
+- Implement a dynamic priority queue. ([#681](https://github.com/kixelated/moq/pull/681))
+- Upgrade web-transport ([#680](https://github.com/kixelated/moq/pull/680))
+- Fix PUBLISH_DONE encoding. ([#674](https://github.com/kixelated/moq/pull/674))
+- Improve moq-clock subscriber. ([#671](https://github.com/kixelated/moq/pull/671))
+- Use the correct error message. ([#670](https://github.com/kixelated/moq/pull/670))
+- Don't return an error when the control stream is closed. ([#669](https://github.com/kixelated/moq/pull/669))
+- Better logging again ([#668](https://github.com/kixelated/moq/pull/668))
+- Fix a panic caused when skipping. ([#666](https://github.com/kixelated/moq/pull/666))
+- Allow subgroup and warn instead or error ([#663](https://github.com/kixelated/moq/pull/663))
+- Add better trace logging for now. ([#662](https://github.com/kixelated/moq/pull/662))
+- Maybe add PUBLISH compatibility. ([#660](https://github.com/kixelated/moq/pull/660))
+- Add moqt:// support. ([#659](https://github.com/kixelated/moq/pull/659))
+- Fix group order = 0x0 ([#658](https://github.com/kixelated/moq/pull/658))
+- Add some temporary logging. ([#656](https://github.com/kixelated/moq/pull/656))
+- Fix the subgroup ID code. ([#657](https://github.com/kixelated/moq/pull/657))
+- Remove SUBSCRIBE_NAMESPACE, it's just confusing and does nothing. ([#655](https://github.com/kixelated/moq/pull/655))
+- Fix request_id not being a blocking request. ([#652](https://github.com/kixelated/moq/pull/652))
+- Fix IETF parameter parsing. ([#651](https://github.com/kixelated/moq/pull/651))
+- Add more compatibility for draft 14 ([#645](https://github.com/kixelated/moq/pull/645))
+
 ## [0.9.6](https://github.com/kixelated/moq/compare/moq-lite-v0.9.5...moq-lite-v0.9.6) - 2025-10-28
 
 ### Other

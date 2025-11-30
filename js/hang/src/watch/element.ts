@@ -3,7 +3,7 @@ import { Effect, Signal } from "@kixelated/signals";
 import type * as Time from "../time";
 import * as Audio from "./audio";
 import { Broadcast } from "./broadcast";
-import * as Video from "./video";
+import { Renderer } from "./video";
 
 const OBSERVED = ["url", "name", "path", "paused", "volume", "muted", "controls", "reload", "latency"] as const;
 type Observed = (typeof OBSERVED)[number];
@@ -58,6 +58,8 @@ export default class HangWatch extends HTMLElement {
 	// Annoyingly, we have to use these callbacks to figure out when the element is connected to the DOM.
 	// This wouldn't be so bad if there was a destructor for web components to clean up our effects.
 	connectedCallback() {
+		this.style.display = "block";
+		this.style.position = "relative";
 		this.active.set(new HangWatchInstance(this));
 
 		this.dispatchEvent(new CustomEvent('watch-instance-available', {
@@ -187,7 +189,7 @@ export class HangWatchInstance {
 	// However be warned that the API is still in flux and may change.
 	connection: Moq.Connection.Reload;
 	broadcast: Broadcast;
-	video: Video.Renderer;
+	video: Renderer;
 	audio: Audio.Emitter;
 	signals: Effect;
 
@@ -221,7 +223,7 @@ export class HangWatchInstance {
 		observer.observe(this.parent, { childList: true, subtree: true });
 		this.signals.cleanup(() => observer.disconnect());
 
-		this.video = new Video.Renderer(this.broadcast.video, { canvas, paused: this.parent.signals.paused });
+		this.video = new Renderer(this.broadcast.video, { canvas, paused: this.parent.signals.paused });
 		this.audio = new Audio.Emitter(this.broadcast.audio, {
 			volume: this.parent.signals.volume,
 			muted: this.parent.signals.muted,
