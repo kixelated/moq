@@ -79,7 +79,7 @@ export default function PublishUIContextProvider(props: PublishUIContextProvider
 					const publishInstance = event.detail.instance.peek?.() as HangPublishInstance;
 					onPublishInstanceAvailable(hangPublishEl, publishInstance);
 				},
-				{ once: true }
+				{ once: true },
 			);
 		} else {
 			const publishInstance = hangPublishEl.active.peek?.() as HangPublishInstance;

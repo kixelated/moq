@@ -20,7 +20,7 @@ customElement("hang-publish-ui", {}, function PublishControlsWebComponent(_, { e
 					const hangPublishEl = event.target as HangPublish;
 					setHangPublishEl(hangPublishEl);
 				},
-				{ once: true }
+				{ once: true },
 			);
 		}
 	});

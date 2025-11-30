@@ -81,7 +81,7 @@ export default function WatchUIContextProvider(props: WatchUIContextProviderProp
 					const watchInstance = event.detail.instance.peek?.() as HangWatchInstance;
 					onWatchInstanceAvailable(watchInstance);
 				},
-				{ once: true }
+				{ once: true },
 			);
 		} else {
 			const hangWatchInstance = hangWatchEl.active.peek?.() as HangWatchInstance;

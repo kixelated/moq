@@ -21,7 +21,7 @@ customElement("hang-watch-ui", {}, function PublishControlsWebComponent(_, { ele
 					const hangWatchEl = event.target as HangWatch;
 					setHangWatchEl(hangWatchEl);
 				},
-				{ once: true }
+				{ once: true },
 			);
 		}
 	});
