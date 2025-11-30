@@ -9,13 +9,7 @@ type MediaSourceSelectorProps = {
 export default function MediaSourceSelector(props: MediaSourceSelectorProps) {
 	const [sourcesVisible, setSourcesVisible] = createSignal(false);
 
-	const toggleSourcesVisible = () => {
-		if (sourcesVisible()) {
-			setSourcesVisible(false);
-		} else {
-			setSourcesVisible(true);
-		}
-	};
+	const toggleSourcesVisible = () => setSourcesVisible((visible) => !visible);
 
 	return (
 		<>
@@ -23,9 +17,9 @@ export default function MediaSourceSelector(props: MediaSourceSelectorProps) {
 				type="button"
 				onClick={toggleSourcesVisible}
 				class="publishButton mediaSourceVisibilityToggle"
-				title="Show Sources"
+				title={sourcesVisible() ? "Hide Sources" : "Show Sources"}
 			>
-				{sourcesVisible() ? "▼" : "▲"}
+				{sourcesVisible() ? "▲" : "▼"}
 			</button>
 			<Show when={sourcesVisible()}>
 				<select
