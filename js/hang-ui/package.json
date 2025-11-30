@@ -13,7 +13,7 @@
 	},
 	"scripts": {
 		"build": "npm run clean && rollup -c",
-		"check": "biome check --write src",
+		"check": "biome check",
 		"clean": "rimraf dist"
 	},
 	"devDependencies": {
