@@ -8,15 +8,9 @@
 	"exports": {
 		".": "./src/index.ts",
 		"./publish": "./src/publish/index.ts",
-		"./publish/element": {
-			"import": "./dist/publish/element.js",
-			"types": "./dist/publish/element.d.ts"
-		},
+		"./publish/element": "./src/publish/element.ts",
 		"./watch": "./src/watch/index.ts",
-		"./watch/element": {
-			"import": "./dist/watch/element.js",
-			"types": "./dist/watch/element.d.ts"
-		},
+		"./watch/element": "./src/watch/element.ts",
 		"./meet": "./src/meet/index.ts",
 		"./meet/element": "./src/meet/element.ts",
 		"./catalog": "./src/catalog/index.ts",

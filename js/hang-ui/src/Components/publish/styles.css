@@ -1,48 +1,51 @@
 .publishControlsContainer {
-    display: flex;
-    justify-content: space-around;
-    gap: 16px;
-    margin: 8px 0;
-    align-content: center;
+	display: flex;
+	justify-content: space-around;
+	gap: 16px;
+	margin: 8px 0;
+	align-content: center;
 }
 
 .publishSourceSelectorContainer {
-    display: flex;
-    gap: 16px;
+	display: flex;
+	gap: 16px;
+}
+
+.publishButton {
+	all: unset;
+	cursor: pointer;
+	display: inline-block;
+	font: inherit;
+	color: inherit;
 }
 
 .publishSourceButtonContainer {
-    display: flex;
-    position: relative;
-    align-items: center;
+	display: flex;
+	position: relative;
+	align-items: center;
 }
 
 .publishSourceButton {
-    all: unset;
-    cursor: pointer;
-    opacity: 0.5;
-    display: inline-block;
-    font: inherit;
-    color: inherit;
+	opacity: 0.5;
 }
 
 .publishSourceButton.active {
-    opacity: 1;
+	opacity: 1;
 }
 
 .mediaSourceVisibilityToggle {
-    font-size: 0.75em;
-    cursor: pointer;
-    padding-left: 4px;
+	font-size: 0.75em;
+	cursor: pointer;
+	padding-left: 4px;
 }
 
 .mediaSourceSelector {
-    position: absolute;
-    top: 100%;
-    transform: translateX(-50%);
-    display: block;
+	position: absolute;
+	top: 100%;
+	transform: translateX(-50%);
+	display: block;
 }
 
 .hidden {
-    display: none;
+	display: none;
 }

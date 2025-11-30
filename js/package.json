@@ -5,11 +5,10 @@
 	"type": "module",
 	"workspaces": [
 		"moq",
-		"moq-clock",
+		"moq-clock", 
 		"moq-token",
 		"hang",
 		"hang-demo",
-		"hang-ui",
 		"signals"
 	],
 	"scripts": {

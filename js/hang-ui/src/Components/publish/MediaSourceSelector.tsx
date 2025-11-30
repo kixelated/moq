@@ -19,13 +19,14 @@ export default function MediaSourceSelector(props: MediaSourceSelectorProps) {
 
     return (
         <>
-            <span
+            <button
+                type="button"
                 onClick={toggleSourcesVisible}
-                class="mediaSourceVisibilityToggle"
+                class="publishButton mediaSourceVisibilityToggle"
                 title="Show Sources"
             >
                 {sourcesVisible() ? '▼' : '▲'}
-            </span>
+            </button>
             <Show when={sourcesVisible()}>
                 <select
                     value={props.selectedSource}
