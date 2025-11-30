@@ -126,7 +126,7 @@ This repository provides both [Rust](/rs) and [TypeScript](/js) libraries with s
 | **[@kixelated/moq](js/moq)**             | The core pub/sub transport protocol. Intended for browsers, but can be run server side using [Deno](https://deno.com/).                                   | [![npm](https://img.shields.io/npm/v/@kixelated/moq)](https://www.npmjs.com/package/@kixelated/moq)   |
 | **[@kixelated/hang](js/hang)**           | Media-specific encoding/streaming layered on top of `moq-lite`. Provides both a Javascript API and Web Components. | [![npm](https://img.shields.io/npm/v/@kixelated/hang)](https://www.npmjs.com/package/@kixelated/hang) |
 | **[@kixelated/hang-demo](js/hang-demo)** | Examples using `@kixelated/hang`.                                                                                  |                                                                                                       |
-| **[@kixelated/hang-ui](js/hang-ui)**.    | UI Components that interact with the Hang Web Components using SolidJS.                                                 | [![npm](https://img.shields.io/npm/v/@kixelated/hang-ui)](https://www.npmjs.com/package/@kixelated/hang-ui) |     |
+| **[@kixelated/hang-ui](js/hang-ui)**.    | UI Components that interact with the Hang Web Components using SolidJS.                                                 | [![npm](https://img.shields.io/npm/v/@kixelated/hang-ui)](https://www.npmjs.com/package/@kixelated/hang-ui) |
 
 
 ## Documentation
