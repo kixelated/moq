@@ -49,7 +49,6 @@ export default function PublishUIContextProvider(props: PublishUIContextProvider
 		hangPublishEl.source = "file";
 		hangPublishEl.video = true;
 		hangPublishEl.audio = true;
-		setFileActive(true);
 	};
 
 	const value: PublishUIContextValue = {
