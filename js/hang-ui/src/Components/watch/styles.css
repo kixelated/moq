@@ -5,13 +5,12 @@
 	height: auto;
 	border-radius: 4px;
 	margin: 0 auto;
+	pointer-events: none;
 }
 
 .watchControlsContainer {
 	display: flex;
-	gap: 8px;
-	justify-content: space-around;
-	align-content: center;
+	flex-direction: column;
 }
 
 .watchControlButton {
@@ -85,7 +84,7 @@
 }
 
 .latencySlider {
-	flex: 1;
+	flex: 1 1 0%;
 	height: 6px;
 	border-radius: 3px;
 	background: transparent;
@@ -97,4 +96,20 @@
 	min-width: 60px;
 	text-align: right;
 	color: #fff;
+}
+
+.playbackControlsRow {
+	display: flex;
+	place-content: center space-around;
+	gap: 8px;
+}
+
+.lantencyControlsRow {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	padding: 8px 12px;
+	background: transparent;
+	border-radius: 8px;
+	margin: 8px 0px;
 }

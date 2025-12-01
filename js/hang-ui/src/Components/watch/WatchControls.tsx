@@ -7,11 +7,15 @@ import WatchStatusIndicator from "./WatchStatusIndicator";
 export default function WatchControls() {
 	return (
 		<div class="watchControlsContainer">
-			<PlayPauseButton />
-			<VolumeSlider />
-			<WatchStatusIndicator />
-			<FullscreenButton />
-			<LatencySlider />
+			<div class="playbackControlsRow">
+				<PlayPauseButton />
+				<VolumeSlider />
+				<WatchStatusIndicator />
+				<FullscreenButton />
+			</div>
+			<div class="latencyControlsRow">
+				<LatencySlider />
+			</div>
 		</div>
 	);
 }
