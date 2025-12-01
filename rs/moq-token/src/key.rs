@@ -53,6 +53,7 @@ pub enum Key {
 		#[serde(flatten, skip_serializing_if = "Option::is_none")]
 		private: Option<RsaPrivateKey>,
 	},
+	#[serde(rename = "oct")]
 	OCT {
 		/// The secret key as base64url (unpadded).
 		#[serde(
@@ -1061,7 +1062,7 @@ mod tests {
 	#[test]
 	fn test_backwards_compatibility_unpadded_base64url() {
 		// Create a JSON with unpadded base64url (new format)
-		let unpadded_json = r#"{"kty":"OCT","alg":"HS256","key_ops":["sign","verify"],"k":"dGVzdC1zZWNyZXQtdGhhdC1pcy1sb25nLWVub3VnaC1mb3ItaG1hYy1zaGEyNTY","kid":"test-key-1"}"#;
+		let unpadded_json = r#"{"kty":"oct","alg":"HS256","key_ops":["sign","verify"],"k":"dGVzdC1zZWNyZXQtdGhhdC1pcy1sb25nLWVub3VnaC1mb3ItaG1hYy1zaGEyNTY","kid":"test-key-1"}"#;
 
 		// Should be able to deserialize new format
 		let key: JWK = serde_json::from_str(unpadded_json).unwrap();
@@ -1078,7 +1079,7 @@ mod tests {
 	#[test]
 	fn test_backwards_compatibility_padded_base64url() {
 		// Create a JSON with padded base64url (old format) - same secret but with padding
-		let padded_json = r#"{"kty":"OCT","alg":"HS256","key_ops":["sign","verify"],"k":"dGVzdC1zZWNyZXQtdGhhdC1pcy1sb25nLWVub3VnaC1mb3ItaG1hYy1zaGEyNTY=","kid":"test-key-1"}"#;
+		let padded_json = r#"{"kty":"oct","alg":"HS256","key_ops":["sign","verify"],"k":"dGVzdC1zZWNyZXQtdGhhdC1pcy1sb25nLWVub3VnaC1mb3ItaG1hYy1zaGEyNTY=","kid":"test-key-1"}"#;
 
 		// Should be able to deserialize old format for backwards compatibility
 		let key: JWK = serde_json::from_str(padded_json).unwrap();
