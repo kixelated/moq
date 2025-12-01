@@ -92,7 +92,7 @@ export default function WatchUIContextProvider(props: WatchUIContextProviderProp
 			onWatchInstanceAvailable(hangWatchEl, watchInstance);
 		};
 
-		if (!hangWatchEl.active) {
+		if (!hangWatchEl.active?.peek()) {
 			// @ts-expect-error ignore custom event - todo add event map
 			hangWatchEl.addEventListener("watch-instance-available", onInstanceAvailable);
 			onCleanup(() => {
