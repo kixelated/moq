@@ -27,11 +27,11 @@
 		TODO: There's a bug with Big Buck Bunny causing audio to stutter, so we need to increase the latency to 100ms.
 
 	-->
-	<hang-watch-ui>
-		<hang-watch url="%VITE_RELAY_URL%" path="bbb" muted>
-			<canvas style="width: 100%; height: auto; border-radius: 4px; margin: 0 auto;"></canvas>
-		</hang-watch>
-	</hang-watch-ui>
+	<hang-watch url="%VITE_RELAY_URL%" path="bbb" muted controls>
+		<div id="watch-container" style="width: 100%; height: auto; border-radius: 4px; margin: 0 auto; position: relative">
+			<canvas style="width: 100%; height: auto;"></canvas>
+		</div>
+	</hang-watch>
 
 	<h3>Other demos:</h3>
 	<ul>

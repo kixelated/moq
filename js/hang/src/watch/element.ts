@@ -295,7 +295,287 @@ export class HangWatchInstance {
 		this.broadcast.close();
 		this.video.close();
 		this.audio.close();
-		this.signals.close();
+		this.#signals.close();
+	}
+
+	#renderControls(effect: Effect) {
+		const controls = DOM.create("div", {
+			style: {
+				display: "flex",
+				justifyContent: "space-around",
+				gap: "8px",
+				alignContent: "center",
+			},
+		});
+
+		DOM.render(effect, this.parent, controls);
+
+		effect.effect((effect) => {
+			const show = effect.get(this.parent.signals.controls);
+			if (!show) return;
+
+			this.#renderPause(controls, effect);
+			this.#renderVolume(controls, effect);
+			this.#renderStatus(controls, effect);
+			this.#renderFullscreen(controls, effect);
+			this.#renderBuffering(effect);
+			this.#renderLatency(effect);
+		});
+	}
+
+	#renderPause(parent: HTMLDivElement, effect: Effect) {
+		const button = DOM.create("button", {
+			type: "button",
+			title: "Pause",
+		});
+
+		effect.event(button, "click", (e) => {
+			e.preventDefault();
+			this.video.paused.update((prev) => !prev);
+		});
+
+		effect.effect((effect) => {
+			const paused = effect.get(this.video.paused);
+			button.textContent = paused ? "▶️" : "⏸️";
+		});
+
+		DOM.render(effect, parent, button);
+	}
+
+	#renderVolume(parent: HTMLDivElement, effect: Effect) {
+		const container = DOM.create("div", {
+			style: {
+				display: "flex",
+				alignItems: "center",
+				gap: "0.25rem",
+			},
+		});
+
+		const muteButton = DOM.create("button", {
+			type: "button",
+			title: "Mute",
+		});
+
+		effect.event(muteButton, "click", () => {
+			this.audio.muted.update((p) => !p);
+		});
+
+		const volumeSlider = DOM.create("input", {
+			type: "range",
+			min: "0",
+			max: "100",
+		});
+
+		effect.event(volumeSlider, "input", (e) => {
+			const target = e.currentTarget as HTMLInputElement;
+			const volume = parseFloat(target.value) / 100;
+			this.audio.volume.set(volume);
+		});
+
+		const volumeLabel = DOM.create("span", {
+			style: {
+				display: "inline-block",
+				width: "2em",
+				textAlign: "right",
+			},
+		});
+
+		effect.effect((effect) => {
+			const volume = effect.get(this.audio.volume);
+			const rounded = Math.round(volume * 100);
+
+			muteButton.textContent = volume === 0 ? "🔇" : "🔊";
+			volumeSlider.value = (volume * 100).toString();
+			volumeLabel.textContent = `${rounded}%`;
+		});
+
+		DOM.render(effect, container, muteButton);
+		DOM.render(effect, container, volumeSlider);
+		DOM.render(effect, container, volumeLabel);
+		DOM.render(effect, parent, container);
+	}
+
+	#renderStatus(parent: HTMLDivElement, effect: Effect) {
+		const container = DOM.create("div");
+
+		effect.effect((effect) => {
+			const url = effect.get(this.connection.url);
+			const connection = effect.get(this.connection.status);
+			const broadcast = effect.get(this.broadcast.status);
+
+			if (!url) {
+				container.textContent = "🔴\u00A0No URL";
+			} else if (connection === "disconnected") {
+				container.textContent = "🔴\u00A0Disconnected";
+			} else if (connection === "connecting") {
+				container.textContent = "🟡\u00A0Connecting...";
+			} else if (broadcast === "offline") {
+				container.textContent = "🔴\u00A0Offline";
+			} else if (broadcast === "loading") {
+				container.textContent = "🟡\u00A0Loading...";
+			} else if (broadcast === "live") {
+				container.textContent = "🟢\u00A0Live";
+			} else if (connection === "connected") {
+				container.textContent = "🟢\u00A0Connected";
+			}
+		});
+
+		DOM.render(effect, parent, container);
+	}
+
+	#renderFullscreen(parent: HTMLDivElement, effect: Effect) {
+		const button = DOM.create(
+			"button",
+			{
+				type: "button",
+				title: "Fullscreen",
+			},
+			"⛶",
+		);
+
+		effect.event(button, "click", () => {
+			if (document.fullscreenElement) {
+				document.exitFullscreen();
+			} else {
+				this.parent.requestFullscreen();
+			}
+		});
+
+		DOM.render(effect, parent, button);
+	}
+
+	#renderLatency(effect: Effect) {
+		const container = DOM.create("div", {
+			style: {
+				display: "flex",
+				alignItems: "center",
+				gap: "8px",
+				padding: "8px 12px",
+				background: "transparent",
+				borderRadius: "8px",
+				margin: "8px 0",
+			},
+		});
+
+		const label = DOM.create("span", {
+			style: {
+				fontSize: "20px",
+				fontWeight: "500",
+				color: "#fff",
+				whiteSpace: "nowrap",
+			},
+			textContent: "Latency:",
+		});
+
+		const slider = DOM.create("input", {
+			type: "range",
+			style: {
+				flex: "1",
+				height: "6px",
+				borderRadius: "3px",
+				background: "transparent",
+				cursor: "pointer",
+			},
+			min: "0",
+			max: "20000",
+			step: "100",
+		});
+
+		const valueDisplay = DOM.create("span", {
+			style: {
+				fontSize: "20px",
+				minWidth: "60px",
+				textAlign: "right",
+				color: "#fff",
+			},
+		});
+
+		effect.event(slider, "input", (e) => {
+			const target = e.currentTarget as HTMLInputElement;
+			const latency = parseFloat(target.value);
+			this.parent.signals.latency.set(latency as Time.Milli);
+		});
+
+		effect.effect((innerEffect) => {
+			const latency = innerEffect.get(this.parent.signals.latency);
+
+			if (document.activeElement !== slider) {
+				slider.value = latency.toString();
+			}
+
+			valueDisplay.textContent = `${Math.round(latency)}ms`;
+		});
+
+		DOM.render(effect, container, label);
+		DOM.render(effect, container, slider);
+		DOM.render(effect, container, valueDisplay);
+		DOM.render(effect, this.parent, container);
+	}
+
+	#renderBuffering(effect: Effect) {
+		const container = this.parent.querySelector("#watch-container") as HTMLElement;
+		if (!container) return;
+
+		if (!document.getElementById("buffer-spinner-animation")) {
+			const style = document.createElement("style");
+			style.id = "buffer-spinner-animation";
+			style.textContent = `
+				@keyframes buffer-spin {
+					0% { transform: rotate(0deg); }
+					100% { transform: rotate(360deg); }
+				}
+			`;
+			document.head.appendChild(style);
+		}
+
+		const overlay = DOM.create("div", {
+			style: {
+				position: "absolute",
+				display: "none",
+				justifyContent: "center",
+				alignItems: "center",
+				width: "100%",
+				height: "100%",
+				top: "0",
+				left: "0",
+				zIndex: "1",
+				backgroundColor: "rgba(0, 0, 0, 0.4)",
+				backdropFilter: "blur(2px)",
+				pointerEvents: "none",
+			},
+		});
+
+		const spinner = DOM.create("div", {
+			style: {
+				width: "40px",
+				height: "40px",
+				border: "4px solid rgba(255, 255, 255, 0.2)",
+				borderTop: "4px solid #fff",
+				borderRadius: "50%",
+				animation: "buffer-spin 1s linear infinite",
+			},
+		});
+
+		overlay.appendChild(spinner);
+		container.appendChild(overlay);
+
+		effect.effect((effect) => {
+			const syncStatus = effect.get(this.video.source.syncStatus);
+			const bufferStatus = effect.get(this.video.source.bufferStatus);
+			const shouldShow = syncStatus.state === "wait" || bufferStatus.state === "empty";
+
+			if (shouldShow) {
+				overlay.style.display = "flex";
+			} else {
+				overlay.style.display = "none";
+			}
+		});
+
+		effect.cleanup(() => {
+			if (overlay.parentNode) {
+				overlay.parentNode.removeChild(overlay);
+			}
+		});
 	}
 }
 
