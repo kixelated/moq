@@ -1,6 +1,7 @@
 use anyhow::Context;
 use clap::{Parser, Subcommand};
 use std::{io, path::PathBuf};
+use moq_token::Algorithm;
 
 #[derive(Debug, Parser)]
 #[command(name = "moq-token")]
@@ -23,11 +24,15 @@ enum Commands {
 	Generate {
 		/// The algorithm to use.
 		#[arg(long, default_value = "HS256")]
-		algorithm: moq_token::Algorithm,
+		algorithm: Algorithm,
 
 		/// An optional key ID, useful for rotating keys.
 		#[arg(long)]
 		id: Option<String>,
+
+		/// Optional path to save the public key (for asymmetric algorithms).
+		#[arg(long)]
+		public: Option<PathBuf>,
 	},
 
 	/// Sign a token to stdout, reading the key from stdin.
@@ -75,9 +80,14 @@ fn main() -> anyhow::Result<()> {
 	let cli = Cli::parse();
 
 	match cli.command {
-		Commands::Generate { algorithm, id } => {
-			let key = moq_token::Key::generate(algorithm, id);
-			key.to_file(cli.key)?;
+		Commands::Generate { algorithm, id, public } => {
+			let key = moq_token::JWK::generate(algorithm, id)?;
+
+			if let Some(public) = public {
+				key.to_public().to_file(public)?;
+			}
+
+			key.to_file(&cli.key)?;
 		}
 
 		Commands::Sign {
@@ -88,7 +98,7 @@ fn main() -> anyhow::Result<()> {
 			expires,
 			issued,
 		} => {
-			let key = moq_token::Key::from_file(cli.key)?;
+			let key = moq_token::JWK::from_file(cli.key)?;
 
 			let payload = moq_token::Claims {
 				root,
@@ -104,7 +114,7 @@ fn main() -> anyhow::Result<()> {
 		}
 
 		Commands::Verify => {
-			let key = moq_token::Key::from_file(cli.key)?;
+			let key = moq_token::JWK::from_file(cli.key)?;
 			let token = io::read_to_string(io::stdin())?.trim().to_string();
 			let payload = key.decode(&token)?;
 

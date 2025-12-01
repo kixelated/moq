@@ -47,6 +47,7 @@ Key features:
 - Path-based authorization with `root`, `pub`, and `sub` claims
 - Anonymous access support for public content
 - Symmetric key cryptography (HMAC-SHA256/384/512)
+- Asymmetric key cryptography (RSASSA-PKCS1-SHA256/384/512, RSASSA-PSS-SHA256/384/512, ECDSA-SHA256/384)
 
 Quick example configuration in your `.toml` file:
 ```toml

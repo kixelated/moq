@@ -1,10 +1,19 @@
-use std::{collections::HashSet, fmt, path::Path as StdPath, sync::OnceLock};
-
-use base64::Engine;
-use jsonwebtoken::{DecodingKey, EncodingKey, Header};
-use serde::{Deserialize, Deserializer, Serialize, Serializer};
-
+use crate::generate::generate;
 use crate::{Algorithm, Claims};
+use anyhow::bail;
+use base64::Engine;
+#[cfg(feature = "jwk-ec")]
+use elliptic_curve::pkcs8::{EncodePrivateKey, EncodePublicKey};
+#[cfg(feature = "jwk-ec")]
+use elliptic_curve::sec1::FromEncodedPoint;
+use jsonwebtoken::{DecodingKey, EncodingKey, Header};
+#[cfg(feature = "jwk-rsa")]
+use rsa::pkcs1::{EncodeRsaPrivateKey};
+#[cfg(feature = "jwk-rsa")]
+use rsa::BigUint;
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
+use std::sync::OnceLock;
+use std::{collections::HashSet, fmt, path::Path as StdPath};
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash, PartialOrd, Ord)]
 #[serde(rename_all = "camelCase")]
@@ -15,9 +24,103 @@ pub enum KeyOperation {
 	Encrypt,
 }
 
+#[derive(Clone, Serialize, Deserialize)]
+#[serde(tag = "kty")]
+pub enum Key {
+	#[cfg(feature = "jwk-ec")]
+	EC {
+		#[serde(rename = "crv")]
+		curve: EcCurve,
+		/// The X-coordinate of an EC key
+		#[serde(serialize_with = "serialize_base64url", deserialize_with = "deserialize_base64url")]
+		x: Vec<u8>,
+		/// The Y-coordinate of an EC key
+		#[serde(serialize_with = "serialize_base64url", deserialize_with = "deserialize_base64url")]
+		y: Vec<u8>,
+		/// The private value of an EC key
+		#[serde(
+			default,
+			skip_serializing_if = "Option::is_none",
+			serialize_with = "serialize_base64url_optional",
+			deserialize_with = "deserialize_base64url_optional"
+		)]
+		d: Option<Vec<u8>>,
+	},
+	#[cfg(feature = "jwk-rsa")]
+	RSA {
+		#[serde(flatten)]
+		public: RsaPublicKey,
+		#[serde(flatten, skip_serializing_if = "Option::is_none")]
+		private: Option<RsaPrivateKey>,
+	},
+	OCT {
+		/// The secret key as base64url (unpadded).
+		#[serde(
+			rename = "k",
+			default,
+			serialize_with = "serialize_base64url",
+			deserialize_with = "deserialize_base64url"
+		)]
+		secret: Vec<u8>,
+	},
+}
+
+#[cfg(feature = "jwk-ec")]
+#[derive(Clone, Serialize, Deserialize)]
+pub enum EcCurve {
+	#[serde(rename = "P-256")]
+	P256,
+	#[serde(rename = "P-384")]
+	P384,
+	// jsonwebtoken doesn't support the ES512 algorithm, so we can't implement this
+	// #[serde(rename = "P-521")]
+	// P521,
+}
+
+#[cfg(feature = "jwk-rsa")]
+#[derive(Clone, Serialize, Deserialize)]
+pub struct RsaPublicKey {
+	#[serde(
+		rename = "n",
+		serialize_with = "serialize_base64url",
+		deserialize_with = "deserialize_base64url"
+	)]
+	pub modulus: Vec<u8>,
+	#[serde(
+		rename = "e",
+		serialize_with = "serialize_base64url",
+		deserialize_with = "deserialize_base64url"
+	)]
+	pub exponent: Vec<u8>,
+}
+
+#[cfg(feature = "jwk-rsa")]
+#[derive(Clone, Serialize, Deserialize)]
+pub struct RsaPrivateKey {
+	#[serde(
+		rename = "d",
+		serialize_with = "serialize_base64url",
+		deserialize_with = "deserialize_base64url"
+	)]
+	pub exponent: Vec<u8>,
+	#[serde(
+		rename = "p",
+		serialize_with = "serialize_base64url",
+		deserialize_with = "deserialize_base64url"
+	)]
+	pub first_prime: Vec<u8>,
+	#[serde(
+		rename = "q",
+		serialize_with = "serialize_base64url",
+		deserialize_with = "deserialize_base64url"
+	)]
+	pub second_prime: Vec<u8>,
+	// TODO RFC7518 defines more parameters for optimization https://datatracker.ietf.org/doc/html/rfc7518#section-6.2
+}
+
 /// Similar to JWK but not quite the same because it's annoying to implement.
 #[derive(Clone, Serialize, Deserialize)]
-pub struct Key {
+pub struct JWK {
 	/// The algorithm used by the key.
 	#[serde(rename = "alg")]
 	pub algorithm: Algorithm,
@@ -26,13 +129,8 @@ pub struct Key {
 	#[serde(rename = "key_ops")]
 	pub operations: HashSet<KeyOperation>,
 
-	/// The secret key as base64url (unpadded).
-	#[serde(
-		rename = "k",
-		serialize_with = "serialize_base64url",
-		deserialize_with = "deserialize_base64url"
-	)]
-	pub secret: Vec<u8>,
+	#[serde(flatten)]
+	pub key: Key, // TODO For backwards compatibility this should default to kty = OCT
 
 	/// The key ID, useful for rotating keys.
 	#[serde(skip_serializing_if = "Option::is_none")]
@@ -46,7 +144,7 @@ pub struct Key {
 	pub(crate) encode: OnceLock<EncodingKey>,
 }
 
-impl fmt::Debug for Key {
+impl fmt::Debug for JWK {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
 		f.debug_struct("Key")
 			.field("algorithm", &self.algorithm)
@@ -56,7 +154,7 @@ impl fmt::Debug for Key {
 	}
 }
 
-impl Key {
+impl JWK {
 	#[allow(clippy::should_implement_trait)]
 	pub fn from_str(s: &str) -> anyhow::Result<Self> {
 		Ok(serde_json::from_str(s)?)
@@ -83,93 +181,219 @@ impl Key {
 		Ok(())
 	}
 
-	pub fn decode(&self, token: &str) -> anyhow::Result<Claims> {
-		if !self.operations.contains(&KeyOperation::Verify) {
-			anyhow::bail!("key does not support verification");
+	pub fn to_public(&self) -> Self {
+		Self {
+			algorithm: self.algorithm,
+			operations: [KeyOperation::Verify].into(),
+			key: match self.key {
+				#[cfg(feature = "jwk-rsa")]
+				Key::RSA { ref public, .. } => Key::RSA {
+					public: public.clone(),
+					private: None,
+				},
+				#[cfg(feature = "jwk-ec")]
+				Key::EC {
+					ref x,
+					ref y,
+					ref curve,
+					..
+				} => Key::EC {
+					x: x.clone(),
+					y: y.clone(),
+					curve: curve.clone(),
+					d: None,
+				},
+				Key::OCT { .. } => panic!("OCT key cannot be converted to public key"),
+			},
+			kid: self.kid.clone(),
+			decode: Default::default(),
+			encode: Default::default(),
+		}
+	}
+
+	fn to_decoding_key(&self) -> anyhow::Result<&DecodingKey> {
+		if let Some(key) = self.decode.get() {
+			return Ok(key);
 		}
 
-		let decode = self.decode.get_or_init(|| match self.algorithm {
-			Algorithm::HS256 | Algorithm::HS384 | Algorithm::HS512 => DecodingKey::from_secret(&self.secret),
-			/*
-			Algorithm::RS256 | Algorithm::RS384 | Algorithm::RS512 => DecodingKey::from_rsa_der(&self.der),
-			Algorithm::PS256 | Algorithm::PS384 | Algorithm::PS512 => DecodingKey::from_rsa_der(&self.der),
-			Algorithm::ES256 | Algorithm::ES384 => DecodingKey::from_ec_der(&self.der),
-			Algorithm::EdDSA => DecodingKey::from_ed_der(&self.der),
-			*/
-		});
+		let decoding_key = match self.key {
+			Key::OCT { ref secret } => match self.algorithm {
+				Algorithm::HS256 | Algorithm::HS384 | Algorithm::HS512 => Ok(DecodingKey::from_secret(secret)),
+				_ => bail!("Invalid algorithm for key type OCT"),
+			},
+			#[cfg(feature = "jwk-ec")]
+			Key::EC {
+				ref curve,
+				ref x,
+				ref y,
+				..
+			} => {
+				match self.algorithm {
+					Algorithm::ES256 | Algorithm::ES384 => match curve {
+						EcCurve::P256 => {
+							if x.len() != 32 || y.len() != 32 {
+								bail!("Invalid coordinate length for P-256");
+							}
+							let point = p256::EncodedPoint::from_affine_coordinates(
+								p256::FieldBytes::from_slice(x),
+								p256::FieldBytes::from_slice(y),
+								false,
+							);
+							let public_key =
+								Option::<p256::PublicKey>::from(p256::PublicKey::from_encoded_point(&point))
+									.ok_or_else(|| anyhow::anyhow!("Invalid P-256 point"))?;
+							let der = public_key.to_public_key_pem(elliptic_curve::pkcs8::LineEnding::LF)?;
+							Ok(DecodingKey::from_ec_pem(der.as_bytes())?)
+						}
+						EcCurve::P384 => {
+							if x.len() != 48 || y.len() != 48 {
+								bail!("Invalid coordinate length for P-384");
+							}
+							let point = p384::EncodedPoint::from_affine_coordinates(
+								p384::FieldBytes::from_slice(x),
+								p384::FieldBytes::from_slice(y),
+								false,
+							);
+							let public_key =
+								Option::<p384::PublicKey>::from(p384::PublicKey::from_encoded_point(&point))
+									.ok_or_else(|| anyhow::anyhow!("Invalid P-384 point"))?;
+							let der = public_key.to_public_key_pem(elliptic_curve::pkcs8::LineEnding::LF)?;
+							Ok(DecodingKey::from_ec_pem(der.as_bytes())?)
+						}
+					},
+					// Algorithm::EdDSA => DecodingKey::from_ed_der(&self.secret),
+					_ => bail!("Invalid algorithm for key type EC"),
+				}
+			}
+			#[cfg(feature = "jwk-rsa")]
+			Key::RSA { ref public, .. } => match self.algorithm {
+				Algorithm::RS256 | Algorithm::RS384 | Algorithm::RS512 => Ok(DecodingKey::from_rsa_raw_components(
+					public.modulus.as_ref(),
+					public.exponent.as_ref(),
+				)),
+				Algorithm::PS256 | Algorithm::PS384 | Algorithm::PS512 => Ok(DecodingKey::from_rsa_raw_components(
+					public.modulus.as_ref(),
+					public.exponent.as_ref(),
+				)),
+				_ => bail!("Invalid algorithm for key type RSA"),
+			},
+		};
 
-		let mut validation = jsonwebtoken::Validation::new(self.algorithm.into());
-		validation.required_spec_claims = Default::default(); // Don't require exp, but still validate it if present
+		match decoding_key {
+			Ok(key) => Ok(self.decode.get_or_init(|| key)),
+			Err(e) => Err(e),
+		}
+	}
 
-		let token = jsonwebtoken::decode::<Claims>(token, decode, &validation)?;
-		token.claims.validate()?;
+	fn to_encoding_key(&self) -> anyhow::Result<&EncodingKey> {
+		if let Some(key) = self.encode.get() {
+			return Ok(key);
+		}
 
-		Ok(token.claims)
+		let encoding_key = match self.key {
+			Key::OCT { ref secret } => match self.algorithm {
+				Algorithm::HS256 | Algorithm::HS384 | Algorithm::HS512 => Ok(EncodingKey::from_secret(secret)),
+				_ => bail!("Invalid algorithm for key type OCT"),
+			},
+			#[cfg(feature = "jwk-ec")]
+			Key::EC { ref curve, ref d, .. } => {
+				match self.algorithm {
+					Algorithm::ES256 | Algorithm::ES384 => {
+						let d = d.as_ref().ok_or_else(|| anyhow::anyhow!("Missing private key"))?;
+
+						match curve {
+							EcCurve::P256 => {
+								let secret_key = p256::SecretKey::from_slice(d)?;
+								let doc = secret_key.to_pkcs8_der()?;
+								Ok(EncodingKey::from_ec_der(doc.as_bytes()))
+							}
+							EcCurve::P384 => {
+								let secret_key = p384::SecretKey::from_slice(d)?;
+								let doc = secret_key.to_pkcs8_der()?;
+								Ok(EncodingKey::from_ec_der(doc.as_bytes()))
+							}
+						}
+					}
+					// Algorithm::EdDSA => EncodingKey::from_ed_der(&self.secret),
+					_ => bail!("Invalid algorithm for key type EC"),
+				}
+			}
+			#[cfg(feature = "jwk-rsa")]
+			Key::RSA {
+				ref public,
+				ref private,
+			} => match self.algorithm {
+				Algorithm::RS256
+				| Algorithm::RS384
+				| Algorithm::RS512
+				| Algorithm::PS256
+				| Algorithm::PS384
+				| Algorithm::PS512 => {
+					let n = BigUint::from_bytes_be(&public.modulus);
+					let e = BigUint::from_bytes_be(&public.exponent);
+					let d = BigUint::from_bytes_be(&private.as_ref().unwrap().exponent);
+					let p = BigUint::from_bytes_be(&private.as_ref().unwrap().first_prime);
+					let q = BigUint::from_bytes_be(&private.as_ref().unwrap().second_prime);
+
+					let rsa = rsa::RsaPrivateKey::from_components(n, e, d, vec![p, q]);
+					let pem = rsa?.to_pkcs1_pem(rsa::pkcs1::LineEnding::LF);
+
+					Ok(EncodingKey::from_rsa_pem(pem?.as_bytes())?)
+				}
+				_ => bail!("Invalid algorithm for key type RSA"),
+			},
+		};
+
+		match encoding_key {
+			Ok(key) => Ok(self.encode.get_or_init(|| key)),
+			Err(e) => Err(e),
+		}
+	}
+
+	pub fn decode(&self, token: &str) -> anyhow::Result<Claims> {
+		if !self.operations.contains(&KeyOperation::Verify) {
+			bail!("key does not support verification");
+		}
+
+		let decode: anyhow::Result<&DecodingKey> = self.to_decoding_key();
+
+		match decode {
+			Ok(decode) => {
+				let mut validation = jsonwebtoken::Validation::new(self.algorithm.into());
+				validation.required_spec_claims = Default::default(); // Don't require exp, but still validate it if present
+
+				let token = jsonwebtoken::decode::<Claims>(token, decode, &validation)?;
+				token.claims.validate()?;
+
+				Ok(token.claims)
+			}
+			Err(e) => Err(anyhow::anyhow!("Failed to decode key: {}", e)),
+		}
 	}
 
 	pub fn encode(&self, payload: &Claims) -> anyhow::Result<String> {
 		if !self.operations.contains(&KeyOperation::Sign) {
-			anyhow::bail!("key does not support signing");
+			bail!("key does not support signing");
 		}
 
 		payload.validate()?;
 
-		let encode = self.encode.get_or_init(|| match self.algorithm {
-			Algorithm::HS256 | Algorithm::HS384 | Algorithm::HS512 => EncodingKey::from_secret(&self.secret),
-			/*
-			Algorithm::PS256 | Algorithm::PS384 | Algorithm::PS512 => EncodingKey::from_rsa_der(&self.der),
-			Algorithm::RS256 | Algorithm::RS384 | Algorithm::RS512 => EncodingKey::from_rsa_der(&self.der),
-			Algorithm::ES256 | Algorithm::ES384 => EncodingKey::from_ec_der(&self.der),
-			Algorithm::EdDSA => EncodingKey::from_ed_der(&self.der),
-			*/
-		});
+		let encode: anyhow::Result<&EncodingKey> = self.to_encoding_key();
 
-		let mut header = Header::new(self.algorithm.into());
-		header.kid = self.kid.clone();
-		let token = jsonwebtoken::encode(&header, &payload, encode)?;
-		Ok(token)
+		match encode {
+			Ok(encode) => {
+				let mut header = Header::new(self.algorithm.into());
+				header.kid = self.kid.clone();
+				let token = jsonwebtoken::encode(&header, &payload, encode)?;
+				Ok(token)
+			}
+			Err(e) => Err(anyhow::anyhow!("Failed to encode key: {}", e)),
+		}
 	}
 
 	/// Generate a key pair for the given algorithm, returning the private and public keys.
-	pub fn generate(algorithm: Algorithm, id: Option<String>) -> Self {
-		let private_key = match algorithm {
-			Algorithm::HS256 => generate_hmac_key::<32>(),
-			Algorithm::HS384 => generate_hmac_key::<48>(),
-			Algorithm::HS512 => generate_hmac_key::<64>(),
-			/*
-			Algorithm::RS256 => generate_rsa_key(rsa::KeySize::Rsa2048),
-			Algorithm::RS384 => generate_rsa_key(rsa::KeySize::Rsa2048),
-			Algorithm::RS512 => generate_rsa_key(rsa::KeySize::Rsa2048),
-			Algorithm::ES256 => generate_ec_key(&signature::ECDSA_P256_SHA256_FIXED_SIGNING),
-			Algorithm::ES384 => generate_ec_key(&signature::ECDSA_P384_SHA384_FIXED_SIGNING),
-			Algorithm::PS256 => generate_rsa_key(rsa::KeySize::Rsa2048),
-			Algorithm::PS384 => generate_rsa_key(rsa::KeySize::Rsa2048),
-			Algorithm::PS512 => generate_rsa_key(rsa::KeySize::Rsa2048),
-			Algorithm::EdDSA => generate_ed25519_key(),
-			*/
-		};
-
-		Key {
-			kid: id.clone(),
-			operations: [KeyOperation::Sign, KeyOperation::Verify].into(),
-			algorithm,
-			secret: private_key,
-			decode: Default::default(),
-			encode: Default::default(),
-		}
-
-		/*
-		let public_key = Key {
-			kid: id,
-			operations: [KeyOperation::Verify].into(),
-			algorithm,
-			der: public_key,
-			decode: Default::default(),
-			encode: Default::default(),
-		};
-
-		(private_key, public_key)
-		*/
+	pub fn generate(algorithm: Algorithm, id: Option<String>) -> anyhow::Result<Self> {
+		generate(algorithm, id)
 	}
 }
 
@@ -180,6 +404,16 @@ where
 {
 	let encoded = base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(bytes);
 	serializer.serialize_str(&encoded)
+}
+
+fn serialize_base64url_optional<S>(bytes: &Option<Vec<u8>>, serializer: S) -> Result<S::Ok, S::Error>
+where
+	S: Serializer,
+{
+	match bytes {
+		Some(b) => serialize_base64url(b, serializer),
+		None => serializer.serialize_none(),
+	}
 }
 
 /// Deserialize base64url string to bytes, supporting both padded and unpadded formats for backwards compatibility
@@ -199,10 +433,21 @@ where
 		.map_err(serde::de::Error::custom)
 }
 
-fn generate_hmac_key<const SIZE: usize>() -> Vec<u8> {
-	let mut key = [0u8; SIZE];
-	aws_lc_rs::rand::fill(&mut key).unwrap();
-	key.to_vec()
+fn deserialize_base64url_optional<'de, D>(deserializer: D) -> Result<Option<Vec<u8>>, D::Error>
+where
+	D: Deserializer<'de>,
+{
+	let s: Option<String> = Option::deserialize(deserializer)?;
+	match s {
+		Some(s) => {
+			let decoded = base64::engine::general_purpose::URL_SAFE_NO_PAD
+				.decode(&s)
+				.or_else(|_| base64::engine::general_purpose::URL_SAFE.decode(&s))
+				.map_err(serde::de::Error::custom)?;
+			Ok(Some(decoded))
+		}
+		None => Ok(None),
+	}
 }
 
 #[cfg(test)]
@@ -210,11 +455,13 @@ mod tests {
 	use super::*;
 	use std::time::{Duration, SystemTime};
 
-	fn create_test_key() -> Key {
-		Key {
+	fn create_test_key() -> JWK {
+		JWK {
 			algorithm: Algorithm::HS256,
 			operations: [KeyOperation::Sign, KeyOperation::Verify].into(),
-			secret: b"test-secret-that-is-long-enough-for-hmac-sha256".to_vec(),
+			key: Key::OCT {
+				secret: b"test-secret-that-is-long-enough-for-hmac-sha256".to_vec(),
+			},
 			kid: Some("test-key-1".to_string()),
 			decode: Default::default(),
 			encode: Default::default(),
@@ -236,17 +483,22 @@ mod tests {
 	fn test_key_from_str_valid() {
 		let key = create_test_key();
 		let json = key.to_str().unwrap();
-		let loaded_key = Key::from_str(&json).unwrap();
+		let loaded_key = JWK::from_str(&json).unwrap();
 
 		assert_eq!(loaded_key.algorithm, key.algorithm);
 		assert_eq!(loaded_key.operations, key.operations);
-		assert_eq!(loaded_key.secret, key.secret);
+		match (loaded_key.key, key.key) {
+			(Key::OCT { secret: loaded_secret }, Key::OCT { secret }) => {
+				assert_eq!(loaded_secret, secret);
+			}
+			_ => panic!("Expected OCT key"),
+		}
 		assert_eq!(loaded_key.kid, key.kid);
 	}
 
 	#[test]
 	fn test_key_from_str_invalid_json() {
-		let result = Key::from_str("invalid json");
+		let result = JWK::from_str("invalid json");
 		assert!(result.is_err());
 	}
 
@@ -400,30 +652,110 @@ mod tests {
 
 	#[test]
 	fn test_key_generate_hs256() {
-		let key = Key::generate(Algorithm::HS256, Some("test-id".to_string()));
+		let key = JWK::generate(Algorithm::HS256, Some("test-id".to_string()));
+		assert!(key.is_ok());
+		let key = key.unwrap();
+
 		assert_eq!(key.algorithm, Algorithm::HS256);
 		assert_eq!(key.kid, Some("test-id".to_string()));
 		assert_eq!(key.operations, [KeyOperation::Sign, KeyOperation::Verify].into());
-		assert_eq!(key.secret.len(), 32);
+
+		match key.key {
+			Key::OCT { ref secret } => assert_eq!(secret.len(), 32),
+			_ => panic!("Expected OCT key"),
+		}
 	}
 
 	#[test]
 	fn test_key_generate_hs384() {
-		let key = Key::generate(Algorithm::HS384, Some("test-id".to_string()));
+		let key = JWK::generate(Algorithm::HS384, Some("test-id".to_string()));
+		assert!(key.is_ok());
+		let key = key.unwrap();
+
 		assert_eq!(key.algorithm, Algorithm::HS384);
-		assert_eq!(key.secret.len(), 48);
+
+		match key.key {
+			Key::OCT { ref secret } => assert_eq!(secret.len(), 48),
+			_ => panic!("Expected OCT key"),
+		}
 	}
 
 	#[test]
 	fn test_key_generate_hs512() {
-		let key = Key::generate(Algorithm::HS512, Some("test-id".to_string()));
+		let key = JWK::generate(Algorithm::HS512, Some("test-id".to_string()));
+		assert!(key.is_ok());
+		let key = key.unwrap();
+
 		assert_eq!(key.algorithm, Algorithm::HS512);
-		assert_eq!(key.secret.len(), 64);
+
+		match key.key {
+			Key::OCT { ref secret } => assert_eq!(secret.len(), 64),
+			_ => panic!("Expected OCT key"),
+		}
 	}
 
 	#[test]
+	#[cfg(feature = "jwk-rsa")]
+	fn test_key_generate_rs512() {
+		let key = JWK::generate(Algorithm::RS512, Some("test-id".to_string()));
+		assert!(key.is_ok());
+		let key = key.unwrap();
+
+		assert_eq!(key.algorithm, Algorithm::RS512);
+		assert!(matches!(key.key, Key::RSA { .. }));
+		match key.key {
+			Key::RSA {
+				ref public,
+				ref private,
+			} => {
+				assert!(private.is_some());
+				assert_eq!(public.modulus.len(), 256);
+				assert_eq!(public.exponent.len(), 3);
+			}
+			_ => panic!("Expected RSA key"),
+		}
+	}
+
+	#[test]
+	#[cfg(feature = "jwk-ec")]
+	fn test_key_generate_es256() {
+		let key = JWK::generate(Algorithm::ES256, Some("test-id".to_string()));
+		assert!(key.is_ok());
+		let key = key.unwrap();
+
+		assert_eq!(key.algorithm, Algorithm::ES256);
+		assert!(matches!(key.key, Key::EC { .. }))
+	}
+
+	#[test]
+	#[cfg(feature = "jwk-rsa")]
+	fn test_key_generate_ps512() {
+		let key = JWK::generate(Algorithm::PS512, Some("test-id".to_string()));
+		assert!(key.is_ok());
+		let key = key.unwrap();
+
+		assert_eq!(key.algorithm, Algorithm::PS512);
+		assert!(matches!(key.key, Key::RSA { .. }))
+	}
+
+	/*
+	TODO
+	#[test]
+	fn test_key_generate_eddsa() {
+		let key = JWK::generate(Algorithm::EdDSA, Some("test-id".to_string()));
+		assert!(key.is_ok());
+		let key = key.unwrap();
+
+		assert_eq!(key.algorithm, Algorithm::EdDSA);
+	}
+	*/
+
+	#[test]
 	fn test_key_generate_without_id() {
-		let key = Key::generate(Algorithm::HS256, None);
+		let key = JWK::generate(Algorithm::HS256, None);
+		assert!(key.is_ok());
+		let key = key.unwrap();
+
 		assert_eq!(key.algorithm, Algorithm::HS256);
 		assert_eq!(key.kid, None);
 		assert_eq!(key.operations, [KeyOperation::Sign, KeyOperation::Verify].into());
@@ -431,7 +763,10 @@ mod tests {
 
 	#[test]
 	fn test_key_generate_sign_verify_cycle() {
-		let key = Key::generate(Algorithm::HS256, Some("test-id".to_string()));
+		let key = JWK::generate(Algorithm::HS256, Some("test-id".to_string()));
+		assert!(key.is_ok());
+		let key = key.unwrap();
+
 		let claims = create_test_claims();
 
 		let token = key.encode(&claims).unwrap();
@@ -485,12 +820,25 @@ mod tests {
 	fn test_key_serde() {
 		let key = create_test_key();
 		let json = serde_json::to_string(&key).unwrap();
-		let deserialized: Key = serde_json::from_str(&json).unwrap();
+		let deserialized: JWK = serde_json::from_str(&json).unwrap();
 
 		assert_eq!(deserialized.algorithm, key.algorithm);
 		assert_eq!(deserialized.operations, key.operations);
-		assert_eq!(deserialized.secret, key.secret);
 		assert_eq!(deserialized.kid, key.kid);
+
+		if let (
+			Key::OCT {
+				secret: original_secret,
+			},
+			Key::OCT {
+				secret: deserialized_secret,
+			},
+		) = (&key.key, &deserialized.key)
+		{
+			assert_eq!(deserialized_secret, original_secret);
+		} else {
+			panic!("Expected both keys to be OCT variant");
+		}
 	}
 
 	#[test]
@@ -500,20 +848,34 @@ mod tests {
 
 		assert_eq!(cloned.algorithm, key.algorithm);
 		assert_eq!(cloned.operations, key.operations);
-		assert_eq!(cloned.secret, key.secret);
 		assert_eq!(cloned.kid, key.kid);
+
+		if let (
+			Key::OCT {
+				secret: original_secret,
+			},
+			Key::OCT { secret: cloned_secret },
+		) = (&key.key, &cloned.key)
+		{
+			assert_eq!(cloned_secret, original_secret);
+		} else {
+			panic!("Expected both keys to be OCT variant");
+		}
 	}
 
 	#[test]
-	fn test_different_algorithms() {
-		let key_256 = Key::generate(Algorithm::HS256, Some("test-id".to_string()));
-		let key_384 = Key::generate(Algorithm::HS384, Some("test-id".to_string()));
-		let key_512 = Key::generate(Algorithm::HS512, Some("test-id".to_string()));
+	fn test_hmac_algorithms() {
+		let key_256 = JWK::generate(Algorithm::HS256, Some("test-id".to_string()));
+		let key_384 = JWK::generate(Algorithm::HS384, Some("test-id".to_string()));
+		let key_512 = JWK::generate(Algorithm::HS512, Some("test-id".to_string()));
 
 		let claims = create_test_claims();
 
 		// Test that each algorithm can sign and verify
 		for key in [key_256, key_384, key_512] {
+			assert!(key.is_ok());
+			let key = key.unwrap();
+
 			let token = key.encode(&claims).unwrap();
 			let verified_claims = key.decode(&token).unwrap();
 			assert_eq!(verified_claims.root, claims.root);
@@ -521,9 +883,77 @@ mod tests {
 	}
 
 	#[test]
+	#[cfg(feature = "jwk-rsa")]
+	fn test_rsa_pkcs1_asymmetric_algorithms() {
+		let key_rs256 = JWK::generate(Algorithm::RS256, Some("test-id".to_string()));
+		let key_rs384 = JWK::generate(Algorithm::RS384, Some("test-id".to_string()));
+		let key_rs512 = JWK::generate(Algorithm::RS512, Some("test-id".to_string()));
+
+		for key in [key_rs256, key_rs384, key_rs512] {
+			test_asymmetric_key(key);
+		}
+	}
+
+	#[test]
+	#[cfg(feature = "jwk-rsa")]
+	fn test_rsa_pss_asymmetric_algorithms() {
+		let key_ps256 = JWK::generate(Algorithm::PS256, Some("test-id".to_string()));
+		let key_ps384 = JWK::generate(Algorithm::PS384, Some("test-id".to_string()));
+		let key_ps512 = JWK::generate(Algorithm::PS512, Some("test-id".to_string()));
+
+		for key in [key_ps256, key_ps384, key_ps512] {
+			test_asymmetric_key(key);
+		}
+	}
+
+	#[test]
+	#[cfg(feature = "jwk-ec")]
+	fn test_ec_asymmetric_algorithms() {
+		let key_es256 = JWK::generate(Algorithm::ES256, Some("test-id".to_string()));
+		let key_es384 = JWK::generate(Algorithm::ES384, Some("test-id".to_string()));
+
+		for key in [key_es256, key_es384] {
+			test_asymmetric_key(key);
+		}
+	}
+
+	/*
+	#[test]
+	fn test_ed_asymmetric_algorithms() {
+		let key_eddsa = JWK::generate(Algorithm::EdDSA, Some("test-id".to_string()));
+
+		for key in [key_eddsa] {
+			test_asymmetric_key(key);
+		}
+	}
+	*/
+
+	fn test_asymmetric_key(key: anyhow::Result<JWK>) {
+		assert!(key.is_ok());
+		let key = key.unwrap();
+
+		let claims = create_test_claims();
+		let token = key.encode(&claims).unwrap();
+
+		let private_verified_claims = key.decode(&token).unwrap();
+		assert_eq!(
+			private_verified_claims.root, claims.root,
+			"validation using private key"
+		);
+
+		let public_verified_claims = key.to_public().decode(&token).unwrap();
+		assert_eq!(public_verified_claims.root, claims.root, "validation using public key");
+	}
+
+	#[test]
 	fn test_cross_algorithm_verification_fails() {
-		let key_256 = Key::generate(Algorithm::HS256, Some("test-id".to_string()));
-		let key_384 = Key::generate(Algorithm::HS384, Some("test-id".to_string()));
+		let key_256 = JWK::generate(Algorithm::HS256, Some("test-id".to_string()));
+		assert!(key_256.is_ok());
+		let key_256 = key_256.unwrap();
+
+		let key_384 = JWK::generate(Algorithm::HS384, Some("test-id".to_string()));
+		assert!(key_384.is_ok());
+		let key_384 = key_384.unwrap();
 
 		let claims = create_test_claims();
 		let token = key_256.encode(&claims).unwrap();
@@ -531,6 +961,105 @@ mod tests {
 		// Different algorithm should fail verification
 		let result = key_384.decode(&token);
 		assert!(result.is_err());
+	}
+
+	#[test]
+	#[cfg(feature = "jwk-rsa")]
+	fn test_asymmetric_cross_algorithm_verification_fails() {
+		let key_rs256 = JWK::generate(Algorithm::RS256, Some("test-id".to_string()));
+		assert!(key_rs256.is_ok());
+		let key_rs256 = key_rs256.unwrap();
+
+		let key_ps256 = JWK::generate(Algorithm::PS256, Some("test-id".to_string()));
+		assert!(key_ps256.is_ok());
+		let key_es384 = key_ps256.unwrap();
+
+		let claims = create_test_claims();
+		let token = key_rs256.encode(&claims).unwrap();
+
+		// Different algorithm should fail verification
+		let private_result = key_es384.decode(&token);
+		let public_result = key_es384.to_public().decode(&token);
+		assert!(private_result.is_err());
+		assert!(public_result.is_err());
+	}
+
+	#[test]
+	#[cfg(feature = "jwk-rsa")]
+	fn test_rsa_pkcs1_public_key_conversion() {
+		let key = JWK::generate(Algorithm::RS256, Some("test-id".to_string()));
+		assert!(key.is_ok());
+		let key = key.unwrap();
+
+		assert!(key.operations.contains(&KeyOperation::Sign));
+		assert!(key.operations.contains(&KeyOperation::Verify));
+
+		let public_key = key.to_public();
+		assert!(!public_key.operations.contains(&KeyOperation::Sign));
+		assert!(public_key.operations.contains(&KeyOperation::Verify));
+
+		match key.key {
+			Key::RSA {
+				ref public,
+				ref private,
+			} => {
+				assert!(private.is_some());
+				assert_eq!(public.modulus.len(), 256);
+				assert_eq!(public.exponent.len(), 3);
+
+				match public_key.key {
+					Key::RSA {
+						public: ref public_public,
+						private: ref public_private,
+					} => {
+						assert!(public_private.is_none());
+						assert_eq!(public.modulus, public_public.modulus);
+						assert_eq!(public.exponent, public_public.exponent);
+					}
+					_ => panic!("Expected public key to be an RSA key"),
+				}
+			}
+			_ => panic!("Expected private key to be an RSA key"),
+		}
+	}
+
+	#[test]
+	#[cfg(feature = "jwk-rsa")]
+	fn test_rsa_pss_public_key_conversion() {
+		let key = JWK::generate(Algorithm::PS384, Some("test-id".to_string()));
+		assert!(key.is_ok());
+		let key = key.unwrap();
+
+		assert!(key.operations.contains(&KeyOperation::Sign));
+		assert!(key.operations.contains(&KeyOperation::Verify));
+
+		let public_key = key.to_public();
+		assert!(!public_key.operations.contains(&KeyOperation::Sign));
+		assert!(public_key.operations.contains(&KeyOperation::Verify));
+
+		match key.key {
+			Key::RSA {
+				ref public,
+				ref private,
+			} => {
+				assert!(private.is_some());
+				assert_eq!(public.modulus.len(), 256);
+				assert_eq!(public.exponent.len(), 3);
+
+				match public_key.key {
+					Key::RSA {
+						public: ref public_public,
+						private: ref public_private,
+					} => {
+						assert!(public_private.is_none());
+						assert_eq!(public.modulus, public_public.modulus);
+						assert_eq!(public.exponent, public_public.exponent);
+					}
+					_ => panic!("Expected public key to be an RSA key"),
+				}
+			}
+			_ => panic!("Expected private key to be an RSA key"),
+		}
 	}
 
 	#[test]
@@ -551,31 +1080,49 @@ mod tests {
 		let decoded = base64::engine::general_purpose::URL_SAFE_NO_PAD
 			.decode(k_value)
 			.unwrap();
-		assert_eq!(decoded, key.secret);
+
+		if let Key::OCT {
+			secret: original_secret,
+		} = &key.key
+		{
+			assert_eq!(decoded, *original_secret);
+		} else {
+			panic!("Expected both keys to be OCT variant");
+		}
 	}
 
 	#[test]
 	fn test_backwards_compatibility_unpadded_base64url() {
 		// Create a JSON with unpadded base64url (new format)
-		let unpadded_json = r#"{"alg":"HS256","key_ops":["sign","verify"],"k":"dGVzdC1zZWNyZXQtdGhhdC1pcy1sb25nLWVub3VnaC1mb3ItaG1hYy1zaGEyNTY","kid":"test-key-1"}"#;
+		let unpadded_json = r#"{"kty":"OCT","alg":"HS256","key_ops":["sign","verify"],"k":"dGVzdC1zZWNyZXQtdGhhdC1pcy1sb25nLWVub3VnaC1mb3ItaG1hYy1zaGEyNTY","kid":"test-key-1"}"#;
 
 		// Should be able to deserialize new format
-		let key: Key = serde_json::from_str(unpadded_json).unwrap();
-		assert_eq!(key.secret, b"test-secret-that-is-long-enough-for-hmac-sha256");
+		let key: JWK = serde_json::from_str(unpadded_json).unwrap();
 		assert_eq!(key.algorithm, Algorithm::HS256);
 		assert_eq!(key.kid, Some("test-key-1".to_string()));
+
+		if let Key::OCT { secret } = &key.key {
+			assert_eq!(secret, b"test-secret-that-is-long-enough-for-hmac-sha256");
+		} else {
+			panic!("Expected key to be OCT variant");
+		}
 	}
 
 	#[test]
 	fn test_backwards_compatibility_padded_base64url() {
 		// Create a JSON with padded base64url (old format) - same secret but with padding
-		let padded_json = r#"{"alg":"HS256","key_ops":["sign","verify"],"k":"dGVzdC1zZWNyZXQtdGhhdC1pcy1sb25nLWVub3VnaC1mb3ItaG1hYy1zaGEyNTY=","kid":"test-key-1"}"#;
+		let padded_json = r#"{"kty":"OCT","alg":"HS256","key_ops":["sign","verify"],"k":"dGVzdC1zZWNyZXQtdGhhdC1pcy1sb25nLWVub3VnaC1mb3ItaG1hYy1zaGEyNTY=","kid":"test-key-1"}"#;
 
 		// Should be able to deserialize old format for backwards compatibility
-		let key: Key = serde_json::from_str(padded_json).unwrap();
-		assert_eq!(key.secret, b"test-secret-that-is-long-enough-for-hmac-sha256");
+		let key: JWK = serde_json::from_str(padded_json).unwrap();
 		assert_eq!(key.algorithm, Algorithm::HS256);
 		assert_eq!(key.kid, Some("test-key-1".to_string()));
+
+		if let Key::OCT { secret } = &key.key {
+			assert_eq!(secret, b"test-secret-that-is-long-enough-for-hmac-sha256");
+		} else {
+			panic!("Expected key to be OCT variant");
+		}
 	}
 
 	#[test]
@@ -603,11 +1150,22 @@ mod tests {
 		let _: serde_json::Value = serde_json::from_str(&json_str).unwrap();
 
 		// Read key back from file
-		let loaded_key = Key::from_file(&temp_path).unwrap();
+		let loaded_key = JWK::from_file(&temp_path).unwrap();
 		assert_eq!(loaded_key.algorithm, key.algorithm);
 		assert_eq!(loaded_key.operations, key.operations);
-		assert_eq!(loaded_key.secret, key.secret);
 		assert_eq!(loaded_key.kid, key.kid);
+
+		if let (
+			Key::OCT {
+				secret: original_secret,
+			},
+			Key::OCT { secret: loaded_secret },
+		) = (&key.key, &loaded_key.key)
+		{
+			assert_eq!(loaded_secret, original_secret);
+		} else {
+			panic!("Expected both keys to be OCT variant");
+		}
 
 		// Clean up
 		std::fs::remove_file(temp_path).ok();

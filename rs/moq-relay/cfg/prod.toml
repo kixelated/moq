@@ -27,4 +27,4 @@ key = "key.pem"
 
 # See docs/auth.md for more information.
 [auth]
-key = "root.jwk"
+key = "public.jwk"
