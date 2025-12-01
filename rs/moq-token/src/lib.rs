@@ -1,7 +1,7 @@
 mod algorithm;
 mod claims;
-mod key;
 mod generate;
+mod key;
 
 pub use algorithm::*;
 pub use claims::*;

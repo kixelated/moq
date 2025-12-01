@@ -8,7 +8,7 @@ use elliptic_curve::pkcs8::{EncodePrivateKey, EncodePublicKey};
 use elliptic_curve::sec1::FromEncodedPoint;
 use jsonwebtoken::{DecodingKey, EncodingKey, Header};
 #[cfg(feature = "jwk-rsa")]
-use rsa::pkcs1::{EncodeRsaPrivateKey};
+use rsa::pkcs1::EncodeRsaPrivateKey;
 #[cfg(feature = "jwk-rsa")]
 use rsa::BigUint;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
@@ -238,9 +238,8 @@ impl JWK {
 						p256::FieldBytes::from_slice(y),
 						false,
 					);
-					let public_key =
-						Option::<p256::PublicKey>::from(p256::PublicKey::from_encoded_point(&point))
-							.ok_or_else(|| anyhow::anyhow!("Invalid P-256 point"))?;
+					let public_key = Option::<p256::PublicKey>::from(p256::PublicKey::from_encoded_point(&point))
+						.ok_or_else(|| anyhow::anyhow!("Invalid P-256 point"))?;
 					let der = public_key.to_public_key_pem(elliptic_curve::pkcs8::LineEnding::LF)?;
 					DecodingKey::from_ec_pem(der.as_bytes())?
 				}
@@ -253,18 +252,16 @@ impl JWK {
 						p384::FieldBytes::from_slice(y),
 						false,
 					);
-					let public_key =
-						Option::<p384::PublicKey>::from(p384::PublicKey::from_encoded_point(&point))
-							.ok_or_else(|| anyhow::anyhow!("Invalid P-384 point"))?;
+					let public_key = Option::<p384::PublicKey>::from(p384::PublicKey::from_encoded_point(&point))
+						.ok_or_else(|| anyhow::anyhow!("Invalid P-384 point"))?;
 					let der = public_key.to_public_key_pem(elliptic_curve::pkcs8::LineEnding::LF)?;
 					DecodingKey::from_ec_pem(der.as_bytes())?
 				}
-			}
+			},
 			#[cfg(feature = "jwk-rsa")]
-			Key::RSA { ref public, .. } => DecodingKey::from_rsa_raw_components(
-				public.modulus.as_ref(),
-				public.exponent.as_ref(),
-			),
+			Key::RSA { ref public, .. } => {
+				DecodingKey::from_rsa_raw_components(public.modulus.as_ref(), public.exponent.as_ref())
+			}
 		};
 
 		Ok(self.decode.get_or_init(|| decoding_key))
@@ -312,7 +309,7 @@ impl JWK {
 				let pem = rsa?.to_pkcs1_pem(rsa::pkcs1::LineEnding::LF);
 
 				EncodingKey::from_rsa_pem(pem?.as_bytes())?
-			},
+			}
 		};
 
 		Ok(self.encode.get_or_init(|| encoding_key))
