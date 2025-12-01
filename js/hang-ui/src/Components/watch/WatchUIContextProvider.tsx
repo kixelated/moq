@@ -1,5 +1,6 @@
 import type HangWatch from "@kixelated/hang/watch/element";
 import type { HangWatchInstance } from "@kixelated/hang/watch/element";
+import type { Time } from "@kixelated/hang";
 import type { JSX } from "solid-js";
 import { createContext, createEffect, createSignal, onCleanup } from "solid-js";
 
@@ -20,6 +21,8 @@ type WatchUIContextValues = {
 	togglePlayback: () => void;
 	toggleMuted: () => void;
 	buffering: () => boolean;
+	latency: () => number;
+	setLatencyValue: (value: number) => void;
 };
 
 export const WatchUIContext = createContext<WatchUIContextValues>();
@@ -30,6 +33,7 @@ export default function WatchUIContextProvider(props: WatchUIContextProviderProp
 	const [isMuted, setIsMuted] = createSignal<boolean>(false);
 	const [currentVolume, setCurrentVolume] = createSignal<number>(0);
 	const [buffering, setBuffering] = createSignal<boolean>(false);
+	const [latency, setLatency] = createSignal<number>(0);
 
 	const togglePlayback = () => {
 		const hangWatchEl = props.hangWatch();
@@ -57,6 +61,14 @@ export default function WatchUIContextProvider(props: WatchUIContextProviderProp
 		}
 	};
 
+	const setLatencyValue = (latency: number) => {
+		const hangWatchEl = props.hangWatch();
+
+		if (hangWatchEl) {
+			hangWatchEl.signals.latency.set(latency as Time.Milli);
+		}
+	};
+
 	const value: WatchUIContextValues = {
 		hangWatch: props.hangWatch,
 		watchStatus,
@@ -67,6 +79,8 @@ export default function WatchUIContextProvider(props: WatchUIContextProviderProp
 		currentVolume,
 		toggleMuted,
 		buffering,
+		latency,
+		setLatencyValue,
 	};
 
 	createEffect(() => {
@@ -75,7 +89,7 @@ export default function WatchUIContextProvider(props: WatchUIContextProviderProp
 
 		const onInstanceAvailable = (event: CustomEvent) => {
 			const watchInstance = event.detail.instance.peek?.() as HangWatchInstance;
-			onWatchInstanceAvailable(watchInstance);
+			onWatchInstanceAvailable(hangWatchEl, watchInstance);
 		};
 
 		if (!hangWatchEl.active) {
@@ -87,13 +101,13 @@ export default function WatchUIContextProvider(props: WatchUIContextProviderProp
 			});
 		} else {
 			const hangWatchInstance = hangWatchEl.active.peek?.() as HangWatchInstance;
-			onWatchInstanceAvailable(hangWatchInstance);
+			onWatchInstanceAvailable(hangWatchEl, hangWatchInstance);
 		}
 	});
 
 	return <WatchUIContext.Provider value={value}>{props.children}</WatchUIContext.Provider>;
 
-	function onWatchInstanceAvailable(watchInstance: HangWatchInstance) {
+	function onWatchInstanceAvailable(watchEl: HangWatch, watchInstance: HangWatchInstance) {
 		watchInstance?.signals.effect(function trackWatchStatus(effect) {
 			const url = effect.get(watchInstance?.connection.url);
 			const connection = effect.get(watchInstance?.connection.status);
@@ -132,6 +146,11 @@ export default function WatchUIContextProvider(props: WatchUIContextProviderProp
 			const shouldShow = syncStatus.state === "wait" || bufferStatus.state === "empty";
 
 			setBuffering(shouldShow);
+		});
+
+		watchInstance?.signals.effect(function trackLantecy(effect) {
+			const latency = effect.get(watchEl?.signals.latency);
+			setLatency(latency);
 		});
 	}
 }

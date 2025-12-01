@@ -66,3 +66,35 @@
 	border-radius: 50%;
 	animation: buffer-spin 1s linear infinite;
 }
+
+.latencySliderContainer {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	padding: 8px 12px;
+	background: transparent;
+	border-radius: 8px;
+	margin: 8px 0;
+}
+
+.latencyLabel {
+	font-size: 2px;
+	font-weight: 500;
+	color: #fff;
+	white-space: nowrap;
+}
+
+.latencySlider {
+	flex: 1;
+	height: 6px;
+	border-radius: 3px;
+	background: transparent;
+	cursor: pointer;
+}
+
+.latencyValueDisplay {
+	font-size: 20px;
+	min-width: 60px;
+	text-align: right;
+	color: #fff;
+}
