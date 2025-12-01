@@ -2,7 +2,7 @@ use tokio::runtime::Runtime;
 use url::Url;
 
 use bytes::Bytes;
-use hang::catalog::{Audio, AudioConfig, Video, VideoConfig, H264, AAC};
+use hang::catalog::{Audio, AudioConfig, Video, VideoConfig, AAC, H264};
 use hang::model::{Frame, Timestamp, TrackProducer};
 use hang::{Catalog, CatalogProducer};
 use moq_lite::{BroadcastProducer, Track};
@@ -253,10 +253,7 @@ impl ImportJoy {
 		let name = String::from("audio1");
 
 		let config = AudioConfig {
-			codec: AAC {
-				profile: 2
-			}
-			.into(),
+			codec: AAC { profile: 2 }.into(),
 			sample_rate: 48000,
 			channel_count: 2,
 			bitrate: Some(128000),
@@ -294,7 +291,6 @@ impl ImportJoy {
 
 		track.write(frame);
 	}
-
 
 	/// # Safety
 	///
