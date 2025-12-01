@@ -29,7 +29,7 @@ hyper-serve = { version = "0.6", features = [
 hyper-util = "=0.1.17"
 moq-lite = { workspace = true, features = ["serde"] }
 moq-native = { workspace = true }
-moq-token = { workspace = true, features = ["jwk-rsa", "jwk-ec"] }
+moq-token = { workspace = true }
 sd-notify = "0.4"
 serde = { version = "1", features = ["derive"] }
 serde_with = { version = "3", features = ["json", "base64"] }

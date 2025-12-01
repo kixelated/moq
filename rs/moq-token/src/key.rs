@@ -2,14 +2,10 @@ use crate::generate::generate;
 use crate::{Algorithm, Claims};
 use anyhow::bail;
 use base64::Engine;
-#[cfg(feature = "jwk-ec")]
 use elliptic_curve::pkcs8::{EncodePrivateKey, EncodePublicKey};
-#[cfg(feature = "jwk-ec")]
 use elliptic_curve::sec1::FromEncodedPoint;
 use jsonwebtoken::{DecodingKey, EncodingKey, Header};
-#[cfg(feature = "jwk-rsa")]
 use rsa::pkcs1::EncodeRsaPrivateKey;
-#[cfg(feature = "jwk-rsa")]
 use rsa::BigUint;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::sync::OnceLock;
@@ -27,7 +23,6 @@ pub enum KeyOperation {
 #[derive(Clone, Serialize, Deserialize)]
 #[serde(tag = "kty")]
 pub enum Key {
-	#[cfg(feature = "jwk-ec")]
 	EC {
 		#[serde(rename = "crv")]
 		curve: EllipticCurve,
@@ -46,7 +41,6 @@ pub enum Key {
 		)]
 		d: Option<Vec<u8>>,
 	},
-	#[cfg(feature = "jwk-rsa")]
 	RSA {
 		#[serde(flatten)]
 		public: RsaPublicKey,
@@ -66,7 +60,6 @@ pub enum Key {
 	},
 }
 
-#[cfg(feature = "jwk-ec")]
 #[derive(Clone, Serialize, Deserialize)]
 pub enum EllipticCurve {
 	#[serde(rename = "P-256")]
@@ -78,7 +71,6 @@ pub enum EllipticCurve {
 	// P521,
 }
 
-#[cfg(feature = "jwk-rsa")]
 #[derive(Clone, Serialize, Deserialize)]
 pub struct RsaPublicKey {
 	#[serde(
@@ -95,7 +87,6 @@ pub struct RsaPublicKey {
 	pub exponent: Vec<u8>,
 }
 
-#[cfg(feature = "jwk-rsa")]
 #[derive(Clone, Serialize, Deserialize)]
 pub struct RsaPrivateKey {
 	#[serde(
@@ -187,12 +178,10 @@ impl JWK {
 			algorithm: self.algorithm,
 			operations: [KeyOperation::Verify].into(),
 			key: match self.key {
-				#[cfg(feature = "jwk-rsa")]
 				Key::RSA { ref public, .. } => Key::RSA {
 					public: public.clone(),
 					private: None,
 				},
-				#[cfg(feature = "jwk-ec")]
 				Key::EC {
 					ref x,
 					ref y,
@@ -222,7 +211,6 @@ impl JWK {
 				Algorithm::HS256 | Algorithm::HS384 | Algorithm::HS512 => DecodingKey::from_secret(secret),
 				_ => bail!("Invalid algorithm for key type OCT"),
 			},
-			#[cfg(feature = "jwk-ec")]
 			Key::EC {
 				ref curve,
 				ref x,
@@ -258,7 +246,6 @@ impl JWK {
 					DecodingKey::from_ec_pem(der.as_bytes())?
 				}
 			},
-			#[cfg(feature = "jwk-rsa")]
 			Key::RSA { ref public, .. } => {
 				DecodingKey::from_rsa_raw_components(public.modulus.as_ref(), public.exponent.as_ref())
 			}
@@ -277,7 +264,6 @@ impl JWK {
 				Algorithm::HS256 | Algorithm::HS384 | Algorithm::HS512 => EncodingKey::from_secret(secret),
 				_ => bail!("Invalid algorithm for key type OCT"),
 			},
-			#[cfg(feature = "jwk-ec")]
 			Key::EC { ref curve, ref d, .. } => {
 				let d = d.as_ref().ok_or_else(|| anyhow::anyhow!("Missing private key"))?;
 
@@ -294,7 +280,6 @@ impl JWK {
 					}
 				}
 			}
-			#[cfg(feature = "jwk-rsa")]
 			Key::RSA {
 				ref public,
 				ref private,
@@ -660,7 +645,6 @@ mod tests {
 	}
 
 	#[test]
-	#[cfg(feature = "jwk-rsa")]
 	fn test_key_generate_rs512() {
 		let key = JWK::generate(Algorithm::RS512, Some("test-id".to_string()));
 		assert!(key.is_ok());
@@ -682,7 +666,6 @@ mod tests {
 	}
 
 	#[test]
-	#[cfg(feature = "jwk-ec")]
 	fn test_key_generate_es256() {
 		let key = JWK::generate(Algorithm::ES256, Some("test-id".to_string()));
 		assert!(key.is_ok());
@@ -693,7 +676,6 @@ mod tests {
 	}
 
 	#[test]
-	#[cfg(feature = "jwk-rsa")]
 	fn test_key_generate_ps512() {
 		let key = JWK::generate(Algorithm::PS512, Some("test-id".to_string()));
 		assert!(key.is_ok());
@@ -848,7 +830,6 @@ mod tests {
 	}
 
 	#[test]
-	#[cfg(feature = "jwk-rsa")]
 	fn test_rsa_pkcs1_asymmetric_algorithms() {
 		let key_rs256 = JWK::generate(Algorithm::RS256, Some("test-id".to_string()));
 		let key_rs384 = JWK::generate(Algorithm::RS384, Some("test-id".to_string()));
@@ -860,7 +841,6 @@ mod tests {
 	}
 
 	#[test]
-	#[cfg(feature = "jwk-rsa")]
 	fn test_rsa_pss_asymmetric_algorithms() {
 		let key_ps256 = JWK::generate(Algorithm::PS256, Some("test-id".to_string()));
 		let key_ps384 = JWK::generate(Algorithm::PS384, Some("test-id".to_string()));
@@ -872,7 +852,6 @@ mod tests {
 	}
 
 	#[test]
-	#[cfg(feature = "jwk-ec")]
 	fn test_ec_asymmetric_algorithms() {
 		let key_es256 = JWK::generate(Algorithm::ES256, Some("test-id".to_string()));
 		let key_es384 = JWK::generate(Algorithm::ES384, Some("test-id".to_string()));
@@ -929,7 +908,6 @@ mod tests {
 	}
 
 	#[test]
-	#[cfg(feature = "jwk-rsa")]
 	fn test_asymmetric_cross_algorithm_verification_fails() {
 		let key_rs256 = JWK::generate(Algorithm::RS256, Some("test-id".to_string()));
 		assert!(key_rs256.is_ok());
@@ -950,7 +928,6 @@ mod tests {
 	}
 
 	#[test]
-	#[cfg(feature = "jwk-rsa")]
 	fn test_rsa_pkcs1_public_key_conversion() {
 		let key = JWK::generate(Algorithm::RS256, Some("test-id".to_string()));
 		assert!(key.is_ok());
@@ -989,7 +966,6 @@ mod tests {
 	}
 
 	#[test]
-	#[cfg(feature = "jwk-rsa")]
 	fn test_rsa_pss_public_key_conversion() {
 		let key = JWK::generate(Algorithm::PS384, Some("test-id".to_string()));
 		assert!(key.is_ok());

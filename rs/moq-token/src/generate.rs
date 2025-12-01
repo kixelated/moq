@@ -1,11 +1,7 @@
-#[cfg(feature = "jwk-ec")]
 use crate::EllipticCurve;
-#[cfg(feature = "jwk-rsa")]
 use crate::RsaPublicKey;
 use crate::{Algorithm, Key, KeyOperation, JWK};
-#[cfg(feature = "jwk-ec")]
 use elliptic_curve::sec1::ToEncodedPoint;
-#[cfg(feature = "jwk-rsa")]
 use rsa::traits::{PrivateKeyParts, PublicKeyParts};
 
 /// Generate a key pair for the given algorithm, returning the private and public keys.
@@ -14,13 +10,9 @@ pub fn generate(algorithm: Algorithm, id: Option<String>) -> anyhow::Result<JWK>
 		Algorithm::HS256 => Ok(generate_hmac_key::<32>()),
 		Algorithm::HS384 => Ok(generate_hmac_key::<48>()),
 		Algorithm::HS512 => Ok(generate_hmac_key::<64>()),
-		#[cfg(feature = "jwk-rsa")]
 		Algorithm::RS256 | Algorithm::RS384 | Algorithm::RS512 => generate_rsa_key(2048),
-		#[cfg(feature = "jwk-ec")]
 		Algorithm::ES256 => Ok(generate_ec_key(EllipticCurve::P256)),
-		#[cfg(feature = "jwk-ec")]
 		Algorithm::ES384 => Ok(generate_ec_key(EllipticCurve::P384)),
-		#[cfg(feature = "jwk-rsa")]
 		Algorithm::PS256 | Algorithm::PS384 | Algorithm::PS512 => generate_rsa_key(2048),
 		// Algorithm::EdDSA => generate_ed25519_key(),
 	};
@@ -44,10 +36,8 @@ fn generate_hmac_key<const SIZE: usize>() -> Key {
 	Key::OCT { secret: key.to_vec() }
 }
 
-#[cfg(feature = "jwk-rsa")]
 struct AwsRng;
 
-#[cfg(feature = "jwk-rsa")]
 impl rsa::rand_core::RngCore for AwsRng {
 	fn next_u32(&mut self) -> u32 {
 		let mut buf = [0u8; 4];
@@ -70,10 +60,8 @@ impl rsa::rand_core::RngCore for AwsRng {
 	}
 }
 
-#[cfg(feature = "jwk-rsa")]
 impl rsa::rand_core::CryptoRng for AwsRng {}
 
-#[cfg(feature = "jwk-rsa")]
 fn generate_rsa_key(size: usize) -> anyhow::Result<Key> {
 	let mut rng = AwsRng;
 	let key = rsa::RsaPrivateKey::new(&mut rng, size);
@@ -94,7 +82,6 @@ fn generate_rsa_key(size: usize) -> anyhow::Result<Key> {
 	}
 }
 
-#[cfg(feature = "jwk-ec")]
 fn generate_ec_key(curve: EllipticCurve) -> Key {
 	let (x, y, d) = match curve {
 		EllipticCurve::P256 => {
