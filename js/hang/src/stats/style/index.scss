@@ -1,0 +1,157 @@
+@use "sass:map";
+@use "./colors.scss" as colors;
+@use "./spacing.scss" as spacing;
+
+hang-stats {
+    display: flex;
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    z-index: 2;
+
+    .stats__container {
+        width: 100%;
+        height: inherit;
+        container-type: inline-size;
+
+        .stats__wrapper {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: flex-start;
+        }
+
+        .stats__toggle {
+            position: absolute;
+            top: spacing.$lg;
+            right: spacing.$lg;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 40px;
+            height: 40px;
+            padding: spacing.$sm;
+            background-color: colors.$black-alpha-85;
+            border: 1px solid colors.$gray-light-alpha-25;
+            border-radius: 8px;
+            cursor: pointer;
+            color: colors.$gray-light;
+            transition: all 0.1s ease-in-out;
+            pointer-events: auto;
+            flex-shrink: 0;
+
+            &:hover {
+                background-color: colors.$gray-dark;
+                border-color: colors.$gray-light;
+                color: colors.$white;
+            }
+
+            &:active {
+                transform: scale(0.95);
+            }
+        }
+
+        .stats__panel {
+            position: absolute;
+            display: flex;
+            flex-direction: row;
+            flex-wrap: wrap;
+            gap: spacing.$md;
+            max-width: 280px;
+            width: 100%;
+            background-color: colors.$black-alpha-85;
+            border: 1px solid colors.$gray-light-alpha-25;
+            border-radius: 8px;
+            padding: spacing.$xl;
+            pointer-events: auto;
+            top: 8px;
+
+            @container (width > 768px) {
+                max-width: 600px;
+            }
+
+            .stats__item {
+                display: flex;
+                flex-direction: row;
+                column-gap: spacing.$sm;
+                flex-basis: calc(50% - spacing.$md);
+                flex-grow: 1;
+                flex-shrink: 1;
+
+                @container (width > 768px) {
+                    flex-basis: calc(25% - spacing.$md);
+                }
+
+                @each $icon-name, $colors in colors.$theme-colors {
+                    $primary: map.get($colors, primary);
+                    $surface: map.get($colors, surface);
+
+                    &.stats__item--#{$icon-name} {
+                        .stats__icon-wrapper {
+                            background-color: $surface;
+                        }
+
+                        .stats__icon {
+                            color: $primary;
+                        }
+
+                        .stats__item-data {
+                            color: $primary;
+                        }
+                    }
+                }
+
+                .stats__icon-wrapper {
+                    padding: spacing.$sm;
+                    border-radius: 8px;
+                    width: fit-content;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    flex-shrink: 0;
+
+                    .stats__icon {
+                        width: 24px;
+                        height: 24px;
+                        display: flex;
+                        align-items: center;
+                        justify-content: center;
+                    }
+
+                    .stats__icon svg {
+                        width: 100%;
+                        height: 100%;
+                    }
+                }
+
+                .stats__item-detail {
+                    display: flex;
+                    flex-direction: column;
+                    justify-content: space-evenly;
+                    gap: spacing.$xs;
+
+
+                    .stats__item-text {
+                        font-size: 12px;
+                        font-weight: 500;
+                        line-height: 12px;
+                        text-transform: capitalize;
+                        color: colors.$gray-light;
+                        font-family: "Segoe UI", Roboto, sans-serif;
+                        letter-spacing: 1px;
+                    }
+
+                    .stats__item-data {
+                        font-size: 16px;
+                        font-weight: bold;
+                        line-height: 16px;
+                        font-family: "Segoe UI", Roboto, monospace;
+                    }
+                }
+            }
+        }
+    }
+}

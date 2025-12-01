@@ -3,7 +3,7 @@ import "@kixelated/hang-ui/watch/element";
 
 import HangSupport from "@kixelated/hang/support/element";
 import HangWatch from "@kixelated/hang/watch/element";
-import HangStats from "@kixelated/hang/stats/element";
+import HangStats from "@kixelated/hang/stats";
 
 export { HangStats, HangSupport, HangWatch };
 
