@@ -1,0 +1,52 @@
+// ============================================================================
+// Neutral Palette
+// ============================================================================
+$white: #ffffff;
+$gray-light: #9ca3af;
+$gray-light-alpha-25: rgba(255, 255, 255, 0.25);
+$gray: #414141;
+$gray-dark: #111111;
+$black-alpha-85: rgba(0, 0, 0, 0.85);
+$black: #000000;
+
+// ============================================================================
+// Semantic Colors
+// ============================================================================
+
+// Network theme
+$blue-primary: #00DFFF;
+$blue-surface: #1b3243;
+
+// Video theme
+$purple-primary: #A855F7;
+$purple-surface: #31144a;
+
+// Audio theme
+$green-primary: #65EE2E;
+$green-surface: #3d4928;
+
+// Buffer theme
+$orange-primary: #FF9900;
+$orange-surface: #4d301b;
+
+// ============================================================================
+// Theme Color Map
+// ============================================================================
+$theme-colors: (
+    network: (
+        primary: $blue-primary,
+        surface: $blue-surface,
+    ),
+    video: (
+        primary: $purple-primary,
+        surface: $purple-surface,
+    ),
+    audio: (
+        primary: $green-primary,
+        surface: $green-surface,
+    ),
+    buffer: (
+        primary: $orange-primary,
+        surface: $orange-surface,
+    )
+);
