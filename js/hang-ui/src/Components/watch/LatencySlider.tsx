@@ -15,8 +15,11 @@ export default function LatencySlider() {
 
 	return (
 		<div class="latencySliderContainer">
-			<span class="latencyLabel">Latency: </span>
+			<label for="latency-slider" class="latencyLabel">
+				Latency:{" "}
+			</label>
 			<input
+				id="latency-slider"
 				onChange={onInputChange}
 				class="latencySlider"
 				type="range"
