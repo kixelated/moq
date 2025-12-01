@@ -23,6 +23,7 @@ export default function LatencySlider() {
 				min={MIN_RANGE}
 				max={MAX_RANGE}
 				step={RANGE_STEP}
+				value={context?.latency()}
 			/>
 			<span>{typeof context?.latency() !== "undefined" ? `${Math.round(context?.latency())}ms` : ""}</span>
 		</div>
