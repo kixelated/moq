@@ -1,8 +1,8 @@
 import FullscreenButton from "./FullscreenButton";
+import LatencySlider from "./LatencySlider";
 import PlayPauseButton from "./PlayPauseButton";
 import VolumeSlider from "./VolumeSlider";
 import WatchStatusIndicator from "./WatchStatusIndicator";
-import LatencySlider from "./LatencySlider";
 
 export default function WatchControls() {
 	return (

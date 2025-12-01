@@ -1,6 +1,6 @@
+import type { Time } from "@kixelated/hang";
 import type HangWatch from "@kixelated/hang/watch/element";
 import type { HangWatchInstance } from "@kixelated/hang/watch/element";
-import type { Time } from "@kixelated/hang";
 import type { JSX } from "solid-js";
 import { createContext, createEffect, createSignal, onCleanup } from "solid-js";
 
