@@ -30,7 +30,7 @@ pub enum Key {
 	#[cfg(feature = "jwk-ec")]
 	EC {
 		#[serde(rename = "crv")]
-		curve: EcCurve,
+		curve: EllipticCurve,
 		/// The X-coordinate of an EC key
 		#[serde(serialize_with = "serialize_base64url", deserialize_with = "deserialize_base64url")]
 		x: Vec<u8>,
@@ -67,7 +67,7 @@ pub enum Key {
 
 #[cfg(feature = "jwk-ec")]
 #[derive(Clone, Serialize, Deserialize)]
-pub enum EcCurve {
+pub enum EllipticCurve {
 	#[serde(rename = "P-256")]
 	P256,
 	#[serde(rename = "P-384")]
@@ -218,7 +218,7 @@ impl JWK {
 
 		let decoding_key = match self.key {
 			Key::OCT { ref secret } => match self.algorithm {
-				Algorithm::HS256 | Algorithm::HS384 | Algorithm::HS512 => Ok(DecodingKey::from_secret(secret)),
+				Algorithm::HS256 | Algorithm::HS384 | Algorithm::HS512 => DecodingKey::from_secret(secret),
 				_ => bail!("Invalid algorithm for key type OCT"),
 			},
 			#[cfg(feature = "jwk-ec")]
@@ -227,62 +227,46 @@ impl JWK {
 				ref x,
 				ref y,
 				..
-			} => {
-				match self.algorithm {
-					Algorithm::ES256 | Algorithm::ES384 => match curve {
-						EcCurve::P256 => {
-							if x.len() != 32 || y.len() != 32 {
-								bail!("Invalid coordinate length for P-256");
-							}
-							let point = p256::EncodedPoint::from_affine_coordinates(
-								p256::FieldBytes::from_slice(x),
-								p256::FieldBytes::from_slice(y),
-								false,
-							);
-							let public_key =
-								Option::<p256::PublicKey>::from(p256::PublicKey::from_encoded_point(&point))
-									.ok_or_else(|| anyhow::anyhow!("Invalid P-256 point"))?;
-							let der = public_key.to_public_key_pem(elliptic_curve::pkcs8::LineEnding::LF)?;
-							Ok(DecodingKey::from_ec_pem(der.as_bytes())?)
-						}
-						EcCurve::P384 => {
-							if x.len() != 48 || y.len() != 48 {
-								bail!("Invalid coordinate length for P-384");
-							}
-							let point = p384::EncodedPoint::from_affine_coordinates(
-								p384::FieldBytes::from_slice(x),
-								p384::FieldBytes::from_slice(y),
-								false,
-							);
-							let public_key =
-								Option::<p384::PublicKey>::from(p384::PublicKey::from_encoded_point(&point))
-									.ok_or_else(|| anyhow::anyhow!("Invalid P-384 point"))?;
-							let der = public_key.to_public_key_pem(elliptic_curve::pkcs8::LineEnding::LF)?;
-							Ok(DecodingKey::from_ec_pem(der.as_bytes())?)
-						}
-					},
-					// Algorithm::EdDSA => DecodingKey::from_ed_der(&self.secret),
-					_ => bail!("Invalid algorithm for key type EC"),
+			} => match curve {
+				EllipticCurve::P256 => {
+					if x.len() != 32 || y.len() != 32 {
+						bail!("Invalid coordinate length for P-256");
+					}
+					let point = p256::EncodedPoint::from_affine_coordinates(
+						p256::FieldBytes::from_slice(x),
+						p256::FieldBytes::from_slice(y),
+						false,
+					);
+					let public_key =
+						Option::<p256::PublicKey>::from(p256::PublicKey::from_encoded_point(&point))
+							.ok_or_else(|| anyhow::anyhow!("Invalid P-256 point"))?;
+					let der = public_key.to_public_key_pem(elliptic_curve::pkcs8::LineEnding::LF)?;
+					DecodingKey::from_ec_pem(der.as_bytes())?
+				}
+				EllipticCurve::P384 => {
+					if x.len() != 48 || y.len() != 48 {
+						bail!("Invalid coordinate length for P-384");
+					}
+					let point = p384::EncodedPoint::from_affine_coordinates(
+						p384::FieldBytes::from_slice(x),
+						p384::FieldBytes::from_slice(y),
+						false,
+					);
+					let public_key =
+						Option::<p384::PublicKey>::from(p384::PublicKey::from_encoded_point(&point))
+							.ok_or_else(|| anyhow::anyhow!("Invalid P-384 point"))?;
+					let der = public_key.to_public_key_pem(elliptic_curve::pkcs8::LineEnding::LF)?;
+					DecodingKey::from_ec_pem(der.as_bytes())?
 				}
 			}
 			#[cfg(feature = "jwk-rsa")]
-			Key::RSA { ref public, .. } => match self.algorithm {
-				Algorithm::RS256 | Algorithm::RS384 | Algorithm::RS512 => Ok(DecodingKey::from_rsa_raw_components(
-					public.modulus.as_ref(),
-					public.exponent.as_ref(),
-				)),
-				Algorithm::PS256 | Algorithm::PS384 | Algorithm::PS512 => Ok(DecodingKey::from_rsa_raw_components(
-					public.modulus.as_ref(),
-					public.exponent.as_ref(),
-				)),
-				_ => bail!("Invalid algorithm for key type RSA"),
-			},
+			Key::RSA { ref public, .. } => DecodingKey::from_rsa_raw_components(
+				public.modulus.as_ref(),
+				public.exponent.as_ref(),
+			),
 		};
 
-		match decoding_key {
-			Ok(key) => Ok(self.decode.get_or_init(|| key)),
-			Err(e) => Err(e),
-		}
+		Ok(self.decode.get_or_init(|| decoding_key))
 	}
 
 	fn to_encoding_key(&self) -> anyhow::Result<&EncodingKey> {
@@ -292,62 +276,45 @@ impl JWK {
 
 		let encoding_key = match self.key {
 			Key::OCT { ref secret } => match self.algorithm {
-				Algorithm::HS256 | Algorithm::HS384 | Algorithm::HS512 => Ok(EncodingKey::from_secret(secret)),
+				Algorithm::HS256 | Algorithm::HS384 | Algorithm::HS512 => EncodingKey::from_secret(secret),
 				_ => bail!("Invalid algorithm for key type OCT"),
 			},
 			#[cfg(feature = "jwk-ec")]
 			Key::EC { ref curve, ref d, .. } => {
-				match self.algorithm {
-					Algorithm::ES256 | Algorithm::ES384 => {
-						let d = d.as_ref().ok_or_else(|| anyhow::anyhow!("Missing private key"))?;
+				let d = d.as_ref().ok_or_else(|| anyhow::anyhow!("Missing private key"))?;
 
-						match curve {
-							EcCurve::P256 => {
-								let secret_key = p256::SecretKey::from_slice(d)?;
-								let doc = secret_key.to_pkcs8_der()?;
-								Ok(EncodingKey::from_ec_der(doc.as_bytes()))
-							}
-							EcCurve::P384 => {
-								let secret_key = p384::SecretKey::from_slice(d)?;
-								let doc = secret_key.to_pkcs8_der()?;
-								Ok(EncodingKey::from_ec_der(doc.as_bytes()))
-							}
-						}
+				match curve {
+					EllipticCurve::P256 => {
+						let secret_key = p256::SecretKey::from_slice(d)?;
+						let doc = secret_key.to_pkcs8_der()?;
+						EncodingKey::from_ec_der(doc.as_bytes())
 					}
-					// Algorithm::EdDSA => EncodingKey::from_ed_der(&self.secret),
-					_ => bail!("Invalid algorithm for key type EC"),
+					EllipticCurve::P384 => {
+						let secret_key = p384::SecretKey::from_slice(d)?;
+						let doc = secret_key.to_pkcs8_der()?;
+						EncodingKey::from_ec_der(doc.as_bytes())
+					}
 				}
 			}
 			#[cfg(feature = "jwk-rsa")]
 			Key::RSA {
 				ref public,
 				ref private,
-			} => match self.algorithm {
-				Algorithm::RS256
-				| Algorithm::RS384
-				| Algorithm::RS512
-				| Algorithm::PS256
-				| Algorithm::PS384
-				| Algorithm::PS512 => {
-					let n = BigUint::from_bytes_be(&public.modulus);
-					let e = BigUint::from_bytes_be(&public.exponent);
-					let d = BigUint::from_bytes_be(&private.as_ref().unwrap().exponent);
-					let p = BigUint::from_bytes_be(&private.as_ref().unwrap().first_prime);
-					let q = BigUint::from_bytes_be(&private.as_ref().unwrap().second_prime);
+			} => {
+				let n = BigUint::from_bytes_be(&public.modulus);
+				let e = BigUint::from_bytes_be(&public.exponent);
+				let d = BigUint::from_bytes_be(&private.as_ref().unwrap().exponent);
+				let p = BigUint::from_bytes_be(&private.as_ref().unwrap().first_prime);
+				let q = BigUint::from_bytes_be(&private.as_ref().unwrap().second_prime);
 
-					let rsa = rsa::RsaPrivateKey::from_components(n, e, d, vec![p, q]);
-					let pem = rsa?.to_pkcs1_pem(rsa::pkcs1::LineEnding::LF);
+				let rsa = rsa::RsaPrivateKey::from_components(n, e, d, vec![p, q]);
+				let pem = rsa?.to_pkcs1_pem(rsa::pkcs1::LineEnding::LF);
 
-					Ok(EncodingKey::from_rsa_pem(pem?.as_bytes())?)
-				}
-				_ => bail!("Invalid algorithm for key type RSA"),
+				EncodingKey::from_rsa_pem(pem?.as_bytes())?
 			},
 		};
 
-		match encoding_key {
-			Ok(key) => Ok(self.encode.get_or_init(|| key)),
-			Err(e) => Err(e),
-		}
+		Ok(self.encode.get_or_init(|| encoding_key))
 	}
 
 	pub fn decode(&self, token: &str) -> anyhow::Result<Claims> {

@@ -1,12 +1,10 @@
+#[cfg(feature = "jwk-ec")]
+use crate::EllipticCurve;
+#[cfg(feature = "jwk-rsa")]
+use crate::RsaPublicKey;
 use crate::{Algorithm, Key, KeyOperation, JWK};
 #[cfg(feature = "jwk-ec")]
 use elliptic_curve::sec1::ToEncodedPoint;
-#[cfg(feature = "jwk-ec")]
-use crate::EcCurve;
-#[cfg(feature = "jwk-rsa")]
-use crate::RsaPublicKey;
-#[cfg(feature = "jwk-rsa")]
-use rand::thread_rng;
 #[cfg(feature = "jwk-rsa")]
 use rsa::traits::{PrivateKeyParts, PublicKeyParts};
 
@@ -19,9 +17,9 @@ pub fn generate(algorithm: Algorithm, id: Option<String>) -> anyhow::Result<JWK>
         #[cfg(feature = "jwk-rsa")]
         Algorithm::RS256 | Algorithm::RS384 | Algorithm::RS512 => generate_rsa_key(2048),
         #[cfg(feature = "jwk-ec")]
-        Algorithm::ES256 => Ok(generate_ec_key(EcCurve::P256)),
+        Algorithm::ES256 => Ok(generate_ec_key(EllipticCurve::P256)),
         #[cfg(feature = "jwk-ec")]
-        Algorithm::ES384 => Ok(generate_ec_key(EcCurve::P384)),
+        Algorithm::ES384 => Ok(generate_ec_key(EllipticCurve::P384)),
         #[cfg(feature = "jwk-rsa")]
         Algorithm::PS256 | Algorithm::PS384 | Algorithm::PS512 => generate_rsa_key(2048),
         // Algorithm::EdDSA => generate_ed25519_key(),
@@ -47,8 +45,37 @@ fn generate_hmac_key<const SIZE: usize>() -> Key {
 }
 
 #[cfg(feature = "jwk-rsa")]
+struct AwsRng;
+
+#[cfg(feature = "jwk-rsa")]
+impl rsa::rand_core::RngCore for AwsRng {
+    fn next_u32(&mut self) -> u32 {
+        let mut buf = [0u8; 4];
+        self.fill_bytes(&mut buf);
+        u32::from_le_bytes(buf)
+    }
+
+    fn next_u64(&mut self) -> u64 {
+        let mut buf = [0u8; 8];
+        self.fill_bytes(&mut buf);
+        u64::from_le_bytes(buf)
+    }
+
+    fn fill_bytes(&mut self, dest: &mut [u8]) {
+        aws_lc_rs::rand::fill(dest).unwrap();
+    }
+
+    fn try_fill_bytes(&mut self, dest: &mut [u8]) -> Result<(), rsa::rand_core::Error> {
+        aws_lc_rs::rand::fill(dest).map_err(|_| rsa::rand_core::Error::new("aws-lc-rs failed"))
+    }
+}
+
+#[cfg(feature = "jwk-rsa")]
+impl rsa::rand_core::CryptoRng for AwsRng {}
+
+#[cfg(feature = "jwk-rsa")]
 fn generate_rsa_key(size: usize) -> anyhow::Result<Key> {
-    let mut rng = thread_rng();
+    let mut rng = AwsRng;
     let key = rsa::RsaPrivateKey::new(&mut rng, size);
 
     match key {
@@ -68,10 +95,17 @@ fn generate_rsa_key(size: usize) -> anyhow::Result<Key> {
 }
 
 #[cfg(feature = "jwk-ec")]
-fn generate_ec_key(curve: EcCurve) -> Key {
+fn generate_ec_key(curve: EllipticCurve) -> Key {
     let (x, y, d) = match curve {
-        EcCurve::P256 => {
-            let secret = p256::SecretKey::random(&mut rand::thread_rng());
+        EllipticCurve::P256 => {
+            let mut bytes = [0u8; 32];
+            let secret = loop {
+                aws_lc_rs::rand::fill(&mut bytes).unwrap();
+                if let Ok(s) = p256::SecretKey::from_slice(&bytes) {
+                    break s;
+                }
+            };
+
             let public = secret.public_key();
             let point = public.to_encoded_point(false);
 
@@ -80,8 +114,15 @@ fn generate_ec_key(curve: EcCurve) -> Key {
             let d = secret.to_bytes().to_vec();
             (x, y, d)
         }
-        EcCurve::P384 => {
-            let secret = p384::SecretKey::random(&mut rand::thread_rng());
+        EllipticCurve::P384 => {
+            let mut bytes = [0u8; 48];
+            let secret = loop {
+                aws_lc_rs::rand::fill(&mut bytes).unwrap();
+                if let Ok(s) = p384::SecretKey::from_slice(&bytes) {
+                    break s;
+                }
+            };
+
             let public = secret.public_key();
             let point = public.to_encoded_point(false);
 
