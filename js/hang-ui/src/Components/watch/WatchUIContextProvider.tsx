@@ -148,7 +148,7 @@ export default function WatchUIContextProvider(props: WatchUIContextProviderProp
 			setBuffering(shouldShow);
 		});
 
-		watchInstance?.signals.effect(function trackLantecy(effect) {
+		watchInstance?.signals.effect(function trackLatency(effect) {
 			const latency = effect.get(watchEl?.signals.latency);
 			setLatency(latency);
 		});
