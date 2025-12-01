@@ -24,4 +24,3 @@ moq-token --key private.jwk sign --root demo --publish bbb > token.jwt
 # verify the JWT (using public key)
 moq-token --key public.jwk verify < token.jwt
 ```
-
