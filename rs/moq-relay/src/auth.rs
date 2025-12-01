@@ -62,14 +62,14 @@ pub struct AuthToken {
 
 #[derive(Clone)]
 pub struct Auth {
-	key: Option<Arc<moq_token::Key>>,
+	key: Option<Arc<moq_token::JWK>>,
 	public: Option<PathOwned>,
 }
 
 impl Auth {
 	pub fn new(config: AuthConfig) -> anyhow::Result<Self> {
 		let key = match config.key.as_deref() {
-			Some(path) => Some(moq_token::Key::from_file(path)?),
+			Some(path) => Some(moq_token::JWK::from_file(path)?),
 			None => None,
 		};
 
@@ -158,12 +158,12 @@ impl Auth {
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use moq_token::{Algorithm, Key};
+	use moq_token::{Algorithm, JWK};
 	use tempfile::NamedTempFile;
 
-	fn create_test_key() -> anyhow::Result<(NamedTempFile, Key)> {
+	fn create_test_key() -> anyhow::Result<(NamedTempFile, JWK)> {
 		let key_file = NamedTempFile::new()?;
-		let key = Key::generate(Algorithm::HS256, None);
+		let key = JWK::generate(Algorithm::HS256, None)?;
 		key.to_file(key_file.path())?;
 		Ok((key_file, key))
 	}
