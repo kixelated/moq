@@ -84,7 +84,7 @@ fn main() -> anyhow::Result<()> {
 			let key = moq_token::JWK::generate(algorithm, id)?;
 
 			if let Some(public) = public {
-				key.to_public().to_file(public)?;
+				key.to_public()?.to_file(public)?;
 			}
 
 			key.to_file(&cli.key)?;

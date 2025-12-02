@@ -73,7 +73,7 @@ pub enum Key {
 	},
 }
 
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize, PartialEq, Eq, Debug)]
 pub enum EllipticCurve {
 	#[serde(rename = "P-256")]
 	P256,
@@ -188,36 +188,45 @@ impl JWK {
 		Ok(())
 	}
 
-	pub fn to_public(&self) -> Self {
-		Self {
-			algorithm: self.algorithm,
-			operations: [KeyOperation::Verify].into(),
-			key: match self.key {
-				Key::RSA { ref public, .. } => Key::RSA {
-					public: public.clone(),
-					private: None,
-				},
-				Key::EC {
-					ref x,
-					ref y,
-					ref curve,
-					..
-				} => Key::EC {
-					x: x.clone(),
-					y: y.clone(),
-					curve: curve.clone(),
-					d: None,
-				},
-				Key::OCT { .. } => panic!("OCT key cannot be converted to public key"),
-				Key::OKP { ref x, ref curve, .. } => Key::OKP {
-					x: x.clone(),
-					curve: curve.clone(),
-					d: None,
-				},
-			},
-			kid: self.kid.clone(),
-			decode: Default::default(),
-			encode: Default::default(),
+	pub fn to_public(&self) -> anyhow::Result<Self> {
+		if !self.operations.contains(&KeyOperation::Verify) {
+			return Err(anyhow::anyhow!("This key doesn't support the Verify operation"));
+		}
+
+		let key = match self.key {
+			Key::RSA { ref public, .. } => Ok(Key::RSA {
+				public: public.clone(),
+				private: None,
+			}),
+			Key::EC {
+				ref x,
+				ref y,
+				ref curve,
+				..
+			} => Ok(Key::EC {
+				x: x.clone(),
+				y: y.clone(),
+				curve: curve.clone(),
+				d: None,
+			}),
+			Key::OCT { .. } => Err(anyhow::anyhow!("OCT key cannot be converted to public key")),
+			Key::OKP { ref x, ref curve, .. } => Ok(Key::OKP {
+				x: x.clone(),
+				curve: curve.clone(),
+				d: None,
+			}),
+		};
+
+		match key {
+			Ok(key) => Ok(Self {
+				algorithm: self.algorithm,
+				operations: [KeyOperation::Verify].into(),
+				key,
+				kid: self.kid.clone(),
+				decode: Default::default(),
+				encode: Default::default(),
+			}),
+			Err(err) => Err(anyhow::anyhow!("Failed to convert key: {}", err)),
 		}
 	}
 
@@ -710,7 +719,7 @@ mod tests {
 		let key = key.unwrap();
 
 		assert_eq!(key.algorithm, Algorithm::PS512);
-		assert!(matches!(key.key, Key::RSA { .. }))
+		assert!(matches!(key.key, Key::RSA { .. }));
 	}
 
 	#[test]
@@ -732,6 +741,106 @@ mod tests {
 		assert_eq!(key.algorithm, Algorithm::HS256);
 		assert_eq!(key.kid, None);
 		assert_eq!(key.operations, [KeyOperation::Sign, KeyOperation::Verify].into());
+	}
+
+	#[test]
+	fn test_public_key_conversion_hmac() {
+		let key = JWK::generate(Algorithm::HS256, Some("test-id".to_string())).expect("HMAC key generation failed");
+
+		assert!(key.to_public().is_err());
+	}
+
+	#[test]
+	fn test_public_key_conversion_rsa() {
+		let key = JWK::generate(Algorithm::RS256, Some("test-id".to_string()));
+		assert!(key.is_ok());
+		let key = key.unwrap();
+
+		let public_key = key.to_public().unwrap();
+		assert_eq!(key.kid, public_key.kid);
+		assert_eq!(public_key.operations, [KeyOperation::Verify].into());
+		assert!(public_key.encode.get().is_none());
+		assert!(public_key.decode.get().is_none());
+		assert!(matches!(public_key.key, Key::RSA { .. }));
+
+		if let Key::RSA { public, private } = &public_key.key {
+			assert!(private.is_none());
+
+			if let Key::RSA { public: src_public, .. } = &key.key {
+				assert_eq!(public.exponent, src_public.exponent);
+				assert_eq!(public.modulus, src_public.modulus);
+			} else {
+				unreachable!("Expected RSA key")
+			}
+		} else {
+			unreachable!("Expected RSA key");
+		}
+	}
+
+	#[test]
+	fn test_public_key_conversion_es() {
+		let key = JWK::generate(Algorithm::ES256, Some("test-id".to_string()));
+		assert!(key.is_ok());
+		let key = key.unwrap();
+
+		let public_key = key.to_public().unwrap();
+		assert_eq!(key.kid, public_key.kid);
+		assert_eq!(public_key.operations, [KeyOperation::Verify].into());
+		assert!(public_key.encode.get().is_none());
+		assert!(public_key.decode.get().is_none());
+		assert!(matches!(public_key.key, Key::EC { .. }));
+
+		if let Key::EC { x, y, d, curve } = &public_key.key {
+			assert!(d.is_none());
+
+			if let Key::EC {
+				x: src_x,
+				y: src_y,
+				curve: src_curve,
+				..
+			} = &key.key
+			{
+				assert_eq!(x, src_x);
+				assert_eq!(y, src_y);
+				assert_eq!(curve, src_curve);
+			} else {
+				unreachable!("Expected EC key")
+			}
+		} else {
+			unreachable!("Expected EC key");
+		}
+	}
+
+	#[test]
+	fn test_public_key_conversion_ed() {
+		let key = JWK::generate(Algorithm::EdDSA, Some("test-id".to_string()));
+		assert!(key.is_ok());
+		let key = key.unwrap();
+
+		let public_key = key.to_public().unwrap();
+		assert_eq!(key.kid, public_key.kid);
+		assert_eq!(public_key.operations, [KeyOperation::Verify].into());
+		assert!(public_key.encode.get().is_none());
+		assert!(public_key.decode.get().is_none());
+		assert!(matches!(public_key.key, Key::OKP { .. }));
+
+		if let Key::OKP { x, d, curve } = &public_key.key {
+			assert!(d.is_none());
+
+			if let Key::OKP {
+				x: src_x,
+				curve: src_curve,
+				..
+			} = &key.key
+			{
+				assert_eq!(x, src_x);
+				assert_eq!(curve, src_curve);
+			} else {
+				unreachable!("Expected OKP key")
+			}
+		} else {
+			unreachable!("Expected OKP key");
+		}
 	}
 
 	#[test]
@@ -909,7 +1018,7 @@ mod tests {
 			"validation using private key"
 		);
 
-		let public_verified_claims = key.to_public().decode(&token).unwrap();
+		let public_verified_claims = key.to_public().unwrap().decode(&token).unwrap();
 		assert_eq!(public_verified_claims.root, claims.root, "validation using public key");
 	}
 
@@ -946,7 +1055,7 @@ mod tests {
 
 		// Different algorithm should fail verification
 		let private_result = key_es384.decode(&token);
-		let public_result = key_es384.to_public().decode(&token);
+		let public_result = key_es384.to_public().unwrap().decode(&token);
 		assert!(private_result.is_err());
 		assert!(public_result.is_err());
 	}
@@ -960,7 +1069,7 @@ mod tests {
 		assert!(key.operations.contains(&KeyOperation::Sign));
 		assert!(key.operations.contains(&KeyOperation::Verify));
 
-		let public_key = key.to_public();
+		let public_key = key.to_public().unwrap();
 		assert!(!public_key.operations.contains(&KeyOperation::Sign));
 		assert!(public_key.operations.contains(&KeyOperation::Verify));
 
@@ -998,7 +1107,7 @@ mod tests {
 		assert!(key.operations.contains(&KeyOperation::Sign));
 		assert!(key.operations.contains(&KeyOperation::Verify));
 
-		let public_key = key.to_public();
+		let public_key = key.to_public().unwrap();
 		assert!(!public_key.operations.contains(&KeyOperation::Sign));
 		assert!(public_key.operations.contains(&KeyOperation::Verify));
 
