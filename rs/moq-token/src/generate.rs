@@ -1,6 +1,7 @@
 use crate::EllipticCurve;
 use crate::RsaPublicKey;
 use crate::{Algorithm, Key, KeyOperation, JWK};
+use aws_lc_rs::signature::KeyPair;
 use elliptic_curve::sec1::ToEncodedPoint;
 use rsa::traits::{PrivateKeyParts, PublicKeyParts};
 
@@ -14,7 +15,7 @@ pub fn generate(algorithm: Algorithm, id: Option<String>) -> anyhow::Result<JWK>
 		Algorithm::ES256 => Ok(generate_ec_key(EllipticCurve::P256)),
 		Algorithm::ES384 => Ok(generate_ec_key(EllipticCurve::P384)),
 		Algorithm::PS256 | Algorithm::PS384 | Algorithm::PS512 => generate_rsa_key(2048),
-		// Algorithm::EdDSA => generate_ed25519_key(),
+		Algorithm::EdDSA => generate_ed25519_key(),
 	};
 
 	match key {
@@ -118,6 +119,10 @@ fn generate_ec_key(curve: EllipticCurve) -> Key {
 			let d = secret.to_bytes().to_vec();
 			(x, y, d)
 		}
+		EllipticCurve::Ed25519 => {
+			// Ed25519 keys should be generated using generate_ed25519_key instead
+			unreachable!("Ed25519 keys must use OKP key type, not EC")
+		}
 	};
 
 	Key::EC {
@@ -128,13 +133,14 @@ fn generate_ec_key(curve: EllipticCurve) -> Key {
 	}
 }
 
-/*
-fn generate_ed25519_key() -> (Vec<u8>, Vec<u8>) {
-	let key = signature::Ed25519KeyPair::generate().unwrap();
-	let private_key: Pkcs8V1Der = key.as_der().unwrap();
-	let private_key = private_key.as_ref().to_vec();
-	let public_key = key.public_key().as_der().unwrap().as_ref().to_vec();
+fn generate_ed25519_key() -> anyhow::Result<Key> {
+	let key_pair = aws_lc_rs::signature::Ed25519KeyPair::generate()?;
 
-	(private_key, public_key)
+	let public_key = key_pair.public_key().as_ref().to_vec();
+
+	Ok(Key::OKP {
+		curve: EllipticCurve::Ed25519,
+		x: public_key,
+		d: Some(key_pair.to_pkcs8v1()?.as_ref().as_ref().into()),
+	})
 }
-*/

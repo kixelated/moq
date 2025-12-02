@@ -18,7 +18,7 @@ pub enum Algorithm {
 	PS256,
 	PS384,
 	PS512,
-	// EdDSA,
+	EdDSA,
 }
 
 impl From<Algorithm> for jsonwebtoken::Algorithm {
@@ -35,7 +35,7 @@ impl From<Algorithm> for jsonwebtoken::Algorithm {
 			Algorithm::PS256 => jsonwebtoken::Algorithm::PS256,
 			Algorithm::PS384 => jsonwebtoken::Algorithm::PS384,
 			Algorithm::PS512 => jsonwebtoken::Algorithm::PS512,
-			// Algorithm::EdDSA => jsonwebtoken::Algorithm::EdDSA,
+			Algorithm::EdDSA => jsonwebtoken::Algorithm::EdDSA,
 		}
 	}
 }
@@ -56,7 +56,7 @@ impl FromStr for Algorithm {
 			"PS256" => Ok(Algorithm::PS256),
 			"PS384" => Ok(Algorithm::PS384),
 			"PS512" => Ok(Algorithm::PS512),
-			// "EdDSA" => Ok(Algorithm::EdDSA),
+			"EdDSA" => Ok(Algorithm::EdDSA),
 			_ => anyhow::bail!("invalid algorithm: {s}"),
 		}
 	}
@@ -76,7 +76,7 @@ impl fmt::Display for Algorithm {
 			Algorithm::PS256 => write!(f, "PS256"),
 			Algorithm::PS384 => write!(f, "PS384"),
 			Algorithm::PS512 => write!(f, "PS512"),
-			// Algorithm::EdDSA => write!(f, "EdDSA"),
+			Algorithm::EdDSA => write!(f, "EdDSA"),
 		}
 	}
 }
@@ -98,7 +98,7 @@ mod tests {
 		assert_eq!(Algorithm::from_str("PS256").unwrap(), Algorithm::PS256);
 		assert_eq!(Algorithm::from_str("PS384").unwrap(), Algorithm::PS384);
 		assert_eq!(Algorithm::from_str("PS512").unwrap(), Algorithm::PS512);
-		// assert_eq!(Algorithm::from_str("EdDSA").unwrap(), Algorithm::EdDSA);
+		assert_eq!(Algorithm::from_str("EdDSA").unwrap(), Algorithm::EdDSA);
 	}
 
 	#[test]
@@ -106,6 +106,7 @@ mod tests {
 		assert!(Algorithm::from_str("HS128").is_err());
 		assert!(Algorithm::from_str("RS128").is_err());
 		assert!(Algorithm::from_str("ES512").is_err());
+		assert!(Algorithm::from_str("EDDSA").is_err());
 		assert!(Algorithm::from_str("invalid").is_err());
 		assert!(Algorithm::from_str("").is_err());
 	}
@@ -123,7 +124,7 @@ mod tests {
 		assert_eq!(Algorithm::PS256.to_string(), "PS256");
 		assert_eq!(Algorithm::PS384.to_string(), "PS384");
 		assert_eq!(Algorithm::PS512.to_string(), "PS512");
-		// assert_eq!(Algorithm::EdDSA.to_string(), "EdDSA");
+		assert_eq!(Algorithm::EdDSA.to_string(), "EdDSA");
 	}
 
 	#[test]
@@ -172,10 +173,10 @@ mod tests {
 			jsonwebtoken::Algorithm::from(Algorithm::PS512),
 			jsonwebtoken::Algorithm::PS512
 		);
-		/*assert_eq!(
-			jsonwebtoken::Algorithm::from(Algorithm::EcDSA),
+		assert_eq!(
+			jsonwebtoken::Algorithm::from(Algorithm::EdDSA),
 			jsonwebtoken::Algorithm::EdDSA
-		);*/
+		);
 	}
 
 	#[test]
@@ -206,6 +207,9 @@ mod tests {
 		assert_eq!(Algorithm::PS384, Algorithm::PS384);
 		assert_eq!(Algorithm::PS512, Algorithm::PS512);
 		assert_ne!(Algorithm::PS256, Algorithm::PS512);
+		assert_eq!(Algorithm::EdDSA, Algorithm::EdDSA);
+		assert_ne!(Algorithm::EdDSA, Algorithm::ES256);
+		assert_ne!(Algorithm::EdDSA, Algorithm::RS512);
 	}
 
 	#[test]

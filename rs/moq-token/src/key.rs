@@ -2,8 +2,7 @@ use crate::generate::generate;
 use crate::{Algorithm, Claims};
 use anyhow::bail;
 use base64::Engine;
-use elliptic_curve::pkcs8::{EncodePrivateKey, EncodePublicKey};
-use elliptic_curve::sec1::FromEncodedPoint;
+use elliptic_curve::pkcs8::{EncodePrivateKey};
 use jsonwebtoken::{DecodingKey, EncodingKey, Header};
 use rsa::pkcs1::EncodeRsaPrivateKey;
 use rsa::BigUint;
@@ -58,6 +57,20 @@ pub enum Key {
 		)]
 		secret: Vec<u8>,
 	},
+	OKP {
+		#[serde(rename = "crv")]
+		curve: EllipticCurve,
+		#[serde(serialize_with = "serialize_base64url", deserialize_with = "deserialize_base64url")]
+		x: Vec<u8>,
+		#[serde(
+			rename = "d",
+			default,
+			skip_serializing_if = "Option::is_none",
+			serialize_with = "serialize_base64url_optional",
+			deserialize_with = "deserialize_base64url_optional"
+		)]
+		d: Option<Vec<u8>>,
+	},
 }
 
 #[derive(Clone, Serialize, Deserialize)]
@@ -69,6 +82,8 @@ pub enum EllipticCurve {
 	// jsonwebtoken doesn't support the ES512 algorithm, so we can't implement this
 	// #[serde(rename = "P-521")]
 	// P521,
+	#[serde(rename = "Ed25519")]
+	Ed25519,
 }
 
 #[derive(Clone, Serialize, Deserialize)]
@@ -107,7 +122,7 @@ pub struct RsaPrivateKey {
 		deserialize_with = "deserialize_base64url"
 	)]
 	pub second_prime: Vec<u8>,
-	// TODO RFC7518 defines more parameters for optimization https://datatracker.ietf.org/doc/html/rfc7518#section-6.2
+	// TODO RFC7518 defines more parameters for optimization https://datatracker.ietf.org/doc/html/rfc7518#section-6.3
 }
 
 /// Similar to JWK but not quite the same because it's annoying to implement.
@@ -194,6 +209,11 @@ impl JWK {
 					d: None,
 				},
 				Key::OCT { .. } => panic!("OCT key cannot be converted to public key"),
+				Key::OKP { ref x, ref curve, .. } => Key::OKP {
+					x: x.clone(),
+					curve: curve.clone(),
+					d: None,
+				},
 			},
 			kid: self.kid.clone(),
 			decode: Default::default(),
@@ -221,30 +241,29 @@ impl JWK {
 					if x.len() != 32 || y.len() != 32 {
 						bail!("Invalid coordinate length for P-256");
 					}
-					let point = p256::EncodedPoint::from_affine_coordinates(
-						p256::FieldBytes::from_slice(x),
-						p256::FieldBytes::from_slice(y),
-						false,
-					);
-					let public_key = Option::<p256::PublicKey>::from(p256::PublicKey::from_encoded_point(&point))
-						.ok_or_else(|| anyhow::anyhow!("Invalid P-256 point"))?;
-					let der = public_key.to_public_key_pem(elliptic_curve::pkcs8::LineEnding::LF)?;
-					DecodingKey::from_ec_pem(der.as_bytes())?
+
+					DecodingKey::from_ec_components(
+						base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(x).as_ref(),
+						base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(y).as_ref(),
+					)?
 				}
 				EllipticCurve::P384 => {
 					if x.len() != 48 || y.len() != 48 {
 						bail!("Invalid coordinate length for P-384");
 					}
-					let point = p384::EncodedPoint::from_affine_coordinates(
-						p384::FieldBytes::from_slice(x),
-						p384::FieldBytes::from_slice(y),
-						false,
-					);
-					let public_key = Option::<p384::PublicKey>::from(p384::PublicKey::from_encoded_point(&point))
-						.ok_or_else(|| anyhow::anyhow!("Invalid P-384 point"))?;
-					let der = public_key.to_public_key_pem(elliptic_curve::pkcs8::LineEnding::LF)?;
-					DecodingKey::from_ec_pem(der.as_bytes())?
+
+					DecodingKey::from_ec_components(
+						base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(x).as_ref(),
+						base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(y).as_ref(),
+					)?
 				}
+				_ => bail!("Invalid curve for EC key"),
+			},
+			Key::OKP { ref curve, ref x, .. } => match curve {
+				EllipticCurve::Ed25519 => DecodingKey::from_ed_components(
+					base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(x).as_ref(),
+				)?,
+				_ => bail!("Invalid curve for OKP key"),
 			},
 			Key::RSA { ref public, .. } => {
 				DecodingKey::from_rsa_raw_components(public.modulus.as_ref(), public.exponent.as_ref())
@@ -278,6 +297,15 @@ impl JWK {
 						let doc = secret_key.to_pkcs8_der()?;
 						EncodingKey::from_ec_der(doc.as_bytes())
 					}
+					_ => bail!("Invalid curve for EC key"),
+				}
+			}
+			Key::OKP { ref curve, ref d, .. } => {
+				let d = d.as_ref().ok_or_else(|| anyhow::anyhow!("Missing private key"))?;
+
+				match curve {
+					EllipticCurve::Ed25519 => EncodingKey::from_ed_der(d.as_slice()),
+					_ => bail!("Invalid curve for OKP key"),
 				}
 			}
 			Key::RSA {
@@ -685,8 +713,6 @@ mod tests {
 		assert!(matches!(key.key, Key::RSA { .. }))
 	}
 
-	/*
-	TODO
 	#[test]
 	fn test_key_generate_eddsa() {
 		let key = JWK::generate(Algorithm::EdDSA, Some("test-id".to_string()));
@@ -694,8 +720,8 @@ mod tests {
 		let key = key.unwrap();
 
 		assert_eq!(key.algorithm, Algorithm::EdDSA);
+		assert!(matches!(key.key, Key::OKP { .. }));
 	}
-	*/
 
 	#[test]
 	fn test_key_generate_without_id() {
@@ -861,7 +887,6 @@ mod tests {
 		}
 	}
 
-	/*
 	#[test]
 	fn test_ed_asymmetric_algorithms() {
 		let key_eddsa = JWK::generate(Algorithm::EdDSA, Some("test-id".to_string()));
@@ -870,7 +895,6 @@ mod tests {
 			test_asymmetric_key(key);
 		}
 	}
-	*/
 
 	fn test_asymmetric_key(key: anyhow::Result<JWK>) {
 		assert!(key.is_ok());
