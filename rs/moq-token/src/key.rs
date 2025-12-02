@@ -2,7 +2,8 @@ use crate::generate::generate;
 use crate::{Algorithm, Claims};
 use anyhow::bail;
 use base64::Engine;
-use elliptic_curve::pkcs8::{EncodePrivateKey};
+use elliptic_curve::pkcs8::EncodePrivateKey;
+use elliptic_curve::SecretKey;
 use jsonwebtoken::{DecodingKey, EncodingKey, Header};
 use rsa::pkcs1::EncodeRsaPrivateKey;
 use rsa::BigUint;
@@ -297,12 +298,12 @@ impl JWK {
 
 				match curve {
 					EllipticCurve::P256 => {
-						let secret_key = p256::SecretKey::from_slice(d)?;
+						let secret_key = SecretKey::<p256::NistP256>::from_slice(d)?;
 						let doc = secret_key.to_pkcs8_der()?;
 						EncodingKey::from_ec_der(doc.as_bytes())
 					}
 					EllipticCurve::P384 => {
-						let secret_key = p384::SecretKey::from_slice(d)?;
+						let secret_key = SecretKey::<p384::NistP384>::from_slice(d)?;
 						let doc = secret_key.to_pkcs8_der()?;
 						EncodingKey::from_ec_der(doc.as_bytes())
 					}
@@ -1000,9 +1001,7 @@ mod tests {
 	fn test_ed_asymmetric_algorithms() {
 		let key_eddsa = JWK::generate(Algorithm::EdDSA, Some("test-id".to_string()));
 
-		for key in [key_eddsa] {
-			test_asymmetric_key(key);
-		}
+		test_asymmetric_key(key_eddsa);
 	}
 
 	fn test_asymmetric_key(key: anyhow::Result<JWK>) {

@@ -1,8 +1,9 @@
-use crate::EllipticCurve;
-use crate::RsaPublicKey;
-use crate::{Algorithm, Key, KeyOperation, JWK};
+use crate::{Algorithm, EllipticCurve, Key, KeyOperation, RsaPublicKey, JWK};
 use aws_lc_rs::signature::KeyPair;
-use elliptic_curve::sec1::ToEncodedPoint;
+use elliptic_curve::generic_array::typenum::Unsigned;
+use elliptic_curve::point::PointCompression;
+use elliptic_curve::sec1::{FromEncodedPoint, ModulusSize, ToEncodedPoint};
+use elliptic_curve::{Curve, CurveArithmetic, SecretKey};
 use rsa::traits::{PrivateKeyParts, PublicKeyParts};
 
 /// Generate a key pair for the given algorithm, returning the private and public keys.
@@ -12,9 +13,9 @@ pub fn generate(algorithm: Algorithm, id: Option<String>) -> anyhow::Result<JWK>
 		Algorithm::HS384 => Ok(generate_hmac_key::<48>()),
 		Algorithm::HS512 => Ok(generate_hmac_key::<64>()),
 		Algorithm::RS256 | Algorithm::RS384 | Algorithm::RS512 => generate_rsa_key(2048),
-		Algorithm::ES256 => Ok(generate_ec_key(EllipticCurve::P256)),
-		Algorithm::ES384 => Ok(generate_ec_key(EllipticCurve::P384)),
 		Algorithm::PS256 | Algorithm::PS384 | Algorithm::PS512 => generate_rsa_key(2048),
+		Algorithm::ES256 => generate_ec_key::<p256::NistP256>(EllipticCurve::P256),
+		Algorithm::ES384 => generate_ec_key::<p384::NistP384>(EllipticCurve::P384),
 		Algorithm::EdDSA => generate_ed25519_key(),
 	};
 
@@ -83,54 +84,39 @@ fn generate_rsa_key(size: usize) -> anyhow::Result<Key> {
 	}
 }
 
-fn generate_ec_key(curve: EllipticCurve) -> Key {
-	let (x, y, d) = match curve {
-		EllipticCurve::P256 => {
-			let mut bytes = [0u8; 32];
-			let secret = loop {
-				aws_lc_rs::rand::fill(&mut bytes).unwrap();
-				if let Ok(s) = p256::SecretKey::from_slice(&bytes) {
-					break s;
-				}
-			};
+fn generate_ec_key<C>(curve: EllipticCurve) -> anyhow::Result<Key>
+where
+	C: Curve + CurveArithmetic + PointCompression,
+	C::AffinePoint: ToEncodedPoint<C> + FromEncodedPoint<C>,
+	C::FieldBytesSize: ModulusSize,
+{
+	let mut bytes = vec![0u8; C::FieldBytesSize::to_usize()];
+	let secret = loop {
+		aws_lc_rs::rand::fill(&mut bytes)?;
 
-			let public = secret.public_key();
-			let point = public.to_encoded_point(false);
-
-			let x = point.x().unwrap().to_vec();
-			let y = point.y().unwrap().to_vec();
-			let d = secret.to_bytes().to_vec();
-			(x, y, d)
-		}
-		EllipticCurve::P384 => {
-			let mut bytes = [0u8; 48];
-			let secret = loop {
-				aws_lc_rs::rand::fill(&mut bytes).unwrap();
-				if let Ok(s) = p384::SecretKey::from_slice(&bytes) {
-					break s;
-				}
-			};
-
-			let public = secret.public_key();
-			let point = public.to_encoded_point(false);
-
-			let x = point.x().unwrap().to_vec();
-			let y = point.y().unwrap().to_vec();
-			let d = secret.to_bytes().to_vec();
-			(x, y, d)
-		}
-		EllipticCurve::Ed25519 => {
-			// Ed25519 keys should be generated using generate_ed25519_key instead
-			unreachable!("Ed25519 keys must use OKP key type, not EC")
+		if let Ok(secret) = SecretKey::<C>::from_slice(&bytes) {
+			break secret;
 		}
 	};
 
-	Key::EC {
+	let point = secret.public_key().to_encoded_point(false);
+
+	let x = point
+		.x()
+		.ok_or_else(|| anyhow::anyhow!("Missing x() point in EC key"))?
+		.to_vec();
+	let y = point
+		.y()
+		.ok_or_else(|| anyhow::anyhow!("Missing y() point in EC key"))?
+		.to_vec();
+	let d = secret.to_bytes().to_vec();
+
+	Ok(Key::EC {
 		curve,
 		x,
 		y,
 		d: Some(d),
-	}
+	})
 }
 
 fn generate_ed25519_key() -> anyhow::Result<Key> {
