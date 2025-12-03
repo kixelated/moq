@@ -52,12 +52,10 @@ export default function WatchUIContextProvider(props: WatchUIContextProviderProp
 	};
 
 	const toggleMuted = () => {
-		setIsMuted(!isMuted());
-
 		const hangWatchEl = props.hangWatch();
 
 		if (hangWatchEl) {
-			hangWatchEl.muted = isMuted();
+			hangWatchEl.muted = !hangWatchEl.muted;
 		}
 	};
 
@@ -138,6 +136,11 @@ export default function WatchUIContextProvider(props: WatchUIContextProviderProp
 		watchInstance?.signals.effect(function trackVolume(effect) {
 			const volume = effect.get(watchInstance?.audio.volume);
 			setCurrentVolume(volume * 100);
+		});
+
+		watchInstance?.signals.effect(function trackMuted(effect) {
+			const muted = effect.get(watchInstance?.audio.muted);
+			setIsMuted(muted);
 		});
 
 		watchInstance?.signals.effect(function trackBuffering(effect) {
