@@ -90,16 +90,17 @@ export default function WatchUIContextProvider(props: WatchUIContextProviderProp
 			onWatchInstanceAvailable(hangWatchEl, watchInstance);
 		};
 
-		if (!hangWatchEl?.active?.peek()) {
+		const hangWatchInstance = hangWatchEl?.active?.peek?.() as HangWatchInstance;
+
+		if (hangWatchInstance) {
+			onWatchInstanceAvailable(hangWatchEl, hangWatchInstance);
+		} else {
 			// @ts-expect-error ignore custom event - todo add event map
 			hangWatchEl.addEventListener("watch-instance-available", onInstanceAvailable);
 			onCleanup(() => {
 				// @ts-expect-error ignore custom event - todo add event map
 				hangWatchEl.removeEventListener("watch-instance-available", onInstanceAvailable);
 			});
-		} else {
-			const hangWatchInstance = hangWatchEl.active.peek?.() as HangWatchInstance;
-			onWatchInstanceAvailable(hangWatchEl, hangWatchInstance);
 		}
 	});
 

@@ -75,16 +75,17 @@ export default function PublishUIContextProvider(props: PublishUIContextProvider
 			onPublishInstanceAvailable(hangPublishEl, publishInstance);
 		};
 
-		if (!hangPublishEl?.active?.peek()) {
+		const hangPublishInstance = hangPublishEl?.active?.peek?.() as HangPublishInstance;
+
+		if (hangPublishInstance) {
+			onPublishInstanceAvailable(hangPublishEl, hangPublishInstance);
+		} else {
 			// @ts-expect-error ignore custom event - todo add event map
 			hangPublishEl.addEventListener("publish-instance-available", onInstanceAvailable);
 			onCleanup(() => {
 				// @ts-expect-error ignore custom event - todo add event map
 				hangPublishEl.removeEventListener("publish-instance-available", onInstanceAvailable);
 			});
-		} else {
-			const publishInstance = hangPublishEl.active.peek?.() as HangPublishInstance;
-			onPublishInstanceAvailable(hangPublishEl, publishInstance);
 		}
 	});
 
