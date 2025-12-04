@@ -528,12 +528,25 @@ mod tests {
 		let key = Key::from_str(json);
 
 		assert!(key.is_ok());
-		if let KeyType::OCT { secret, .. } = key.unwrap().key {
+		let key = key.unwrap();
+
+		if let KeyType::OCT { ref secret, .. } = key.key {
 			let base64_key = base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(secret);
 			assert_eq!(base64_key, "Fp8kipWUJeUFqeSqWym_tRC_tyI8z-QpqopIGrbrD68");
 		} else {
 			panic!("Expected OCT key");
 		}
+
+		let key_str = key.to_str();
+		assert!(key_str.is_ok());
+		let key_str = key_str.unwrap();
+
+		// After serializing again it must contain the kty
+		assert!(key_str.contains("\"alg\":\"HS256\""));
+		assert!(key_str.contains("\"key_ops\""));
+		assert!(key_str.contains("\"sign\""));
+		assert!(key_str.contains("\"verify\""));
+		assert!(key_str.contains("\"kty\":\"oct\""));
 	}
 
 	#[test]
@@ -551,6 +564,7 @@ mod tests {
 		assert!(json.contains("\"sign\""));
 		assert!(json.contains("\"verify\""));
 		assert!(json.contains("\"kid\":\"test-key-1\""));
+		assert!(json.contains("\"kty\":\"oct\""));
 	}
 
 	#[test]
