@@ -5,18 +5,20 @@
 	"description": "Media over QUIC library UI components",
 	"license": "(MIT OR Apache-2.0)",
 	"repository": "github:kixelated/moq",
-	"main": "dist/publish-controls.esm.js",
-	"module": "dist/publish-controls.esm.js",
 	"exports": {
-		"./publish/element": "./dist/publish-controls.esm.js",
-		"./watch/element": "./dist/watch-controls.esm.js"
+		"./publish/element": "./src/Components/publish/element.tsx",
+		"./watch/element": "./src/Components/watch/element.tsx"
 	},
-	"sideEffects": true,
+	"sideEffects": [
+		"./src/Components/publish/element.tsx",
+		"./src/Components/watch/element.tsx"
+	],
 	"scripts": {
-		"build": "npm run clean && rollup -c",
+		"build": "bun run clean && rollup -c && bun ../scripts/package.ts",
 		"check": "biome check src",
 		"clean": "rimraf dist",
-		"fix": "biome check src --fix"
+		"fix": "biome check src --fix",
+		"release": "bun ../scripts/release.ts"
 	},
 	"peerDependencies": {
 		"@kixelated/hang": "workspace:^0.7.0"
