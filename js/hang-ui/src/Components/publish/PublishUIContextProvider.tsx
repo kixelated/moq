@@ -93,7 +93,7 @@ export default function PublishUIContextProvider(props: PublishUIContextProvider
 	return <PublishUIContext.Provider value={value}>{props.children}</PublishUIContext.Provider>;
 
 	function onPublishInstanceAvailable(el: HangPublish, publishInstance: HangPublishInstance) {
-		publishInstance?.signals.effect(function trackCameraDevices(effect) {
+		publishInstance.signals.effect(function trackCameraDevices(effect) {
 			const video = effect.get(publishInstance.video);
 
 			if (!video || !("device" in video)) return;

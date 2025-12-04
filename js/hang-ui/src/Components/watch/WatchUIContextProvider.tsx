@@ -108,7 +108,7 @@ export default function WatchUIContextProvider(props: WatchUIContextProviderProp
 	return <WatchUIContext.Provider value={value}>{props.children}</WatchUIContext.Provider>;
 
 	function onWatchInstanceAvailable(watchEl: HangWatch, watchInstance: HangWatchInstance) {
-		watchInstance?.signals.effect(function trackWatchStatus(effect) {
+		watchInstance.signals.effect(function trackWatchStatus(effect) {
 			const url = effect.get(watchInstance?.connection.url);
 			const connection = effect.get(watchInstance?.connection.status);
 			const broadcast = effect.get(watchInstance?.broadcast.status);
