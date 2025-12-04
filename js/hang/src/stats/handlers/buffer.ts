@@ -1,4 +1,4 @@
-import type { HandlerContext } from "../types";
+import type { HandlerContext, SyncStatus, BufferStatus } from "../types";
 import { BaseHandler } from "./base";
 
 /**
@@ -37,24 +37,21 @@ export class BufferHandler extends BaseHandler {
 			return;
 		}
 
-		const syncStatus = this.peekSignal<{ state: "ready" | "wait"; bufferDuration?: number }>(
-			this.props.video?.syncStatus
-		);
-		const bufferStatus = this.peekSignal<{ state: "empty" | "filled" }>(
-			this.props.video?.bufferStatus
-		);
+		const syncStatus = this.peekSignal<SyncStatus>(this.props.video?.syncStatus);
+		const bufferStatus = this.peekSignal<BufferStatus>(this.props.video?.bufferStatus);
 		const latency = this.peekSignal<number>(this.props.video.latency);
 
+		const isLatencyValid = latency !== null && latency !== undefined && latency > 0;
 		const bufferPercentage =
-			syncStatus?.state === "wait" && syncStatus?.bufferDuration !== undefined && latency
-				? Math.min(100, Math.round((syncStatus.bufferDuration / latency) * 100))
+			syncStatus?.state === "wait" && syncStatus?.bufferDuration !== undefined && isLatencyValid
+				? Math.min(100, Math.round((syncStatus.bufferDuration / latency!) * 100))
 				: bufferStatus?.state === "filled"
 					? 100
 					: 0;
 
 		const parts = [
 			`${bufferPercentage}%`,
-			latency !== undefined ? `${latency}ms` : "N/A",
+			isLatencyValid ? `${latency}ms` : "N/A",
 		];
 
 		this.context.setDisplayData(parts.join("\n"));

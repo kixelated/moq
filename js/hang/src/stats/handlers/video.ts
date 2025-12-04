@@ -1,4 +1,4 @@
-import type { HandlerContext } from "../types";
+import type { HandlerContext, DisplaySize } from "../types";
 import { BaseHandler } from "./base";
 
 /**
@@ -36,9 +36,7 @@ export class VideoHandler extends BaseHandler {
 			return;
 		}
 
-		const display = this.peekSignal<{ width: number; height: number }>(
-			this.props.video?.display
-		);
+		const display = this.peekSignal<DisplaySize>(this.props.video?.display);
 		const fps = this.peekSignal<number>(this.props.video?.fps);
 
 		const parts = [

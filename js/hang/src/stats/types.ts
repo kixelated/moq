@@ -12,6 +12,29 @@ export interface HandlerContext {
 }
 
 /**
+ * Display resolution dimensions
+ */
+export interface DisplaySize {
+	width: number;
+	height: number;
+}
+
+/**
+ * Stream sync status with buffer information
+ */
+export interface SyncStatus {
+	state: "ready" | "wait";
+	bufferDuration?: number;
+}
+
+/**
+ * Stream buffer fill status
+ */
+export interface BufferStatus {
+	state: "empty" | "filled";
+}
+
+/**
  * Generic reactive signal interface for accessing stream data
  */
 export interface Signal<T> {
@@ -42,10 +65,10 @@ export interface AudioConfig {
  * Video stream source with reactive properties
  */
 export interface VideoSource {
-	display?: Signal<{ width: number; height: number }>;
+	display?: Signal<DisplaySize>;
 	fps?: Signal<number>;
-	syncStatus?: Signal<{ state: "ready" | "wait"; bufferDuration?: number }>;
-	bufferStatus?: Signal<{ state: "empty" | "filled" }>;
+	syncStatus?: Signal<SyncStatus>;
+	bufferStatus?: Signal<BufferStatus>;
 	latency?: Signal<number>;
 }
 
