@@ -131,8 +131,10 @@ pub struct RsaAdditionalPrime {
 	pub t: Vec<u8>,
 }
 
-/// Similar to JWK but not quite the same because it's annoying to implement.
+/// JWK, almost to spec (https://datatracker.ietf.org/doc/html/rfc7517) but not quite the same
+/// because it's annoying to implement.
 #[derive(Clone, Serialize, Deserialize)]
+#[serde(remote = "Self")]
 pub struct Key {
 	/// The algorithm used by the key.
 	#[serde(rename = "alg")]
@@ -142,8 +144,9 @@ pub struct Key {
 	#[serde(rename = "key_ops")]
 	pub operations: HashSet<KeyOperation>,
 
+	/// Defaults to KeyType::OCT
 	#[serde(flatten)]
-	pub key: KeyType, // TODO For backwards compatibility this should default to kty = OCT
+	pub key: KeyType,
 
 	/// The key ID, useful for rotating keys.
 	#[serde(skip_serializing_if = "Option::is_none")]
@@ -155,6 +158,35 @@ pub struct Key {
 
 	#[serde(skip)]
 	pub(crate) encode: OnceLock<EncodingKey>,
+}
+
+impl<'de> Deserialize<'de> for Key {
+	fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+	where
+		D: Deserializer<'de>,
+	{
+		let mut value = serde_json::Value::deserialize(deserializer)?;
+
+		// Normally the "kty" parameter is required in a JWK: https://datatracker.ietf.org/doc/html/rfc7517#section-4.1
+		// But for backwards compatibility we need to default to "oct" because in a previous
+		// implementation the parameter was omitted, and we want to keep previously generated tokens valid
+		if let Some(obj) = value.as_object_mut() {
+			if !obj.contains_key("kty") {
+				obj.insert("kty".to_string(), serde_json::Value::String("oct".to_string()));
+			}
+		}
+
+		Self::deserialize(value).map_err(serde::de::Error::custom)
+	}
+}
+
+impl Serialize for Key {
+	fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+	where
+		S: Serializer,
+	{
+		Self::serialize(self, serializer)
+	}
 }
 
 impl fmt::Debug for Key {
@@ -487,6 +519,21 @@ mod tests {
 			_ => panic!("Expected OCT key"),
 		}
 		assert_eq!(loaded_key.kid, key.kid);
+	}
+
+	/// Tests whether Key::from_str() works for keys without a kty value to fall back to OCT
+	#[test]
+	fn test_key_oct_backwards_compatibility() {
+		let json = r#"{"alg":"HS256","key_ops":["sign","verify"],"k":"Fp8kipWUJeUFqeSqWym_tRC_tyI8z-QpqopIGrbrD68"}"#;
+		let key = Key::from_str(json);
+
+		assert!(key.is_ok());
+		if let KeyType::OCT { secret, .. } = key.unwrap().key {
+			let base64_key = base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(secret);
+			assert_eq!(base64_key, "Fp8kipWUJeUFqeSqWym_tRC_tyI8z-QpqopIGrbrD68");
+		} else {
+			panic!("Expected OCT key");
+		}
 	}
 
 	#[test]
