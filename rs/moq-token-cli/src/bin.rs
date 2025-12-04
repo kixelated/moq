@@ -81,7 +81,7 @@ fn main() -> anyhow::Result<()> {
 
 	match cli.command {
 		Commands::Generate { algorithm, id, public } => {
-			let key = moq_token::JWK::generate(algorithm, id)?;
+			let key = moq_token::Key::generate(algorithm, id)?;
 
 			if let Some(public) = public {
 				key.to_public()?.to_file(public)?;
@@ -98,7 +98,7 @@ fn main() -> anyhow::Result<()> {
 			expires,
 			issued,
 		} => {
-			let key = moq_token::JWK::from_file(cli.key)?;
+			let key = moq_token::Key::from_file(cli.key)?;
 
 			let payload = moq_token::Claims {
 				root,
@@ -114,7 +114,7 @@ fn main() -> anyhow::Result<()> {
 		}
 
 		Commands::Verify => {
-			let key = moq_token::JWK::from_file(cli.key)?;
+			let key = moq_token::Key::from_file(cli.key)?;
 			let token = io::read_to_string(io::stdin())?.trim().to_string();
 			let payload = key.decode(&token)?;
 

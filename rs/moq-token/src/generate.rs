@@ -1,4 +1,4 @@
-use crate::{Algorithm, EllipticCurve, Key, KeyOperation, RsaPublicKey, JWK};
+use crate::{Algorithm, EllipticCurve, Key, KeyOperation, KeyType, RsaPublicKey};
 use anyhow::Context;
 use aws_lc_rs::signature::KeyPair;
 use elliptic_curve::generic_array::typenum::Unsigned;
@@ -8,7 +8,7 @@ use elliptic_curve::{Curve, CurveArithmetic, SecretKey};
 use rsa::traits::{PrivateKeyParts, PublicKeyParts};
 
 /// Generate a key pair for the given algorithm, returning the private and public keys.
-pub fn generate(algorithm: Algorithm, id: Option<String>) -> anyhow::Result<JWK> {
+pub fn generate(algorithm: Algorithm, id: Option<String>) -> anyhow::Result<Key> {
 	let key = match algorithm {
 		Algorithm::HS256 => generate_hmac_key::<32>(),
 		Algorithm::HS384 => generate_hmac_key::<48>(),
@@ -20,7 +20,7 @@ pub fn generate(algorithm: Algorithm, id: Option<String>) -> anyhow::Result<JWK>
 		Algorithm::EdDSA => generate_ed25519_key(),
 	};
 
-	Ok(JWK {
+	Ok(Key {
 		kid: id,
 		operations: [KeyOperation::Sign, KeyOperation::Verify].into(),
 		algorithm,
@@ -30,10 +30,10 @@ pub fn generate(algorithm: Algorithm, id: Option<String>) -> anyhow::Result<JWK>
 	})
 }
 
-fn generate_hmac_key<const SIZE: usize>() -> anyhow::Result<Key> {
+fn generate_hmac_key<const SIZE: usize>() -> anyhow::Result<KeyType> {
 	let mut key = [0u8; SIZE];
 	aws_lc_rs::rand::fill(&mut key)?;
-	Ok(Key::OCT { secret: key.to_vec() })
+	Ok(KeyType::OCT { secret: key.to_vec() })
 }
 
 struct AwsRng;
@@ -62,12 +62,12 @@ impl rsa::rand_core::RngCore for AwsRng {
 
 impl rsa::rand_core::CryptoRng for AwsRng {}
 
-fn generate_rsa_key(size: usize) -> anyhow::Result<Key> {
+fn generate_rsa_key(size: usize) -> anyhow::Result<KeyType> {
 	let mut rng = AwsRng;
 	let key = rsa::RsaPrivateKey::new(&mut rng, size);
 
 	match key {
-		Ok(key) => Ok(Key::RSA {
+		Ok(key) => Ok(KeyType::RSA {
 			public: RsaPublicKey {
 				exponent: key.e().to_bytes_be(),
 				modulus: key.n().to_bytes_be(),
@@ -82,7 +82,7 @@ fn generate_rsa_key(size: usize) -> anyhow::Result<Key> {
 	}
 }
 
-fn generate_ec_key<C>(curve: EllipticCurve) -> anyhow::Result<Key>
+fn generate_ec_key<C>(curve: EllipticCurve) -> anyhow::Result<KeyType>
 where
 	C: Curve + CurveArithmetic + PointCompression,
 	C::AffinePoint: ToEncodedPoint<C> + FromEncodedPoint<C>,
@@ -103,7 +103,7 @@ where
 	let y = point.y().context("Missing y() point in EC key")?.to_vec();
 	let d = secret.to_bytes().to_vec();
 
-	Ok(Key::EC {
+	Ok(KeyType::EC {
 		curve,
 		x,
 		y,
@@ -111,12 +111,12 @@ where
 	})
 }
 
-fn generate_ed25519_key() -> anyhow::Result<Key> {
+fn generate_ed25519_key() -> anyhow::Result<KeyType> {
 	let key_pair = aws_lc_rs::signature::Ed25519KeyPair::generate()?;
 
 	let public_key = key_pair.public_key().as_ref().to_vec();
 
-	Ok(Key::OKP {
+	Ok(KeyType::OKP {
 		curve: EllipticCurve::Ed25519,
 		x: public_key,
 		d: Some(key_pair.to_pkcs8v1()?.as_ref().as_ref().into()),
