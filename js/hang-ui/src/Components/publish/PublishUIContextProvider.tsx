@@ -1,5 +1,5 @@
 import type HangPublish from "@kixelated/hang/publish/element";
-import type { HangPublishInstance } from "@kixelated/hang/publish/element";
+import type { HangPublishInstance, InstanceAvailableEvent } from "@kixelated/hang/publish/element";
 import type { JSX } from "solid-js";
 import { createContext, createEffect, createSignal, onCleanup } from "solid-js";
 
@@ -11,10 +11,10 @@ type PublishUIContextValue = {
 	microphoneDevices: () => MediaDeviceInfo[];
 	publishStatus: () => PublishStatus;
 	microphoneActive: () => boolean;
-	cameraActive: () => boolean;
-	screenActive: () => boolean;
-	fileActive: () => boolean;
-	nothingActive: () => boolean;
+	cameraActive?: () => boolean;
+	screenActive?: () => boolean;
+	fileActive?: () => boolean;
+	nothingActive?: () => boolean;
 	selectedCameraSource?: () => MediaDeviceInfo["deviceId"] | undefined;
 	selectedMicrophoneSource?: () => MediaDeviceInfo["deviceId"] | undefined;
 	setFile: (file: File) => void;
@@ -70,20 +70,21 @@ export default function PublishUIContextProvider(props: PublishUIContextProvider
 		const hangPublishEl = props.hangPublish();
 		if (!hangPublishEl) return;
 
-		const onInstanceAvailable = (event: CustomEvent) => {
-			const publishInstance = event.detail.instance.peek?.() as HangPublishInstance;
-			onPublishInstanceAvailable(hangPublishEl, publishInstance);
+		const onInstanceAvailable = (event: InstanceAvailableEvent) => {
+			const publishInstance = event.detail.instance.peek?.();
+
+			if (publishInstance) {
+				onPublishInstanceAvailable(hangPublishEl, publishInstance);
+			}
 		};
 
-		const hangPublishInstance = hangPublishEl?.active?.peek?.() as HangPublishInstance;
+		const hangPublishInstance = hangPublishEl?.active?.peek?.();
 
 		if (hangPublishInstance) {
 			onPublishInstanceAvailable(hangPublishEl, hangPublishInstance);
 		} else {
-			// @ts-expect-error ignore custom event - todo add event map
 			hangPublishEl.addEventListener("publish-instance-available", onInstanceAvailable);
 			onCleanup(() => {
-				// @ts-expect-error ignore custom event - todo add event map
 				hangPublishEl.removeEventListener("publish-instance-available", onInstanceAvailable);
 			});
 		}

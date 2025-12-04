@@ -21,6 +21,14 @@ export interface HangPublishSignals {
 	file: Signal<File | undefined>;
 }
 
+export type InstanceAvailableEvent = CustomEvent<{ instance: HangPublish['active'] }>;
+
+declare global {
+  interface GlobalEventHandlersEventMap {
+	'publish-instance-available': InstanceAvailableEvent;
+  }
+}
+
 export default class HangPublish extends HTMLElement {
 	static observedAttributes = OBSERVED;
 

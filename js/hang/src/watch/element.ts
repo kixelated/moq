@@ -19,6 +19,14 @@ export interface HangWatchSignals {
 	latency: Signal<Time.Milli>;
 }
 
+export type InstanceAvailableEvent = CustomEvent<{ instance: HangWatch['active'] }>;
+
+declare global {
+  interface GlobalEventHandlersEventMap {
+    'watch-instance-available': InstanceAvailableEvent;
+  }
+}
+
 // An optional web component that wraps a <canvas>
 export default class HangWatch extends HTMLElement {
 	static observedAttributes = OBSERVED;
