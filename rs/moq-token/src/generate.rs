@@ -1,4 +1,5 @@
 use crate::{Algorithm, EllipticCurve, Key, KeyOperation, RsaPublicKey, JWK};
+use anyhow::Context;
 use aws_lc_rs::signature::KeyPair;
 use elliptic_curve::generic_array::typenum::Unsigned;
 use elliptic_curve::point::PointCompression;
@@ -9,9 +10,9 @@ use rsa::traits::{PrivateKeyParts, PublicKeyParts};
 /// Generate a key pair for the given algorithm, returning the private and public keys.
 pub fn generate(algorithm: Algorithm, id: Option<String>) -> anyhow::Result<JWK> {
 	let key = match algorithm {
-		Algorithm::HS256 => Ok(generate_hmac_key::<32>()),
-		Algorithm::HS384 => Ok(generate_hmac_key::<48>()),
-		Algorithm::HS512 => Ok(generate_hmac_key::<64>()),
+		Algorithm::HS256 => generate_hmac_key::<32>(),
+		Algorithm::HS384 => generate_hmac_key::<48>(),
+		Algorithm::HS512 => generate_hmac_key::<64>(),
 		Algorithm::RS256 | Algorithm::RS384 | Algorithm::RS512 => generate_rsa_key(2048),
 		Algorithm::PS256 | Algorithm::PS384 | Algorithm::PS512 => generate_rsa_key(2048),
 		Algorithm::ES256 => generate_ec_key::<p256::NistP256>(EllipticCurve::P256),
@@ -19,23 +20,20 @@ pub fn generate(algorithm: Algorithm, id: Option<String>) -> anyhow::Result<JWK>
 		Algorithm::EdDSA => generate_ed25519_key(),
 	};
 
-	match key {
-		Ok(key) => Ok(JWK {
-			kid: id,
-			operations: [KeyOperation::Sign, KeyOperation::Verify].into(),
-			algorithm,
-			key,
-			decode: Default::default(),
-			encode: Default::default(),
-		}),
-		Err(e) => Err(e),
-	}
+	Ok(JWK {
+		kid: id,
+		operations: [KeyOperation::Sign, KeyOperation::Verify].into(),
+		algorithm,
+		key: key?,
+		decode: Default::default(),
+		encode: Default::default(),
+	})
 }
 
-fn generate_hmac_key<const SIZE: usize>() -> Key {
+fn generate_hmac_key<const SIZE: usize>() -> anyhow::Result<Key> {
 	let mut key = [0u8; SIZE];
-	aws_lc_rs::rand::fill(&mut key).unwrap();
-	Key::OCT { secret: key.to_vec() }
+	aws_lc_rs::rand::fill(&mut key)?;
+	Ok(Key::OCT { secret: key.to_vec() })
 }
 
 struct AwsRng;
@@ -101,14 +99,8 @@ where
 
 	let point = secret.public_key().to_encoded_point(false);
 
-	let x = point
-		.x()
-		.ok_or_else(|| anyhow::anyhow!("Missing x() point in EC key"))?
-		.to_vec();
-	let y = point
-		.y()
-		.ok_or_else(|| anyhow::anyhow!("Missing y() point in EC key"))?
-		.to_vec();
+	let x = point.x().context("Missing x() point in EC key")?.to_vec();
+	let y = point.y().context("Missing y() point in EC key")?.to_vec();
 	let d = secret.to_bytes().to_vec();
 
 	Ok(Key::EC {
