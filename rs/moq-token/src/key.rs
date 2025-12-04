@@ -20,9 +20,11 @@ pub enum KeyOperation {
 	Encrypt,
 }
 
+/// https://datatracker.ietf.org/doc/html/rfc7518#section-6
 #[derive(Clone, Serialize, Deserialize)]
 #[serde(tag = "kty")]
 pub enum KeyType {
+	/// https://datatracker.ietf.org/doc/html/rfc7518#section-6.2
 	EC {
 		#[serde(rename = "crv")]
 		curve: EllipticCurve,
@@ -41,12 +43,14 @@ pub enum KeyType {
 		)]
 		d: Option<Vec<u8>>,
 	},
+	/// https://datatracker.ietf.org/doc/html/rfc7518#section-6.3
 	RSA {
 		#[serde(flatten)]
 		public: RsaPublicKey,
 		#[serde(flatten, skip_serializing_if = "Option::is_none")]
 		private: Option<RsaPrivateKey>,
 	},
+	/// https://datatracker.ietf.org/doc/html/rfc7518#section-6.4
 	#[serde(rename = "oct")]
 	OCT {
 		/// The secret key as base64url (unpadded).
@@ -58,6 +62,7 @@ pub enum KeyType {
 		)]
 		secret: Vec<u8>,
 	},
+	/// https://datatracker.ietf.org/doc/html/rfc8037#section-2
 	OKP {
 		#[serde(rename = "crv")]
 		curve: EllipticCurve,
@@ -74,6 +79,7 @@ pub enum KeyType {
 	},
 }
 
+/// https://datatracker.ietf.org/doc/html/rfc7518#section-6.2.1.1
 #[derive(Clone, Serialize, Deserialize, PartialEq, Eq, Debug)]
 pub enum EllipticCurve {
 	#[serde(rename = "P-256")]
@@ -87,43 +93,42 @@ pub enum EllipticCurve {
 	Ed25519,
 }
 
+/// https://datatracker.ietf.org/doc/html/rfc7518#section-6.3.1
 #[derive(Clone, Serialize, Deserialize)]
 pub struct RsaPublicKey {
-	#[serde(
-		rename = "n",
-		serialize_with = "serialize_base64url",
-		deserialize_with = "deserialize_base64url"
-	)]
-	pub modulus: Vec<u8>,
-	#[serde(
-		rename = "e",
-		serialize_with = "serialize_base64url",
-		deserialize_with = "deserialize_base64url"
-	)]
-	pub exponent: Vec<u8>,
+	#[serde(serialize_with = "serialize_base64url", deserialize_with = "deserialize_base64url")]
+	pub n: Vec<u8>,
+	#[serde(serialize_with = "serialize_base64url", deserialize_with = "deserialize_base64url")]
+	pub e: Vec<u8>,
+}
+
+/// https://datatracker.ietf.org/doc/html/rfc7518#section-6.3.2
+#[derive(Clone, Serialize, Deserialize)]
+pub struct RsaPrivateKey {
+	#[serde(serialize_with = "serialize_base64url", deserialize_with = "deserialize_base64url")]
+	pub d: Vec<u8>,
+	#[serde(serialize_with = "serialize_base64url", deserialize_with = "deserialize_base64url")]
+	pub p: Vec<u8>,
+	#[serde(serialize_with = "serialize_base64url", deserialize_with = "deserialize_base64url")]
+	pub q: Vec<u8>,
+	#[serde(serialize_with = "serialize_base64url", deserialize_with = "deserialize_base64url")]
+	pub dp: Vec<u8>,
+	#[serde(serialize_with = "serialize_base64url", deserialize_with = "deserialize_base64url")]
+	pub dq: Vec<u8>,
+	#[serde(serialize_with = "serialize_base64url", deserialize_with = "deserialize_base64url")]
+	pub qi: Vec<u8>,
+	#[serde(skip_serializing_if = "Option::is_none")]
+	pub oth: Option<Vec<RsaAdditionalPrime>>,
 }
 
 #[derive(Clone, Serialize, Deserialize)]
-pub struct RsaPrivateKey {
-	#[serde(
-		rename = "d",
-		serialize_with = "serialize_base64url",
-		deserialize_with = "deserialize_base64url"
-	)]
-	pub exponent: Vec<u8>,
-	#[serde(
-		rename = "p",
-		serialize_with = "serialize_base64url",
-		deserialize_with = "deserialize_base64url"
-	)]
-	pub first_prime: Vec<u8>,
-	#[serde(
-		rename = "q",
-		serialize_with = "serialize_base64url",
-		deserialize_with = "deserialize_base64url"
-	)]
-	pub second_prime: Vec<u8>,
-	// TODO RFC7518 defines more parameters for optimization https://datatracker.ietf.org/doc/html/rfc7518#section-6.3
+pub struct RsaAdditionalPrime {
+	#[serde(serialize_with = "serialize_base64url", deserialize_with = "deserialize_base64url")]
+	pub r: Vec<u8>,
+	#[serde(serialize_with = "serialize_base64url", deserialize_with = "deserialize_base64url")]
+	pub d: Vec<u8>,
+	#[serde(serialize_with = "serialize_base64url", deserialize_with = "deserialize_base64url")]
+	pub t: Vec<u8>,
 }
 
 /// Similar to JWK but not quite the same because it's annoying to implement.
@@ -276,7 +281,7 @@ impl Key {
 				_ => bail!("Invalid curve for OKP key"),
 			},
 			KeyType::RSA { ref public, .. } => {
-				DecodingKey::from_rsa_raw_components(public.modulus.as_ref(), public.exponent.as_ref())
+				DecodingKey::from_rsa_raw_components(public.n.as_ref(), public.e.as_ref())
 			}
 		};
 
@@ -322,11 +327,11 @@ impl Key {
 				ref public,
 				ref private,
 			} => {
-				let n = BigUint::from_bytes_be(&public.modulus);
-				let e = BigUint::from_bytes_be(&public.exponent);
-				let d = BigUint::from_bytes_be(&private.as_ref().unwrap().exponent);
-				let p = BigUint::from_bytes_be(&private.as_ref().unwrap().first_prime);
-				let q = BigUint::from_bytes_be(&private.as_ref().unwrap().second_prime);
+				let n = BigUint::from_bytes_be(&public.n);
+				let e = BigUint::from_bytes_be(&public.e);
+				let d = BigUint::from_bytes_be(&private.as_ref().unwrap().d);
+				let p = BigUint::from_bytes_be(&private.as_ref().unwrap().p);
+				let q = BigUint::from_bytes_be(&private.as_ref().unwrap().q);
 
 				let rsa = rsa::RsaPrivateKey::from_components(n, e, d, vec![p, q]);
 				let pem = rsa?.to_pkcs1_pem(rsa::pkcs1::LineEnding::LF);
@@ -696,8 +701,8 @@ mod tests {
 				ref private,
 			} => {
 				assert!(private.is_some());
-				assert_eq!(public.modulus.len(), 256);
-				assert_eq!(public.exponent.len(), 3);
+				assert_eq!(public.n.len(), 256);
+				assert_eq!(public.e.len(), 3);
 			}
 			_ => panic!("Expected RSA key"),
 		}
@@ -768,8 +773,8 @@ mod tests {
 			assert!(private.is_none());
 
 			if let KeyType::RSA { public: src_public, .. } = &key.key {
-				assert_eq!(public.exponent, src_public.exponent);
-				assert_eq!(public.modulus, src_public.modulus);
+				assert_eq!(public.e, src_public.e);
+				assert_eq!(public.n, src_public.n);
 			} else {
 				unreachable!("Expected RSA key")
 			}
@@ -1078,8 +1083,8 @@ mod tests {
 				ref private,
 			} => {
 				assert!(private.is_some());
-				assert_eq!(public.modulus.len(), 256);
-				assert_eq!(public.exponent.len(), 3);
+				assert_eq!(public.n.len(), 256);
+				assert_eq!(public.e.len(), 3);
 
 				match public_key.key {
 					KeyType::RSA {
@@ -1087,8 +1092,8 @@ mod tests {
 						private: ref public_private,
 					} => {
 						assert!(public_private.is_none());
-						assert_eq!(public.modulus, public_public.modulus);
-						assert_eq!(public.exponent, public_public.exponent);
+						assert_eq!(public.n, public_public.n);
+						assert_eq!(public.e, public_public.e);
 					}
 					_ => panic!("Expected public key to be an RSA key"),
 				}
@@ -1116,8 +1121,8 @@ mod tests {
 				ref private,
 			} => {
 				assert!(private.is_some());
-				assert_eq!(public.modulus.len(), 256);
-				assert_eq!(public.exponent.len(), 3);
+				assert_eq!(public.n.len(), 256);
+				assert_eq!(public.e.len(), 3);
 
 				match public_key.key {
 					KeyType::RSA {
@@ -1125,8 +1130,8 @@ mod tests {
 						private: ref public_private,
 					} => {
 						assert!(public_private.is_none());
-						assert_eq!(public.modulus, public_public.modulus);
-						assert_eq!(public.exponent, public_public.exponent);
+						assert_eq!(public.n, public_public.n);
+						assert_eq!(public.e, public_public.e);
 					}
 					_ => panic!("Expected public key to be an RSA key"),
 				}

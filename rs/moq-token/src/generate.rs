@@ -69,13 +69,17 @@ fn generate_rsa_key(size: usize) -> anyhow::Result<KeyType> {
 	match key {
 		Ok(key) => Ok(KeyType::RSA {
 			public: RsaPublicKey {
-				exponent: key.e().to_bytes_be(),
-				modulus: key.n().to_bytes_be(),
+				e: key.e().to_bytes_be(),
+				n: key.n().to_bytes_be(),
 			},
 			private: Some(crate::RsaPrivateKey {
-				exponent: key.d().to_bytes_be(),
-				first_prime: key.primes()[0].to_bytes_be(),
-				second_prime: key.primes()[1].to_bytes_be(),
+				d: key.d().to_bytes_be(),
+				p: key.primes()[0].to_bytes_be(),
+				q: key.primes()[1].to_bytes_be(),
+				dp: key.dp().expect("no dp specified in key").to_bytes_be(),
+				dq: key.dq().expect("no dq specified in key").to_bytes_be(),
+				qi: key.qinv().expect("no qinv specified in key").to_bytes_be().1,
+				oth: None, // TODO https://datatracker.ietf.org/doc/html/rfc7518#section-6.3.2.7
 			}),
 		}),
 		Err(err) => Err(anyhow::anyhow!("Failed to generate RSA key: {}", err)),
