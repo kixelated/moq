@@ -19,7 +19,7 @@ export interface HangWatchSignals {
 	latency: Signal<Time.Milli>;
 }
 
-export type InstanceAvailableEvent = CustomEvent<{ instance: HangWatch['active'] }>;
+export type InstanceAvailableEvent = CustomEvent<{ instance: HangWatchInstance }>;
 
 declare global {
   interface GlobalEventHandlersEventMap {
@@ -68,11 +68,12 @@ export default class HangWatch extends HTMLElement {
 	connectedCallback() {
 		this.style.display = "block";
 		this.style.position = "relative";
-		this.active.set(new HangWatchInstance(this));
+		const instance = new HangWatchInstance(this);
+		this.active.set(instance);
 
 		this.dispatchEvent(new CustomEvent('watch-instance-available', {
 			detail: {
-				instance: this.active,
+				instance,
 			}
 		}));
 	}

@@ -21,7 +21,7 @@ export interface HangPublishSignals {
 	file: Signal<File | undefined>;
 }
 
-export type InstanceAvailableEvent = CustomEvent<{ instance: HangPublish['active'] }>;
+export type InstanceAvailableEvent = CustomEvent<{ instance: HangPublishInstance }>;
 
 declare global {
   interface GlobalEventHandlersEventMap {
@@ -46,11 +46,12 @@ export default class HangPublish extends HTMLElement {
 	active = new Signal<HangPublishInstance | undefined>(undefined);
 
 	connectedCallback() {
-		this.active.set(new HangPublishInstance(this));
+		const instance = new HangPublishInstance(this);
+		this.active.set(instance);
 
 		this.dispatchEvent(new CustomEvent('publish-instance-available', {
 			detail: {
-				instance: this.active,
+				instance,
 			}
 		}));
 	}

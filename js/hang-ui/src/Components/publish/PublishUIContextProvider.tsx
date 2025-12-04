@@ -71,7 +71,7 @@ export default function PublishUIContextProvider(props: PublishUIContextProvider
 		if (!hangPublishEl) return;
 
 		const onInstanceAvailable = (event: InstanceAvailableEvent) => {
-			const publishInstance = event.detail.instance.peek?.();
+			const publishInstance = event.detail.instance;
 
 			if (publishInstance) {
 				onPublishInstanceAvailable(hangPublishEl, publishInstance);

@@ -86,7 +86,7 @@ export default function WatchUIContextProvider(props: WatchUIContextProviderProp
 		if (!hangWatchEl) return;
 
 		const onInstanceAvailable = (event: InstanceAvailableEvent) => {
-			const watchInstance = event.detail.instance.peek?.();
+			const watchInstance = event.detail.instance;
 
 			if (watchInstance) {
 				onWatchInstanceAvailable(hangWatchEl, watchInstance);
