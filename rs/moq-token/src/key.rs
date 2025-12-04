@@ -1,6 +1,6 @@
 use crate::generate::generate;
 use crate::{Algorithm, Claims};
-use anyhow::bail;
+use anyhow::{bail, Context};
 use base64::Engine;
 use elliptic_curve::pkcs8::EncodePrivateKey;
 use elliptic_curve::SecretKey;
@@ -331,7 +331,7 @@ impl Key {
 				_ => bail!("Invalid algorithm for key type OCT"),
 			},
 			KeyType::EC { ref curve, ref d, .. } => {
-				let d = d.as_ref().ok_or_else(|| anyhow::anyhow!("Missing private key"))?;
+				let d = d.as_ref().context("Missing private key")?;
 
 				match curve {
 					EllipticCurve::P256 => {
@@ -348,7 +348,7 @@ impl Key {
 				}
 			}
 			KeyType::OKP { ref curve, ref d, .. } => {
-				let d = d.as_ref().ok_or_else(|| anyhow::anyhow!("Missing private key"))?;
+				let d = d.as_ref().context("Missing private key")?;
 
 				match curve {
 					EllipticCurve::Ed25519 => EncodingKey::from_ed_der(d.as_slice()),
@@ -361,9 +361,10 @@ impl Key {
 			} => {
 				let n = BigUint::from_bytes_be(&public.n);
 				let e = BigUint::from_bytes_be(&public.e);
-				let d = BigUint::from_bytes_be(&private.as_ref().unwrap().d);
-				let p = BigUint::from_bytes_be(&private.as_ref().unwrap().p);
-				let q = BigUint::from_bytes_be(&private.as_ref().unwrap().q);
+				let private = private.as_ref().context("Missing private key")?;
+				let d = BigUint::from_bytes_be(&private.d);
+				let p = BigUint::from_bytes_be(&private.p);
+				let q = BigUint::from_bytes_be(&private.q);
 
 				let rsa = rsa::RsaPrivateKey::from_components(n, e, d, vec![p, q]);
 				let pem = rsa?.to_pkcs1_pem(rsa::pkcs1::LineEnding::LF);
@@ -1113,14 +1114,14 @@ mod tests {
 
 		let key_ps256 = Key::generate(Algorithm::PS256, Some("test-id".to_string()));
 		assert!(key_ps256.is_ok());
-		let key_es384 = key_ps256.unwrap();
+		let key_ps256 = key_ps256.unwrap();
 
 		let claims = create_test_claims();
 		let token = key_rs256.encode(&claims).unwrap();
 
 		// Different algorithm should fail verification
-		let private_result = key_es384.decode(&token);
-		let public_result = key_es384.to_public().unwrap().decode(&token);
+		let private_result = key_ps256.decode(&token);
+		let public_result = key_ps256.to_public().unwrap().decode(&token);
 		assert!(private_result.is_err());
 		assert!(public_result.is_err());
 	}

@@ -13,7 +13,7 @@ The authentication system supports:
 - **JWT-based authentication** with query parameter tokens
 - **Path-based authorization** with hierarchical permissions
 - **Symmetric key cryptography** (HMAC-SHA256/384/512)
-- **Asymmetric key cryptography** (RSASSA-PKCS1-SHA256/384/512, RSASSA-PSS-SHA256/384/512, ECDSA-SHA256/384)
+- **Asymmetric key cryptography** (RSASSA-PKCS1-SHA256/384/512, RSASSA-PSS-SHA256/384/512, ECDSA-SHA256/384, EdDSA)
 - **Anonymous access** for public content
 - **Cluster authentication** for relay-to-relay communication
 
