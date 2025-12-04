@@ -105,7 +105,7 @@ export default function PublishUIContextProvider(props: PublishUIContextProvider
 			setCameraMediaDevices(devices);
 		});
 
-		publishInstance?.signals.effect(function trackMicrophoneDevices(effect) {
+		publishInstance.signals.effect(function trackMicrophoneDevices(effect) {
 			const audio = effect.get(publishInstance.audio);
 
 			if (!audio || !("device" in audio)) return;
@@ -119,17 +119,17 @@ export default function PublishUIContextProvider(props: PublishUIContextProvider
 			setMicrophoneMediaDevices(devices);
 		});
 
-		publishInstance?.signals.effect(function trackNothingSourceActive(effect) {
+		publishInstance.signals.effect(function trackNothingSourceActive(effect) {
 			const selectedSource = effect.get(el.signals.source);
 			setNothingActive(selectedSource === undefined);
 		});
 
-		publishInstance?.signals.effect(function trackMicrophoneSourceActive(effect) {
+		publishInstance.signals.effect(function trackMicrophoneSourceActive(effect) {
 			const audioActive = effect.get(el.signals.audio);
 			setMicrophoneActive(audioActive);
 		});
 
-		publishInstance?.signals.effect(function trackVideoSourcesActive(effect) {
+		publishInstance.signals.effect(function trackVideoSourcesActive(effect) {
 			const videoSource = effect.get(el.signals.source);
 			const videoActive = effect.get(el.signals.video);
 
@@ -145,7 +145,7 @@ export default function PublishUIContextProvider(props: PublishUIContextProvider
 			}
 		});
 
-		publishInstance?.signals.effect(function trackSelectedCameraSource(effect) {
+		publishInstance.signals.effect(function trackSelectedCameraSource(effect) {
 			const video = effect.get(publishInstance.video);
 
 			if (!video || !("device" in video)) return;
@@ -154,7 +154,7 @@ export default function PublishUIContextProvider(props: PublishUIContextProvider
 			setSelectedCameraSource(requested);
 		});
 
-		publishInstance?.signals.effect(function trackSelectedMicrophoneSource(effect) {
+		publishInstance.signals.effect(function trackSelectedMicrophoneSource(effect) {
 			const audio = effect.get(publishInstance.audio);
 
 			if (!audio || !("device" in audio)) return;
@@ -163,11 +163,11 @@ export default function PublishUIContextProvider(props: PublishUIContextProvider
 			setSelectedMicrophoneSource(requested);
 		});
 
-		publishInstance?.signals.effect(function trackPublishStatus(effect) {
-			const url = effect.get(publishInstance?.connection.url);
-			const status = effect.get(publishInstance?.connection.status);
-			const audio = effect.get(publishInstance?.broadcast.audio.source);
-			const video = effect.get(publishInstance?.broadcast.video.source);
+		publishInstance.signals.effect(function trackPublishStatus(effect) {
+			const url = effect.get(publishInstance.connection.url);
+			const status = effect.get(publishInstance.connection.status);
+			const audio = effect.get(publishInstance.broadcast.audio.source);
+			const video = effect.get(publishInstance.broadcast.video.source);
 
 			if (!url) {
 				setPublishStatus("no-url");
@@ -186,7 +186,7 @@ export default function PublishUIContextProvider(props: PublishUIContextProvider
 			}
 		});
 
-		publishInstance?.signals.effect(function trackFileActive(effect) {
+		publishInstance.signals.effect(function trackFileActive(effect) {
 			const selectedSource = effect.get(el.signals.source);
 			setFileActive(selectedSource === "file");
 		});

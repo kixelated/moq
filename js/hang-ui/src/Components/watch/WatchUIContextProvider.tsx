@@ -109,9 +109,9 @@ export default function WatchUIContextProvider(props: WatchUIContextProviderProp
 
 	function onWatchInstanceAvailable(watchEl: HangWatch, watchInstance: HangWatchInstance) {
 		watchInstance.signals.effect(function trackWatchStatus(effect) {
-			const url = effect.get(watchInstance?.connection.url);
-			const connection = effect.get(watchInstance?.connection.status);
-			const broadcast = effect.get(watchInstance?.broadcast.status);
+			const url = effect.get(watchInstance.connection.url);
+			const connection = effect.get(watchInstance.connection.status);
+			const broadcast = effect.get(watchInstance.broadcast.status);
 
 			if (!url) {
 				setWatchStatus("no-url");
@@ -130,30 +130,30 @@ export default function WatchUIContextProvider(props: WatchUIContextProviderProp
 			}
 		});
 
-		watchInstance?.signals.effect(function trackPlaying(effect) {
-			const paused = effect.get(watchInstance?.video.paused);
+		watchInstance.signals.effect(function trackPlaying(effect) {
+			const paused = effect.get(watchInstance.video.paused);
 			setIsPlaying(!paused);
 		});
 
-		watchInstance?.signals.effect(function trackVolume(effect) {
-			const volume = effect.get(watchInstance?.audio.volume);
+		watchInstance.signals.effect(function trackVolume(effect) {
+			const volume = effect.get(watchInstance.audio.volume);
 			setCurrentVolume(volume * 100);
 		});
 
-		watchInstance?.signals.effect(function trackMuted(effect) {
-			const muted = effect.get(watchInstance?.audio.muted);
+		watchInstance.signals.effect(function trackMuted(effect) {
+			const muted = effect.get(watchInstance.audio.muted);
 			setIsMuted(muted);
 		});
 
-		watchInstance?.signals.effect(function trackBuffering(effect) {
-			const syncStatus = effect.get(watchInstance?.video.source.syncStatus);
-			const bufferStatus = effect.get(watchInstance?.video.source.bufferStatus);
+		watchInstance.signals.effect(function trackBuffering(effect) {
+			const syncStatus = effect.get(watchInstance.video.source.syncStatus);
+			const bufferStatus = effect.get(watchInstance.video.source.bufferStatus);
 			const shouldShow = syncStatus.state === "wait" || bufferStatus.state === "empty";
 
 			setBuffering(shouldShow);
 		});
 
-		watchInstance?.signals.effect(function trackLatency(effect) {
+		watchInstance.signals.effect(function trackLatency(effect) {
 			const latency = effect.get(watchEl?.signals.latency);
 			setLatency(latency);
 		});
