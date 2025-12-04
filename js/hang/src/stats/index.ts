@@ -6,9 +6,11 @@ import HangStats from "./element";
 export default HangStats;
 
 /**
- * Register hang-stats custom element
+ * Register hang-stats custom element (guarded against duplicate registration)
  */
-customElements.define("hang-stats", HangStats);
+if (!customElements.get("hang-stats")) {
+    customElements.define("hang-stats", HangStats);
+}
 
 /**
  * TypeScript declaration for hang-stats element

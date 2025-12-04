@@ -1,6 +1,6 @@
-import { createEffect, createSignal } from "solid-js";
+import { createEffect, createSignal, onCleanup } from "solid-js";
 import { getHandlerClass } from "../handlers/registry";
-import type { Icons, IStatsHandler, HandlerProps } from "../types";
+import type { Icons, HandlerProps } from "../types";
 
 /**
  * Props for individual stats metric item
@@ -17,23 +17,24 @@ interface StatsItemProps extends HandlerProps {
  */
 export const StatsItem = (props: StatsItemProps) => {
 	const [displayData, setDisplayData] = createSignal("N/A");
-	let handler: IStatsHandler | undefined;
 
 	createEffect(() => {
-		handler?.cleanup();
-
 		const HandlerClass = getHandlerClass(props.icon);
 		if (!HandlerClass) {
 			setDisplayData("N/A");
 			return;
 		}
 
-		handler = new HandlerClass({
+		const handler = new HandlerClass({
 			audio: props.audio,
 			video: props.video,
 		});
 
 		handler.setup({ setDisplayData });
+
+		onCleanup(() => {
+			handler.cleanup();
+		});
 	});
 
 	return (
