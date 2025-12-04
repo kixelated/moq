@@ -285,6 +285,9 @@ impl Key {
 				..
 			} => match curve {
 				EllipticCurve::P256 => {
+					if self.algorithm != Algorithm::ES256 {
+						bail!("Invalid algorithm for P-256 curve");
+					}
 					if x.len() != 32 || y.len() != 32 {
 						bail!("Invalid coordinate length for P-256");
 					}
@@ -295,6 +298,9 @@ impl Key {
 					)?
 				}
 				EllipticCurve::P384 => {
+					if self.algorithm != Algorithm::ES384 {
+						bail!("Invalid algorithm for P-384 curve");
+					}
 					if x.len() != 48 || y.len() != 48 {
 						bail!("Invalid coordinate length for P-384");
 					}
@@ -307,9 +313,15 @@ impl Key {
 				_ => bail!("Invalid curve for EC key"),
 			},
 			KeyType::OKP { ref curve, ref x, .. } => match curve {
-				EllipticCurve::Ed25519 => DecodingKey::from_ed_components(
-					base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(x).as_ref(),
-				)?,
+				EllipticCurve::Ed25519 => {
+					if self.algorithm != Algorithm::EdDSA {
+						bail!("Invalid algorithm for Ed25519 curve");
+					}
+
+					DecodingKey::from_ed_components(
+						base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(x).as_ref(),
+					)?
+				}
 				_ => bail!("Invalid curve for OKP key"),
 			},
 			KeyType::RSA { ref public, .. } => {
