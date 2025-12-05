@@ -24,7 +24,7 @@ pub async fn client<T: AsyncRead + Unpin>(
 	// Establish the connection, not providing a subscriber.
 	let session = moq_lite::Session::connect(session, origin.consumer, None).await?;
 
-	let mut import = Import::new(broadcast.producer, format);
+	let mut import = Import::new(broadcast.producer.into(), format);
 	import
 		.init_from(input)
 		.await

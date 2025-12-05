@@ -33,7 +33,7 @@ pub async fn server<T: AsyncRead + Unpin>(
 	let fingerprint = server.fingerprints().first().context("missing certificate")?.clone();
 
 	let broadcast = moq_lite::Broadcast::produce();
-	let mut import = Import::new(broadcast.producer, format);
+	let mut import = Import::new(broadcast.producer.into(), format);
 
 	import.init_from(input).await?;
 
