@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.8.0](https://github.com/kixelated/moq/compare/hang-v0.7.0...hang-v0.8.0) - 2025-12-05
+
+### Other
+
+- Revamp hang imports: consolidate annexb/cmaf into import module ([#739](https://github.com/kixelated/moq/pull/739))
+- Make a proper Timestamp type to detect overflows. ([#735](https://github.com/kixelated/moq/pull/735))
+
 ## [0.7.0](https://github.com/kixelated/moq/compare/hang-v0.6.1...hang-v0.7.0) - 2025-11-26
 
 ### Fixed
