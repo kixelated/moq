@@ -3,8 +3,8 @@ use url::Url;
 
 use bytes::Bytes;
 use hang::catalog::{Audio, AudioConfig, Video, VideoConfig, AAC, H264};
+use hang::catalog::{Catalog, CatalogProducer};
 use hang::model::{Frame, Timestamp, TrackProducer};
-use hang::{Catalog, CatalogProducer};
 use moq_lite::{BroadcastProducer, Track};
 use std::ffi::CStr;
 use std::os::raw::c_char;
@@ -192,17 +192,6 @@ impl ImportJoy {
 
 		self.tracks.insert(0, track_produce.producer.into());
 
-		if !video_renditions.is_empty() {
-			let video = Video {
-				renditions: video_renditions,
-				priority: 1,
-				display: None,
-				rotation: None,
-				flip: None,
-			};
-			self.catalog.set_video(Some(video));
-		}
-
 		let (track_name, config) = Self::init_audio();
 		let track = Track {
 			name: track_name.clone(),
@@ -214,15 +203,23 @@ impl ImportJoy {
 
 		self.tracks.insert(1, track_produce.producer.into());
 
+		// Lock the catalog, make changes, and publish on drop
+		let mut catalog = self.catalog.lock();
+		if !video_renditions.is_empty() {
+			catalog.video = Some(Video {
+				renditions: video_renditions,
+				priority: 1,
+				display: None,
+				rotation: None,
+				flip: None,
+			});
+		}
 		if !audio_renditions.is_empty() {
-			let audio = Audio {
+			catalog.audio = Some(Audio {
 				renditions: audio_renditions,
 				priority: 2,
-			};
-			self.catalog.set_audio(Some(audio));
+			});
 		}
-
-		self.catalog.publish();
 	}
 
 	pub fn init_video() -> (String, VideoConfig) {
@@ -235,6 +232,7 @@ impl ImportJoy {
 				profile: 0x4d,
 				constraints: 0x00,
 				level: 0x29,
+				inline: true,
 			}
 			.into(),
 			description: None,

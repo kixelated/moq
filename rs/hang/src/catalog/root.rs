@@ -1,10 +1,11 @@
 //! This module contains the structs and functions for the MoQ catalog format
+use std::ops::{Deref, DerefMut};
 use std::sync::{Arc, Mutex, MutexGuard};
 
 /// The catalog format is a JSON file that describes the tracks available in a broadcast.
 use serde::{Deserialize, Serialize};
 
-use crate::catalog::{Audio, Chat, Track, User, Video};
+use crate::catalog::{Audio, AudioConfig, Chat, Track, User, Video, VideoConfig};
 use crate::Result;
 use moq_lite::Produce;
 
@@ -97,6 +98,41 @@ impl Catalog {
 			priority: 100,
 		}
 	}
+
+	// A silly helpers to change None -> Some or Some -> None based on the number of renditions.
+	pub fn insert_video(&mut self, name: String, config: VideoConfig) -> &mut Video {
+		let mut video = self.video.take().unwrap_or_default();
+		video.renditions.insert(name, config);
+		self.video = Some(video);
+		self.video.as_mut().unwrap()
+	}
+
+	pub fn insert_audio(&mut self, name: String, config: AudioConfig) -> &mut Audio {
+		let mut audio = self.audio.take().unwrap_or_default();
+		audio.renditions.insert(name, config);
+		self.audio = Some(audio);
+		self.audio.as_mut().unwrap()
+	}
+
+	pub fn remove_video(&mut self, name: &str) {
+		let mut video = self.video.take().unwrap_or_default();
+		video.renditions.remove(name);
+
+		match video.renditions.is_empty() {
+			true => self.video = None,
+			false => self.video = Some(video),
+		}
+	}
+
+	pub fn remove_audio(&mut self, name: &str) {
+		let mut audio = self.audio.take().unwrap_or_default();
+		audio.renditions.remove(name);
+
+		match audio.renditions.is_empty() {
+			true => self.audio = None,
+			false => self.audio = Some(audio),
+		}
+	}
 }
 
 /// Produces a catalog track that describes the available media tracks.
@@ -119,54 +155,12 @@ impl CatalogProducer {
 		}
 	}
 
-	/// Set the video track information in the catalog.
-	pub fn set_video(&mut self, video: Option<Video>) {
-		let mut current = self.current.lock().unwrap();
-		current.video = video;
-	}
-
-	/// Set the audio track information in the catalog.
-	pub fn set_audio(&mut self, audio: Option<Audio>) {
-		let mut current = self.current.lock().unwrap();
-		current.audio = audio;
-	}
-
-	/// Set the user information in the catalog.
-	pub fn set_user(&mut self, user: Option<User>) {
-		let mut current = self.current.lock().unwrap();
-		current.user = user;
-	}
-
-	/// Set the chat track information in the catalog.
-	pub fn set_chat(&mut self, chat: Option<Chat>) {
-		let mut current = self.current.lock().unwrap();
-		current.chat = chat;
-	}
-
-	/// Set the preview track in the catalog.
-	pub fn set_preview(&mut self, preview: Option<Track>) {
-		let mut current = self.current.lock().unwrap();
-		current.preview = preview;
-	}
-
-	/// Get mutable access to the catalog for manual updates.
-	/// Remember to call [`publish`](Self::publish) after making changes.
-	pub fn update(&mut self) -> MutexGuard<'_, Catalog> {
-		self.current.lock().unwrap()
-	}
-
-	/// Publish the current catalog to all subscribers.
-	///
-	/// This serializes the catalog to JSON and sends it as a new group on the
-	/// catalog track. All changes made since the last publish will be included.
-	pub fn publish(&mut self) {
-		let current = self.current.lock().unwrap();
-		let mut group = self.track.append_group();
-
-		// TODO decide if this should return an error, or be impossible to fail
-		let frame = current.to_string().expect("invalid catalog");
-		group.write_frame(frame);
-		group.close();
+	/// Get mutable access to the catalog, publishing it after any changes.
+	pub fn lock(&mut self) -> CatalogGuard<'_> {
+		CatalogGuard {
+			catalog: self.current.lock().unwrap(),
+			track: &mut self.track,
+		}
 	}
 
 	/// Create a consumer for this catalog, receiving updates as they're [published](Self::publish).
@@ -183,6 +177,36 @@ impl CatalogProducer {
 impl From<moq_lite::TrackProducer> for CatalogProducer {
 	fn from(inner: moq_lite::TrackProducer) -> Self {
 		Self::new(inner, Catalog::default())
+	}
+}
+
+pub struct CatalogGuard<'a> {
+	catalog: MutexGuard<'a, Catalog>,
+	track: &'a mut moq_lite::TrackProducer,
+}
+
+impl<'a> Deref for CatalogGuard<'a> {
+	type Target = Catalog;
+
+	fn deref(&self) -> &Self::Target {
+		&self.catalog
+	}
+}
+
+impl<'a> DerefMut for CatalogGuard<'a> {
+	fn deref_mut(&mut self) -> &mut Self::Target {
+		&mut self.catalog
+	}
+}
+
+impl Drop for CatalogGuard<'_> {
+	fn drop(&mut self) {
+		let mut group = self.track.append_group();
+
+		// TODO decide if this should return an error, or be impossible to fail
+		let frame = self.catalog.to_string().expect("invalid catalog");
+		group.write_frame(frame);
+		group.close();
 	}
 }
 
@@ -288,6 +312,7 @@ mod test {
 					profile: 0x64,
 					constraints: 0x00,
 					level: 0x1f,
+					inline: false,
 				}
 				.into(),
 				description: None,

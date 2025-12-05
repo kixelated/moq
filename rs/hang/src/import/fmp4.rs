@@ -1,13 +1,12 @@
-use super::{Error, Result};
-use crate::catalog::{Audio, AudioCodec, AudioConfig, Video, VideoCodec, VideoConfig, AAC, AV1, H264, H265, VP9};
-use crate::model::{Frame, TrackProducer};
-use crate::Timestamp;
-use crate::{Catalog, CatalogProducer};
-use bytes::{Bytes, BytesMut};
-use moq_lite::{BroadcastProducer, Track};
-use mp4_atom::{Any, AsyncReadFrom, Atom, DecodeMaybe, Mdat, Moof, Moov, Tfdt, Trak, Trun};
+use crate::catalog::{
+	AudioCodec, AudioConfig, Catalog, CatalogProducer, VideoCodec, VideoConfig, AAC, AV1, H264, H265, VP9,
+};
+use crate::{self as hang, Timestamp};
+use anyhow::Context;
+use bytes::{Buf, BufMut, Bytes, BytesMut};
+use moq_lite as moq;
+use mp4_atom::{Any, Atom, DecodeMaybe, Mdat, Moof, Moov, Trak};
 use std::collections::HashMap;
-use tokio::io::{AsyncRead, AsyncReadExt};
 
 /// Converts fMP4/CMAF files into hang broadcast streams.
 ///
@@ -26,21 +25,22 @@ use tokio::io::{AsyncRead, AsyncReadExt};
 /// **Audio:**
 /// - AAC (MP4A)
 /// - Opus
-pub struct Import {
-	// Any partial data in the input buffer
-	buffer: BytesMut,
+pub struct Fmp4 {
+	// Any remaining data from the previous call to parse.
+	buffer: Bytes,
 
 	// The broadcast being produced
-	broadcast: BroadcastProducer,
+	// This `hang` variant includes a catalog.
+	broadcast: hang::BroadcastProducer,
 
 	// The catalog being produced
 	catalog: CatalogProducer,
 
 	// A lookup to tracks in the broadcast
-	tracks: HashMap<u32, TrackProducer>,
+	tracks: HashMap<u32, hang::TrackProducer>,
 
 	// The timestamp of the last keyframe for each track
-	last_keyframe: HashMap<u32, Timestamp>,
+	last_keyframe: HashMap<u32, hang::Timestamp>,
 
 	// The moov atom at the start of the file.
 	moov: Option<Moov>,
@@ -50,17 +50,17 @@ pub struct Import {
 	moof_size: usize,
 }
 
-impl Import {
+impl Fmp4 {
 	/// Create a new CMAF importer that will write to the given broadcast.
 	///
 	/// The broadcast will be populated with tracks as they're discovered in the
 	/// fMP4 file and the catalog will be automatically generated.
-	pub fn new(mut broadcast: BroadcastProducer) -> Self {
+	pub fn new(mut broadcast: hang::BroadcastProducer) -> Self {
 		let catalog = Catalog::default().produce();
 		broadcast.insert_track(catalog.consumer.track);
 
 		Self {
-			buffer: BytesMut::new(),
+			buffer: Bytes::new(),
 			broadcast,
 			catalog: catalog.producer,
 			tracks: HashMap::default(),
@@ -71,48 +71,74 @@ impl Import {
 		}
 	}
 
-	/// Parse incremental fMP4 data.
-	///
-	/// This method can be called multiple times with chunks of fMP4 data as they
-	/// become available. It will buffer partial atoms internally and process
-	/// complete atoms as they arrive.
-	pub fn parse(&mut self, data: &[u8]) -> Result<()> {
-		if !self.buffer.is_empty() {
-			let mut buffer = std::mem::replace(&mut self.buffer, BytesMut::new());
-			buffer.extend_from_slice(data);
-			let n = self.parse_inner(&buffer)?;
-			self.buffer = buffer.split_off(n);
-		} else {
-			let n = self.parse_inner(data)?;
-			self.buffer = BytesMut::from(&data[n..]);
+	pub fn decode<T: Buf>(&mut self, buf: &mut T) -> anyhow::Result<()> {
+		if !buf.has_remaining() {
+			return Ok(());
+		}
+
+		// This code is huge because mp4 atom requires the buffer to be continuous.
+		// We'll try to parse buf.chunk() but if it fails, we may need to allocate.
+		if self.buffer.is_empty() {
+			// Try to parse the first chunk of the provided buffer.
+			let mut cursor = std::io::Cursor::new(buf.chunk());
+
+			while let Some(atom) = mp4_atom::Any::decode_maybe(&mut cursor)? {
+				let size = cursor.position() as usize;
+
+				// Process the parsed atom.
+				self.process(atom, size)?;
+
+				// Advance the buffer by the size of the parsed atom.
+				buf.advance(size);
+
+				// Create a new cursor for the next chunk of the buffer.
+				cursor = std::io::Cursor::new(buf.chunk());
+			}
+
+			// If the buffer is continuous, we can stop here.
+			if buf.chunk().len() == buf.remaining() {
+				return Ok(());
+			}
+
+			// Otherwise we need to allocate to make a continuous buffer.
+			self.buffer = buf.copy_to_bytes(buf.remaining());
+		}
+
+		self.buffer = match std::mem::take(&mut self.buffer).try_into_mut() {
+			Ok(mut buffer) => {
+				// It worked, append the new data to the existing buffer.
+				buffer.put(buf);
+				buffer.freeze()
+			}
+			Err(old) => {
+				// Make a new buffer and append the new data to it.
+				let mut buffer = BytesMut::with_capacity(old.len() + buf.remaining());
+				buffer.put(old);
+				buffer.put(buf);
+				buffer.freeze()
+			}
+		};
+
+		let mut cursor = std::io::Cursor::new(&self.buffer);
+
+		while let Some(atom) = mp4_atom::Any::decode_maybe(&mut cursor)? {
+			let size = cursor.position() as usize;
+
+			self.buffer.advance(size);
+			self.process(atom, size)?;
+
+			cursor = std::io::Cursor::new(&self.buffer);
 		}
 
 		Ok(())
 	}
 
-	fn parse_inner<T: AsRef<[u8]>>(&mut self, data: T) -> Result<usize> {
-		let mut remain = data.as_ref();
-
-		loop {
-			let mut peek = remain;
-
-			match mp4_atom::Any::decode_maybe(&mut peek)? {
-				Some(atom) => {
-					self.process(atom, remain.len() - peek.len())?;
-					remain = peek;
-				}
-				None => break,
-			}
-		}
-
-		// Return the number of bytes consumed
-		Ok(data.as_ref().len() - remain.len())
+	pub fn is_initialized(&self) -> bool {
+		self.moov.is_some()
 	}
 
-	fn init(&mut self, moov: Moov) -> Result<()> {
-		// Produce the catalog
-		let mut video_renditions = HashMap::new();
-		let mut audio_renditions = HashMap::new();
+	fn init(&mut self, moov: Moov) -> anyhow::Result<()> {
+		let mut catalog = self.catalog.lock();
 
 		for trak in &moov.trak {
 			let track_id = trak.tkhd.track_id;
@@ -120,68 +146,58 @@ impl Import {
 
 			let track = match handler.as_ref() {
 				b"vide" => {
-					let (track_name, config) = Self::init_video(trak)?;
-					let track = Track {
-						name: track_name.clone(),
-						priority: 2,
+					let config = Self::init_video(trak)?;
+
+					let track = moq::Track {
+						name: self.broadcast.track_name("video"),
+						priority: 1,
 					};
-					let track_produce = track.produce();
-					self.broadcast.insert_track(track_produce.consumer);
-					video_renditions.insert(track_name, config);
-					track_produce.producer
+
+					tracing::debug!(name = ?track.name, ?config, "starting track");
+
+					let video = catalog.insert_video(track.name.clone(), config);
+					video.priority = 1;
+
+					let track = track.produce();
+					self.broadcast.insert_track(track.consumer);
+					track.producer
 				}
 				b"soun" => {
-					let (track_name, config) = Self::init_audio(trak)?;
-					let track = Track {
-						name: track_name.clone(),
+					let config = Self::init_audio(trak)?;
+
+					let track = moq::Track {
+						name: self.broadcast.track_name("audio"),
 						priority: 2,
 					};
-					let track_produce = track.produce();
-					self.broadcast.insert_track(track_produce.consumer);
-					audio_renditions.insert(track_name, config);
-					track_produce.producer
+
+					tracing::debug!(name = ?track.name, ?config, "starting track");
+
+					let audio = catalog.insert_audio(track.name.clone(), config);
+					audio.priority = 2;
+
+					let track = track.produce();
+					self.broadcast.insert_track(track.consumer);
+					track.producer
 				}
-				b"sbtl" => return Err(Error::UnsupportedTrack("subtitle")),
-				_ => return Err(Error::UnsupportedTrack("unknown")),
+				b"sbtl" => anyhow::bail!("subtitle tracks are not supported"),
+				handler => anyhow::bail!("unknown track type: {:?}", handler),
 			};
 
 			self.tracks.insert(track_id, track.into());
 		}
-
-		if !video_renditions.is_empty() {
-			let video = Video {
-				renditions: video_renditions,
-				priority: 2,
-				display: None,
-				rotation: None,
-				flip: None,
-			};
-			self.catalog.set_video(Some(video));
-		}
-
-		if !audio_renditions.is_empty() {
-			let audio = Audio {
-				renditions: audio_renditions,
-				priority: 2,
-			};
-			self.catalog.set_audio(Some(audio));
-		}
-
-		self.catalog.publish();
 
 		self.moov = Some(moov);
 
 		Ok(())
 	}
 
-	fn init_video(trak: &Trak) -> Result<(String, VideoConfig)> {
-		let name = format!("video{}", trak.tkhd.track_id);
+	fn init_video(trak: &Trak) -> anyhow::Result<VideoConfig> {
 		let stsd = &trak.mdia.minf.stbl.stsd;
 
 		let codec = match stsd.codecs.len() {
-			0 => return Err(Error::MissingCodec),
+			0 => anyhow::bail!("missing codec"),
 			1 => &stsd.codecs[0],
-			_ => return Err(Error::MultipleCodecs),
+			_ => anyhow::bail!("multiple codecs"),
 		};
 
 		let config = match codec {
@@ -198,6 +214,7 @@ impl Import {
 						profile: avcc.avc_profile_indication,
 						constraints: avcc.profile_compatibility,
 						level: avcc.avc_level_indication,
+						inline: false,
 					}
 					.into(),
 					description: Some(description.freeze()),
@@ -282,15 +299,15 @@ impl Import {
 					framerate: None,
 				}
 			}
-			mp4_atom::Codec::Unknown(unknown) => return Err(Error::UnsupportedCodec(unknown.to_string())),
-			_ => return Err(Error::UnsupportedCodec("unknown".to_string())),
+			mp4_atom::Codec::Unknown(unknown) => anyhow::bail!("unknown codec: {:?}", unknown),
+			unsupported => anyhow::bail!("unsupported codec: {:?}", unsupported),
 		};
 
-		Ok((name, config))
+		Ok(config)
 	}
 
 	// There's two almost identical hvcc atoms in the wild.
-	fn init_h265(in_band: bool, hvcc: &mp4_atom::Hvcc, visual: &mp4_atom::Visual) -> Result<VideoConfig> {
+	fn init_h265(in_band: bool, hvcc: &mp4_atom::Hvcc, visual: &mp4_atom::Visual) -> anyhow::Result<VideoConfig> {
 		let mut description = BytesMut::new();
 		hvcc.encode_body(&mut description)?;
 
@@ -317,14 +334,13 @@ impl Import {
 		})
 	}
 
-	fn init_audio(trak: &Trak) -> Result<(String, AudioConfig)> {
-		let name = format!("audio{}", trak.tkhd.track_id);
+	fn init_audio(trak: &Trak) -> anyhow::Result<AudioConfig> {
 		let stsd = &trak.mdia.minf.stbl.stsd;
 
 		let codec = match stsd.codecs.len() {
-			0 => return Err(Error::MissingCodec),
+			0 => anyhow::bail!("missing codec"),
 			1 => &stsd.codecs[0],
-			_ => return Err(Error::MultipleCodecs),
+			_ => anyhow::bail!("multiple codecs"),
 		};
 
 		let config = match codec {
@@ -333,7 +349,7 @@ impl Import {
 
 				// TODO Also support mp4a.67
 				if desc.object_type_indication != 0x40 {
-					return Err(Error::UnsupportedCodec("MPEG2".to_string()));
+					anyhow::bail!("unsupported codec: MPEG2");
 				}
 
 				let bitrate = desc.avg_bitrate.max(desc.max_bitrate);
@@ -358,55 +374,14 @@ impl Import {
 					description: None, // TODO?
 				}
 			}
-			mp4_atom::Codec::Unknown(unknown) => return Err(Error::UnsupportedCodec(unknown.to_string())),
-			_ => return Err(Error::UnsupportedCodec("unknown".to_string())),
+			mp4_atom::Codec::Unknown(unknown) => anyhow::bail!("unknown codec: {:?}", unknown),
+			unsupported => anyhow::bail!("unsupported codec: {:?}", unsupported),
 		};
 
-		Ok((name, config))
+		Ok(config)
 	}
 
-	/// Initialize the importer by reading the fMP4 header from an async stream.
-	///
-	/// This method reads the `ftyp` and `moov` atoms from the beginning of an fMP4 file
-	/// to extract track information and codec parameters. It automatically creates
-	/// the hang catalog and sets up track producers.
-	///
-	/// This should be called before [`read_from`](Self::read_from) to process the
-	/// initialization section of the fMP4 file.
-	pub async fn init_from<T: AsyncRead + Unpin>(&mut self, input: &mut T) -> Result<()> {
-		match mp4_atom::Any::read_from(input).await? {
-			Any::Styp(_) | Any::Ftyp(_) => {}
-			_ => return Err(Error::ExpectedBox(mp4_atom::Styp::KIND)),
-		};
-		let moov = Moov::read_from(input).await?;
-
-		self.init(moov)
-	}
-
-	/// Read and process media fragments from an async stream.
-	///
-	/// This method reads `moof`/`mdat` atom pairs from the input stream and converts
-	/// them into hang frames. It handles frame timing, keyframe detection, and
-	/// automatic track writing.
-	///
-	/// This should be called after [`init_from`](Self::init_from) has processed
-	/// the file header.
-	pub async fn read_from<T: AsyncReadExt + Unpin>(&mut self, input: &mut T) -> Result<()> {
-		let mut buffer = BytesMut::new();
-
-		while input.read_buf(&mut buffer).await? > 0 {
-			let n = self.parse_inner(&buffer)?;
-			let _ = buffer.split_to(n);
-		}
-
-		if !buffer.is_empty() {
-			return Err(Error::TrailingData);
-		}
-
-		Ok(())
-	}
-
-	fn process(&mut self, atom: mp4_atom::Any, size: usize) -> Result<()> {
+	fn process(&mut self, atom: mp4_atom::Any, size: usize) -> anyhow::Result<()> {
 		match atom {
 			Any::Ftyp(_) | Any::Styp(_) => {
 				// Skip
@@ -418,7 +393,7 @@ impl Import {
 			Any::Moof(moof) => {
 				if self.moof.is_some() {
 					// Two moof boxes in a row.
-					return Err(Error::DuplicateBox(Moof::KIND));
+					anyhow::bail!("duplicate moof box");
 				}
 
 				self.moof = Some(moof);
@@ -439,10 +414,10 @@ impl Import {
 	}
 
 	// Extract all frames out of an mdat atom.
-	fn extract(&mut self, mdat: Mdat, header_size: usize) -> Result<()> {
+	fn extract(&mut self, mdat: Mdat, header_size: usize) -> anyhow::Result<()> {
 		let mdat = Bytes::from(mdat.data);
-		let moov = self.moov.as_ref().ok_or(Error::MissingBox(Moov::KIND))?;
-		let moof = self.moof.take().ok_or(Error::MissingBox(Moof::KIND))?;
+		let moov = self.moov.as_ref().context("missing moov box")?;
+		let moof = self.moof.take().context("missing moof box")?;
 
 		// Keep track of the minimum and maximum timestamp so we can scold the user.
 		// Ideally these should both be the same value.
@@ -452,14 +427,14 @@ impl Import {
 		// Loop over all of the traf boxes in the moof.
 		for traf in &moof.traf {
 			let track_id = traf.tfhd.track_id;
-			let track = self.tracks.get_mut(&track_id).ok_or(Error::UnknownTrack)?;
+			let track = self.tracks.get_mut(&track_id).context("unknown track")?;
 
 			// Find the track information in the moov
 			let trak = moov
 				.trak
 				.iter()
 				.find(|trak| trak.tkhd.track_id == track_id)
-				.ok_or(Error::UnknownTrack)?;
+				.context("unknown track")?;
 			let trex = moov
 				.mvex
 				.as_ref()
@@ -470,14 +445,14 @@ impl Import {
 			let default_sample_size = trex.map(|trex| trex.default_sample_size).unwrap_or_default();
 			let default_sample_flags = trex.map(|trex| trex.default_sample_flags).unwrap_or_default();
 
-			let tfdt = traf.tfdt.as_ref().ok_or(Error::MissingBox(Tfdt::KIND))?;
+			let tfdt = traf.tfdt.as_ref().context("missing tfdt box")?;
 			let mut dts = tfdt.base_media_decode_time;
 			let timescale = trak.mdia.mdhd.timescale as u64;
 
 			let mut offset = traf.tfhd.base_data_offset.unwrap_or_default() as usize;
 
 			if traf.trun.is_empty() {
-				return Err(Error::MissingBox(Trun::KIND));
+				anyhow::bail!("missing trun box");
 			}
 			for trun in &traf.trun {
 				let tfhd = &traf.tfhd;
@@ -486,9 +461,9 @@ impl Import {
 					let base_offset = tfhd.base_data_offset.unwrap_or_default() as usize;
 					// This is relative to the start of the MOOF, not the MDAT.
 					// Note: The trun data offset can be negative, but... that's not supported here.
-					let data_offset: usize = data_offset.try_into().map_err(|_| Error::InvalidOffset)?;
+					let data_offset: usize = data_offset.try_into().context("invalid data offset")?;
 					if data_offset < self.moof_size {
-						return Err(Error::InvalidOffset);
+						anyhow::bail!("invalid data offset");
 					}
 					// Reset offset if the TRUN has a data offset
 					offset = base_offset + data_offset - self.moof_size - header_size;
@@ -507,10 +482,11 @@ impl Import {
 						.unwrap_or(tfhd.default_sample_size.unwrap_or(default_sample_size)) as usize;
 
 					let pts = (dts as i64 + entry.cts.unwrap_or_default() as i64) as u64;
-					let timestamp = Timestamp::from_micros(1_000_000 * pts / timescale).unwrap();
+					let micros = (pts as u128 * 1_000_000 / timescale as u128) as u64;
+					let timestamp = hang::Timestamp::from_micros(micros)?;
 
 					if offset + size > mdat.len() {
-						return Err(Error::InvalidOffset);
+						anyhow::bail!("invalid data offset");
 					}
 
 					let keyframe = if trak.mdia.hdlr.handler == b"vide".into() {
@@ -542,7 +518,7 @@ impl Import {
 
 					let payload = mdat.slice(offset..(offset + size));
 
-					let frame = Frame {
+					let frame = hang::Frame {
 						timestamp,
 						keyframe,
 						payload,
@@ -571,5 +547,19 @@ impl Import {
 		}
 
 		Ok(())
+	}
+}
+
+impl Drop for Fmp4 {
+	fn drop(&mut self) {
+		let mut catalog = self.catalog.lock();
+
+		for track in self.tracks.values() {
+			tracing::debug!(name = ?track.info.name, "ending track");
+
+			// We're too lazy to keep track of if this track is for audio or video, so we just remove both.
+			catalog.remove_video(&track.info.name);
+			catalog.remove_audio(&track.info.name);
+		}
 	}
 }

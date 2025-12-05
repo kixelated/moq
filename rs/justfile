@@ -108,6 +108,23 @@ pub name url="http://localhost:4443/anon" *args:
 		- | cargo run --bin hang -- publish --url "{{url}}" --name "{{name}}" {{args}}
 
 
+# Publish a video using H.264 Annex B format to the localhost relay server
+pub-h264 name url="http://localhost:4443/anon" *args:
+	# Download the sample media.
+	just download {{name}}
+
+	# Pre-build the binary so we don't queue media while compiling.
+	cargo build --bin hang
+
+	# Run ffmpeg and pipe H.264 Annex B output to hang
+	ffmpeg -hide_banner -v quiet \
+		-stream_loop -1 -re \
+		-i "dev/{{name}}.fmp4" \
+		-c:v copy -an \
+		-bsf:v h264_mp4toannexb \
+		-f h264 \
+		- | cargo run --bin hang -- publish --url "{{url}}" --name "{{name}}" --format annex-b {{args}}
+
 # Publish a video using ffmpeg directly from hang to the localhost
 serve name:
 	# Download the sample media.
