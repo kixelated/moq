@@ -9,6 +9,9 @@ import * as Video from "./video";
 const OBSERVED = ["url", "name", "path", "paused", "volume", "muted", "reload", "latency"] as const;
 type Observed = (typeof OBSERVED)[number];
 
+// Close everything when this element is garbage collected.
+// This is primarily to avoid a console.warn that we didn't close() before GC.
+// There's no destructor for web components so this is the best we can do.
 const cleanup = new FinalizationRegistry<Effect>((signals) => signals.close());
 
 // An optional web component that wraps a <canvas>
@@ -64,7 +67,6 @@ export default class HangWatch extends HTMLElement {
 	constructor() {
 		super();
 
-		// Close everything when this element is garbage collected.
 		cleanup.register(this, this.signals);
 
 		this.connection = new Moq.Connection.Reload({

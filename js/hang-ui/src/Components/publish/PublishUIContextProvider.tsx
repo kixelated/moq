@@ -45,6 +45,8 @@ export default function PublishUIContextProvider(props: PublishUIContextProvider
 		if (!hangPublishEl) return;
 
 		hangPublishEl.source.set(file);
+		hangPublishEl.invisible.set(false);
+		hangPublishEl.muted.set(false);
 	};
 
 	const value: PublishUIContextValue = {

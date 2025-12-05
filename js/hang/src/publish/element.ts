@@ -7,9 +7,11 @@ import * as Source from "./source";
 const OBSERVED = ["url", "name", "path", "muted", "invisible", "source"] as const;
 type Observed = (typeof OBSERVED)[number];
 
-type SourceType = "camera" | "screen";
+type SourceType = "camera" | "screen" | "file";
 
 // Close everything when this element is garbage collected.
+// This is primarily to avoid a console.warn that we didn't close() before GC.
+// There's no destructor for web components so this is the best we can do.
 const cleanup = new FinalizationRegistry<Effect>((signals) => signals.close());
 
 export default class HangPublish extends HTMLElement {
@@ -195,9 +197,11 @@ export default class HangPublish extends HTMLElement {
 			return;
 		}
 
-		if (source instanceof File) {
+		if (source === "file" || source instanceof File) {
 			const fileSource = new Source.File({
-				file: source,
+				// If a File is provided, use it directly.
+				// TODO: Show a file picker otherwise.
+				file: source instanceof File ? source : undefined,
 				enabled: this.#eitherEnabled,
 			});
 
