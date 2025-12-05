@@ -1,6 +1,7 @@
 import type { Time } from "@kixelated/hang";
 import type HangWatch from "@kixelated/hang/watch/element";
 import type { HangWatchInstance, InstanceAvailableEvent } from "@kixelated/hang/watch/element";
+import { Effect } from "@kixelated/signals";
 import type { JSX } from "solid-js";
 import { createContext, createEffect, createSignal, onCleanup } from "solid-js";
 
@@ -108,7 +109,13 @@ export default function WatchUIContextProvider(props: WatchUIContextProviderProp
 	return <WatchUIContext.Provider value={value}>{props.children}</WatchUIContext.Provider>;
 
 	function onWatchInstanceAvailable(watchEl: HangWatch, watchInstance: HangWatchInstance) {
-		watchInstance.signals.effect(function trackWatchStatus(effect) {
+		const localEffect = new Effect();
+
+		onCleanup(() => {
+			localEffect.close();
+		});
+
+		localEffect.effect(function trackWatchStatus(effect) {
 			const url = effect.get(watchInstance.connection.url);
 			const connection = effect.get(watchInstance.connection.status);
 			const broadcast = effect.get(watchInstance.broadcast.status);
@@ -130,22 +137,22 @@ export default function WatchUIContextProvider(props: WatchUIContextProviderProp
 			}
 		});
 
-		watchInstance.signals.effect(function trackPlaying(effect) {
+		localEffect.effect(function trackPlaying(effect) {
 			const paused = effect.get(watchInstance.video.paused);
 			setIsPlaying(!paused);
 		});
 
-		watchInstance.signals.effect(function trackVolume(effect) {
+		localEffect.effect(function trackVolume(effect) {
 			const volume = effect.get(watchInstance.audio.volume);
 			setCurrentVolume(volume * 100);
 		});
 
-		watchInstance.signals.effect(function trackMuted(effect) {
+		localEffect.effect(function trackMuted(effect) {
 			const muted = effect.get(watchInstance.audio.muted);
 			setIsMuted(muted);
 		});
 
-		watchInstance.signals.effect(function trackBuffering(effect) {
+		localEffect.effect(function trackBuffering(effect) {
 			const syncStatus = effect.get(watchInstance.video.source.syncStatus);
 			const bufferStatus = effect.get(watchInstance.video.source.bufferStatus);
 			const shouldShow = syncStatus.state === "wait" || bufferStatus.state === "empty";
@@ -153,7 +160,7 @@ export default function WatchUIContextProvider(props: WatchUIContextProviderProp
 			setBuffering(shouldShow);
 		});
 
-		watchInstance.signals.effect(function trackLatency(effect) {
+		localEffect.effect(function trackLatency(effect) {
 			const latency = effect.get(watchEl?.signals.latency);
 			setLatency(latency);
 		});
