@@ -4,7 +4,7 @@ use std::sync::{Arc, Mutex, MutexGuard};
 /// The catalog format is a JSON file that describes the tracks available in a broadcast.
 use serde::{Deserialize, Serialize};
 
-use crate::catalog::{Audio, Chat, Location, Track, User, Video};
+use crate::catalog::{Audio, Chat, Track, User, Video};
 use crate::Result;
 use moq_lite::Produce;
 
@@ -27,11 +27,6 @@ pub struct Catalog {
 	/// based on their preferences (codec, bitrate, language, etc).
 	#[serde(default)]
 	pub audio: Option<Audio>,
-
-	/// A location track, used to indicate the desired position of the broadcaster from -1 to 1.
-	/// This is primarily used for audio panning but can also be used for video.
-	#[serde(default)]
-	pub location: Option<Location>,
 
 	/// User metadata for the broadcaster
 	#[serde(default)]
@@ -134,12 +129,6 @@ impl CatalogProducer {
 	pub fn set_audio(&mut self, audio: Option<Audio>) {
 		let mut current = self.current.lock().unwrap();
 		current.audio = audio;
-	}
-
-	/// Set the location information in the catalog.
-	pub fn set_location(&mut self, location: Option<Location>) {
-		let mut current = self.current.lock().unwrap();
-		current.location = location;
 	}
 
 	/// Set the user information in the catalog.

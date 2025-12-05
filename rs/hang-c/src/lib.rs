@@ -281,7 +281,7 @@ impl ImportJoy {
 		// Use copy_from_slice to own the data, avoiding use-after-free when C caller frees the buffer
 		let payload = Bytes::copy_from_slice(std::slice::from_raw_parts(data, size));
 
-		let timestamp = Timestamp::from_micros(dts);
+		let timestamp = Timestamp::from_micros(dts).unwrap();
 
 		let frame = Frame {
 			timestamp,
@@ -289,7 +289,7 @@ impl ImportJoy {
 			payload,
 		};
 
-		track.write(frame);
+		let _ = track.write(frame);
 	}
 
 	/// # Safety
@@ -303,7 +303,7 @@ impl ImportJoy {
 		// Use copy_from_slice to own the data, avoiding use-after-free when C caller frees the buffer
 		let payload = Bytes::copy_from_slice(std::slice::from_raw_parts(data, size));
 
-		let timestamp = Timestamp::from_micros(dts);
+		let timestamp = Timestamp::from_micros(dts).unwrap();
 
 		let frame = Frame {
 			timestamp,
@@ -311,6 +311,6 @@ impl ImportJoy {
 			payload,
 		};
 
-		track.write(frame);
+		let _ = track.write(frame);
 	}
 }

@@ -1,12 +1,7 @@
-use moq_lite::coding::*;
-
+use bytes::Bytes;
 use derive_more::Debug;
 
-/// A timestamp representing the presentation time of a media frame.
-///
-/// This is currently just a type alias for `std::time::Duration`.
-/// In the future it will have a more concrete type.
-pub type Timestamp = std::time::Duration;
+use crate::Timestamp;
 
 /// A media frame with a timestamp and codec-specific payload.
 ///

@@ -53,6 +53,18 @@ pub enum Error {
 	/// Failed to decode hexadecimal data.
 	#[error("hex error: {0}")]
 	Hex(#[from] hex::FromHexError),
+
+	/// The timestamp is too large.
+	#[error("timestamp overflow")]
+	TimestampOverflow(#[from] crate::TimestampOverflow),
+
+	/// The track must start with a keyframe.
+	#[error("must start with a keyframe")]
+	MissingKeyframe,
+
+	/// The timestamp of each keyframe must be monotonically increasing.
+	#[error("timestamp went backwards")]
+	TimestampBackwards,
 }
 
 /// A Result type alias for hang operations.

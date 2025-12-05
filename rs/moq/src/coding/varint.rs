@@ -34,6 +34,14 @@ impl VarInt {
 		Self(x as u64)
 	}
 
+	pub const fn from_u64(x: u64) -> Result<Self, BoundsExceeded> {
+		if x <= Self::MAX.0 {
+			Ok(Self(x))
+		} else {
+			Err(BoundsExceeded)
+		}
+	}
+
 	/// Extract the integer value
 	pub const fn into_inner(self) -> u64 {
 		self.0
