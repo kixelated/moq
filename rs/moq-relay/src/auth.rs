@@ -163,7 +163,7 @@ mod tests {
 
 	fn create_test_key() -> anyhow::Result<(NamedTempFile, Key)> {
 		let key_file = NamedTempFile::new()?;
-		let key = Key::generate(Algorithm::HS256, None);
+		let key = Key::generate(Algorithm::HS256, None)?;
 		key.to_file(key_file.path())?;
 		Ok((key_file, key))
 	}
