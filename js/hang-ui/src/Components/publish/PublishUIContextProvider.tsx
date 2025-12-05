@@ -94,27 +94,43 @@ export default function PublishUIContextProvider(props: PublishUIContextProvider
 
 	function onPublishInstanceAvailable(el: HangPublish, publishInstance: HangPublishInstance) {
 		publishInstance.signals.effect(function trackCameraDevices(effect) {
+			const clearCameraDevices = () => setCameraMediaDevices([]);
 			const video = effect.get(publishInstance.video);
 
-			if (!video || !("device" in video)) return;
+			if (!video || !("device" in video)) {
+				clearCameraDevices();
+				return;
+			}
 
 			const devices = effect.get(video.device.available);
-
-			if (!devices || devices.length < 2) return;
+			if (!devices || devices.length < 2) {
+				clearCameraDevices();
+				return;
+			}
 
 			setCameraMediaDevices(devices);
 		});
 
 		publishInstance.signals.effect(function trackMicrophoneDevices(effect) {
+			const clearMicrophoneDevices = () => setMicrophoneMediaDevices([]);
 			const audio = effect.get(publishInstance.audio);
 
-			if (!audio || !("device" in audio)) return;
+			if (!audio || !("device" in audio)) {
+				clearMicrophoneDevices();
+				return;
+			}
 
 			const enabled = effect.get(publishInstance.broadcast.audio.enabled);
-			if (!enabled) return;
+			if (!enabled) {
+				clearMicrophoneDevices();
+				return;
+			}
 
 			const devices = effect.get(audio.device.available);
-			if (!devices || devices.length < 2) return;
+			if (!devices || devices.length < 2) {
+				clearMicrophoneDevices();
+				return;
+			}
 
 			setMicrophoneMediaDevices(devices);
 		});
