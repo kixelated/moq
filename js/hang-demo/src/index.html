@@ -26,9 +26,11 @@
 
 		TODO: There's a bug with Big Buck Bunny causing audio to stutter, so we need to increase the latency to 100ms.
 
+		NOTE: `reload` will detect when the broadcast goes offline/online and automatically reconnect.
+		TODO: Cloudflare doesn't support it yet (SUBSCRIBE_NAMESPACE), so make sure you remove it if you're using Cloudflare.
 	-->
 	<hang-watch-ui>
-		<hang-watch url="%VITE_RELAY_URL%" path="bbb" muted>
+		<hang-watch url="%VITE_RELAY_URL%" path="bbb" muted latency="100" reload>
 			<canvas style="width: 100%; height: auto;"></canvas>
 		</hang-watch>
 	</hang-watch-ui>

@@ -8,12 +8,12 @@ export default function MicrophoneSourceButton() {
 		const hangPublishEl = context?.hangPublish();
 		if (!hangPublishEl) return;
 
-		if (hangPublishEl.source === "camera") {
+		if (hangPublishEl.source.peek() === "camera") {
 			// Camera already selected, toggle audio.
-			hangPublishEl.audio = !hangPublishEl.audio;
+			hangPublishEl.muted.update((muted) => !muted);
 		} else {
-			hangPublishEl.source = "camera";
-			hangPublishEl.audio = true;
+			hangPublishEl.source.set("camera");
+			hangPublishEl.muted.set(false);
 		}
 	};
 
@@ -21,7 +21,10 @@ export default function MicrophoneSourceButton() {
 		const hangPublishEl = context?.hangPublish();
 		if (!hangPublishEl) return;
 
-		hangPublishEl.audioDevice = sourceId;
+		const audio = hangPublishEl.audio.peek();
+		if (!audio || !("device" in audio)) return;
+
+		audio.device.preferred.set(sourceId);
 	};
 
 	return (

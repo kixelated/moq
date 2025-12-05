@@ -1,31 +1,18 @@
 import type HangWatch from "@kixelated/hang/watch/element";
 import { customElement } from "solid-element";
-import { createSignal, onCleanup, onMount } from "solid-js";
+import { createSignal, onMount } from "solid-js";
 import BufferingIndicator from "./BufferingIndicator";
 import styles from "./styles.css?inline";
 import WatchControls from "./WatchControls";
 import WatchUIContextProvider from "./WatchUIContextProvider";
 
 customElement("hang-watch-ui", {}, function WatchUIWebComponent(_, { element }) {
-	const [hangWatchEl, setHangWatchEl] = createSignal<HangWatch>();
+	const [hangWatchEl, setHangWatchEl] = createSignal<HangWatch | undefined>();
 
-	const onInstanceAvailable = (event: CustomEvent) => {
-		const hangWatchEl = event.target as HangWatch;
-		setHangWatchEl(hangWatchEl);
-	};
-
-	onMount(() => {
+	onMount(async () => {
 		const watchEl = element.querySelector("hang-watch");
-
-		if (watchEl) {
-			setHangWatchEl(watchEl);
-		} else {
-			element.addEventListener("watch-instance-available", onInstanceAvailable);
-		}
-	});
-
-	onCleanup(() => {
-		element.removeEventListener("watch-instance-available", onInstanceAvailable);
+		await customElements.whenDefined("hang-watch");
+		setHangWatchEl(watchEl);
 	});
 
 	return (

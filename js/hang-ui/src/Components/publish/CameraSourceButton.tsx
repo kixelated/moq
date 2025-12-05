@@ -8,12 +8,12 @@ export default function CameraSourceButton() {
 		const hangPublishEl = context?.hangPublish();
 		if (!hangPublishEl) return;
 
-		if (hangPublishEl.source === "camera") {
+		if (hangPublishEl.source.peek() === "camera") {
 			// Camera already selected, toggle video.
-			hangPublishEl.video = !hangPublishEl.video;
+			hangPublishEl.invisible.update((invisible) => !invisible);
 		} else {
-			hangPublishEl.source = "camera";
-			hangPublishEl.video = true;
+			hangPublishEl.source.set("camera");
+			hangPublishEl.invisible.set(false);
 		}
 	};
 
@@ -21,7 +21,10 @@ export default function CameraSourceButton() {
 		const hangPublishEl = context?.hangPublish();
 		if (!hangPublishEl) return;
 
-		hangPublishEl.videoDevice = sourceId;
+		const video = hangPublishEl.video.peek();
+		if (!video || !("device" in video)) return;
+
+		video.device.preferred.set(sourceId);
 	};
 
 	return (
