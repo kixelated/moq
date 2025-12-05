@@ -48,6 +48,9 @@ pub enum Error {
 
 	#[error("invalid code")]
 	InvalidCode,
+
+	#[error("panic")]
+	Panic,
 }
 
 impl ffi::ReturnCode for Error {
@@ -69,6 +72,7 @@ impl ffi::ReturnCode for Error {
 			Error::TimestampOverflow(_) => -12,
 			Error::Level(_) => -13,
 			Error::InvalidCode => -14,
+			Error::Panic => -15,
 		}
 	}
 }

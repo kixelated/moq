@@ -127,10 +127,10 @@ impl State {
 		Ok(())
 	}
 
-	pub fn session_publish<P: moq_lite::AsPath>(&mut self, id: usize, path: P, broadcast: usize) -> Result<(), Error> {
+	pub fn publish_broadcast<P: moq_lite::AsPath>(&mut self, id: usize, session: usize, path: P) -> Result<(), Error> {
 		let path = path.as_path();
-		let session = self.sessions.get_mut(id).ok_or(Error::NotFound)?;
-		let broadcast = self.broadcasts.get_mut(broadcast).ok_or(Error::NotFound)?;
+		let broadcast = self.broadcasts.get_mut(id).ok_or(Error::NotFound)?;
+		let session = self.sessions.get_mut(session).ok_or(Error::NotFound)?;
 
 		session.origin.publish_broadcast(path, broadcast.consume());
 

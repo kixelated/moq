@@ -33,7 +33,10 @@ impl Drop for Callback {
 unsafe impl Send for Callback {}
 
 pub fn return_code<C: ReturnCode, F: FnOnce() -> C>(f: F) -> i32 {
-	f().code()
+	match std::panic::catch_unwind(std::panic::AssertUnwindSafe(f)) {
+		Ok(ret) => ret.code(),
+		Err(_) => Error::Panic.code(),
+	}
 }
 
 pub trait ReturnCode {

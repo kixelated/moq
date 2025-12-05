@@ -71,23 +71,6 @@ pub extern "C" fn hang_session_disconnect(id: i32) -> i32 {
 	})
 }
 
-/// Publish the broadcast to the indicated session with the given path.
-///
-/// This allows publishing the same broadcast multiple times to different connections.
-///
-/// # Safety
-/// - The caller must ensure that path is a valid null-terminated C string, or null.
-// TODO add an unpublish method.
-#[no_mangle]
-pub unsafe extern "C" fn hang_session_publish(id: i32, path: *const c_char, broadcast: i32) -> i32 {
-	ffi::return_code(move || {
-		let id = ffi::parse_id(id)?;
-		let broadcast = ffi::parse_id(broadcast)?;
-		let path = ffi::parse_str(path)?;
-		State::lock().session_publish(id, path, broadcast)
-	})
-}
-
 /// Create a new broadcast; a collection of tracks.
 ///
 /// Returns a handle to the broadcast for [hang_broadcast_close].
@@ -107,6 +90,23 @@ pub extern "C" fn hang_broadcast_close(id: i32) -> i32 {
 	})
 }
 
+/// Publish the broadcast to the indicated session with the given path.
+///
+/// This allows publishing the same broadcast multiple times to different connections.
+///
+/// # Safety
+/// - The caller must ensure that path is a valid null-terminated C string, or null.
+// TODO add an unpublish method.
+#[no_mangle]
+pub unsafe extern "C" fn hang_broadcast_publish(id: i32, session: i32, path: *const c_char) -> i32 {
+	ffi::return_code(move || {
+		let id = ffi::parse_id(id)?;
+		let session = ffi::parse_id(session)?;
+		let path = ffi::parse_str(path)?;
+		State::lock().publish_broadcast(id, session, path)
+	})
+}
+
 /// Create a new track for a broadcast.
 ///
 /// The contents of `extra` depends on the `format`.
@@ -116,7 +116,6 @@ pub extern "C" fn hang_broadcast_close(id: i32) -> i32 {
 ///
 /// # Safety
 /// - The caller must ensure that format is a valid null-terminated C string.
-/// - The caller must ensure that extra is a valid pointer or null.
 #[no_mangle]
 pub unsafe extern "C" fn hang_track_create(broadcast: i32, format: *const c_char) -> i32 {
 	ffi::return_code(move || {
