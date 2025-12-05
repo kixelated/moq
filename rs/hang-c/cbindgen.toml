@@ -8,14 +8,12 @@ cpp_compat = true
 style = "both"
 
 [export]
-include = ["hang"]
 prefix = "Hang"
 
 [export.rename]
 
 [parse]
 parse_deps = false
-include = ["hang"]
 
 [layout]
 aligned_n = "HANG_ALIGN"

@@ -1,316 +1,172 @@
-use tokio::runtime::Runtime;
-use url::Url;
+mod error;
+mod ffi;
+mod state;
 
-use bytes::Bytes;
-use hang::catalog::{Audio, AudioConfig, Video, VideoConfig, AAC, H264};
-use hang::model::{Frame, Timestamp, TrackProducer};
-use hang::{Catalog, CatalogProducer};
-use moq_lite::{BroadcastProducer, Track};
-use std::ffi::CStr;
+pub use error::*;
+use state::*;
+
+use std::ffi::c_void;
 use std::os::raw::c_char;
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::Mutex;
-use std::thread::JoinHandle;
-use std::{collections::HashMap, time::Duration};
+use std::str::FromStr;
 
-static IMPORT: Mutex<Option<ImportJoy>> = Mutex::new(None);
-static HANDLE: Mutex<Option<JoinHandle<()>>> = Mutex::new(None);
-static RUNNING: AtomicBool = AtomicBool::new(false);
+use tracing::Level;
 
-/// # Safety
+/// Initialize the library with a log level.
 ///
-/// The caller must ensure that:
-/// - `c_server_url` and `c_path` are valid null-terminated C strings
-/// - The pointers remain valid for the duration of this function call
-#[no_mangle]
-pub unsafe extern "C" fn hang_start_from_c(
-	c_server_url: *const c_char,
-	c_path: *const c_char,
-	_c_profile: *const c_char,
-) {
-	// Validate C string pointers
-	if c_server_url.is_null() || c_path.is_null() {
-		return;
-	}
-
-	let cstr_server_url = CStr::from_ptr(c_server_url);
-	let server_url = match cstr_server_url.to_str() {
-		Ok(s) => s,
-		Err(_) => return,
-	};
-
-	let url = match Url::parse(server_url) {
-		Ok(u) => u,
-		Err(_) => return,
-	};
-
-	let cstr_path = CStr::from_ptr(c_path);
-	let path = match cstr_path.to_str() {
-		Ok(s) => s.to_string(),
-		Err(_) => return,
-	};
-
-	RUNNING.store(true, Ordering::Relaxed);
-
-	let handle = std::thread::spawn(move || {
-		let rt = match Runtime::new() {
-			Ok(rt) => rt,
-			Err(_) => return,
-		};
-
-		rt.block_on(async {
-			let _ = client(url, path).await;
-		});
-	});
-
-	if let Ok(mut guard) = HANDLE.lock() {
-		*guard = Some(handle);
-	}
-}
-
-#[no_mangle]
-pub extern "C" fn hang_stop_from_c() {
-	RUNNING.store(false, Ordering::Relaxed);
-	if let Ok(mut guard) = HANDLE.lock() {
-		if let Some(handle) = guard.take() {
-			let _ = handle.join();
-		}
-	}
-	if let Ok(mut guard) = IMPORT.lock() {
-		*guard = None;
-	}
-}
-
-/// # Safety
+/// This should be called before any other functions.
+/// The log_level is a string: "error", "warn", "info", "debug", "trace"
 ///
-/// The caller must ensure that:
-/// - `data` points to a valid buffer of at least `size` bytes
-/// - The buffer remains valid for the duration of this function call
-#[no_mangle]
-pub unsafe extern "C" fn hang_write_video_packet_from_c(data: *const u8, size: usize, keyframe: i32, dts: u64) {
-	// Validate pointer and size
-	if data.is_null() || size == 0 {
-		return;
-	}
-
-	if let Ok(mut guard) = IMPORT.lock() {
-		if let Some(import) = guard.as_mut() {
-			// SAFETY: Caller of hang_write_video_packet_from_c guarantees data is valid
-			import.write_video_frame(data, size, keyframe > 0, dts);
-		}
-	}
-}
-
 /// # Safety
-///
-/// The caller must ensure that:
-/// - `data` points to a valid buffer of at least `size` bytes
-/// - The buffer remains valid for the duration of this function call
+/// - The caller must ensure that level is a valid null-terminated C string.
 #[no_mangle]
-pub unsafe extern "C" fn hang_write_audio_packet_from_c(data: *const u8, size: usize, dts: u64) {
-	// Validate pointer and size
-	if data.is_null() || size == 0 {
-		return;
-	}
-
-	if let Ok(mut guard) = IMPORT.lock() {
-		if let Some(import) = guard.as_mut() {
-			// SAFETY: Caller of hang_write_audio_packet_from_c guarantees data is valid
-			import.write_audio_frame(data, size, dts);
+pub unsafe extern "C" fn hang_log_level(level: *const c_char) -> i32 {
+	ffi::return_code(move || {
+		match ffi::parse_str(level)? {
+			"" => moq_native::Log::default(),
+			level => moq_native::Log {
+				level: Level::from_str(level)?,
+			},
 		}
-	}
+		.init();
+
+		Ok(())
+	})
 }
 
-pub async fn client(url: Url, name: String) -> anyhow::Result<()> {
-	let broadcast = moq_lite::Broadcast::produce();
-	let config = moq_native::ClientConfig::default();
-	let client = config.init()?;
-
-	let connection = client.connect(url).await?;
-
-	let origin = moq_lite::Origin::produce();
-
-	let session = moq_lite::Session::connect(connection, origin.consumer, None).await?;
-
-	let mut import = ImportJoy::new(broadcast.producer);
-	import.init();
-	if let Ok(mut guard) = IMPORT.lock() {
-		*guard = Some(import);
-	}
-
-	origin.producer.publish_broadcast(&name, broadcast.consumer);
-
-	while RUNNING.load(Ordering::Relaxed) {
-		tokio::time::sleep(Duration::from_millis(30)).await;
-	}
-
-	session.close(moq_lite::Error::Cancel);
-
-	Ok(())
+/// Establish a connection to a MoQ server.
+///
+/// Fires `on_status` with user_data when the connection is closed.
+///
+/// This may be called multiple times to connect to different servers.
+/// Broadcasts and tracks may be created before or after any connection is established.
+///
+/// Returns a handle to the session for [hang_session_disconnect].
+///
+/// # Safety
+/// - The caller must ensure that url is a valid null-terminated C string.
+/// - The caller must ensure that user_data is a valid pointer.
+/// - The caller must ensure that on_status is a valid function pointer, or null.
+#[no_mangle]
+pub unsafe extern "C" fn hang_session_connect(
+	url: *const c_char,
+	user_data: *mut c_void,
+	on_status: Option<extern "C" fn(user_data: *mut c_void, code: i32)>,
+) -> i32 {
+	ffi::return_code(move || {
+		let url = ffi::parse_url(url)?;
+		let on_status = ffi::Callback::new(user_data, on_status);
+		State::lock().session_connect(url, on_status)
+	})
 }
 
-pub struct ImportJoy {
-	// The broadcast being produced
-	broadcast: BroadcastProducer,
-
-	// The catalog being produced
-	catalog: CatalogProducer,
-
-	// A lookup to tracks in the broadcast
-	tracks: HashMap<u32, TrackProducer>,
-
-	sent_one_keyframe: bool,
+/// Close a connection to a MoQ server.
+///
+/// Uses the id returned from [hang_session_connect].
+/// Any `on_status` callback will be fired with [Error::Closed].
+#[no_mangle]
+pub extern "C" fn hang_session_disconnect(id: i32) -> i32 {
+	ffi::return_code(move || {
+		let id = ffi::parse_id(id)?;
+		State::lock().session_disconnect(id)
+	})
 }
 
-impl ImportJoy {
-	/// Create a new importer that will write to the given broadcast.
-	pub fn new(mut broadcast: BroadcastProducer) -> Self {
-		let catalog = Catalog::default().produce();
-		broadcast.insert_track(catalog.consumer.track);
+/// Publish the broadcast to the indicated session with the given path.
+///
+/// This allows publishing the same broadcast multiple times to different connections.
+///
+/// # Safety
+/// - The caller must ensure that path is a valid null-terminated C string, or null.
+// TODO add an unpublish method.
+#[no_mangle]
+pub unsafe extern "C" fn hang_session_publish(id: i32, path: *const c_char, broadcast: i32) -> i32 {
+	ffi::return_code(move || {
+		let id = ffi::parse_id(id)?;
+		let broadcast = ffi::parse_id(broadcast)?;
+		let path = ffi::parse_str(path)?;
+		State::lock().session_publish(id, path, broadcast)
+	})
+}
 
-		Self {
-			broadcast,
-			catalog: catalog.producer,
-			tracks: HashMap::default(),
-			sent_one_keyframe: false,
-		}
-	}
+/// Create a new broadcast; a collection of tracks.
+///
+/// Returns a handle to the broadcast for [hang_broadcast_close].
+#[no_mangle]
+pub extern "C" fn hang_broadcast_create() -> i32 {
+	ffi::return_code(move || State::lock().create_broadcast())
+}
 
-	pub fn init(&mut self) {
-		// Produce the catalog
-		let mut video_renditions = HashMap::new();
-		let mut audio_renditions = HashMap::new();
+/// Remove a broadcast and all its tracks.
+///
+/// Uses the id returned from [hang_broadcast_create].
+#[no_mangle]
+pub extern "C" fn hang_broadcast_close(id: i32) -> i32 {
+	ffi::return_code(move || {
+		let id = ffi::parse_id(id)?;
+		State::lock().remove_broadcast(id)
+	})
+}
 
-		let (track_name, config) = Self::init_video();
-		let track = Track {
-			name: track_name.clone(),
-			priority: 1,
-		};
-		let track_produce = track.produce();
-		self.broadcast.insert_track(track_produce.consumer);
-		video_renditions.insert(track_name, config);
+/// Create a new track for a broadcast.
+///
+/// The contents of `extra` depends on the `format`.
+/// See [hang::import::Generic] for the available formats.
+///
+/// Returns a handle to the track for [hang_track_close] and [hang_track_write].
+///
+/// # Safety
+/// - The caller must ensure that format is a valid null-terminated C string.
+/// - The caller must ensure that extra is a valid pointer or null.
+#[no_mangle]
+pub unsafe extern "C" fn hang_track_create(broadcast: i32, format: *const c_char) -> i32 {
+	ffi::return_code(move || {
+		let broadcast = ffi::parse_id(broadcast)?;
+		let format = ffi::parse_str(format)?;
 
-		self.tracks.insert(0, track_produce.producer.into());
+		State::lock().create_track(broadcast, format)
+	})
+}
 
-		if !video_renditions.is_empty() {
-			let video = Video {
-				renditions: video_renditions,
-				priority: 1,
-				display: None,
-				rotation: None,
-				flip: None,
-			};
-			self.catalog.set_video(Some(video));
-		}
+/// Remove a track from a broadcast.
+///
+/// Uses the id returned from [hang_track_create].
+#[no_mangle]
+pub extern "C" fn hang_track_close(id: i32) -> i32 {
+	ffi::return_code(move || {
+		let id = ffi::parse_id(id)?;
+		State::lock().remove_track(id)
+	})
+}
 
-		let (track_name, config) = Self::init_audio();
-		let track = Track {
-			name: track_name.clone(),
-			priority: 2,
-		};
-		let track_produce = track.produce();
-		self.broadcast.insert_track(track_produce.consumer);
-		audio_renditions.insert(track_name, config);
+/// Initialize a track with extra data.
+///
+/// Uses the id returned from [hang_track_create].
+///
+/// # Safety
+/// - The caller must ensure that extra is a valid pointer, or null.
+#[no_mangle]
+pub unsafe extern "C" fn hang_track_init(id: i32, extra: *const u8, extra_size: usize) -> i32 {
+	ffi::return_code(move || {
+		let id = ffi::parse_id(id)?;
+		let extra = ffi::parse_slice(extra, extra_size)?;
+		State::lock().init_track(id, extra)
+	})
+}
 
-		self.tracks.insert(1, track_produce.producer.into());
-
-		if !audio_renditions.is_empty() {
-			let audio = Audio {
-				renditions: audio_renditions,
-				priority: 2,
-			};
-			self.catalog.set_audio(Some(audio));
-		}
-
-		self.catalog.publish();
-	}
-
-	pub fn init_video() -> (String, VideoConfig) {
-		let name = String::from("video1");
-
-		let config = VideoConfig {
-			coded_width: Some(1280),
-			coded_height: Some(720),
-			codec: H264 {
-				profile: 0x4d,
-				constraints: 0x00,
-				level: 0x29,
-			}
-			.into(),
-			description: None,
-			// TODO: populate these fields
-			framerate: None,
-			bitrate: None,
-			display_ratio_width: None,
-			display_ratio_height: None,
-			optimize_for_latency: None,
-		};
-
-		(name, config)
-	}
-
-	pub fn init_audio() -> (String, AudioConfig) {
-		let name = String::from("audio1");
-
-		let config = AudioConfig {
-			codec: AAC { profile: 2 }.into(),
-			sample_rate: 48000,
-			channel_count: 2,
-			bitrate: Some(128000),
-			description: None,
-		};
-
-		(name, config)
-	}
-
-	/// # Safety
-	///
-	/// The caller must ensure that `data` points to a valid buffer of at least `size` bytes
-	pub unsafe fn write_video_frame(&mut self, data: *const u8, size: usize, keyframe: bool, dts: u64) {
-		if !self.sent_one_keyframe {
-			if !keyframe {
-				return;
-			}
-			self.sent_one_keyframe = true;
-		}
-
-		let Some(track) = self.tracks.get_mut(&0) else {
-			return;
-		};
-
-		// Use copy_from_slice to own the data, avoiding use-after-free when C caller frees the buffer
-		let payload = Bytes::copy_from_slice(std::slice::from_raw_parts(data, size));
-
-		let timestamp = Timestamp::from_micros(dts).unwrap();
-
-		let frame = Frame {
-			timestamp,
-			keyframe,
-			payload,
-		};
-
-		let _ = track.write(frame);
-	}
-
-	/// # Safety
-	///
-	/// The caller must ensure that `data` points to a valid buffer of at least `size` bytes
-	pub unsafe fn write_audio_frame(&mut self, data: *const u8, size: usize, dts: u64) {
-		let Some(track) = self.tracks.get_mut(&1) else {
-			return;
-		};
-
-		// Use copy_from_slice to own the data, avoiding use-after-free when C caller frees the buffer
-		let payload = Bytes::copy_from_slice(std::slice::from_raw_parts(data, size));
-
-		let timestamp = Timestamp::from_micros(dts).unwrap();
-
-		let frame = Frame {
-			timestamp,
-			keyframe: false,
-			payload,
-		};
-
-		let _ = track.write(frame);
-	}
+/// Write data to a track.
+///
+/// The data encoding depends on the configured `format`.
+/// The timestamp is in microseconds.
+///
+/// Uses the id returned from [hang_track_create].
+///
+/// # Safety
+/// - The caller must ensure that data is a valid pointer, or null.
+#[no_mangle]
+pub unsafe extern "C" fn hang_track_write(id: i32, data: *const u8, data_size: usize, pts: u64) -> i32 {
+	ffi::return_code(move || {
+		let id = ffi::parse_id(id)?;
+		let data = ffi::parse_slice(data, data_size)?;
+		State::lock().write_track(id, data, pts)
+	})
 }

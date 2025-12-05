@@ -1,0 +1,129 @@
+use std::ffi::{c_char, c_void, CStr};
+
+use url::Url;
+
+use crate::Error;
+
+pub struct Callback {
+	user_data: *mut c_void,
+	on_status: Option<extern "C" fn(user_data: *mut c_void, code: i32)>,
+}
+
+impl Callback {
+	pub unsafe fn new(
+		user_data: *mut c_void,
+		on_status: Option<extern "C" fn(user_data: *mut c_void, code: i32)>,
+	) -> Self {
+		Self { user_data, on_status }
+	}
+
+	pub fn call<C: ReturnCode>(&mut self, ret: C) {
+		if let Some(on_status) = self.on_status.take() {
+			on_status(self.user_data, ret.code());
+		}
+	}
+}
+
+impl Drop for Callback {
+	fn drop(&mut self) {
+		self.call(Error::Closed);
+	}
+}
+
+unsafe impl Send for Callback {}
+
+pub fn return_code<C: ReturnCode, F: FnOnce() -> C>(f: F) -> i32 {
+	f().code()
+}
+
+pub trait ReturnCode {
+	fn code(&self) -> i32;
+}
+
+impl ReturnCode for () {
+	fn code(&self) -> i32 {
+		0
+	}
+}
+
+impl ReturnCode for i32 {
+	fn code(&self) -> i32 {
+		*self
+	}
+}
+
+impl ReturnCode for Result<i32, Error> {
+	fn code(&self) -> i32 {
+		match self {
+			Ok(code) if *code < 0 => Error::InvalidCode.code(),
+			Ok(code) => *code,
+			Err(e) => e.code(),
+		}
+	}
+}
+
+impl ReturnCode for Result<usize, Error> {
+	fn code(&self) -> i32 {
+		match self {
+			Ok(code) => i32::try_from(*code).unwrap_or(Error::InvalidCode.code()),
+			Err(e) => e.code(),
+		}
+	}
+}
+
+impl ReturnCode for Result<(), Error> {
+	fn code(&self) -> i32 {
+		match self {
+			Ok(()) => 0,
+			Err(e) => e.code(),
+		}
+	}
+}
+
+impl ReturnCode for usize {
+	fn code(&self) -> i32 {
+		i32::try_from(*self).unwrap_or(Error::InvalidCode.code())
+	}
+}
+
+pub fn parse_url(url: *const c_char) -> Result<Url, Error> {
+	if url.is_null() {
+		return Err(Error::InvalidPointer);
+	}
+
+	let url = unsafe { CStr::from_ptr(url) };
+	let url = url.to_str()?;
+	Ok(Url::parse(url)?)
+}
+
+/// # Safety
+///
+/// The caller must ensure that cstr is valid for 'a.
+pub unsafe fn parse_str<'a>(cstr: *const c_char) -> Result<&'a str, Error> {
+	if cstr.is_null() {
+		return Ok("");
+	}
+
+	let string = unsafe { CStr::from_ptr(cstr) };
+	Ok(string.to_str()?)
+}
+
+/// # Safety
+///
+/// The caller must ensure that data is valid for 'a.
+pub unsafe fn parse_slice<'a>(data: *const u8, size: usize) -> Result<&'a [u8], Error> {
+	if data.is_null() {
+		if size == 0 {
+			return Ok(&[]);
+		}
+
+		return Err(Error::InvalidPointer);
+	}
+
+	let data = unsafe { std::slice::from_raw_parts(data, size) };
+	Ok(data)
+}
+
+pub fn parse_id(id: i32) -> Result<usize, Error> {
+	usize::try_from(id).map_err(|_| Error::InvalidId)
+}
