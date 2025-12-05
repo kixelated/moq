@@ -10,7 +10,7 @@ export default function MicrophoneSourceButton() {
 
 		if (hangPublishEl.source.peek() === "camera") {
 			// Camera already selected, toggle audio.
-			hangPublishEl.muted.update(muted => !muted);
+			hangPublishEl.muted.update((muted) => !muted);
 		} else {
 			hangPublishEl.source.set("camera");
 			hangPublishEl.muted.set(false);

@@ -54,7 +54,7 @@ export default function WatchUIContextProvider(props: WatchUIContextProviderProp
 		const hangWatchEl = props.hangWatch();
 
 		if (hangWatchEl) {
-			hangWatchEl.muted.update(muted => !muted);
+			hangWatchEl.muted.update((muted) => !muted);
 		}
 	};
 

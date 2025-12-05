@@ -10,7 +10,7 @@ export default function CameraSourceButton() {
 
 		if (hangPublishEl.source.peek() === "camera") {
 			// Camera already selected, toggle video.
-			hangPublishEl.invisible.update(invisible => !invisible);
+			hangPublishEl.invisible.update((invisible) => !invisible);
 		} else {
 			hangPublishEl.source.set("camera");
 			hangPublishEl.invisible.set(false);
