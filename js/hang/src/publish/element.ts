@@ -3,7 +3,8 @@ import { Effect, Signal } from "@kixelated/signals";
 import { Broadcast } from "./broadcast";
 import * as Source from "./source";
 
-const OBSERVED = ["url", "path", "muted", "invisible", "source"] as const;
+// TODO remove name; replaced with path
+const OBSERVED = ["url", "name", "path", "muted", "invisible", "source"] as const;
 type Observed = (typeof OBSERVED)[number];
 
 type SourceType = "camera" | "screen";
@@ -83,11 +84,13 @@ export default class HangPublish extends HTMLElement {
 		this.signals.cleanup(() => this.broadcast.close());
 
 		// Watch to see if the preview element is added or removed.
-		const observer = new MutationObserver(() => {
+		const setPreview = () => {
 			this.#preview.set(this.querySelector("video") as HTMLVideoElement | undefined);
-		});
+		};
+		const observer = new MutationObserver(setPreview);
 		observer.observe(this, { childList: true, subtree: true });
 		this.signals.cleanup(() => observer.disconnect());
+		setPreview();
 
 		this.signals.effect((effect) => {
 			const preview = effect.get(this.#preview);
@@ -123,7 +126,7 @@ export default class HangPublish extends HTMLElement {
 
 		if (name === "url") {
 			this.url.set(newValue ? new URL(newValue) : undefined);
-		} else if (name === "path") {
+		} else if (name === "name" || name === "path") {
 			this.path.set(newValue ? Moq.Path.from(newValue) : undefined);
 		} else if (name === "source") {
 			if (newValue === "camera" || newValue === "screen" || newValue === "file" || newValue === null) {

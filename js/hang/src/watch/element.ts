@@ -5,7 +5,8 @@ import * as Audio from "./audio";
 import { Broadcast } from "./broadcast";
 import * as Video from "./video";
 
-const OBSERVED = ["url", "path", "paused", "volume", "muted", "reload", "latency"] as const;
+// TODO remove name; replaced with path
+const OBSERVED = ["url", "name", "path", "paused", "volume", "muted", "reload", "latency"] as const;
 type Observed = (typeof OBSERVED)[number];
 
 const cleanup = new FinalizationRegistry<Effect>((signals) => signals.close());
@@ -55,8 +56,9 @@ export default class HangWatch extends HTMLElement {
 	#enabled = new Signal(false);
 
 	// The canvas element to render the video to.
-	#canvas = new Signal<HTMLCanvasElement | undefined>(undefined);
+	canvas = new Signal<HTMLCanvasElement | undefined>(undefined);
 
+	// Expose the Effect class, so users can easily create effects scoped to this element.
 	signals = new Effect();
 
 	constructor() {
@@ -85,7 +87,7 @@ export default class HangWatch extends HTMLElement {
 		});
 		this.signals.cleanup(() => this.broadcast.close());
 
-		this.video = new Video.Renderer(this.broadcast.video, { canvas: this.#canvas, paused: this.paused });
+		this.video = new Video.Renderer(this.broadcast.video, { canvas: this.canvas, paused: this.paused });
 		this.signals.cleanup(() => this.video.close());
 
 		this.audio = new Audio.Emitter(this.broadcast.audio, {
@@ -96,11 +98,13 @@ export default class HangWatch extends HTMLElement {
 		this.signals.cleanup(() => this.audio.close());
 
 		// Watch to see if the canvas element is added or removed.
-		const observer = new MutationObserver(() => {
-			this.#canvas.set(this.querySelector("canvas") as HTMLCanvasElement | undefined);
-		});
+		const setCanvas = () => {
+			this.canvas.set(this.querySelector("canvas") as HTMLCanvasElement | undefined);
+		};
+		const observer = new MutationObserver(setCanvas);
 		observer.observe(this, { childList: true, subtree: true });
 		this.signals.cleanup(() => observer.disconnect());
+		setCanvas();
 
 		// Optionally update attributes to match the library state.
 		// This is kind of dangerous because it can create loops.
@@ -182,7 +186,7 @@ export default class HangWatch extends HTMLElement {
 
 		if (name === "url") {
 			this.url.set(newValue ? new URL(newValue) : undefined);
-		} else if (name === "path") {
+		} else if (name === "name" || name === "path") {
 			this.path.set(newValue ? Moq.Path.from(newValue) : undefined);
 		} else if (name === "paused") {
 			this.paused.set(newValue !== null);

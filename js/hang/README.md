@@ -52,7 +52,7 @@ There's also a Javascript API for more advanced use cases; see below.
     <!-- Publish camera/microphone -->
     <hang-publish
         url="https://relay.example.com/"
-		name="me"
+		path="me"
         audio
         video
         controls>
@@ -63,7 +63,7 @@ There's also a Javascript API for more advanced use cases; see below.
     <!-- Watch live stream the live stream we're publishing -->
     <hang-watch
         url="https://relay.example.com/"
-		name="me"
+		path="me"
         controls>
         <!-- Optional: canvas for rendering video, otherwise only audio will play -->
         <canvas style="width: 100%; border-radius: 8px;"></canvas>
@@ -120,7 +120,7 @@ Subscribes to a hang broadcast and renders it.
 <!-- NOTE: You'll also need to publish a broadcast with the same name. See below. -->
 <hang-watch
     url="https://relay.moq.dev/anon"
-	name="room123/me"
+	path="room123/me"
     controls>
 	<!-- canvas for rendering, otherwise video element will be disabled -->
     <canvas></canvas>
@@ -146,7 +146,7 @@ Publishes a microphone/camera or screen as a hang broadcast.
 </script>
 
 <hang-publish
-    url="https://relay.moq.dev/anon" name="room123/me" audio video controls>
+    url="https://relay.moq.dev/anon" path="room123/me" audio video controls>
     <!-- Optional: video element for preview -->
     <video autoplay muted></video>
 </hang-publish>
@@ -164,7 +164,7 @@ Very crude and best as an example; use the JS API instead.
 
 <hang-meet
     url="https://relay.moq.dev/anon"
-	name="room123"
+	path="room123"
     audio video
     controls>
 </hang-meet>
