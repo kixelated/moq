@@ -1,6 +1,6 @@
 use anyhow::Context;
 use clap::ValueEnum;
-use hang::moq_lite::BroadcastProducer;
+use hang::BroadcastProducer;
 use tokio::io::AsyncRead;
 
 #[derive(ValueEnum, Clone)]
@@ -9,34 +9,35 @@ pub enum ImportType {
 	Cmaf,
 }
 
-pub enum Import {
-	AnnexB(hang::annexb::Import),
-	Cmaf(Box<hang::cmaf::Import>),
+impl ImportType {
+	fn as_str(&self) -> &'static str {
+		match self {
+			ImportType::AnnexB => "annex-b",
+			ImportType::Cmaf => "cmaf",
+		}
+	}
+}
+
+pub struct Import {
+	inner: hang::import::Generic,
 }
 
 impl Import {
 	pub fn new(broadcast: BroadcastProducer, format: ImportType) -> Self {
-		match format {
-			ImportType::AnnexB => Self::AnnexB(hang::annexb::Import::new(broadcast)),
-			ImportType::Cmaf => Self::Cmaf(Box::new(hang::cmaf::Import::new(broadcast))),
-		}
+		let inner = hang::import::Generic::new(broadcast, format.as_str()).expect("supported format");
+		Self { inner }
 	}
 }
 
 impl Import {
 	pub async fn init_from<T: AsyncRead + Unpin>(&mut self, input: &mut T) -> anyhow::Result<()> {
-		match self {
-			Self::AnnexB(_import) => {}
-			Self::Cmaf(import) => import.init_from(input).await.context("failed to parse CMAF headers")?,
-		};
-
-		Ok(())
+		self.inner
+			.initialize_from(input)
+			.await
+			.context("failed to parse media headers")
 	}
 
 	pub async fn read_from<T: AsyncRead + Unpin>(&mut self, input: &mut T) -> anyhow::Result<()> {
-		match self {
-			Self::AnnexB(import) => import.read_from(input).await.map_err(Into::into),
-			Self::Cmaf(import) => import.read_from(input).await.map_err(Into::into),
-		}
+		self.inner.decode_from(input).await
 	}
 }

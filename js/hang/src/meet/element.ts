@@ -137,20 +137,17 @@ class HangMeetInstance {
 
 			// Monitor the name of the publish element and update the room.
 			effect.effect((effect) => {
-				const active = effect.get(publish.active);
-				if (!active) return;
-
-				const path = effect.get(active.broadcast.path);
+				const path = effect.get(publish.broadcast.path);
 				if (!path) return;
 
-				this.room.preview(path, active.broadcast);
+				this.room.preview(path, publish.broadcast);
 				effect.cleanup(() => this.room.unpreview(path));
 			});
 
 			// Copy the connection URL to the publish element so they're the same.
 			// TODO Reuse the connection instead of dialing a new one.
 			effect.effect((effect) => {
-				publish.url = effect.get(this.connection.url);
+				publish.url.set(effect.get(this.connection.url));
 			});
 		}
 	}

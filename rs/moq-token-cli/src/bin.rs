@@ -1,5 +1,6 @@
 use anyhow::Context;
 use clap::{Parser, Subcommand};
+use moq_token::Algorithm;
 use std::{io, path::PathBuf};
 
 #[derive(Debug, Parser)]
@@ -23,11 +24,15 @@ enum Commands {
 	Generate {
 		/// The algorithm to use.
 		#[arg(long, default_value = "HS256")]
-		algorithm: moq_token::Algorithm,
+		algorithm: Algorithm,
 
 		/// An optional key ID, useful for rotating keys.
 		#[arg(long)]
 		id: Option<String>,
+
+		/// Optional path to save the public key (for asymmetric algorithms).
+		#[arg(long)]
+		public: Option<PathBuf>,
 	},
 
 	/// Sign a token to stdout, reading the key from stdin.
@@ -75,9 +80,14 @@ fn main() -> anyhow::Result<()> {
 	let cli = Cli::parse();
 
 	match cli.command {
-		Commands::Generate { algorithm, id } => {
-			let key = moq_token::Key::generate(algorithm, id);
-			key.to_file(cli.key)?;
+		Commands::Generate { algorithm, id, public } => {
+			let key = moq_token::Key::generate(algorithm, id)?;
+
+			if let Some(public) = public {
+				key.to_public()?.to_file(public)?;
+			}
+
+			key.to_file(&cli.key)?;
 		}
 
 		Commands::Sign {

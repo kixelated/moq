@@ -22,7 +22,7 @@ use serde_with::{hex::Hex, DisplayFromStr};
 /// and optional metadata like detection, display settings, rotation, and flip.
 #[serde_with::serde_as]
 #[serde_with::skip_serializing_none]
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct Video {
 	/// A map of track name to rendition configuration.

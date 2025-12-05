@@ -27,4 +27,7 @@ key = "key.pem"
 
 # See docs/auth.md for more information.
 [auth]
-key = "root.jwk"
+# Path to the authentication key file:
+# - For asymmetric keys (RS256, ES256, etc.): use the public key (e.g., "public.jwk")
+# - For symmetric keys (HS256, HS384, HS512): use the shared secret key (e.g., "secret.jwk")
+key = "public.jwk"

@@ -1,4 +1,5 @@
 import "./highlight";
+import "@kixelated/hang-ui/watch/element";
 
 import HangSupport from "@kixelated/hang/support/element";
 import HangWatch from "@kixelated/hang/watch/element";

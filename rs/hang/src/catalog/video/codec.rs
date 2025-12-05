@@ -32,7 +32,7 @@ impl FromStr for VideoCodec {
 	type Err = Error;
 
 	fn from_str(s: &str) -> Result<Self, Self::Err> {
-		if s.starts_with("avc1.") {
+		if s.starts_with("avc1.") || s.starts_with("avc3.") {
 			return H264::from_str(s).map(Into::into);
 		} else if s.starts_with("hvc1.") || s.starts_with("hev1.") {
 			return H265::from_str(s).map(Into::into);
