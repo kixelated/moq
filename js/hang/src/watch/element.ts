@@ -4,71 +4,178 @@ import * as DOM from "@kixelated/signals/dom";
 import type * as Time from "../time";
 import * as Audio from "./audio";
 import { Broadcast } from "./broadcast";
-import { Renderer } from "./video";
+import * as Video from "./video";
 
 const OBSERVED = ["url", "name", "path", "paused", "volume", "muted", "controls", "reload", "latency"] as const;
 type Observed = (typeof OBSERVED)[number];
 
-export interface HangWatchSignals {
-	url: Signal<URL | undefined>;
-	path: Signal<Moq.Path.Valid | undefined>;
-	paused: Signal<boolean>;
-	volume: Signal<number>;
-	muted: Signal<boolean>;
-	controls: Signal<boolean>;
-	reload: Signal<boolean>;
-	latency: Signal<Time.Milli>;
-}
+const cleanup = new FinalizationRegistry<Effect>((signals) => signals.close());
 
 // An optional web component that wraps a <canvas>
 export default class HangWatch extends HTMLElement {
 	static observedAttributes = OBSERVED;
 
-	// We expose this publically so you can get access to the reactive signals.
-	// ex. watch.signals.paused.subscribe((paused) => { ... });
-	signals: HangWatchSignals = {
-		// The URL of the moq-relay server
-		url: new Signal<URL | undefined>(undefined),
+	// The connection to the moq-relay server.
+	connection: Moq.Connection.Reload;
 
-		// The path of the broadcast relative to the URL (may be empty).
-		path: new Signal<Moq.Path.Valid | undefined>(undefined),
+	// The broadcast being watched.
+	broadcast: Broadcast;
 
-		// Whether audio/video playback is paused.
-		paused: new Signal(false),
+	// Responsible for rendering the video.
+	video: Video.Renderer;
 
-		// The volume of the audio, between 0 and 1.
-		volume: new Signal(0.5),
+	// Responsible for emitting the audio.
+	audio: Audio.Emitter;
 
-		// Whether the audio is muted.
-		muted: new Signal(false),
+	// The URL of the moq-relay server
+	url = new Signal<URL | undefined>(undefined);
 
-		// Whether the controls are shown.
-		controls: new Signal(false),
+	// The path of the broadcast relative to the URL (may be empty).
+	path = new Signal<Moq.Path.Valid | undefined>(undefined);
 
-		// Don't automatically reload the broadcast.
-		// TODO: Temporarily defaults to false because Cloudflare doesn't support it yet.
-		reload: new Signal(false),
+	// Whether audio/video playback is paused.
+	paused = new Signal(false);
 
-		// Delay playing audio and video for up to 100ms
-		latency: new Signal(100 as Time.Milli),
-	};
+	// The volume of the audio, between 0 and 1.
+	volume = new Signal(0.5);
 
-	// An instance of HangWatchInstance once its inserted into the DOM.
-	active = new Signal<HangWatchInstance | undefined>(undefined);
+	// Whether the audio is muted.
+	muted = new Signal(false);
+
+	// Whether the controls are shown.
+	controls = new Signal(false);
+
+	// Don't automatically reload the broadcast.
+	// TODO: Temporarily defaults to false because Cloudflare doesn't support it yet.
+	reload = new Signal(false);
+
+	// Delay playing audio and video for up to 100ms
+	latency = new Signal(100 as Time.Milli);
+
+	// Set when the element is connected to the DOM.
+	#enabled = new Signal(false);
+
+	// The canvas element to render the video to.
+	#canvas = new Signal<HTMLCanvasElement | undefined>(undefined);
+
+	#signals = new Effect();
+
+	constructor() {
+		super();
+
+		// Close everything when this element is garbage collected.
+		cleanup.register(this, this.#signals);
+
+		this.connection = new Moq.Connection.Reload({
+			url: this.url,
+			enabled: true,
+		});
+		this.#signals.cleanup(() => this.connection.close());
+
+		this.broadcast = new Broadcast({
+			connection: this.connection.established,
+			path: this.path,
+			enabled: this.#enabled,
+			reload: this.reload,
+			audio: {
+				latency: this.latency,
+			},
+			video: {
+				latency: this.latency,
+			},
+		});
+		this.#signals.cleanup(() => this.broadcast.close());
+
+		this.video = new Video.Renderer(this.broadcast.video, { canvas: this.#canvas, paused: this.paused });
+		this.#signals.cleanup(() => this.video.close());
+
+		this.audio = new Audio.Emitter(this.broadcast.audio, {
+			volume: this.volume,
+			muted: this.muted,
+			paused: this.paused,
+		});
+		this.#signals.cleanup(() => this.audio.close());
+
+		// Watch to see if the canvas element is added or removed.
+		const observer = new MutationObserver(() => {
+			this.#canvas.set(this.querySelector("canvas") as HTMLCanvasElement | undefined);
+		});
+		observer.observe(this, { childList: true, subtree: true });
+		this.#signals.cleanup(() => observer.disconnect());
+
+		// Optionally update attributes to match the library state.
+		// This is kind of dangerous because it can create loops.
+		// NOTE: This only runs when the element is connected to the DOM, which is not obvious.
+		// This is because there's no destructor for web components to clean up our effects.
+		this.#signals.effect((effect) => {
+			const url = effect.get(this.url);
+			if (url) {
+				this.setAttribute("url", url.toString());
+			} else {
+				this.removeAttribute("url");
+			}
+		});
+
+		this.#signals.effect((effect) => {
+			const broadcast = effect.get(this.path);
+			if (broadcast) {
+				this.setAttribute("path", broadcast.toString());
+			} else {
+				this.removeAttribute("path");
+			}
+		});
+
+		this.#signals.effect((effect) => {
+			const muted = effect.get(this.muted);
+			if (muted) {
+				this.setAttribute("muted", "");
+			} else {
+				this.removeAttribute("muted");
+			}
+		});
+
+		this.#signals.effect((effect) => {
+			const paused = effect.get(this.paused);
+			if (paused) {
+				this.setAttribute("paused", "true");
+			} else {
+				this.removeAttribute("paused");
+			}
+		});
+
+		this.#signals.effect((effect) => {
+			const volume = effect.get(this.volume);
+			this.setAttribute("volume", volume.toString());
+		});
+
+		this.#signals.effect((effect) => {
+			const controls = effect.get(this.controls);
+			if (controls) {
+				this.setAttribute("controls", "");
+			} else {
+				this.removeAttribute("controls");
+			}
+		});
+
+		this.#signals.effect((effect) => {
+			const latency = Math.floor(effect.get(this.latency));
+			this.setAttribute("latency", latency.toString());
+		});
+
+		this.#signals.effect(this.#renderControls.bind(this));
+	}
 
 	// Annoyingly, we have to use these callbacks to figure out when the element is connected to the DOM.
 	// This wouldn't be so bad if there was a destructor for web components to clean up our effects.
 	connectedCallback() {
+		this.#enabled.set(true);
 		this.style.display = "block";
 		this.style.position = "relative";
-		this.active.set(new HangWatchInstance(this));
 	}
 
 	disconnectedCallback() {
-		this.active.update((prev) => {
-			prev?.close();
-			return undefined;
-		});
+		// Stop everything but don't actually cleanup just in case we get added back to the DOM.
+		this.#enabled.set(false);
 	}
 
 	attributeChangedCallback(name: Observed, oldValue: string | null, newValue: string | null) {
@@ -77,222 +184,27 @@ export default class HangWatch extends HTMLElement {
 		}
 
 		if (name === "url") {
-			this.url = newValue ? new URL(newValue) : undefined;
+			this.url.set(newValue ? new URL(newValue) : undefined);
 		} else if (name === "name" || name === "path") {
 			// TODO remove backwards compatibility
-			this.path = newValue ?? undefined;
+			this.path.set(newValue ? Moq.Path.from(newValue) : undefined);
 		} else if (name === "paused") {
-			this.paused = newValue !== null;
+			this.paused.set(newValue !== null);
 		} else if (name === "volume") {
 			const volume = newValue ? Number.parseFloat(newValue) : 0.5;
-			this.volume = volume;
+			this.volume.set(volume);
 		} else if (name === "muted") {
-			this.muted = newValue !== null;
+			this.muted.set(newValue !== null);
 		} else if (name === "controls") {
-			this.controls = newValue !== null;
+			this.controls.set(newValue !== null);
 		} else if (name === "reload") {
-			this.reload = newValue !== null;
+			this.reload.set(newValue !== null);
 		} else if (name === "latency") {
-			this.latency = newValue ? Number.parseFloat(newValue) : 100;
+			this.latency.set((newValue ? Number.parseFloat(newValue) : 100) as Time.Milli);
 		} else {
 			const exhaustive: never = name;
 			throw new Error(`Invalid attribute: ${exhaustive}`);
 		}
-	}
-
-	// Make corresponding properties for the element, more type-safe than using attributes.
-	get url(): URL | undefined {
-		return this.signals.url.peek();
-	}
-
-	set url(url: URL | undefined) {
-		this.signals.url.set(url);
-	}
-
-	// TODO remove backwards compatibility
-	get name(): string | undefined {
-		return this.path;
-	}
-
-	set name(name: string | undefined) {
-		this.path = name;
-	}
-
-	get path(): string | undefined {
-		return this.signals.path.peek()?.toString();
-	}
-
-	set path(name: string | undefined) {
-		this.signals.path.set(name ? Moq.Path.from(name) : undefined);
-	}
-
-	get paused(): boolean {
-		return this.signals.paused.peek();
-	}
-
-	set paused(paused: boolean) {
-		this.signals.paused.set(paused);
-	}
-
-	get volume(): number {
-		return this.signals.volume.peek();
-	}
-
-	set volume(volume: number) {
-		this.signals.volume.set(volume);
-	}
-
-	get muted(): boolean {
-		return this.signals.muted.peek();
-	}
-
-	set muted(muted: boolean) {
-		this.signals.muted.set(muted);
-	}
-
-	get controls(): boolean {
-		return this.signals.controls.peek();
-	}
-
-	set controls(controls: boolean) {
-		this.signals.controls.set(controls);
-	}
-
-	get reload(): boolean {
-		return this.signals.reload.peek();
-	}
-
-	set reload(reload: boolean) {
-		this.signals.reload.set(reload);
-	}
-
-	get latency(): number {
-		return this.signals.latency.peek();
-	}
-
-	set latency(ms: number) {
-		this.signals.latency.set(ms as Time.Milli);
-	}
-}
-
-// An instance of HangWatch once its inserted into the DOM.
-// We do this otherwise every variable could be undefined; which is annoying in Typescript.
-export class HangWatchInstance {
-	parent: HangWatch;
-
-	// You can construct these manually if you want to use the library without the web component.
-	// However be warned that the API is still in flux and may change.
-	connection: Moq.Connection.Reload;
-	broadcast: Broadcast;
-	video: Renderer;
-	audio: Audio.Emitter;
-	#signals: Effect;
-
-	constructor(parent: HangWatch) {
-		this.parent = parent;
-		this.connection = new Moq.Connection.Reload({
-			url: this.parent.signals.url,
-			enabled: true,
-		});
-
-		this.broadcast = new Broadcast({
-			connection: this.connection.established,
-			path: this.parent.signals.path,
-			enabled: true,
-			reload: this.parent.signals.reload,
-			audio: {
-				latency: this.parent.signals.latency,
-			},
-			video: {
-				latency: this.parent.signals.latency,
-			},
-		});
-
-		this.#signals = new Effect();
-
-		// Watch to see if the canvas element is added or removed.
-		const canvas = new Signal(this.parent.querySelector("canvas") as HTMLCanvasElement | undefined);
-		const observer = new MutationObserver(() => {
-			canvas.set(this.parent.querySelector("canvas") as HTMLCanvasElement | undefined);
-		});
-		observer.observe(this.parent, { childList: true, subtree: true });
-		this.#signals.cleanup(() => observer.disconnect());
-
-		this.video = new Renderer(this.broadcast.video, { canvas, paused: this.parent.signals.paused });
-		this.audio = new Audio.Emitter(this.broadcast.audio, {
-			volume: this.parent.signals.volume,
-			muted: this.parent.signals.muted,
-			paused: this.parent.signals.paused,
-		});
-
-		// Optionally update attributes to match the library state.
-		// This is kind of dangerous because it can create loops.
-		// NOTE: This only runs when the element is connected to the DOM, which is not obvious.
-		// This is because there's no destructor for web components to clean up our effects.
-		this.#signals.effect((effect) => {
-			const url = effect.get(this.parent.signals.url);
-			if (url) {
-				this.parent.setAttribute("url", url.toString());
-			} else {
-				this.parent.removeAttribute("url");
-			}
-		});
-
-		this.#signals.effect((effect) => {
-			const broadcast = effect.get(this.parent.signals.path);
-			if (broadcast) {
-				this.parent.setAttribute("path", broadcast.toString());
-			} else {
-				this.parent.removeAttribute("path");
-			}
-		});
-
-		this.#signals.effect((effect) => {
-			const muted = effect.get(this.parent.signals.muted);
-			if (muted) {
-				this.parent.setAttribute("muted", "");
-			} else {
-				this.parent.removeAttribute("muted");
-			}
-		});
-
-		this.#signals.effect((effect) => {
-			const paused = effect.get(this.parent.signals.paused);
-			if (paused) {
-				this.parent.setAttribute("paused", "true");
-			} else {
-				this.parent.removeAttribute("paused");
-			}
-		});
-
-		this.#signals.effect((effect) => {
-			const volume = effect.get(this.parent.signals.volume);
-			this.parent.setAttribute("volume", volume.toString());
-		});
-
-		this.#signals.effect((effect) => {
-			const controls = effect.get(this.parent.signals.controls);
-			if (controls) {
-				this.parent.setAttribute("controls", "");
-			} else {
-				this.parent.removeAttribute("controls");
-			}
-		});
-
-		this.#signals.effect((effect) => {
-			const latency = Math.floor(effect.get(this.parent.signals.latency));
-			this.parent.setAttribute("latency", latency.toString());
-		});
-
-		this.#signals.effect(this.#renderControls.bind(this));
-	}
-
-	close() {
-		this.connection.close();
-		this.broadcast.close();
-		this.video.close();
-		this.audio.close();
-		this.#signals.close();
 	}
 
 	#renderControls(effect: Effect) {
@@ -305,10 +217,10 @@ export class HangWatchInstance {
 			},
 		});
 
-		DOM.render(effect, this.parent, controls);
+		DOM.render(effect, this, controls);
 
 		effect.effect((effect) => {
-			const show = effect.get(this.parent.signals.controls);
+			const show = effect.get(this.controls);
 			if (!show) return;
 
 			this.#renderPause(controls, effect);
@@ -434,7 +346,7 @@ export class HangWatchInstance {
 			if (document.fullscreenElement) {
 				document.exitFullscreen();
 			} else {
-				this.parent.requestFullscreen();
+				this.requestFullscreen();
 			}
 		});
 
@@ -490,11 +402,11 @@ export class HangWatchInstance {
 		effect.event(slider, "input", (e) => {
 			const target = e.currentTarget as HTMLInputElement;
 			const latency = parseFloat(target.value);
-			this.parent.signals.latency.set(latency as Time.Milli);
+			this.latency.set(latency as Time.Milli);
 		});
 
 		effect.effect((innerEffect) => {
-			const latency = innerEffect.get(this.parent.signals.latency);
+			const latency = innerEffect.get(this.latency);
 
 			if (document.activeElement !== slider) {
 				slider.value = latency.toString();
@@ -506,11 +418,11 @@ export class HangWatchInstance {
 		DOM.render(effect, container, label);
 		DOM.render(effect, container, slider);
 		DOM.render(effect, container, valueDisplay);
-		DOM.render(effect, this.parent, container);
+		DOM.render(effect, this, container);
 	}
 
 	#renderBuffering(effect: Effect) {
-		const container = this.parent.querySelector("#watch-container") as HTMLElement;
+		const container = this.querySelector("#watch-container") as HTMLElement;
 		if (!container) return;
 
 		if (!document.getElementById("buffer-spinner-animation")) {
