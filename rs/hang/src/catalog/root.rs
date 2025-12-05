@@ -203,9 +203,10 @@ impl Drop for CatalogGuard<'_> {
 	fn drop(&mut self) {
 		let mut group = self.track.append_group();
 
-		// TODO decide if this should return an error, or be impossible to fail
-		let frame = self.catalog.to_string().expect("invalid catalog");
-		group.write_frame(frame);
+		match self.catalog.to_string() {
+			Ok(frame) => group.write_frame(frame),
+			Err(e) => tracing::error!("failed to serialize catalog: {}", e),
+		}
 		group.close();
 	}
 }

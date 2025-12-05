@@ -115,11 +115,12 @@ export class Source {
 
 			for (const [name, rendition] of Object.entries(renditions)) {
 				const description = rendition.description ? Hex.toBytes(rendition.description) : undefined;
+				const optimizeForLatency = rendition.optimizeForLatency ?? this.latency.peek() < 1000;
 
 				const { supported: valid } = await VideoDecoder.isConfigSupported({
 					...rendition,
 					description,
-					optimizeForLatency: rendition.optimizeForLatency ?? true,
+					optimizeForLatency,
 				});
 				if (valid) supported[name] = rendition;
 			}
@@ -268,10 +269,12 @@ export class Source {
 			}
 		});
 
+		const optimizeForLatency = config.optimizeForLatency ?? this.latency.peek() < 1000;
+
 		decoder.configure({
 			...config,
 			description: config.description ? Hex.toBytes(config.description) : undefined,
-			optimizeForLatency: config.optimizeForLatency ?? true,
+			optimizeForLatency,
 			// @ts-expect-error Only supported by Chrome, so the renderer has to flip manually.
 			flip: false,
 		});
