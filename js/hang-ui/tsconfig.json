@@ -1,0 +1,18 @@
+{
+	"compilerOptions": {
+		"target": "ESNext",
+		"module": "ESNext",
+		"moduleResolution": "bundler",
+		"strict": true,
+		"esModuleInterop": true,
+		"allowSyntheticDefaultImports": true,
+		"allowImportingTsExtensions": true,
+		"jsx": "preserve",
+		"jsxImportSource": "solid-js",
+		"skipLibCheck": true,
+		"outDir": "dist",
+		"declaration": true,
+		"emitDeclarationOnly": true
+	},
+	"include": ["src"]
+}

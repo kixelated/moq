@@ -1,0 +1,37 @@
+import { createSignal, useContext } from "solid-js";
+import { PublishUIContext } from "./PublishUIContextProvider";
+
+export default function FileSourceButton() {
+	const [fileInputRef, setFileInputRef] = createSignal<HTMLInputElement | undefined>();
+	const context = useContext(PublishUIContext);
+	const onClick = () => fileInputRef()?.click();
+	const onChange = (event: Event) => {
+		const castedInputEl = event.target as HTMLInputElement;
+		const file = castedInputEl.files?.[0];
+
+		if (file) {
+			context?.setFile(file);
+			castedInputEl.value = "";
+		}
+	};
+
+	return (
+		<>
+			<input
+				ref={setFileInputRef}
+				onChange={onChange}
+				type="file"
+				class="hidden"
+				accept="video/*,audio/*,image/*"
+			/>
+			<button
+				type="button"
+				title="Upload File"
+				onClick={onClick}
+				class={`publishButton publishSourceButton ${context?.fileActive?.() ? "active" : ""}`}
+			>
+				📁
+			</button>
+		</>
+	);
+}

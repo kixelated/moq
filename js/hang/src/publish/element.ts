@@ -1,6 +1,5 @@
 import * as Moq from "@kixelated/moq";
 import { Effect, Signal } from "@kixelated/signals";
-import * as DOM from "@kixelated/signals/dom";
 import { Broadcast } from "./broadcast";
 import * as Source from "./source";
 
@@ -22,6 +21,14 @@ export interface HangPublishSignals {
 	file: Signal<File | undefined>;
 }
 
+export type InstanceAvailableEvent = CustomEvent<{ instance: HangPublishInstance }>;
+
+declare global {
+  interface GlobalEventHandlersEventMap {
+	'publish-instance-available': InstanceAvailableEvent;
+  }
+}
+
 export default class HangPublish extends HTMLElement {
 	static observedAttributes = OBSERVED;
 
@@ -39,7 +46,14 @@ export default class HangPublish extends HTMLElement {
 	active = new Signal<HangPublishInstance | undefined>(undefined);
 
 	connectedCallback() {
-		this.active.set(new HangPublishInstance(this));
+		const instance = new HangPublishInstance(this);
+		this.active.set(instance);
+
+		this.dispatchEvent(new CustomEvent('publish-instance-available', {
+			detail: {
+				instance,
+			}
+		}));
 	}
 
 	disconnectedCallback() {
@@ -146,6 +160,28 @@ export default class HangPublish extends HTMLElement {
 	set controls(controls: boolean) {
 		this.signals.controls.set(controls);
 	}
+
+	set videoDevice(sourceId: MediaDeviceInfo['deviceId']) {
+		const hangPublishInstance = this.active.peek();
+        if (!hangPublishInstance) return;
+
+        const video = hangPublishInstance.video?.peek();
+
+        if (!video || !('device' in video)) return;
+
+        video.device.preferred.set(sourceId);
+	}
+
+	set audioDevice(sourceId: MediaDeviceInfo['deviceId']) {
+		const hangPublishInstance = this.active.peek();
+        if (!hangPublishInstance) return;
+
+        const audio = hangPublishInstance.audio?.peek();
+
+        if (!audio || !('device' in audio)) return;
+
+        audio.device.preferred.set(sourceId);
+	}
 }
 
 export class HangPublishInstance {
@@ -154,11 +190,10 @@ export class HangPublishInstance {
 	broadcast: Broadcast;
 
 	#preview: Signal<HTMLVideoElement | undefined>;
-	#video = new Signal<Source.Camera | Source.Screen | undefined>(undefined);
-	#audio = new Signal<Source.Microphone | Source.Screen | undefined>(undefined);
-	#file = new Signal<Source.File | undefined>(undefined);
-
-	#signals = new Effect();
+	video = new Signal<Source.Camera | Source.Screen | undefined>(undefined);
+	audio = new Signal<Source.Microphone | Source.Screen | undefined>(undefined);
+	file = new Signal<Source.File | undefined>(undefined);
+	signals = new Effect();
 
 	constructor(parent: HangPublish) {
 		this.parent = parent;
@@ -169,7 +204,7 @@ export class HangPublishInstance {
 			this.#preview.set(this.parent.querySelector("video") as HTMLVideoElement | undefined);
 		});
 		observer.observe(this.parent, { childList: true, subtree: true });
-		this.#signals.cleanup(() => observer.disconnect());
+		this.signals.cleanup(() => observer.disconnect());
 
 		this.connection = new Moq.Connection.Reload({
 			enabled: true,
@@ -191,7 +226,7 @@ export class HangPublishInstance {
 			},
 		});
 
-		this.#signals.effect((effect) => {
+		this.signals.effect((effect) => {
 			const preview = effect.get(this.#preview);
 			if (!preview) return;
 
@@ -209,11 +244,10 @@ export class HangPublishInstance {
 			});
 		});
 
-		this.#signals.effect(this.#runSource.bind(this));
-		this.#signals.effect(this.#renderControls.bind(this));
+		this.signals.effect(this.#runSource.bind(this));
 
 		// Keep device signal in sync with source signal for backwards compatibility
-		this.#signals.effect((effect) => {
+		this.signals.effect((effect) => {
 			const source = effect.get(this.parent.signals.source);
 			effect.set(this.parent.signals.device, source);
 		});
@@ -235,8 +269,8 @@ export class HangPublishInstance {
 				effect.set(this.broadcast.audio.source, source);
 			});
 
-			effect.set(this.#video, video);
-			effect.set(this.#audio, audio);
+			effect.set(this.video, video);
+			effect.set(this.audio, audio);
 
 			effect.cleanup(() => {
 				video.close();
@@ -263,8 +297,8 @@ export class HangPublishInstance {
 				effect.set(screen.enabled, audio || video, false);
 			});
 
-			effect.set(this.#video, screen);
-			effect.set(this.#audio, screen);
+			effect.set(this.video, screen);
+			effect.set(this.audio, screen);
 
 			effect.cleanup(() => {
 				screen.close();
@@ -296,7 +330,7 @@ export class HangPublishInstance {
 				effect.set(this.broadcast.audio.source, source.audio);
 			});
 
-			effect.set(this.#file, fileSource);
+			effect.set(this.file, fileSource);
 
 			effect.cleanup(() => {
 				fileSource.close();
@@ -306,340 +340,8 @@ export class HangPublishInstance {
 		}
 	}
 
-	#renderControls(effect: Effect) {
-		const controls = DOM.create("div", {
-			style: {
-				display: "flex",
-				justifyContent: "space-around",
-				gap: "16px",
-				margin: "8px 0",
-				alignContent: "center",
-			},
-		});
-
-		DOM.render(effect, this.parent, controls);
-
-		effect.effect((effect) => {
-			const show = effect.get(this.parent.signals.controls);
-			if (!show) return;
-
-			this.#renderSelect(controls, effect);
-			this.#renderStatus(controls, effect);
-		});
-	}
-
-	#renderSelect(parent: HTMLDivElement, effect: Effect) {
-		const container = DOM.create(
-			"div",
-			{
-				style: {
-					display: "flex",
-					gap: "16px",
-				},
-			},
-			"Source:",
-		);
-
-		this.#renderMicrophone(container, effect);
-		this.#renderCamera(container, effect);
-		this.#renderScreen(container, effect);
-		this.#renderFile(container, effect);
-		this.#renderNothing(container, effect);
-
-		DOM.render(effect, parent, container);
-	}
-
-	#renderMicrophone(parent: HTMLDivElement, effect: Effect) {
-		const container = DOM.create("div", {
-			style: {
-				display: "flex",
-				position: "relative",
-				alignItems: "center",
-			},
-		});
-
-		const microphone = DOM.create(
-			"button",
-			{
-				type: "button",
-				title: "Microphone",
-				style: { cursor: "pointer" },
-			},
-			"🎤",
-		);
-
-		DOM.render(effect, container, microphone);
-
-		effect.event(microphone, "click", () => {
-			if (this.parent.source === "camera") {
-				// Camera already selected, toggle audio.
-				this.parent.audio = !this.parent.audio;
-			} else {
-				this.parent.source = "camera";
-				this.parent.audio = true;
-			}
-		});
-
-		effect.effect((effect) => {
-			const selected = effect.get(this.parent.signals.source);
-			const audio = effect.get(this.broadcast.audio.enabled);
-			microphone.style.opacity = selected === "camera" && audio ? "1" : "0.5";
-		});
-
-		// List of the available audio devices and show a drop down if there are multiple.
-		effect.effect((effect) => {
-			const audio = effect.get(this.#audio);
-			if (!(audio instanceof Source.Microphone)) return;
-
-			const enabled = effect.get(this.broadcast.audio.enabled);
-			if (!enabled) return;
-
-			const devices = effect.get(audio.device.available);
-			if (!devices || devices.length < 2) return;
-
-			const visible = new Signal(false);
-
-			const select = DOM.create("select", {
-				style: {
-					position: "absolute",
-					top: "100%",
-					transform: "translateX(-50%)",
-				},
-			});
-			effect.event(select, "change", () => {
-				audio.device.preferred.set(select.value);
-			});
-
-			for (const device of devices) {
-				const option = DOM.create("option", { value: device.deviceId }, device.label);
-				DOM.render(effect, select, option);
-			}
-
-			effect.effect((effect) => {
-				const active = effect.get(audio.device.requested);
-				select.value = active ?? "";
-			});
-
-			const caret = DOM.create("span", { style: { fontSize: "0.75em", cursor: "pointer" } }, "▼");
-			effect.event(caret, "click", () => visible.update((v) => !v));
-
-			effect.effect((effect) => {
-				const v = effect.get(visible);
-				caret.innerText = v ? "▼" : "▲";
-				select.style.display = v ? "block" : "none";
-			});
-
-			DOM.render(effect, container, caret);
-			DOM.render(effect, container, select);
-		});
-
-		DOM.render(effect, parent, container);
-	}
-
-	#renderCamera(parent: HTMLDivElement, effect: Effect) {
-		const container = DOM.create("div", {
-			style: {
-				display: "flex",
-				position: "relative",
-				alignItems: "center",
-			},
-		});
-
-		const camera = DOM.create(
-			"button",
-			{
-				type: "button",
-				title: "Camera",
-				style: { cursor: "pointer" },
-			},
-			"📷",
-		);
-
-		DOM.render(effect, container, camera);
-
-		effect.event(camera, "click", () => {
-			if (this.parent.source === "camera") {
-				// Camera already selected, toggle video.
-				this.parent.video = !this.parent.video;
-			} else {
-				this.parent.source = "camera";
-				this.parent.video = true;
-			}
-		});
-
-		effect.effect((effect) => {
-			const selected = effect.get(this.parent.signals.source);
-			const video = effect.get(this.broadcast.video.hd.enabled);
-			camera.style.opacity = selected === "camera" && video ? "1" : "0.5";
-		});
-
-		// List of the available audio devices and show a drop down if there are multiple.
-		effect.effect((effect) => {
-			const video = effect.get(this.#video);
-			if (!(video instanceof Source.Camera)) return;
-
-			const enabled = effect.get(this.broadcast.video.hd.enabled);
-			if (!enabled) return;
-
-			const devices = effect.get(video.device.available);
-			if (!devices || devices.length < 2) return;
-
-			const visible = new Signal(false);
-
-			const select = DOM.create("select", {
-				style: {
-					position: "absolute",
-					top: "100%",
-					transform: "translateX(-50%)",
-				},
-			});
-			effect.event(select, "change", () => {
-				video.device.preferred.set(select.value);
-			});
-
-			for (const device of devices) {
-				const option = DOM.create("option", { value: device.deviceId }, device.label);
-				DOM.render(effect, select, option);
-			}
-
-			effect.effect((effect) => {
-				const requested = effect.get(video.device.requested);
-				select.value = requested ?? "";
-			});
-
-			const caret = DOM.create("span", { style: { fontSize: "0.75em", cursor: "pointer" } }, "▼");
-			effect.event(caret, "click", () => visible.update((v) => !v));
-
-			effect.effect((effect) => {
-				const v = effect.get(visible);
-				caret.innerText = v ? "▼" : "▲";
-				select.style.display = v ? "block" : "none";
-			});
-
-			DOM.render(effect, container, caret);
-			DOM.render(effect, container, select);
-		});
-
-		DOM.render(effect, parent, container);
-	}
-
-	#renderScreen(parent: HTMLDivElement, effect: Effect) {
-		const screen = DOM.create(
-			"button",
-			{
-				type: "button",
-				title: "Screen",
-				style: { cursor: "pointer" },
-			},
-			"🖥️",
-		);
-
-		effect.event(screen, "click", () => {
-			this.parent.source = "screen";
-		});
-
-		effect.effect((effect) => {
-			const selected = effect.get(this.parent.signals.source);
-			screen.style.opacity = selected === "screen" ? "1" : "0.5";
-		});
-
-		DOM.render(effect, parent, screen);
-	}
-
-	#renderFile(parent: HTMLDivElement, effect: Effect) {
-		const fileInput = DOM.create("input", {
-			type: "file",
-			accept: "video/*,audio/*,image/*",
-			style: { display: "none" },
-		});
-
-		const button = DOM.create(
-			"button",
-			{
-				type: "button",
-				title: "Upload File",
-				style: { cursor: "pointer" },
-			},
-			"📁",
-		);
-
-		DOM.render(effect, parent, fileInput);
-		DOM.render(effect, parent, button);
-
-		effect.event(button, "click", () => fileInput.click());
-
-		effect.event(fileInput, "change", (e) => {
-			const file = (e.target as HTMLInputElement).files?.[0];
-			if (file) {
-				this.parent.file = file;
-				this.parent.source = "file";
-				this.parent.video = true;
-				this.parent.audio = true;
-				(e.target as HTMLInputElement).value = "";
-			}
-		});
-
-		effect.effect((effect) => {
-			const selected = effect.get(this.parent.signals.source);
-			button.style.opacity = selected === "file" ? "1" : "0.5";
-		});
-	}
-
-	#renderNothing(parent: HTMLDivElement, effect: Effect) {
-		const nothing = DOM.create(
-			"button",
-			{
-				type: "button",
-				title: "Nothing",
-				style: { cursor: "pointer" },
-			},
-			"🚫",
-		);
-
-		effect.event(nothing, "click", () => {
-			this.parent.source = undefined;
-		});
-
-		effect.effect((effect) => {
-			const selected = effect.get(this.parent.signals.source);
-			nothing.style.opacity = selected === undefined ? "1" : "0.5";
-		});
-
-		DOM.render(effect, parent, nothing);
-	}
-
-	#renderStatus(parent: HTMLDivElement, effect: Effect) {
-		const container = DOM.create("div");
-
-		effect.effect((effect) => {
-			const url = effect.get(this.connection.url);
-			const status = effect.get(this.connection.status);
-			const audio = effect.get(this.broadcast.audio.source);
-			const video = effect.get(this.broadcast.video.source);
-
-			if (!url) {
-				container.textContent = "🔴\u00A0No URL";
-			} else if (status === "disconnected") {
-				container.textContent = "🔴\u00A0Disconnected";
-			} else if (status === "connecting") {
-				container.textContent = "🟡\u00A0Connecting...";
-			} else if (!audio && !video) {
-				container.textContent = "🟡\u00A0Select Source";
-			} else if (!audio && video) {
-				container.textContent = "🟢\u00A0Video Only";
-			} else if (audio && !video) {
-				container.textContent = "🟢\u00A0Audio Only";
-			} else if (audio && video) {
-				container.textContent = "🟢\u00A0Live";
-			}
-		});
-
-		parent.appendChild(container);
-		effect.cleanup(() => parent.removeChild(container));
-	}
-
 	close() {
-		this.#signals.close();
+		this.signals.close();
 		this.broadcast.close();
 		this.connection.close();
 	}
