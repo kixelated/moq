@@ -61,7 +61,7 @@ fn create_track(broadcast: &mut moq_lite::BroadcastProducer) -> hang::TrackProdu
 		}
 		.into(),
 		// Codec-specific data (e.g., SPS/PPS for H.264)
-		// Not needed if you're using annex.b
+		// Not needed if you're using annex-b format.
 		description: None,
 		// There are optional but good to have.
 		coded_width: Some(1920),
@@ -118,17 +118,17 @@ async fn run_broadcast(origin: moq_lite::OriginProducer) -> anyhow::Result<()> {
 	// Not real frames of course.
 	track.write(hang::Frame {
 		keyframe: true,
-		timestamp: std::time::Duration::from_secs(1),
+		timestamp: hang::Timestamp::from_secs(1).unwrap(),
 		payload: Bytes::from_static(b"keyframe NAL data"),
-	});
+	})?;
 
 	tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
 
 	track.write(hang::Frame {
 		keyframe: false,
-		timestamp: std::time::Duration::from_secs(2),
+		timestamp: hang::Timestamp::from_secs(2).unwrap(),
 		payload: Bytes::from_static(b"delta NAL data"),
-	});
+	})?;
 
 	tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
 
@@ -136,9 +136,9 @@ async fn run_broadcast(origin: moq_lite::OriginProducer) -> anyhow::Result<()> {
 
 	track.write(hang::Frame {
 		keyframe: true,
-		timestamp: std::time::Duration::from_secs(3),
+		timestamp: hang::Timestamp::from_secs(3).unwrap(),
 		payload: Bytes::from_static(b"keyframe NAL data"),
-	});
+	})?;
 
 	// Sleep before exiting and closing the broadcast.
 	tokio::time::sleep(tokio::time::Duration::from_secs(10)).await;

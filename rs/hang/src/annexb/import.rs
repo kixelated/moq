@@ -1,6 +1,7 @@
 use super::Result;
 use crate::catalog::{Video, VideoConfig, H264};
-use crate::model::{Frame, Timestamp, TrackProducer};
+use crate::model::{Frame, TrackProducer};
+use crate::Timestamp;
 use crate::{Catalog, CatalogProducer};
 use bytes::{Bytes, BytesMut};
 use h264_parser::AnnexBParser;
@@ -55,12 +56,12 @@ impl Import {
 						};
 
 						let frame = Frame {
-							timestamp: Timestamp::from_micros(ts as u64),
+							timestamp: Timestamp::from_micros(ts as u64).unwrap(),
 							keyframe: au.is_keyframe(),
 							payload,
 						};
 
-						track.write(frame);
+						track.write(frame)?;
 					}
 					None => {
 						if let Some(ref sps) = au.sps {

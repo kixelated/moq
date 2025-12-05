@@ -1,11 +1,12 @@
 use super::{Error, Result};
 use crate::catalog::{Audio, AudioCodec, AudioConfig, Video, VideoCodec, VideoConfig, AAC, AV1, H264, H265, VP9};
-use crate::model::{Frame, Timestamp, TrackProducer};
+use crate::model::{Frame, TrackProducer};
+use crate::Timestamp;
 use crate::{Catalog, CatalogProducer};
 use bytes::{Bytes, BytesMut};
 use moq_lite::{BroadcastProducer, Track};
 use mp4_atom::{Any, AsyncReadFrom, Atom, DecodeMaybe, Mdat, Moof, Moov, Tfdt, Trak, Trun};
-use std::{collections::HashMap, time::Duration};
+use std::collections::HashMap;
 use tokio::io::{AsyncRead, AsyncReadExt};
 
 /// Converts fMP4/CMAF files into hang broadcast streams.
@@ -506,7 +507,7 @@ impl Import {
 						.unwrap_or(tfhd.default_sample_size.unwrap_or(default_sample_size)) as usize;
 
 					let pts = (dts as i64 + entry.cts.unwrap_or_default() as i64) as u64;
-					let timestamp = Timestamp::from_micros(1_000_000 * pts / timescale);
+					let timestamp = Timestamp::from_micros(1_000_000 * pts / timescale).unwrap();
 
 					if offset + size > mdat.len() {
 						return Err(Error::InvalidOffset);
@@ -530,7 +531,7 @@ impl Import {
 					} else {
 						match self.last_keyframe.get(&track_id) {
 							// Force an audio keyframe at least every 10 seconds, but ideally at video keyframes
-							Some(prev) => timestamp - *prev > Duration::from_secs(10),
+							Some(prev) => timestamp - *prev > Timestamp::from_secs(10).unwrap(),
 							None => true,
 						}
 					};
@@ -546,7 +547,7 @@ impl Import {
 						keyframe,
 						payload,
 					};
-					track.write(frame);
+					track.write(frame)?;
 
 					dts += duration as u64;
 					offset += size;
@@ -564,7 +565,7 @@ impl Import {
 		if let (Some(min), Some(max)) = (min_timestamp, max_timestamp) {
 			let diff = max - min;
 
-			if diff > Duration::from_millis(1) {
+			if diff > Timestamp::from_millis(1).unwrap() {
 				tracing::warn!("fMP4 introduced {:?} of latency", diff);
 			}
 		}
