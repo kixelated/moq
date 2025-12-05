@@ -1,10 +1,11 @@
 import "./highlight";
 import "@kixelated/hang-ui/watch/element";
 
+import HangStats from "@kixelated/hang/stats";
 import HangSupport from "@kixelated/hang/support/element";
 import HangWatch from "@kixelated/hang/watch/element";
 
-export { HangSupport, HangWatch };
+export { HangStats, HangSupport, HangWatch };
 
 const watch = document.querySelector("hang-watch") as HangWatch | undefined;
 if (!watch) throw new Error("unable to find <hang-watch> element");
