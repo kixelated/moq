@@ -57,11 +57,12 @@ fn create_track(broadcast: &mut moq_lite::BroadcastProducer) -> hang::TrackProdu
 		codec: hang::catalog::H264 {
 			profile: 0x4D, // Main profile
 			constraints: 0,
-			level: 0x28, // Level 4.0
+			level: 0x28,  // Level 4.0
+			inline: true, // SPS/PPS inline in bitstream (avc3)
 		}
 		.into(),
 		// Codec-specific data (e.g., SPS/PPS for H.264)
-		// Not needed if you're using annex-b format.
+		// Not needed if you're using annex.b (inline: true)
 		description: None,
 		// There are optional but good to have.
 		coded_width: Some(1920),
