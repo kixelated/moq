@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.10.1](https://github.com/kixelated/moq/compare/moq-lite-v0.10.0...moq-lite-v0.10.1) - 2025-12-05
+
+### Other
+
+- Make a proper Timestamp type to detect overflows. ([#735](https://github.com/kixelated/moq/pull/735))
+
 ## [0.10.0](https://github.com/kixelated/moq/compare/moq-lite-v0.9.6...moq-lite-v0.10.0) - 2025-11-26
 
 ### Other
