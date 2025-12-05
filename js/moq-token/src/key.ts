@@ -1,7 +1,7 @@
 import * as base64 from "@hexagon/base64";
 import * as jose from "jose";
 import { z } from "zod";
-import { AlgorithmSchema } from "./algorithm";
+import { AlgorithmSchema, type Algorithm } from "./algorithm";
 import { type Claims, ClaimsSchema, validateClaims } from "./claims";
 
 /**
@@ -10,68 +10,118 @@ import { type Claims, ClaimsSchema, validateClaims } from "./claims";
 export const OperationSchema = z.enum(["sign", "verify", "decrypt", "encrypt"]);
 export type Operation = z.infer<typeof OperationSchema>;
 
-/**
- * Key interface for JWT operations - matches Rust implementation
- */
-export const KeySchema = z.object({
+const MIN_HMAC_SECRET_BYTES = 32;
+const HMAC_ALGORITHMS: ReadonlySet<Algorithm> = new Set(["HS256", "HS384", "HS512"]);
+const RSA_ALGORITHMS: ReadonlySet<Algorithm> = new Set(["RS256", "RS384", "RS512", "PS256", "PS384", "PS512"]);
+const EC_ALGORITHM_TO_CURVE: Record<"ES256" | "ES384", "P-256" | "P-384"> = {
+	ES256: "P-256",
+	ES384: "P-384",
+};
+
+const Base64FieldSchema = z
+	.string()
+	.min(1)
+	.refine((value) => decodeBase64Flexible(value) !== null, {
+		message: "Field must be valid base64url data",
+	});
+
+const BaseKeySchema = z.object({
 	alg: AlgorithmSchema,
-	key_ops: z.array(OperationSchema),
-	k: z
-		.string()
-		.refine(
-			(secret) => {
-				// Validate base64url encoding
-				const base64urlRegex = /^[A-Za-z0-9_-]+$/;
-				return base64urlRegex.test(secret);
-			},
-			{
-				message: "Secret must be valid base64url encoded",
-			},
-		)
+	key_ops: z.array(OperationSchema).nonempty(),
+	kid: z.string().optional(),
+});
+
+const OctKeySchema = BaseKeySchema.extend({
+	kty: z.literal("oct"),
+	k: Base64FieldSchema
 		.refine(
 			(secret) => {
 				// Validate minimum length (at least 32 bytes when decoded)
-				try {
-					const decoded = base64.toArrayBuffer(secret, true); // true for urlSafe
-					return decoded.byteLength >= 32;
-				} catch {
-					return false;
-				}
+				const decoded = decodeBase64Flexible(secret);
+				return decoded && decoded.byteLength >= 32;
 			},
 			{
 				message: "Secret must be at least 32 bytes when decoded",
 			},
 		),
-	kid: z.string().optional(),
 });
+
+const LegacyOctKeySchema = BaseKeySchema.extend({
+	k: Base64FieldSchema,
+	kty: z.undefined().optional(),
+});
+
+const RsaKeySchema = BaseKeySchema.extend({
+	kty: z.literal("RSA"),
+	n: Base64FieldSchema,
+	e: Base64FieldSchema,
+	d: Base64FieldSchema.optional(),
+	p: Base64FieldSchema.optional(),
+	q: Base64FieldSchema.optional(),
+	dp: Base64FieldSchema.optional(),
+	dq: Base64FieldSchema.optional(),
+	qi: Base64FieldSchema.optional(),
+}).superRefine((data, ctx) => {
+  const privFields = ["d", "p", "q", "dp", "dq", "qi"] as const;
+
+  const present = privFields.filter((f) => data[f] !== undefined);
+
+  if (present.length > 0 && present.length < privFields.length) {
+    ctx.addIssue({
+      code: "custom",
+      message:
+        "If any private RSA fields are present, all private RSA fields must be present.",
+    });
+  }
+});
+
+const EcKeySchema = BaseKeySchema.extend({
+	kty: z.literal("EC"),
+	crv: z.enum(["P-256", "P-384"]),
+	x: Base64FieldSchema,
+	y: Base64FieldSchema,
+	d: Base64FieldSchema.optional(),
+});
+
+const OkpKeySchema = BaseKeySchema.extend({
+	kty: z.literal("OKP"),
+	crv: z.literal("Ed25519"),
+	x: Base64FieldSchema,
+	d: Base64FieldSchema.optional(),
+});
+
+const CanonicalKeySchema = z.discriminatedUnion("kty", [OctKeySchema, RsaKeySchema, EcKeySchema, OkpKeySchema]);
+export const KeySchema = CanonicalKeySchema;
 export type Key = z.infer<typeof KeySchema>;
+type LegacyOctKey = z.infer<typeof LegacyOctKeySchema>;
 
 export function load(jwk: string): Key {
+	const decoded = decodeBase64Flexible(jwk.trim());
+	if (!decoded) {
+		throw new Error("Failed to decode JWK: invalid base64url encoding");
+	}
+
 	let data: unknown;
 	try {
-		// First base64url decode the input
-		const decoded = base64.toArrayBuffer(jwk, true); // true for urlSafe
 		const jsonString = new TextDecoder().decode(decoded);
 		data = JSON.parse(jsonString);
-	} catch (error) {
-		if (error instanceof Error && error.message.includes("Invalid character")) {
-			throw new Error("Failed to decode JWK: invalid base64url encoding");
-		}
+	} catch {
 		throw new Error("Failed to parse JWK: invalid JSON format");
 	}
 
+	const key = parseKeyWithLegacyFallback(data);
+
 	try {
-		const key = KeySchema.parse(data);
-		return key;
+		validateKey(key);
 	} catch (error) {
 		throw new Error(`Failed to validate JWK: ${error instanceof Error ? error.message : "unknown error"}`);
 	}
+
+	return key;
 }
 
 export async function sign(key: Key, claims: Claims): Promise<string> {
-	if (!key.key_ops.includes("sign")) {
-		throw new Error("Key does not support signing operation");
-	}
+	ensureOperationSupported(key, "sign");
 
 	// Validate claims before signing
 	try {
@@ -81,9 +131,7 @@ export async function sign(key: Key, claims: Claims): Promise<string> {
 		throw new Error(`Invalid claims: ${error instanceof Error ? error.message : "unknown error"}`);
 	}
 
-	// Convert base64url to Uint8Array
-	const secretBuffer = base64.toArrayBuffer(key.k, true); // true for urlSafe
-	const secret = new Uint8Array(secretBuffer);
+	const joseKey = await importJoseKey(key, "sign");
 	const jwt = await new jose.SignJWT(claims)
 		.setProtectedHeader({
 			alg: key.alg,
@@ -91,20 +139,15 @@ export async function sign(key: Key, claims: Claims): Promise<string> {
 			...(key.kid && { kid: key.kid }),
 		})
 		.setIssuedAt()
-		.sign(secret);
+		.sign(joseKey);
 
 	return jwt;
 }
 
 export async function verify(key: Key, token: string, path: string): Promise<Claims> {
-	if (!key.key_ops.includes("verify")) {
-		throw new Error("Key does not support verification operation");
-	}
-
-	// Convert base64url to Uint8Array
-	const secretBuffer = base64.toArrayBuffer(key.k, true); // true for urlSafe
-	const secret = new Uint8Array(secretBuffer);
-	const { payload } = await jose.jwtVerify(token, secret, {
+	ensureOperationSupported(key, "verify");
+	const joseKey = await importJoseKey(key, "verify");
+	const { payload } = await jose.jwtVerify(token, joseKey, {
 		algorithms: [key.alg],
 	});
 
@@ -124,4 +167,154 @@ export async function verify(key: Key, token: string, path: string): Promise<Cla
 	validateClaims(claims);
 
 	return claims;
+}
+
+function parseKeyWithLegacyFallback(data: unknown): Key {
+	try {
+		return KeySchema.parse(data);
+	} catch (primaryError) {
+		try {
+			const legacy = LegacyOctKeySchema.parse(data);
+			return upgradeLegacyKey(legacy);
+		} catch {
+			throw new Error(`Failed to validate JWK: ${primaryError instanceof Error ? primaryError.message : "unknown error"}`);
+		}
+	}
+}
+
+function upgradeLegacyKey(key: LegacyOctKey): Key {
+	const { kty: _ignored, ...rest } = key;
+	return { ...rest, kty: "oct" } as Key;
+}
+
+function validateKey(key: Key): void {
+	switch (key.kty) {
+		case "oct": {
+			if (!HMAC_ALGORITHMS.has(key.alg)) {
+				throw new Error(`Algorithm ${key.alg} is incompatible with oct keys`);
+			}
+			const secret = decodeBase64Flexible(key.k);
+			if (!secret || secret.byteLength < MIN_HMAC_SECRET_BYTES) {
+				throw new Error("Secret must be at least 32 bytes when decoded");
+			}
+			break;
+		}
+		case "RSA": {
+				if (!RSA_ALGORITHMS.has(key.alg)) {
+					throw new Error(`Algorithm ${key.alg} is incompatible with RSA keys`);
+			}
+			break;
+		}
+		case "EC": {
+			if (!isEcAlgorithm(key.alg)) {
+				throw new Error(`Algorithm ${key.alg} is incompatible with EC keys`);
+			}
+			const expectedCurve = EC_ALGORITHM_TO_CURVE[key.alg];
+			if (key.crv !== expectedCurve) {
+				throw new Error(`Algorithm ${key.alg} requires curve ${expectedCurve}`);
+			}
+			break;
+		}
+		case "OKP": {
+			if (key.alg !== "EdDSA") {
+				throw new Error(`Algorithm ${key.alg} is incompatible with OKP keys`);
+			}
+			if (key.crv !== "Ed25519") {
+				throw new Error("Only Ed25519 OKP keys are supported");
+			}
+			break;
+		}
+		default:
+			throw new Error(`Unsupported key type ${(key as { kty: string }).kty}`);
+	}
+}
+
+function ensureOperationSupported(key: Key, operation: Operation): void {
+	if (!key.key_ops.includes(operation)) {
+		throw new Error(`Key does not support ${operation} operation`);
+	}
+
+	if (operation === "sign") {
+		ensurePrivateMaterial(key);
+	}
+}
+
+function ensurePrivateMaterial(key: Key): void {
+	switch (key.kty) {
+		case "oct":
+			return; // shared secret already validated by validateKey()
+		case "RSA":
+			if (!key.d) {
+				throw new Error("RSA key is missing the private exponent required for signing");
+			}
+			return;
+		case "EC":
+			if (!key.d) {
+				throw new Error("EC key is missing the private scalar required for signing");
+			}
+			return;
+		case "OKP":
+			if (!key.d) {
+				throw new Error("OKP key is missing the private scalar required for signing");
+			}
+			return;
+	}
+}
+
+function isEcAlgorithm(alg: Algorithm): alg is "ES256" | "ES384" {
+	return alg === "ES256" || alg === "ES384";
+}
+
+async function importJoseKey(key: Key, purpose: "sign" | "verify"): Promise<CryptoKey | Uint8Array> {
+	const jwk = buildJoseJwk(key, purpose);
+	return jose.importJWK(jwk, key.alg);
+}
+
+function buildJoseJwk(key: Key, purpose: "sign" | "verify"): jose.JWK {
+	const jwk = { ...key } as jose.JWK;
+	delete jwk.key_ops;
+
+	// TODO Is that so?
+	// WebCrypto prohibits using private key material for verification, so strip it when appropriate.
+	if (purpose === "verify") {
+		switch (key.kty) {
+			case "RSA":
+				delete jwk.d;
+				delete jwk.p;
+				delete jwk.q;
+				delete jwk.dp;
+				delete jwk.dq;
+				delete jwk.qi;
+				break;
+			case "EC":
+				delete jwk.d;
+				break;
+			case "OKP":
+				delete jwk.d;
+				break;
+			default:
+				break;
+		}
+	}
+
+	return jwk;
+}
+
+function decodeBase64Flexible(value: string): Uint8Array | null {
+	const trimmed = value.trim();
+	if (!trimmed) {
+		return null;
+	}
+
+	try {
+		// First decode as URL
+		return new Uint8Array(base64.toArrayBuffer(trimmed, true));
+	} catch {
+		try {
+			// Fallback to standard base64
+			return new Uint8Array(base64.toArrayBuffer(trimmed, false));
+		} catch {
+			return null;
+		}
+	}
 }

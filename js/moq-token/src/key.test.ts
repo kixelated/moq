@@ -1,6 +1,8 @@
 import assert from "node:assert";
 import test from "node:test";
 import * as base64 from "@hexagon/base64";
+import { exportJWK, generateKeyPair } from "jose";
+import type { Algorithm } from "./algorithm";
 import type { Claims } from "./claims";
 import { load, sign, verify } from "./key";
 
@@ -14,6 +16,7 @@ function encodeJwk(obj: unknown): string {
 const testKey = {
 	alg: "HS256",
 	key_ops: ["sign", "verify"],
+	kty: "oct",
 	k: "dGVzdC1zZWNyZXQtdGhhdC1pcy1sb25nLWVub3VnaC1mb3ItaG1hYy1zaGEyNTY", // "test-secret-that-is-long-enough-for-hmac-sha256" in base64url
 	kid: "test-key-1",
 } as const;
@@ -27,12 +30,38 @@ const testClaims: Claims = {
 	iat: Math.floor(Date.now() / 1000), // now in seconds
 };
 
+type AsymmetricAlgorithm = Exclude<Algorithm, "HS256" | "HS384" | "HS512">;
+
+async function generateAsymmetricKeyPair(
+	alg: AsymmetricAlgorithm,
+): Promise<{ privateEncoded: string; publicEncoded: string }> {
+	const { privateKey, publicKey } = await generateKeyPair(alg, { extractable: true });
+	const privateJwk = await exportJWK(privateKey);
+	const publicJwk = await exportJWK(publicKey);
+
+	return {
+		privateEncoded: encodeJwk({
+			...privateJwk,
+			alg,
+			key_ops: ["sign", "verify"],
+			kid: `test-${alg}`,
+		}),
+		publicEncoded: encodeJwk({
+			...publicJwk,
+			alg,
+			key_ops: ["verify"],
+			kid: `test-${alg}`,
+		}),
+	};
+}
+
 test("load - valid JWK", () => {
 	const jwk = encodeJwk(testKey);
 	const key = load(jwk);
 
 	assert.strictEqual(key.alg, "HS256");
 	assert.deepEqual(key.key_ops, ["sign", "verify"]);
+	assert.strictEqual(key.kty, "oct");
 	assert.strictEqual(key.k, testKey.k);
 	assert.strictEqual(key.kid, "test-key-1");
 });
@@ -82,6 +111,7 @@ test("load - secret too short", () => {
 test("load - missing required fields", () => {
 	const invalidKey = {
 		alg: "HS256",
+		kty: "oct",
 		// missing key_ops and k
 	};
 	const jwk = encodeJwk(invalidKey);
@@ -89,6 +119,16 @@ test("load - missing required fields", () => {
 	assert.throws(() => {
 		load(jwk);
 	});
+});
+
+test("load - legacy oct key without kty", () => {
+	const { kty: _ignored, ...legacyKey } = testKey;
+	const jwk = encodeJwk(legacyKey);
+	const key = load(jwk);
+
+	assert.strictEqual(key.kty, "oct");
+	assert.strictEqual(key.alg, testKey.alg);
+	assert.deepEqual(key.key_ops, testKey.key_ops);
 });
 
 test("sign - successful signing", async () => {
@@ -270,6 +310,7 @@ test("different algorithms - HS384", async () => {
 	const hs384Key = {
 		alg: "HS384",
 		key_ops: ["sign", "verify"],
+		kty: "oct",
 		k: "dGVzdC1zZWNyZXQtdGhhdC1pcy1sb25nLWVub3VnaC1mb3ItaG1hYy1zaGEzODQtYWxnb3JpdGhtLXRlc3RpbmctcHVycG9zZXM", // longer secret for HS384
 		kid: "test-key-hs384",
 	} as const;
@@ -286,6 +327,7 @@ test("different algorithms - HS512", async () => {
 	const hs512Key = {
 		alg: "HS512",
 		key_ops: ["sign", "verify"],
+		kty: "oct",
 		k: "dGVzdC1zZWNyZXQtdGhhdC1pcy1sb25nLWVub3VnaC1mb3ItaG1hYy1zaGE1MTItYWxnb3JpdGhtLXRlc3RpbmctcHVycG9zZXMtYW5kLW1vcmUtZGF0YQ", // longer secret for HS512
 		kid: "test-key-hs512",
 	} as const;
@@ -298,12 +340,82 @@ test("different algorithms - HS512", async () => {
 	assert.strictEqual(verifiedClaims.put, testClaims.put);
 });
 
+test("RSA algorithms - sign and verify", async () => {
+	for (const alg of ["RS256", "RS384", "RS512"] as const) {
+		const { privateEncoded } = await generateAsymmetricKeyPair(alg);
+		const key = load(privateEncoded);
+		const token = await sign(key, testClaims);
+		const verifiedClaims = await verify(key, token, testClaims.root);
+		assert.strictEqual(verifiedClaims.root, testClaims.root);
+	}
+});
+
+test("RSA public keys verify but cannot sign", async () => {
+	const { privateEncoded, publicEncoded } = await generateAsymmetricKeyPair("RS256");
+	const privateKey = load(privateEncoded);
+	const publicKey = load(publicEncoded);
+
+	const token = await sign(privateKey, testClaims);
+	const claims = await verify(publicKey, token, testClaims.root);
+	assert.strictEqual(claims.root, testClaims.root);
+
+	await assert.rejects(async () => {
+		await sign(publicKey, testClaims);
+	});
+});
+
+test("RSA-PSS algorithms - sign and verify", async () => {
+	for (const alg of ["PS256", "PS384", "PS512"] as const) {
+		const { privateEncoded } = await generateAsymmetricKeyPair(alg);
+		const key = load(privateEncoded);
+		const token = await sign(key, testClaims);
+		const verifiedClaims = await verify(key, token, testClaims.root);
+		assert.strictEqual(verifiedClaims.root, testClaims.root);
+	}
+});
+
+test("EC algorithms - sign and verify", async () => {
+	for (const alg of ["ES256", "ES384"] as const) {
+		const { privateEncoded } = await generateAsymmetricKeyPair(alg);
+		const key = load(privateEncoded);
+		const token = await sign(key, testClaims);
+		const verifiedClaims = await verify(key, token, testClaims.root);
+		assert.strictEqual(verifiedClaims.root, testClaims.root);
+	}
+});
+
+test("EdDSA algorithm - sign and verify", async () => {
+	const { privateEncoded, publicEncoded } = await generateAsymmetricKeyPair("EdDSA");
+	const privateKey = load(privateEncoded);
+	const publicKey = load(publicEncoded);
+	const token = await sign(privateKey, testClaims);
+	const verifiedClaims = await verify(publicKey, token, testClaims.root);
+	assert.strictEqual(verifiedClaims.root, testClaims.root);
+});
+
+test("asymmetric cross-algorithm verification fails", async () => {
+	const { privateEncoded: rsPrivate, publicEncoded: rsPublic } = await generateAsymmetricKeyPair("RS256");
+	const { publicEncoded: psPublic } = await generateAsymmetricKeyPair("PS256");
+	const rsKey = load(rsPrivate);
+	const rsPublicKey = load(rsPublic);
+	const psPublicKey = load(psPublic);
+	const token = await sign(rsKey, testClaims);
+
+	const verifiedClaims = await verify(rsPublicKey, token, testClaims.root);
+	assert.strictEqual(verifiedClaims.root, testClaims.root);
+	
+	await assert.rejects(async () => {
+		await verify(psPublicKey, token, testClaims.root);
+	});
+});
+
 test("cross-algorithm verification fails", async () => {
 	const hs256Key = load(encodeJwk(testKey));
 	const hs384Key = load(
 		encodeJwk({
 			alg: "HS384",
 			key_ops: ["sign", "verify"],
+			kty: "oct",
 			k: "dGVzdC1zZWNyZXQtdGhhdC1pcy1sb25nLWVub3VnaC1mb3ItaG1hYy1zaGEzODQtYWxnb3JpdGhtLXRlc3RpbmctcHVycG9zZXM",
 			kid: "test-key-hs384",
 		}),
@@ -319,7 +431,19 @@ test("cross-algorithm verification fails", async () => {
 test("load - invalid algorithm", () => {
 	const invalidKey = {
 		...testKey,
-		alg: "RS256", // unsupported algorithm
+		alg: "ES512", // unsupported algorithm
+	};
+	const jwk = encodeJwk(invalidKey);
+
+	assert.throws(() => {
+		load(jwk);
+	});
+});
+
+test("load - mismatched algorithm", () => {
+	const invalidKey = {
+		...testKey,
+		alg: "RS256", // mismatched algorithm for oct key
 	};
 	const jwk = encodeJwk(invalidKey);
 
@@ -343,6 +467,7 @@ test("load - invalid key_ops", () => {
 test("load - missing alg field", () => {
 	const invalidKey = {
 		key_ops: ["sign", "verify"],
+		kty: "oct",
 		k: testKey.k,
 	};
 	const jwk = encodeJwk(invalidKey);
