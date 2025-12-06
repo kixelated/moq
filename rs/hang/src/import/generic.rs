@@ -48,13 +48,15 @@ impl Generic {
 	///
 	/// The buffer MAY be partially consumed, in which case the caller needs to populate the buffer with more data.
 	pub fn initialize<T: Buf>(&mut self, buffer: &mut T) -> anyhow::Result<()> {
-		let mut pts = || {
+		let mut pts = || -> anyhow::Result<hang::Timestamp> {
 			self.zero = self.zero.or_else(|| Some(tokio::time::Instant::now()));
-			hang::Timestamp::from_micros(self.zero.unwrap().elapsed().as_micros() as u64).expect("timestamp overflow")
+			Ok(hang::Timestamp::from_micros(
+				self.zero.unwrap().elapsed().as_micros() as u64
+			)?)
 		};
 
 		match &mut self.decoder {
-			Decoder::AnnexB(decoder) => decoder.decode(buffer, pts())?,
+			Decoder::AnnexB(decoder) => decoder.decode(buffer, pts()?)?,
 			Decoder::Fmp4(decoder) => decoder.decode(buffer)?,
 			Decoder::Aac(decoder) => decoder.initialize(buffer)?,
 		}
@@ -73,17 +75,17 @@ impl Generic {
 		// Make a function to compute the PTS timestamp only if needed by a decoder.
 		// We want to avoid calling Instant::now() if not needed.
 		let mut pts = || {
-			pts.unwrap_or_else(|| {
+			pts.or_else(|| {
 				self.zero = self.zero.or_else(|| Some(tokio::time::Instant::now()));
-				hang::Timestamp::from_micros(self.zero.unwrap().elapsed().as_micros() as u64)
-					.expect("timestamp overflow")
+				hang::Timestamp::from_micros(self.zero.unwrap().elapsed().as_micros() as u64).ok()
 			})
+			.ok_or(crate::TimestampOverflow)
 		};
 
 		match &mut self.decoder {
-			Decoder::AnnexB(decoder) => decoder.decode(buf, pts()),
+			Decoder::AnnexB(decoder) => decoder.decode(buf, pts()?),
 			Decoder::Fmp4(decoder) => decoder.decode(buf),
-			Decoder::Aac(decoder) => decoder.decode(buf, pts()),
+			Decoder::Aac(decoder) => decoder.decode(buf, pts()?),
 		}
 	}
 
