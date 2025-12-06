@@ -1,21 +1,25 @@
 use std::ops::{Deref, DerefMut};
-use std::sync::{LazyLock, Mutex, MutexGuard};
+use std::sync::{Arc, LazyLock, Mutex, MutexGuard};
 
 use bytes::Buf;
 use slab::Slab;
-use tokio::sync::oneshot;
+use tokio::sync::watch;
 use url::Url;
 
 use crate::{ffi, Error};
+
+#[derive(Default)]
+struct SessionStatus {
+	connected: bool,
+	closed: Option<Error>,
+}
 
 struct Session {
 	// The collection of published broadcasts.
 	origin: moq_lite::OriginProducer,
 
-	// Using oneshot as a way to cancel work when removed from the sessions map.
-	// TODO make this part of OriginProducer/OriginConsumer?
-	#[allow(unused)]
-	cancel: oneshot::Sender<()>,
+	// A channel to receive the connection status.
+	status: watch::Receiver<SessionStatus>,
 }
 
 pub struct State {
@@ -86,43 +90,85 @@ impl State {
 		}
 	}
 
-	pub fn session_connect(&mut self, url: Url, mut on_status: ffi::Callback) -> Result<usize, Error> {
+	pub fn session_connect(&mut self, url: Url) -> Result<usize, Error> {
 		let origin = moq_lite::Origin::produce();
 
 		// Cancel the connection when removed from the sessions map
-		let (tx, rx) = oneshot::channel();
+		let mut status = watch::channel(SessionStatus::default());
 
 		let id = self.sessions.insert(Session {
-			cancel: tx,
+			status: status.1,
 			origin: origin.producer,
 		});
 
-		RUNTIME.spawn(async move {
-			tokio::select! {
-				_ = rx => (),
-				res = Self::session_connect_run(url, origin.consumer) => on_status.call(res),
-			};
-			// TODO remove from self.sessions
+		tokio::spawn(async move {
+			let unused = status.0.clone();
+			let err = tokio::select! {
+				// No more receiver, which means session_close was called.
+				_ = unused.closed() => Ok(()),
+				// The connection failed.
+				res = Self::session_connect_run(url, origin.consumer, &mut status.0) => res,
+			}
+			.err()
+			.unwrap_or(Error::Closed);
+
+			status.0.send_modify(|status| status.closed = Some(err));
 		});
 
 		Ok(id)
 	}
 
-	async fn session_connect_run(url: Url, origin: moq_lite::OriginConsumer) -> Result<(), Error> {
+	async fn session_connect_run(
+		url: Url,
+		origin: moq_lite::OriginConsumer,
+		status: &mut watch::Sender<SessionStatus>,
+	) -> Result<(), Error> {
 		let config = moq_native::ClientConfig::default();
-		let client = config.init().map_err(Error::Connect)?;
-		let connection = client.connect(url).await.map_err(Error::Connect)?;
-
+		let client = config.init().map_err(|err| Error::Connect(Arc::new(err)))?;
+		let connection = client.connect(url).await.map_err(|err| Error::Connect(Arc::new(err)))?;
 		let session = moq_lite::Session::connect(connection, origin, None).await?;
-
-		// TODO Add a success callback
+		status.send_modify(|status| status.connected = true);
 
 		session.closed().await?;
+		Ok(())
+	}
+
+	pub fn session_on_connect(&mut self, id: usize, mut callback: ffi::Callback) -> Result<(), Error> {
+		let session = self.sessions.get_mut(id).ok_or(Error::NotFound)?;
+		let mut status = session.status.clone();
+
+		tokio::spawn(async move {
+			let res = match status
+				.wait_for(|status| status.connected || status.closed.is_some())
+				.await
+			{
+				Ok(state) if state.closed.is_some() => Err(state.closed.clone().unwrap()),
+				Ok(_) => Ok(()),
+				Err(_) => Err(Error::Closed),
+			};
+
+			callback.call(res);
+		});
 
 		Ok(())
 	}
 
-	pub fn session_disconnect(&mut self, id: usize) -> Result<(), Error> {
+	pub fn session_on_close(&mut self, id: usize, mut callback: ffi::Callback) -> Result<(), Error> {
+		let session = self.sessions.get_mut(id).ok_or(Error::NotFound)?;
+		let mut status = session.status.clone();
+
+		tokio::spawn(async move {
+			let err = match status.wait_for(|status| status.closed.is_some()).await {
+				Ok(state) => state.closed.clone().unwrap(),
+				Err(_) => Error::Closed,
+			};
+			callback.call(err);
+		});
+
+		Ok(())
+	}
+
+	pub fn session_close(&mut self, id: usize) -> Result<(), Error> {
 		self.sessions.try_remove(id).ok_or(Error::NotFound)?;
 		Ok(())
 	}
@@ -156,7 +202,9 @@ impl State {
 
 	pub fn init_track(&mut self, id: usize, mut extra: &[u8]) -> Result<(), Error> {
 		let track = self.tracks.get_mut(id).ok_or(Error::NotFound)?;
-		track.initialize(&mut extra).map_err(Error::InitFailed)?;
+		track
+			.initialize(&mut extra)
+			.map_err(|err| Error::InitFailed(Arc::new(err)))?;
 
 		if !extra.is_empty() {
 			return Err(Error::ShortDecode);
@@ -169,7 +217,9 @@ impl State {
 		let track = self.tracks.get_mut(id).ok_or(Error::NotFound)?;
 
 		let pts = hang::Timestamp::from_micros(pts)?;
-		track.decode(&mut data, Some(pts)).map_err(Error::DecodeFailed)?;
+		track
+			.decode(&mut data, Some(pts))
+			.map_err(|err| Error::DecodeFailed(Arc::new(err)))?;
 
 		if data.has_remaining() {
 			return Err(Error::ShortDecode);

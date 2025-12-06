@@ -33,41 +33,74 @@ pub unsafe extern "C" fn hang_log_level(level: *const c_char) -> i32 {
 	})
 }
 
-/// Establish a connection to a MoQ server.
-///
-/// Fires `on_status` with user_data when the connection is closed.
+/// Start establishing a connection to a MoQ server.
 ///
 /// This may be called multiple times to connect to different servers.
-/// Broadcasts and tracks may be created before or after any connection is established.
+/// Broadcast may be published before or after the connection is established.
 ///
-/// Returns a handle to the session for [hang_session_disconnect].
+/// Returns a handle to the session for [hang_session_close] and friends.
 ///
 /// # Safety
 /// - The caller must ensure that url is a valid null-terminated C string.
-/// - The caller must ensure that user_data is a valid pointer.
-/// - The caller must ensure that on_status is a valid function pointer, or null.
 #[no_mangle]
-pub unsafe extern "C" fn hang_session_connect(
-	url: *const c_char,
-	user_data: *mut c_void,
-	on_status: Option<extern "C" fn(user_data: *mut c_void, code: i32)>,
-) -> i32 {
+pub unsafe extern "C" fn hang_session_connect(url: *const c_char) -> i32 {
 	ffi::return_code(move || {
 		let url = ffi::parse_url(url)?;
-		let on_status = ffi::Callback::new(user_data, on_status);
-		State::lock().session_connect(url, on_status)
+		State::lock().session_connect(url)
+	})
+}
+
+/// Register a callback to be called when the connection is established.
+///
+/// Fires immediately if the connection is already established or closed.
+/// Returns [Error::Closed] if [hang_session_close] was called directly.
+///
+/// # Safety
+/// - The caller must ensure that user_data is a valid pointer.
+/// - The caller must ensure that callback is a valid function pointer, or null.
+#[no_mangle]
+pub unsafe extern "C" fn hang_session_on_connect(
+	id: i32,
+	callback: Option<extern "C" fn(user_data: *mut c_void, code: i32)>,
+	user_data: *mut c_void,
+) -> i32 {
+	ffi::return_code(move || {
+		let id = ffi::parse_id(id)?;
+		let callback = ffi::Callback::new(user_data, callback);
+		State::lock().session_on_connect(id, callback)
+	})
+}
+
+/// Register a callback to be called when the connection is closed.
+///
+/// Fires immediately if the connection is already closed.
+/// Returns [Error::Closed] if [hang_session_close] was called directly.
+///
+/// # Safety
+/// - The caller must ensure that user_data is a valid pointer.
+/// - The caller must ensure that callback is a valid function pointer, or null.
+#[no_mangle]
+pub unsafe extern "C" fn hang_session_on_close(
+	id: i32,
+	callback: Option<extern "C" fn(user_data: *mut c_void, code: i32)>,
+	user_data: *mut c_void,
+) -> i32 {
+	ffi::return_code(move || {
+		let id = ffi::parse_id(id)?;
+		let callback = ffi::Callback::new(user_data, callback);
+		State::lock().session_on_close(id, callback)
 	})
 }
 
 /// Close a connection to a MoQ server.
 ///
 /// Uses the id returned from [hang_session_connect].
-/// Any `on_status` callback will be fired with [Error::Closed].
+/// Any [hang_session_on_close] callbacks will be fired with [Error::Closed].
 #[no_mangle]
-pub extern "C" fn hang_session_disconnect(id: i32) -> i32 {
+pub extern "C" fn hang_session_close(id: i32) -> i32 {
 	ffi::return_code(move || {
 		let id = ffi::parse_id(id)?;
-		State::lock().session_disconnect(id)
+		State::lock().session_close(id)
 	})
 }
 

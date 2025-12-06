@@ -1,8 +1,10 @@
+use std::sync::Arc;
+
 use crate::ffi;
 
 pub type Status = i32;
 
-#[derive(Debug, thiserror::Error)]
+#[derive(Debug, thiserror::Error, Clone)]
 pub enum Error {
 	#[error("closed")]
 	Closed,
@@ -17,7 +19,7 @@ pub enum Error {
 	Utf8(#[from] std::str::Utf8Error),
 
 	#[error("connect error: {0}")]
-	Connect(anyhow::Error),
+	Connect(Arc<anyhow::Error>),
 
 	#[error("invalid pointer")]
 	InvalidPointer,
@@ -32,10 +34,10 @@ pub enum Error {
 	UnknownFormat,
 
 	#[error("init failed: {0}")]
-	InitFailed(anyhow::Error),
+	InitFailed(Arc<anyhow::Error>),
 
 	#[error("decode failed: {0}")]
-	DecodeFailed(anyhow::Error),
+	DecodeFailed(Arc<anyhow::Error>),
 
 	#[error("short decode")]
 	ShortDecode,
@@ -44,13 +46,19 @@ pub enum Error {
 	TimestampOverflow(#[from] hang::TimestampOverflow),
 
 	#[error("level error: {0}")]
-	Level(#[from] tracing::metadata::ParseLevelError),
+	Level(Arc<tracing::metadata::ParseLevelError>),
 
 	#[error("invalid code")]
 	InvalidCode,
 
 	#[error("panic")]
 	Panic,
+}
+
+impl From<tracing::metadata::ParseLevelError> for Error {
+	fn from(err: tracing::metadata::ParseLevelError) -> Self {
+		Error::Level(Arc::new(err))
+	}
 }
 
 impl ffi::ReturnCode for Error {
