@@ -3,23 +3,18 @@ use std::sync::{Arc, LazyLock, Mutex, MutexGuard};
 
 use bytes::Buf;
 use slab::Slab;
-use tokio::sync::watch;
+use tokio::sync::oneshot;
 use url::Url;
 
 use crate::{ffi, Error};
-
-#[derive(Default)]
-struct SessionStatus {
-	connected: bool,
-	closed: Option<Error>,
-}
 
 struct Session {
 	// The collection of published broadcasts.
 	origin: moq_lite::OriginProducer,
 
-	// A channel to receive the connection status.
-	status: watch::Receiver<SessionStatus>,
+	// A simple signal to notify the background task when closed.
+	#[allow(dead_code)]
+	closed: oneshot::Sender<()>,
 }
 
 pub struct State {
@@ -90,29 +85,28 @@ impl State {
 		}
 	}
 
-	pub fn session_connect(&mut self, url: Url) -> Result<usize, Error> {
+	pub fn session_connect(&mut self, url: Url, mut callback: ffi::Callback) -> Result<usize, Error> {
 		let origin = moq_lite::Origin::produce();
 
-		// Cancel the connection when removed from the sessions map
-		let mut status = watch::channel(SessionStatus::default());
+		// Used just to notify when the session is removed from the map.
+		let closed = oneshot::channel();
 
 		let id = self.sessions.insert(Session {
-			status: status.1,
+			closed: closed.0,
 			origin: origin.producer,
 		});
 
 		tokio::spawn(async move {
-			let unused = status.0.clone();
 			let err = tokio::select! {
-				// No more receiver, which means session_close was called.
-				_ = unused.closed() => Ok(()),
+				// No more receiver, which means [session_close] was called.
+				_ = closed.1 => Ok(()),
 				// The connection failed.
-				res = Self::session_connect_run(url, origin.consumer, &mut status.0) => res,
+				res = Self::session_connect_run(url, origin.consumer, &mut callback) => res,
 			}
 			.err()
 			.unwrap_or(Error::Closed);
 
-			status.0.send_modify(|status| status.closed = Some(err));
+			callback.call(err);
 		});
 
 		Ok(id)
@@ -121,50 +115,15 @@ impl State {
 	async fn session_connect_run(
 		url: Url,
 		origin: moq_lite::OriginConsumer,
-		status: &mut watch::Sender<SessionStatus>,
+		callback: &mut ffi::Callback,
 	) -> Result<(), Error> {
 		let config = moq_native::ClientConfig::default();
 		let client = config.init().map_err(|err| Error::Connect(Arc::new(err)))?;
 		let connection = client.connect(url).await.map_err(|err| Error::Connect(Arc::new(err)))?;
 		let session = moq_lite::Session::connect(connection, origin, None).await?;
-		status.send_modify(|status| status.connected = true);
+		callback.call(());
 
 		session.closed().await?;
-		Ok(())
-	}
-
-	pub fn session_on_connect(&mut self, id: usize, mut callback: ffi::Callback) -> Result<(), Error> {
-		let session = self.sessions.get_mut(id).ok_or(Error::NotFound)?;
-		let mut status = session.status.clone();
-
-		tokio::spawn(async move {
-			let res = match status
-				.wait_for(|status| status.connected || status.closed.is_some())
-				.await
-			{
-				Ok(state) if state.closed.is_some() => Err(state.closed.clone().unwrap()),
-				Ok(_) => Ok(()),
-				Err(_) => Err(Error::Closed),
-			};
-
-			callback.call(res);
-		});
-
-		Ok(())
-	}
-
-	pub fn session_on_close(&mut self, id: usize, mut callback: ffi::Callback) -> Result<(), Error> {
-		let session = self.sessions.get_mut(id).ok_or(Error::NotFound)?;
-		let mut status = session.status.clone();
-
-		tokio::spawn(async move {
-			let err = match status.wait_for(|status| status.closed.is_some()).await {
-				Ok(state) => state.closed.clone().unwrap(),
-				Err(_) => Error::Closed,
-			};
-			callback.call(err);
-		});
-
 		Ok(())
 	}
 

@@ -38,57 +38,25 @@ pub unsafe extern "C" fn hang_log_level(level: *const c_char) -> i32 {
 /// This may be called multiple times to connect to different servers.
 /// Broadcast may be published before or after the connection is established.
 ///
-/// Returns a handle to the session for [hang_session_close] and friends.
+/// Returns a handle to the session.
+/// You should call [hang_session_close], even on error, to free up resources.
+///
+/// The callback is called on success (status 0) and later when closed (status non-zero).
 ///
 /// # Safety
 /// - The caller must ensure that url is a valid null-terminated C string.
+/// - The caller must ensure that callback is a valid function pointer, or null.
+/// - The caller must ensure that user_data is a valid pointer.
 #[no_mangle]
-pub unsafe extern "C" fn hang_session_connect(url: *const c_char) -> i32 {
+pub unsafe extern "C" fn hang_session_connect(
+	url: *const c_char,
+	callback: Option<extern "C" fn(user_data: *mut c_void, code: i32)>,
+	user_data: *mut c_void,
+) -> i32 {
 	ffi::return_code(move || {
 		let url = ffi::parse_url(url)?;
-		State::lock().session_connect(url)
-	})
-}
-
-/// Register a callback to be called when the connection is established.
-///
-/// Fires immediately if the connection is already established or closed.
-/// Returns [Error::Closed] if [hang_session_close] was called directly.
-///
-/// # Safety
-/// - The caller must ensure that user_data is a valid pointer.
-/// - The caller must ensure that callback is a valid function pointer, or null.
-#[no_mangle]
-pub unsafe extern "C" fn hang_session_on_connect(
-	id: i32,
-	callback: Option<extern "C" fn(user_data: *mut c_void, code: i32)>,
-	user_data: *mut c_void,
-) -> i32 {
-	ffi::return_code(move || {
-		let id = ffi::parse_id(id)?;
 		let callback = ffi::Callback::new(user_data, callback);
-		State::lock().session_on_connect(id, callback)
-	})
-}
-
-/// Register a callback to be called when the connection is closed.
-///
-/// Fires immediately if the connection is already closed.
-/// Returns [Error::Closed] if [hang_session_close] was called directly.
-///
-/// # Safety
-/// - The caller must ensure that user_data is a valid pointer.
-/// - The caller must ensure that callback is a valid function pointer, or null.
-#[no_mangle]
-pub unsafe extern "C" fn hang_session_on_close(
-	id: i32,
-	callback: Option<extern "C" fn(user_data: *mut c_void, code: i32)>,
-	user_data: *mut c_void,
-) -> i32 {
-	ffi::return_code(move || {
-		let id = ffi::parse_id(id)?;
-		let callback = ffi::Callback::new(user_data, callback);
-		State::lock().session_on_close(id, callback)
+		State::lock().session_connect(url, callback)
 	})
 }
 
