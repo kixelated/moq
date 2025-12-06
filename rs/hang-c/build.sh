@@ -2,12 +2,11 @@
 set -euo pipefail
 
 # Build and package hang-c for release.
-# Usage: ./release.sh [--target TARGET] [--version VERSION] [--skip-build] [--output DIR]
+# Usage: ./build.sh [--target TARGET] [--version VERSION] [--skip-build] [--output DIR]
 #
 # Examples:
-#   ./release.sh                                    # Build for host, detect version from Cargo.toml
-#   ./release.sh --target aarch64-apple-darwin      # Cross-compile for Apple Silicon
-#   ./release.sh --skip-build                       # Package existing build artifacts
+#   ./build.sh                                    # Build for host, detect version from Cargo.toml
+#   ./build.sh --target aarch64-apple-darwin      # Cross-compile for Apple Silicon
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 RS_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
@@ -16,8 +15,7 @@ WORKSPACE_DIR="$(cd "$RS_DIR/.." && pwd)"
 # Defaults
 TARGET=""
 VERSION=""
-SKIP_BUILD=false
-OUTPUT_DIR="$WORKSPACE_DIR/dist"
+OUTPUT_DIR="dist"
 
 # Parse arguments
 while [[ $# -gt 0 ]]; do
@@ -30,16 +28,12 @@ while [[ $# -gt 0 ]]; do
             VERSION="$2"
             shift 2
             ;;
-        --skip-build)
-            SKIP_BUILD=true
-            shift
-            ;;
         --output)
             OUTPUT_DIR="$2"
             shift 2
             ;;
         -h|--help)
-            echo "Usage: $0 [--target TARGET] [--version VERSION] [--skip-build] [--output DIR]"
+            echo "Usage: $0 [--target TARGET] [--version VERSION] [--output DIR]"
             exit 0
             ;;
         *)
@@ -61,17 +55,14 @@ if [[ -z "$VERSION" ]]; then
     echo "Detected version: $VERSION"
 fi
 
-# Build if not skipping
-if [[ "$SKIP_BUILD" == false ]]; then
-    echo "Building hang-c for $TARGET..."
+echo "Building hang-c for $TARGET..."
 
-    # Set up cross-compilation for Linux ARM64
-    if [[ "$TARGET" == "aarch64-unknown-linux-gnu" ]]; then
-        export CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER=aarch64-linux-gnu-gcc
-    fi
-
-    cargo build --release --package hang-c --target "$TARGET" --manifest-path "$RS_DIR/Cargo.toml"
+# Set up cross-compilation for Linux ARM64
+if [[ "$TARGET" == "aarch64-unknown-linux-gnu" ]]; then
+	export CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER=aarch64-linux-gnu-gcc
 fi
+
+cargo build --release --package hang-c --target "$TARGET" --manifest-path "$RS_DIR/Cargo.toml"
 
 # Determine paths
 TARGET_DIR="$RS_DIR/target/$TARGET/release"

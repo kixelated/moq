@@ -57,7 +57,7 @@ jobs:
       - name: Build and package
         shell: bash
         run: |
-          ./rs/hang-c/release.sh \
+          ./rs/hang-c/build.sh \
             --target ${{ matrix.target }} \
             --version ${{ steps.parse.outputs.version }} \
             --output dist
