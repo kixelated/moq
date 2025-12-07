@@ -161,7 +161,7 @@ just pub tos  # Terminal 2: Publish a demo video using ffmpeg
 just web      # Terminal 3: Start web server
 ```
 
-There are more commands: check out the [Justfile](Justfile), [rs/Justfile](rs/Justfile), and [js/Justfile](js/Justfile).
+There are more commands: check out the [justfile](justfile), [rs/justfile](rs/justfile), and [js/justfile](js/justfile).
 
 
 ## License
