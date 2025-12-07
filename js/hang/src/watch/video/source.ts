@@ -200,7 +200,20 @@ export class Source {
 		effect.cleanup(() => writer.close());
 
 		const reader = queue.readable.getReader();
-		effect.cleanup(() => reader.cancel());
+		effect.cleanup(async () => {
+			// Drain any remaining frames in the queue to prevent memory leaks
+			try {
+				let result = await reader.read();
+				while (!result.done) {
+					result.value?.close();
+					result = await reader.read();
+				}
+			} catch (error) {
+				console.error("Error during frame draining:", error);
+			} finally {
+				await reader.cancel();
+			}
+		});
 
 		const decoder = new VideoDecoder({
 			output: async (frame: VideoFrame) => {
