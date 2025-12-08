@@ -57,8 +57,7 @@ impl TrackProducer {
 			// We can't really enforce this for frames generally because b-frames suck.
 			if let Some(keyframe) = self.keyframe {
 				if frame.timestamp < keyframe {
-					tracing::warn!(track = ?self.inner.info.name, old = ?keyframe, new = ?frame.timestamp, "timestamp went backwards");
-					// return Err(Error::TimestampBackwards);
+					return Err(Error::TimestampBackwards);
 				}
 			}
 

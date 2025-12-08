@@ -63,7 +63,7 @@ pub unsafe extern "C" fn moq_session_connect(
 /// Close a connection to a MoQ server.
 ///
 /// Uses the id returned from [moq_session_connect].
-/// Any [moq_session_on_close] callbacks will be fired with [Error::Closed].
+/// The [moq_session_connect] callback will be called with [Error::Closed].
 #[no_mangle]
 pub extern "C" fn moq_session_close(id: i32) -> i32 {
 	ffi::return_code(move || {
