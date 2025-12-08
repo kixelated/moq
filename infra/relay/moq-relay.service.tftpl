@@ -13,14 +13,14 @@ Environment="RUST_BACKTRACE=1"
 
 ExecStart=/var/lib/moq/relay/bin/moq-relay \
   --listen [::]:443 \
-  --tls-cert /etc/letsencrypt/live/cdn.moq.dev/fullchain.pem \
-  --tls-key /etc/letsencrypt/live/cdn.moq.dev/privkey.pem \
+  --tls-cert /etc/letsencrypt/live/${domain}/fullchain.pem \
+  --tls-key /etc/letsencrypt/live/${domain}/privkey.pem \
   --auth-key /var/lib/moq/root.jwk \
   --auth-public anon \
   --web-https-listen [::]:443 \
-  --web-https-cert /etc/letsencrypt/live/cdn.moq.dev/fullchain.pem \
-  --web-https-key /etc/letsencrypt/live/cdn.moq.dev/privkey.pem \
-  --cluster-root usc.cdn.moq.dev \
+  --web-https-cert /etc/letsencrypt/live/${domain}/fullchain.pem \
+  --web-https-key /etc/letsencrypt/live/${domain}/privkey.pem \
+  --cluster-root usc.${domain} \
   --cluster-node %H \
   --cluster-token /var/lib/moq/cluster.jwt
 

@@ -23,7 +23,7 @@ ExecStart=/bin/bash -c '\
     -movflags cmaf+separate_moof+delay_moov+skip_trailer+frag_every_frame \
     - | \
   /var/lib/moq/result-hang/bin/hang publish \
-    --url "https://moq.hang.live/anon" \
+    --url "https://cdn.moq.dev/anon" \
     --name bbb'
 
 # Restart with exponential backoff

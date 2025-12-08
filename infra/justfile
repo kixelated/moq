@@ -2,36 +2,49 @@
 default:
   just --list
 
+# Get the hostname for a node
+host node:
+	#!/usr/bin/env bash
+	DOMAIN=$(tofu output -raw domain)
+	echo "{{node}}.$DOMAIN"
+
+# Get the publisher hostname
+host-pub:
+	#!/usr/bin/env bash
+	DOMAIN=$(tofu output -raw domain)
+	echo "pub.$DOMAIN"
+
 # Deploy moq-relay and moq-cert to all nodes
 [parallel]
-deploy-all: (deploy "use") (deploy "usw") (deploy "euc") (deploy "sea")
+deploy-all: (deploy "usc") (deploy "euc") (deploy "sea")
 
 # List the available nodes.
 nodes:
-	@echo "use: Newark, NJ"
-	@echo "usw: Fremont, CA"
+	@echo "usc: Dallas, TX"
 	@echo "euc: Frankfurt, Germany"
 	@echo "sea: Singapore"
 
 # Deploy moq-relay and moq-cert to a specific node
 deploy node:
-	@echo "Deploying to {{node}}.moq.hang.live..."
+	#!/usr/bin/env bash
+	HOST=$(just host $node)
+	echo "Deploying to $HOST..."
 
-	@echo "  Copying flake files to /var/lib/moq"
-	@rsync -az flake.nix flake.lock root@{{node}}.moq.hang.live:/var/lib/moq/
+	echo "  Copying flake files to /var/lib/moq"
+	rsync -az flake.nix flake.lock root@$HOST:/var/lib/moq/
 
-	@echo "  Copying secrets to /var/lib/moq"
-	@rsync -az secrets/ root@{{node}}.moq.hang.live:/var/lib/moq/
-	@ssh root@{{node}}.moq.hang.live "chmod -R 755 /var/lib/moq && chmod 600 /var/lib/moq/*.jwk /var/lib/moq/*.jwt"
+	echo "  Copying secrets to /var/lib/moq"
+	rsync -az secrets/ root@$HOST:/var/lib/moq/
+	ssh root@$HOST "chmod -R 755 /var/lib/moq && chmod 600 /var/lib/moq/*.jwk /var/lib/moq/*.jwt"
 
-	@echo "  Copying systemd units to /etc/systemd/system/..."
-	@rsync -az relay/ root@{{node}}.moq.hang.live:/etc/systemd/system/
+	echo "  Copying systemd units to /etc/systemd/system/..."
+	rsync -az relay/ root@$HOST:/etc/systemd/system/
 
-	@echo "  Building and caching packages..."
-	@ssh root@{{node}}.moq.hang.live "cd /var/lib/moq && nix build .#moq-relay -o relay && nix build .#certbot -o cert"
+	echo "  Building and caching packages..."
+	ssh root@$HOST "cd /var/lib/moq && nix build .#moq-relay -o relay && nix build .#certbot -o cert"
 
-	@echo "  Enabling and starting services..."
-	@ssh root@{{node}}.moq.hang.live "\
+	echo "  Enabling and starting services..."
+	ssh root@$HOST "\
 		systemctl daemon-reload && \
 		systemctl enable moq-cert.service && \
 		systemctl enable certbot-renew.timer && \
@@ -44,37 +57,43 @@ deploy node:
 
 # Check status of a node
 status node:
-	@echo "=== {{node}}.moq.hang.live ==="
-	@ssh root@{{node}}.moq.hang.live "systemctl status moq-relay --no-pager"
+	#!/usr/bin/env bash
+	HOST=$(just host $node)
+	echo "=== $HOST ==="
+	ssh root@$HOST "systemctl status moq-relay --no-pager"
 
-status-all: (status "use") (status "usw") (status "euc") (status "sea")
+status-all: (status "usc") (status "euc") (status "sea")
 
 ssh node:
-	@ssh root@{{node}}.moq.hang.live
+	#!/usr/bin/env bash
+	ssh root@$(just host $node)
 
-# View logs from a specific node (e.g., just logs use)
+# View logs from a specific node
 logs node:
-	@ssh root@{{node}}.moq.hang.live "journalctl -u moq-relay -f"
+	#!/usr/bin/env bash
+	ssh root@$(just host $node) "journalctl -u moq-relay -f"
 
-# Deploy publisher to pub.moq.hang.live
+# Deploy publisher
 deploy-pub:
-	@echo "Deploying to pub.moq.hang.live..."
+	#!/usr/bin/env bash
+	HOST=$(tofu output -raw publisher_host)
+	echo "Deploying to $HOST..."
 
-	@echo "  Copying flake files to /var/lib/moq"
-	@rsync -az flake.nix flake.lock root@pub.moq.hang.live:/var/lib/moq/
+	echo "  Copying flake files to /var/lib/moq"
+	rsync -az flake.nix flake.lock root@$HOST:/var/lib/moq/
 
-	@echo "  Copying secrets to /var/lib/moq"
-	@rsync -az secrets/ root@pub.moq.hang.live:/var/lib/moq/
-	@ssh root@pub.moq.hang.live "chmod -R 755 /var/lib/moq && chmod 600 /var/lib/moq/*.jwt"
+	echo "  Copying secrets to /var/lib/moq"
+	rsync -az secrets/ root@$HOST:/var/lib/moq/
+	ssh root@$HOST "chmod -R 755 /var/lib/moq && chmod 600 /var/lib/moq/*.jwt"
 
-	@echo "  Copying systemd units to /etc/systemd/system/..."
-	@rsync -az pub/ root@pub.moq.hang.live:/etc/systemd/system/
+	echo "  Copying systemd units to /etc/systemd/system/..."
+	rsync -az pub/ root@$HOST:/etc/systemd/system/
 
-	@echo "  Building and caching packages..."
-	@ssh root@pub.moq.hang.live "cd /var/lib/moq && nix build .#ffmpeg -o result && nix build .#hang-cli -o result-hang"
+	echo "  Building and caching packages..."
+	ssh root@$HOST "cd /var/lib/moq && nix build .#ffmpeg -o result && nix build .#hang-cli -o result-hang"
 
-	@echo "  Enabling and starting services..."
-	@ssh root@pub.moq.hang.live "\
+	echo "  Enabling and starting services..."
+	ssh root@$HOST "\
 		systemctl daemon-reload && \
 		systemctl enable hang-bbb-prepare.service && \
 		systemctl enable hang-bbb.service && \
@@ -85,13 +104,19 @@ deploy-pub:
 
 # Check status of publisher
 status-pub:
-	@echo "=== pub.moq.hang.live ==="
-	@ssh root@pub.moq.hang.live "systemctl status hang-bbb --no-pager"
+	#!/usr/bin/env bash
+	HOST=$(just host-pub)
+	echo "=== $HOST ==="
+	ssh root@$HOST "systemctl status hang-bbb --no-pager"
 
 # SSH into publisher
 ssh-pub:
-	@ssh root@pub.moq.hang.live
+	#!/usr/bin/env bash
+	HOST=$(just host-pub)
+	ssh root@$HOST
 
 # View logs from publisher
 logs-pub:
-	@ssh root@pub.moq.hang.live "journalctl -u hang-bbb -f"
+	#!/usr/bin/env bash
+	HOST=$(just host-pub)
+	ssh root@$HOST "journalctl -u hang-bbb -f"

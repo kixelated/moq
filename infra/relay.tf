@@ -1,3 +1,19 @@
+# Generate systemd service files from templates
+resource "local_file" "moq_relay_service" {
+  content = templatefile("${path.module}/relay/moq-relay.service.tftpl", {
+    domain = var.domain
+  })
+  filename = "${path.module}/relay/moq-relay.service"
+}
+
+resource "local_file" "moq_cert_service" {
+  content = templatefile("${path.module}/relay/moq-cert.service.tftpl", {
+    domain = var.domain
+    email  = var.email
+  })
+  filename = "${path.module}/relay/moq-cert.service"
+}
+
 # Create Linode instances
 resource "linode_instance" "relay" {
   for_each = local.relays

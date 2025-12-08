@@ -12,8 +12,8 @@ ExecStart=/bin/sh -c '/var/lib/moq/cert/bin/certbot certonly \
   --dns-google-credentials /var/lib/moq/gcp.json \
   --non-interactive \
   --agree-tos \
-  --email admin@moq.dev \
-  -d cdn.moq.dev \
+  --email ${email} \
+  -d ${domain} \
   -d $(hostname)'
 
 StandardOutput=journal

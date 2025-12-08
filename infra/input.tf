@@ -25,23 +25,21 @@ variable "ssh_keys" {
 }
 
 # Relay node definitions
+# regions: https://api.linode.com/v4/regions
+# instance types: https://api.linode.com/v4/linode/types
 locals {
   relays = {
-    use = {
-      region = "us-east"      # Newark, NJ
-      type   = "g6-nanode-1"  # 1GB RAM, 1 vCPU, $5/mo
-    }
-    usw = {
-      region = "us-west"      # Fremont, CA
-      type   = "g6-nanode-1"
+    usc = {
+      region = "us-central"     # Dallas, TX
+      type   = "g6-standard-2"  # 4GB RAM, 2 vCPU, $24/mo, 4TB out
     }
     euc = {
       region = "eu-central"   # Frankfurt, Germany
-      type   = "g6-nanode-1"
+      type   = "g6-standard-2"
     }
     sea = {
       region = "ap-south"     # Singapore
-      type   = "g6-nanode-1"
+      type   = "g6-standard-2"
     }
   }
 }

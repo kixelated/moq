@@ -1,6 +1,6 @@
 # DNS zone for relay servers
 resource "google_dns_managed_zone" "relay" {
-  name     = "relay"
+  name     = "relay-dns"
   dns_name = "${var.domain}."
 }
 
@@ -38,8 +38,7 @@ resource "google_dns_record_set" "relay_global" {
 # GCP uses region codes like "us-east1", "us-west1", "europe-west3", "asia-southeast1"
 locals {
   relay_gcp_regions = {
-    use = "us-east1"        # Newark, NJ -> closest GCP region
-    usw = "us-west1"        # Fremont, CA -> closest GCP region
+    usc = "us-central1"     # Dallas, TX -> closest GCP region
     euc = "europe-west3"    # Frankfurt -> closest GCP region
     sea = "asia-southeast1" # Singapore -> closest GCP region
   }
