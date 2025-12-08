@@ -1,7 +1,7 @@
 use crate::{Algorithm, EllipticCurve, Key, KeyOperation, KeyType, RsaPublicKey};
 use anyhow::Context;
-use aws_lc_rs::signature::KeyPair;
 use aws_lc_rs::encoding::AsBigEndian;
+use aws_lc_rs::signature::KeyPair;
 use elliptic_curve::generic_array::typenum::Unsigned;
 use elliptic_curve::point::PointCompression;
 use elliptic_curve::sec1::{FromEncodedPoint, ModulusSize, ToEncodedPoint};
@@ -120,7 +120,7 @@ fn generate_ed25519_key() -> anyhow::Result<KeyType> {
 	let key_pair = aws_lc_rs::signature::Ed25519KeyPair::generate()?;
 
 	let public_key = key_pair.public_key().as_ref().to_vec();
-    let seed = key_pair.seed()?.as_be_bytes()?.as_ref().to_vec();
+	let seed = key_pair.seed()?.as_be_bytes()?.as_ref().to_vec();
 
 	Ok(KeyType::OKP {
 		curve: EllipticCurve::Ed25519,
