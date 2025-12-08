@@ -20,9 +20,7 @@
       packages.${system} = {
         default = pkgs.certbot.withPlugins (ps: [ ps.certbot-dns-google ]);
         certbot = pkgs.certbot.withPlugins (ps: [ ps.certbot-dns-google ]);
-        moq-relay = moq.packages.${system}.moq-relay.overrideAttrs (old: {
-          RUSTFLAGS = "-C debug-assertions=on";
-        });
+        moq-relay = moq.packages.${system}.moq-relay;
         cachix = pkgs.cachix;
         ffmpeg = pkgs.ffmpeg;
         hang-cli = moq.packages.${system}.hang;
