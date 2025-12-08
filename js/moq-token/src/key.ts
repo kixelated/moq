@@ -1,7 +1,7 @@
 import * as base64 from "@hexagon/base64";
 import * as jose from "jose";
 import { z } from "zod";
-import { AlgorithmSchema, type Algorithm } from "./algorithm";
+import { type Algorithm, AlgorithmSchema } from "./algorithm";
 import { type Claims, ClaimsSchema, validateClaims } from "./claims";
 
 /**
@@ -33,17 +33,16 @@ const BaseKeySchema = z.object({
 
 const OctKeySchema = BaseKeySchema.extend({
 	kty: z.literal("oct"),
-	k: Base64FieldSchema
-		.refine(
-			(secret) => {
-				// Validate minimum length (at least 32 bytes when decoded)
-				const decoded = decodeBase64Flexible(secret);
-				return decoded && decoded.byteLength >= 32;
-			},
-			{
-				message: "Secret must be at least 32 bytes when decoded",
-			},
-		),
+	k: Base64FieldSchema.refine(
+		(secret) => {
+			// Validate minimum length (at least 32 bytes when decoded)
+			const decoded = decodeBase64Flexible(secret);
+			return decoded && decoded.byteLength >= MIN_HMAC_SECRET_BYTES;
+		},
+		{
+			message: `Secret must be at least ${MIN_HMAC_SECRET_BYTES} bytes when decoded`,
+		},
+	),
 });
 
 const LegacyOctKeySchema = BaseKeySchema.extend({
@@ -62,17 +61,16 @@ const RsaKeySchema = BaseKeySchema.extend({
 	dq: Base64FieldSchema.optional(),
 	qi: Base64FieldSchema.optional(),
 }).superRefine((data, ctx) => {
-  const privFields = ["d", "p", "q", "dp", "dq", "qi"] as const;
+	const privFields = ["d", "p", "q", "dp", "dq", "qi"] as const;
 
-  const present = privFields.filter((f) => data[f] !== undefined);
+	const present = privFields.filter((f) => data[f] !== undefined);
 
-  if (present.length > 0 && present.length < privFields.length) {
-    ctx.addIssue({
-      code: "custom",
-      message:
-        "If any private RSA fields are present, all private RSA fields must be present.",
-    });
-  }
+	if (present.length > 0 && present.length < privFields.length) {
+		ctx.addIssue({
+			code: "custom",
+			message: "If any private RSA fields are present, all private RSA fields must be present.",
+		});
+	}
 });
 
 const EcKeySchema = BaseKeySchema.extend({
@@ -93,8 +91,9 @@ const OkpKeySchema = BaseKeySchema.extend({
 const CanonicalKeySchema = z.discriminatedUnion("kty", [OctKeySchema, RsaKeySchema, EcKeySchema, OkpKeySchema]);
 export const KeySchema = CanonicalKeySchema;
 export type Key = z.infer<typeof KeySchema>;
-export type PublicKey = Omit<Key, "d" | "p" | "q" | "dp" | "dq" | "qi">;
+export type AsymmetricKey = Exclude<Key, { kty: "oct" }>;
 export type SymmetricKey = Extract<Key, { kty: "oct" }>;
+export type PublicKey = Omit<AsymmetricKey, "d" | "p" | "q" | "dp" | "dq" | "qi">;
 type LegacyOctKey = z.infer<typeof LegacyOctKeySchema>;
 
 export function toPublicKey(key: Key): PublicKey {
@@ -127,7 +126,11 @@ export function toPublicKey(key: Key): PublicKey {
 }
 
 export function load(jwk: string): Key {
-	return loadKey(jwk) as Key;
+	const key = loadKey(jwk);
+	if (key.kty != "oct") {
+		ensurePrivateMaterial(key as Key);
+	}
+	return key as Key;
 }
 
 export function loadPublic(jwk: string): PublicKey {
@@ -216,7 +219,9 @@ function parseKeyWithLegacyFallback(data: unknown): Key {
 			const legacy = LegacyOctKeySchema.parse(data);
 			return upgradeLegacyKey(legacy);
 		} catch {
-			throw new Error(`Failed to validate JWK: ${primaryError instanceof Error ? primaryError.message : "unknown error"}`);
+			throw new Error(
+				`Failed to validate JWK: ${primaryError instanceof Error ? primaryError.message : "unknown error"}`,
+			);
 		}
 	}
 }
@@ -239,8 +244,8 @@ function validateKey(key: Key): void {
 			break;
 		}
 		case "RSA": {
-				if (!RSA_ALGORITHMS.has(key.alg)) {
-					throw new Error(`Algorithm ${key.alg} is incompatible with RSA keys`);
+			if (!RSA_ALGORITHMS.has(key.alg)) {
+				throw new Error(`Algorithm ${key.alg} is incompatible with RSA keys`);
 			}
 			break;
 		}
