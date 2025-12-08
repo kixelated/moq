@@ -12,13 +12,11 @@ variable "gcp_project" {
 variable "domain" {
   description = "Relay domain name"
   type        = string
-  default     = "moq.hang.live"
 }
 
 variable "email" {
   description = "Email address for LetsEncrypt notifications"
   type        = string
-  default     = "admin@hang.live"
 }
 
 variable "ssh_keys" {
