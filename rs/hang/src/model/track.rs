@@ -45,14 +45,6 @@ impl TrackProducer {
 	/// The timestamp is usually monotonically increasing, but it depends on the encoding.
 	/// For example, H.264 B-frames will introduce jitter and reordering.
 	pub fn write(&mut self, frame: Frame) -> Result<(), Error> {
-		// Make sure this frame's timestamp doesn't go backwards relative to the last keyframe.
-		// It's okay if b-frames go backwards though.
-		if let Some(keyframe) = self.keyframe {
-			if frame.timestamp < keyframe {
-				return Err(Error::TimestampBackwards);
-			}
-		}
-
 		let mut header = BytesMut::new();
 		frame.timestamp.as_micros().encode(&mut header, lite::Version::Draft02);
 
@@ -60,6 +52,16 @@ impl TrackProducer {
 			if let Some(group) = self.group.take() {
 				group.close();
 			}
+
+			// Make sure this frame's timestamp doesn't go backwards relative to the last keyframe.
+			// We can't really enforce this for frames generally because b-frames suck.
+			if let Some(keyframe) = self.keyframe {
+				if frame.timestamp < keyframe {
+					tracing::warn!(track = ?self.inner.info.name, old = ?keyframe, new = ?frame.timestamp, "timestamp went backwards");
+					// return Err(Error::TimestampBackwards);
+				}
+			}
+
 			self.keyframe = Some(frame.timestamp);
 		}
 
