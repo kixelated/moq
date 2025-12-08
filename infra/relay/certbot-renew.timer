@@ -1,0 +1,15 @@
+[Unit]
+Description=Certbot Certificate Renewal Timer
+After=network-online.target
+
+[Timer]
+# Run daily at 3am
+OnCalendar=daily
+OnCalendar=03:00
+# Run on boot if we missed a scheduled run
+Persistent=true
+# Add some randomness to avoid all nodes hitting Let's Encrypt at once
+RandomizedDelaySec=3600
+
+[Install]
+WantedBy=timers.target

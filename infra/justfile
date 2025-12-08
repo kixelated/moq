@@ -1,0 +1,97 @@
+# List all of the available commands.
+default:
+  just --list
+
+# Deploy moq-relay and moq-cert to all nodes
+[parallel]
+deploy-all: (deploy "use") (deploy "usw") (deploy "euc") (deploy "sea")
+
+# List the available nodes.
+nodes:
+	@echo "use: Newark, NJ"
+	@echo "usw: Fremont, CA"
+	@echo "euc: Frankfurt, Germany"
+	@echo "sea: Singapore"
+
+# Deploy moq-relay and moq-cert to a specific node
+deploy node:
+	@echo "Deploying to {{node}}.moq.hang.live..."
+
+	@echo "  Copying flake files to /var/lib/moq"
+	@rsync -az flake.nix flake.lock root@{{node}}.moq.hang.live:/var/lib/moq/
+
+	@echo "  Copying secrets to /var/lib/moq"
+	@rsync -az secrets/ root@{{node}}.moq.hang.live:/var/lib/moq/
+	@ssh root@{{node}}.moq.hang.live "chmod -R 755 /var/lib/moq && chmod 600 /var/lib/moq/*.jwk /var/lib/moq/*.jwt"
+
+	@echo "  Copying systemd units to /etc/systemd/system/..."
+	@rsync -az relay/ root@{{node}}.moq.hang.live:/etc/systemd/system/
+
+	@echo "  Building and caching packages..."
+	@ssh root@{{node}}.moq.hang.live "cd /var/lib/moq && nix build .#moq-relay -o relay && nix build .#certbot -o cert"
+
+	@echo "  Enabling and starting services..."
+	@ssh root@{{node}}.moq.hang.live "\
+		systemctl daemon-reload && \
+		systemctl enable moq-cert.service && \
+		systemctl enable certbot-renew.timer && \
+		systemctl enable vacuum.timer && \
+		systemctl enable moq-relay.service && \
+		systemctl start certbot-renew.timer && \
+		systemctl start vacuum.timer && \
+		systemctl start moq-cert.service && \
+		systemctl restart moq-relay.service"
+
+# Check status of a node
+status node:
+	@echo "=== {{node}}.moq.hang.live ==="
+	@ssh root@{{node}}.moq.hang.live "systemctl status moq-relay --no-pager"
+
+status-all: (status "use") (status "usw") (status "euc") (status "sea")
+
+ssh node:
+	@ssh root@{{node}}.moq.hang.live
+
+# View logs from a specific node (e.g., just logs use)
+logs node:
+	@ssh root@{{node}}.moq.hang.live "journalctl -u moq-relay -f"
+
+# Deploy publisher to pub.moq.hang.live
+deploy-pub:
+	@echo "Deploying to pub.moq.hang.live..."
+
+	@echo "  Copying flake files to /var/lib/moq"
+	@rsync -az flake.nix flake.lock root@pub.moq.hang.live:/var/lib/moq/
+
+	@echo "  Copying secrets to /var/lib/moq"
+	@rsync -az secrets/ root@pub.moq.hang.live:/var/lib/moq/
+	@ssh root@pub.moq.hang.live "chmod -R 755 /var/lib/moq && chmod 600 /var/lib/moq/*.jwt"
+
+	@echo "  Copying systemd units to /etc/systemd/system/..."
+	@rsync -az pub/ root@pub.moq.hang.live:/etc/systemd/system/
+
+	@echo "  Building and caching packages..."
+	@ssh root@pub.moq.hang.live "cd /var/lib/moq && nix build .#ffmpeg -o result && nix build .#hang-cli -o result-hang"
+
+	@echo "  Enabling and starting services..."
+	@ssh root@pub.moq.hang.live "\
+		systemctl daemon-reload && \
+		systemctl enable hang-bbb-prepare.service && \
+		systemctl enable hang-bbb.service && \
+		systemctl enable vacuum.timer && \
+		systemctl start hang-bbb-prepare.service && \
+		systemctl start vacuum.timer && \
+		systemctl restart hang-bbb.service"
+
+# Check status of publisher
+status-pub:
+	@echo "=== pub.moq.hang.live ==="
+	@ssh root@pub.moq.hang.live "systemctl status hang-bbb --no-pager"
+
+# SSH into publisher
+ssh-pub:
+	@ssh root@pub.moq.hang.live
+
+# View logs from publisher
+logs-pub:
+	@ssh root@pub.moq.hang.live "journalctl -u hang-bbb -f"

@@ -1,0 +1,16 @@
+# Copy this file to terraform.tfvars and fill in your values
+
+# Linode API token (create at: https://cloud.linode.com/profile/tokens)
+linode_token = "your-linode-api-token"
+
+# GCP project ID for DNS management
+# Note: GCP credentials will be read from ~/.config/gcloud or GOOGLE_APPLICATION_CREDENTIALS
+gcp_project = "your-gcp-project-id"
+
+# Email for LetsEncrypt notifications
+email = "admin@moq.dev"
+
+# Your SSH public key for root access
+ssh_keys = [
+  "ssh-ed25519 AAAA... your-key-comment",
+]
