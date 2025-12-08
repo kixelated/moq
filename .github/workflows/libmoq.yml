@@ -1,9 +1,9 @@
-name: hang-c
+name: libmoq
 
 on:
   push:
     tags:
-      - "hang-c-v*"
+      - "libmoq-v*"
 
 permissions:
   contents: write
@@ -47,7 +47,7 @@ jobs:
         shell: bash
         run: |
           ref=${GITHUB_REF#refs/tags/}
-          if [[ "$ref" =~ ^hang-c-v([0-9.]+)$ ]]; then
+          if [[ "$ref" =~ ^libmoq-v([0-9.]+)$ ]]; then
             echo "version=${BASH_REMATCH[1]}" >> $GITHUB_OUTPUT
           else
             echo "Tag format not recognized: $ref" >&2
@@ -57,7 +57,7 @@ jobs:
       - name: Build and package
         shell: bash
         run: |
-          ./rs/hang-c/build.sh \
+          ./rs/libmoq/build.sh \
             --target ${{ matrix.target }} \
             --version ${{ steps.parse.outputs.version }} \
             --output dist
@@ -65,7 +65,7 @@ jobs:
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: hang-${{ matrix.target }}
+          name: libmoq-${{ matrix.target }}
           path: dist/*
 
   release:
@@ -78,7 +78,7 @@ jobs:
         id: parse
         run: |
           ref=${GITHUB_REF#refs/tags/}
-          if [[ "$ref" =~ ^hang-c-v([0-9.]+)$ ]]; then
+          if [[ "$ref" =~ ^libmoq-v([0-9.]+)$ ]]; then
             echo "version=${BASH_REMATCH[1]}" >> $GITHUB_OUTPUT
           else
             echo "Tag format not recognized: $ref" >&2
@@ -94,6 +94,6 @@ jobs:
       - name: Create release
         uses: softprops/action-gh-release@v2
         with:
-          name: hang-c v${{ steps.parse.outputs.version }}
+          name: libmoq v${{ steps.parse.outputs.version }}
           generate_release_notes: true
           files: artifacts/*

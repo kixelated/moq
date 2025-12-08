@@ -65,7 +65,7 @@ static RUNTIME: LazyLock<tokio::runtime::Handle> = LazyLock::new(|| {
 	let handle = runtime.handle().clone();
 
 	std::thread::Builder::new()
-		.name("hang-c".into())
+		.name("libmoq".into())
 		.spawn(move || {
 			runtime.block_on(std::future::pending::<()>());
 		})
@@ -152,24 +152,19 @@ impl State {
 		Ok(())
 	}
 
-	pub fn create_track(&mut self, broadcast: usize, format: &str) -> Result<usize, Error> {
+	pub fn create_track(&mut self, broadcast: usize, format: &str, mut init: &[u8]) -> Result<usize, Error> {
 		let broadcast = self.broadcasts.get_mut(broadcast).ok_or(Error::NotFound)?;
-		let import = hang::import::Generic::new(broadcast.clone(), format).ok_or(Error::UnknownFormat)?;
-		let id = self.tracks.insert(import);
-		Ok(id)
-	}
+		let mut track = hang::import::Generic::new(broadcast.clone(), format).ok_or(Error::UnknownFormat)?;
 
-	pub fn init_track(&mut self, id: usize, mut extra: &[u8]) -> Result<(), Error> {
-		let track = self.tracks.get_mut(id).ok_or(Error::NotFound)?;
 		track
-			.initialize(&mut extra)
+			.initialize(&mut init)
 			.map_err(|err| Error::InitFailed(Arc::new(err)))?;
-
-		if !extra.is_empty() {
+		if !init.is_empty() {
 			return Err(Error::ShortDecode);
 		}
 
-		Ok(())
+		let id = self.tracks.insert(track);
+		Ok(id)
 	}
 
 	pub fn write_track(&mut self, id: usize, mut data: &[u8], pts: u64) -> Result<(), Error> {

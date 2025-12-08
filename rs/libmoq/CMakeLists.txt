@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.21)
-project(hang VERSION 0.6.1 LANGUAGES C)
+project(moq VERSION 0.6.1 LANGUAGES C)
 
 option(BUILD_RUST_LIB "Build the Rust library using cargo" ON)
 
@@ -26,8 +26,8 @@ if(BUILD_RUST_LIB)
     endif()
 
     set(RUST_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../target/${CARGO_BUILD_TYPE}")
-    set(RUST_LIB "${RUST_DIR}/${LIB_PREFIX}hang${LIB_SUFFIX}")
-    set(RUST_HEADER "${RUST_DIR}/hang.h")
+    set(RUST_LIB "${RUST_DIR}/${LIB_PREFIX}moq${LIB_SUFFIX}")
+    set(RUST_HEADER "${RUST_DIR}/moq.h")
 
     add_custom_target(rust_build ALL
         COMMAND cargo build ${CARGO_BUILD_FLAG}
@@ -38,28 +38,28 @@ if(BUILD_RUST_LIB)
     )
 else()
     set(RUST_DIR "${CMAKE_CURRENT_SOURCE_DIR}" CACHE PATH "Directory containing pre-built library and header")
-    set(RUST_LIB "${RUST_DIR}/${LIB_PREFIX}hang${LIB_SUFFIX}")
-    set(RUST_HEADER "${RUST_DIR}/hang.h")
+    set(RUST_LIB "${RUST_DIR}/${LIB_PREFIX}moq${LIB_SUFFIX}")
+    set(RUST_HEADER "${RUST_DIR}/moq.h")
 endif()
 
 # Ensure the directory exists (cargo build creates it)
 file(MAKE_DIRECTORY ${RUST_DIR})
 
 # Create imported library target
-add_library(hang SHARED IMPORTED GLOBAL)
-set_target_properties(hang PROPERTIES
+add_library(moq SHARED IMPORTED GLOBAL)
+set_target_properties(moq PROPERTIES
     IMPORTED_LOCATION ${RUST_LIB}
     INTERFACE_INCLUDE_DIRECTORIES ${RUST_DIR}
 )
 
 if(WIN32)
-    set_target_properties(hang PROPERTIES
-        IMPORTED_IMPLIB "${RUST_DIR}/hang${IMPORT_SUFFIX}"
+    set_target_properties(moq PROPERTIES
+        IMPORTED_IMPLIB "${RUST_DIR}/moq${IMPORT_SUFFIX}"
     )
 endif()
 
 if(BUILD_RUST_LIB)
-    add_dependencies(hang rust_build)
+    add_dependencies(moq rust_build)
 endif()
 
 if(PROJECT_IS_TOP_LEVEL)
@@ -73,36 +73,36 @@ if(PROJECT_IS_TOP_LEVEL)
         DESTINATION ${CMAKE_INSTALL_LIBDIR}
     )
 
-    install(TARGETS hang
-        EXPORT hang-targets
+    install(TARGETS moq
+        EXPORT moq-targets
         LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
         ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
         RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
     )
 
-    install(EXPORT hang-targets
-        FILE hang-targets.cmake
-        NAMESPACE hang::
-        DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/hang
+    install(EXPORT moq-targets
+        FILE moq-targets.cmake
+        NAMESPACE moq::
+        DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/moq
     )
 
     include(CMakePackageConfigHelpers)
 
     configure_package_config_file(
-        ${CMAKE_CURRENT_SOURCE_DIR}/cmake/hang-config.cmake.in
-        ${CMAKE_CURRENT_BINARY_DIR}/hang-config.cmake
-        INSTALL_DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/hang
+        ${CMAKE_CURRENT_SOURCE_DIR}/cmake/moq-config.cmake.in
+        ${CMAKE_CURRENT_BINARY_DIR}/moq-config.cmake
+        INSTALL_DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/moq
     )
 
     write_basic_package_version_file(
-        ${CMAKE_CURRENT_BINARY_DIR}/hang-config-version.cmake
+        ${CMAKE_CURRENT_BINARY_DIR}/moq-config-version.cmake
         VERSION ${PROJECT_VERSION}
         COMPATIBILITY SameMajorVersion
     )
 
     install(FILES
-        ${CMAKE_CURRENT_BINARY_DIR}/hang-config.cmake
-        ${CMAKE_CURRENT_BINARY_DIR}/hang-config-version.cmake
-        DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/hang
+        ${CMAKE_CURRENT_BINARY_DIR}/moq-config.cmake
+        ${CMAKE_CURRENT_BINARY_DIR}/moq-config-version.cmake
+        DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/moq
     )
 endif()

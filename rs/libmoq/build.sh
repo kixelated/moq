@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Build and package hang-c for release.
+# Build and package libmoq for release.
 # Usage: ./build.sh [--target TARGET] [--version VERSION] [--skip-build] [--output DIR]
 #
 # Examples:
@@ -55,18 +55,18 @@ if [[ -z "$VERSION" ]]; then
     echo "Detected version: $VERSION"
 fi
 
-echo "Building hang-c for $TARGET..."
+echo "Building libmoq for $TARGET..."
 
 # Set up cross-compilation for Linux ARM64
 if [[ "$TARGET" == "aarch64-unknown-linux-gnu" ]]; then
 	export CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER=aarch64-linux-gnu-gcc
 fi
 
-cargo build --release --package hang-c --target "$TARGET" --manifest-path "$RS_DIR/Cargo.toml"
+cargo build --release --package libmoq --target "$TARGET" --manifest-path "$RS_DIR/Cargo.toml"
 
 # Determine paths
 TARGET_DIR="$RS_DIR/target/$TARGET/release"
-NAME="hang-${VERSION}-${TARGET}"
+NAME="moq-${VERSION}-${TARGET}"
 PACKAGE_DIR="$OUTPUT_DIR/$NAME"
 
 echo "Packaging $NAME..."
@@ -76,44 +76,44 @@ rm -rf "$PACKAGE_DIR"
 mkdir -p "$PACKAGE_DIR/include" "$PACKAGE_DIR/lib"
 
 # Copy header
-if [[ -f "$TARGET_DIR/hang.h" ]]; then
-    cp "$TARGET_DIR/hang.h" "$PACKAGE_DIR/include/"
+if [[ -f "$TARGET_DIR/moq.h" ]]; then
+    cp "$TARGET_DIR/moq.h" "$PACKAGE_DIR/include/"
 else
-    echo "Error: hang.h not found at $TARGET_DIR/hang.h" >&2
+    echo "Error: moq.h not found at $TARGET_DIR/moq.h" >&2
     exit 1
 fi
 
 # Copy libraries based on platform
 case "$TARGET" in
     *-apple-*)
-        cp "$TARGET_DIR/libhang.dylib" "$PACKAGE_DIR/lib/"
-        cp "$TARGET_DIR/libhang.a" "$PACKAGE_DIR/lib/"
+        cp "$TARGET_DIR/libmoq.dylib" "$PACKAGE_DIR/lib/"
+        cp "$TARGET_DIR/libmoq.a" "$PACKAGE_DIR/lib/"
         ;;
     *-windows-*)
-        cp "$TARGET_DIR/hang.dll" "$PACKAGE_DIR/lib/"
-        cp "$TARGET_DIR/hang.dll.lib" "$PACKAGE_DIR/lib/"
-        cp "$TARGET_DIR/hang.lib" "$PACKAGE_DIR/lib/"
+        cp "$TARGET_DIR/moq.dll" "$PACKAGE_DIR/lib/"
+        cp "$TARGET_DIR/moq.dll.lib" "$PACKAGE_DIR/lib/"
+        cp "$TARGET_DIR/moq.lib" "$PACKAGE_DIR/lib/"
         ;;
     *)
         # Linux and others
-        cp "$TARGET_DIR/libhang.so" "$PACKAGE_DIR/lib/"
-        cp "$TARGET_DIR/libhang.a" "$PACKAGE_DIR/lib/"
+        cp "$TARGET_DIR/libmoq.so" "$PACKAGE_DIR/lib/"
+        cp "$TARGET_DIR/libmoq.a" "$PACKAGE_DIR/lib/"
         ;;
 esac
 
 # Generate pkg-config file (not for Windows)
 if [[ "$TARGET" != *"-windows-"* ]]; then
     mkdir -p "$PACKAGE_DIR/lib/pkgconfig"
-    cat > "$PACKAGE_DIR/lib/pkgconfig/hang.pc" << EOF
+    cat > "$PACKAGE_DIR/lib/pkgconfig/moq.pc" << EOF
 prefix=/usr/local
 exec_prefix=\${prefix}
 libdir=\${exec_prefix}/lib
 includedir=\${prefix}/include
 
-Name: hang
+Name: moq
 Description: Media over QUIC C Library
 Version: ${VERSION}
-Libs: -L\${libdir} -lhang
+Libs: -L\${libdir} -lmoq
 Cflags: -I\${includedir}
 EOF
 fi

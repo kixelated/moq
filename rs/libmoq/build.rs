@@ -2,7 +2,7 @@ use std::env;
 use std::fs;
 use std::path::PathBuf;
 
-const LIB_NAME: &str = "hang";
+const LIB_NAME: &str = "moq";
 
 fn main() {
 	let crate_dir = env::var("CARGO_MANIFEST_DIR").unwrap();
@@ -30,11 +30,11 @@ fn main() {
 }
 
 fn output_dir() -> PathBuf {
-	// OUT_DIR is like: target/debug/build/hang-c-xxx/out
+	// OUT_DIR is like: target/debug/build/libmoq-xxx/out
 	// We want: target/debug/ (where the library is)
 	let out_dir = PathBuf::from(env::var("OUT_DIR").unwrap());
 	out_dir
-		.parent() // build/hang-c-xxx
+		.parent() // build/libmoq-xxx
 		.and_then(|p| p.parent()) // build
 		.and_then(|p| p.parent()) // debug
 		.map(|p| p.to_path_buf())

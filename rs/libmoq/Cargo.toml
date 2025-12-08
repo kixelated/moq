@@ -1,7 +1,10 @@
 [package]
-name = "hang-c"
+name = "libmoq"
 description = "Media over QUIC, C Library"
-authors = ["Luke Curley <kixelated@gmail.com>", "Brian Medley <bpm@bmedley.org>"]
+authors = [
+	"Luke Curley <kixelated@gmail.com>",
+	"Brian Medley <bpm@bmedley.org>",
+]
 repository = "https://github.com/kixelated/moq"
 license = "MIT OR Apache-2.0"
 
@@ -12,7 +15,7 @@ keywords = ["quic", "http3", "webtransport", "media", "live"]
 categories = ["multimedia", "network-programming", "web-programming"]
 
 [lib]
-name = "hang"
+name = "moq"
 crate-type = ["cdylib", "staticlib"]
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 

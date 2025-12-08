@@ -1,14 +1,14 @@
 [workspace]
 members = [
-    "hang",
-    "hang-c",
-    "hang-cli",
-    "moq",
-    "moq-clock",
-    "moq-native",
-    "moq-relay",
-    "moq-token",
-    "moq-token-cli",
+	"hang",
+	"libmoq",
+	"hang-cli",
+	"moq",
+	"moq-clock",
+	"moq-native",
+	"moq-relay",
+	"moq-token",
+	"moq-token-cli",
 ]
 resolver = "2"
 
@@ -24,4 +24,3 @@ web-async = { version = "0.1.1", features = ["tracing"] }
 web-transport-quinn = "0.10"
 web-transport-trait = "0.3"
 web-transport-ws = "0.2"
-
