@@ -93,9 +93,47 @@ const OkpKeySchema = BaseKeySchema.extend({
 const CanonicalKeySchema = z.discriminatedUnion("kty", [OctKeySchema, RsaKeySchema, EcKeySchema, OkpKeySchema]);
 export const KeySchema = CanonicalKeySchema;
 export type Key = z.infer<typeof KeySchema>;
+export type PublicKey = Omit<Key, "d" | "p" | "q" | "dp" | "dq" | "qi">;
 type LegacyOctKey = z.infer<typeof LegacyOctKeySchema>;
 
+export function toPublicKey(key: Key): PublicKey {
+	const publicKey = { ...key } as any;
+
+	switch (key.kty) {
+		case "oct":
+			throw new Error("Cannot derive public key from oct (symmetric) key");
+
+		case "RSA":
+			delete publicKey.d;
+			delete publicKey.p;
+			delete publicKey.q;
+			delete publicKey.dp;
+			delete publicKey.dq;
+			delete publicKey.qi;
+			return publicKey;
+
+		case "EC":
+			delete publicKey.d;
+			return publicKey;
+
+		case "OKP":
+			delete publicKey.d;
+			return publicKey;
+
+		default:
+			return publicKey;
+	}
+}
+
 export function load(jwk: string): Key {
+	return loadKey(jwk) as Key;
+}
+
+export function loadPublic(jwk: string): PublicKey {
+	return loadKey(jwk) as PublicKey;
+}
+
+function loadKey(jwk: string): Key | PublicKey {
 	const decoded = decodeBase64Flexible(jwk.trim());
 	if (!decoded) {
 		throw new Error("Failed to decode JWK: invalid base64url encoding");
@@ -131,7 +169,7 @@ export async function sign(key: Key, claims: Claims): Promise<string> {
 		throw new Error(`Invalid claims: ${error instanceof Error ? error.message : "unknown error"}`);
 	}
 
-	const joseKey = await importJoseKey(key, "sign");
+	const joseKey = await importJoseKey(key);
 	const jwt = await new jose.SignJWT(claims)
 		.setProtectedHeader({
 			alg: key.alg,
@@ -144,9 +182,9 @@ export async function sign(key: Key, claims: Claims): Promise<string> {
 	return jwt;
 }
 
-export async function verify(key: Key, token: string, path: string): Promise<Claims> {
+export async function verify(key: PublicKey, token: string, path: string): Promise<Claims> {
 	ensureOperationSupported(key, "verify");
-	const joseKey = await importJoseKey(key, "verify");
+	const joseKey = await importJoseKey(key);
 	const { payload } = await jose.jwtVerify(token, joseKey, {
 		algorithms: [key.alg],
 	});
@@ -229,13 +267,13 @@ function validateKey(key: Key): void {
 	}
 }
 
-function ensureOperationSupported(key: Key, operation: Operation): void {
+function ensureOperationSupported(key: Key | PublicKey, operation: Operation): void {
 	if (!key.key_ops.includes(operation)) {
 		throw new Error(`Key does not support ${operation} operation`);
 	}
 
 	if (operation === "sign") {
-		ensurePrivateMaterial(key);
+		ensurePrivateMaterial(key as Key);
 	}
 }
 
@@ -265,39 +303,10 @@ function isEcAlgorithm(alg: Algorithm): alg is "ES256" | "ES384" {
 	return alg === "ES256" || alg === "ES384";
 }
 
-async function importJoseKey(key: Key, purpose: "sign" | "verify"): Promise<CryptoKey | Uint8Array> {
-	const jwk = buildJoseJwk(key, purpose);
-	return jose.importJWK(jwk, key.alg);
-}
-
-function buildJoseJwk(key: Key, purpose: "sign" | "verify"): jose.JWK {
+async function importJoseKey(key: Key | PublicKey): Promise<CryptoKey | Uint8Array> {
 	const jwk = { ...key } as jose.JWK;
 	delete jwk.key_ops;
-
-	// TODO Is that so?
-	// WebCrypto prohibits using private key material for verification, so strip it when appropriate.
-	if (purpose === "verify") {
-		switch (key.kty) {
-			case "RSA":
-				delete jwk.d;
-				delete jwk.p;
-				delete jwk.q;
-				delete jwk.dp;
-				delete jwk.dq;
-				delete jwk.qi;
-				break;
-			case "EC":
-				delete jwk.d;
-				break;
-			case "OKP":
-				delete jwk.d;
-				break;
-			default:
-				break;
-		}
-	}
-
-	return jwk;
+	return jose.importJWK(jwk, key.alg);
 }
 
 function decodeBase64Flexible(value: string): Uint8Array | null {
