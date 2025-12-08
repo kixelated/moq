@@ -1,14 +1,14 @@
 [workspace]
 members = [
-	"hang",
-	"libmoq",
-	"hang-cli",
-	"moq",
-	"moq-clock",
-	"moq-native",
-	"moq-relay",
-	"moq-token",
-	"moq-token-cli",
+    "hang",
+    "hang-cli",
+    "libmoq",
+    "moq",
+    "moq-clock",
+    "moq-native",
+    "moq-relay",
+    "moq-token",
+    "moq-token-cli",
 ]
 resolver = "2"
 

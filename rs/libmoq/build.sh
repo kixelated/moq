@@ -2,7 +2,7 @@
 set -euo pipefail
 
 # Build and package libmoq for release.
-# Usage: ./build.sh [--target TARGET] [--version VERSION] [--skip-build] [--output DIR]
+# Usage: ./build.sh [--target TARGET] [--version VERSION] [--output DIR]
 #
 # Examples:
 #   ./build.sh                                    # Build for host, detect version from Cargo.toml
@@ -75,11 +75,12 @@ echo "Packaging $NAME..."
 rm -rf "$PACKAGE_DIR"
 mkdir -p "$PACKAGE_DIR/include" "$PACKAGE_DIR/lib"
 
-# Copy header
-if [[ -f "$TARGET_DIR/moq.h" ]]; then
-    cp "$TARGET_DIR/moq.h" "$PACKAGE_DIR/include/"
+# Copy header (generated in target/include/ by build.rs)
+HEADER_FILE="$RS_DIR/target/include/moq.h"
+if [[ -f "$HEADER_FILE" ]]; then
+    cp "$HEADER_FILE" "$PACKAGE_DIR/include/"
 else
-    echo "Error: moq.h not found at $TARGET_DIR/moq.h" >&2
+    echo "Error: moq.h not found at $HEADER_FILE" >&2
     exit 1
 fi
 
@@ -101,21 +102,10 @@ case "$TARGET" in
         ;;
 esac
 
-# Generate pkg-config file (not for Windows)
+# Copy pkg-config file (generated in target/ by build.rs, not for Windows)
 if [[ "$TARGET" != *"-windows-"* ]]; then
     mkdir -p "$PACKAGE_DIR/lib/pkgconfig"
-    cat > "$PACKAGE_DIR/lib/pkgconfig/moq.pc" << EOF
-prefix=/usr/local
-exec_prefix=\${prefix}
-libdir=\${exec_prefix}/lib
-includedir=\${prefix}/include
-
-Name: moq
-Description: Media over QUIC C Library
-Version: ${VERSION}
-Libs: -L\${libdir} -lmoq
-Cflags: -I\${includedir}
-EOF
+    cp "$RS_DIR/target/moq.pc" "$PACKAGE_DIR/lib/pkgconfig/"
 fi
 
 # Create archive

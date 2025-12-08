@@ -18,15 +18,9 @@ impl Callback {
 	}
 
 	pub fn call<C: ReturnCode>(&mut self, ret: C) {
-		if let Some(on_status) = self.on_status.take() {
+		if let Some(on_status) = &self.on_status {
 			on_status(self.user_data, ret.code());
 		}
-	}
-}
-
-impl Drop for Callback {
-	fn drop(&mut self) {
-		self.call(Error::Closed);
 	}
 }
 
