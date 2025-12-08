@@ -94,6 +94,7 @@ const CanonicalKeySchema = z.discriminatedUnion("kty", [OctKeySchema, RsaKeySche
 export const KeySchema = CanonicalKeySchema;
 export type Key = z.infer<typeof KeySchema>;
 export type PublicKey = Omit<Key, "d" | "p" | "q" | "dp" | "dq" | "qi">;
+export type SymmetricKey = Extract<Key, { kty: "oct" }>;
 type LegacyOctKey = z.infer<typeof LegacyOctKeySchema>;
 
 export function toPublicKey(key: Key): PublicKey {
@@ -182,7 +183,7 @@ export async function sign(key: Key, claims: Claims): Promise<string> {
 	return jwt;
 }
 
-export async function verify(key: PublicKey, token: string, path: string): Promise<Claims> {
+export async function verify(key: PublicKey | SymmetricKey, token: string, path: string): Promise<Claims> {
 	ensureOperationSupported(key, "verify");
 	const joseKey = await importJoseKey(key);
 	const { payload } = await jose.jwtVerify(token, joseKey, {
