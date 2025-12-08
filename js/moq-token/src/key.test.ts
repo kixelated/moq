@@ -4,7 +4,7 @@ import * as base64 from "@hexagon/base64";
 import { exportJWK, generateKeyPair } from "jose";
 import type { Algorithm } from "./algorithm";
 import type { Claims } from "./claims";
-import { load, loadPublic, sign, toPublicKey, verify } from "./key";
+import { Key, load, loadPublic, sign, toPublicKey, verify } from "./key";
 
 // Helper function to encode JSON to base64url
 function encodeJwk(obj: unknown): string {
@@ -363,14 +363,14 @@ test("RSA algorithms - sign and verify", async () => {
 test("RSA public keys verify but cannot sign", async () => {
 	const { privateEncoded, publicEncoded } = await generateAsymmetricKeyPair("RS256");
 	const privateKey = load(privateEncoded);
-	const publicKey = load(publicEncoded);
+	const publicKey = loadPublic(publicEncoded);
 
 	const token = await sign(privateKey, testClaims);
 	const claims = await verify(publicKey, token, testClaims.root);
 	assert.strictEqual(claims.root, testClaims.root);
 
 	await assert.rejects(async () => {
-		await sign(publicKey, testClaims);
+		await sign(publicKey as Key, testClaims);
 	});
 });
 
@@ -407,7 +407,7 @@ test("EC algorithms - sign and verify", async () => {
 test("EdDSA algorithm - sign and verify", async () => {
 	const { privateEncoded, publicEncoded } = await generateAsymmetricKeyPair("EdDSA");
 	const privateKey = load(privateEncoded);
-	const publicKey = load(publicEncoded);
+	const publicKey = loadPublic(publicEncoded);
 	const token = await sign(privateKey, testClaims);
 	const verifiedClaims = await verify(publicKey, token, testClaims.root);
 	assert.strictEqual(verifiedClaims.root, testClaims.root);

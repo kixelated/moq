@@ -97,37 +97,30 @@ export type PublicKey = Omit<AsymmetricKey, "d" | "p" | "q" | "dp" | "dq" | "qi"
 type LegacyOctKey = z.infer<typeof LegacyOctKeySchema>;
 
 export function toPublicKey(key: Key): PublicKey {
-	const publicKey = { ...key } as any;
-
 	switch (key.kty) {
 		case "oct":
 			throw new Error("Cannot derive public key from oct (symmetric) key");
 
-		case "RSA":
-			delete publicKey.d;
-			delete publicKey.p;
-			delete publicKey.q;
-			delete publicKey.dp;
-			delete publicKey.dq;
-			delete publicKey.qi;
+		case "RSA": {
+			const { d, p, q, dp, dq, qi, ...publicKey } = key;
 			return publicKey;
+		}
 
-		case "EC":
-			delete publicKey.d;
+		case "EC": {
+			const { d, ...publicKey } = key;
 			return publicKey;
+		}
 
-		case "OKP":
-			delete publicKey.d;
+		case "OKP": {
+			const { d, ...publicKey } = key;
 			return publicKey;
-
-		default:
-			return publicKey;
+		}
 	}
 }
 
 export function load(jwk: string): Key {
 	const key = loadKey(jwk);
-	if (key.kty != "oct") {
+	if (key.kty !== "oct") {
 		ensurePrivateMaterial(key as Key);
 	}
 	return key as Key;
