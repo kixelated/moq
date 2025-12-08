@@ -46,7 +46,11 @@ export class Signal<T> implements Getter<T>, Setter<T> {
 		return new Signal(value);
 	}
 
-	// TODO rename to get once we've ported everything
+	get(): T {
+		return this.#value;
+	}
+
+	// TODO rename to `get` once we've ported everything
 	peek(): T {
 		return this.#value;
 	}

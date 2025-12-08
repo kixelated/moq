@@ -1,9 +1,7 @@
 import type { Time } from "@kixelated/hang";
 import type HangWatch from "@kixelated/hang/watch/element";
-import type { HangWatchInstance, InstanceAvailableEvent } from "@kixelated/hang/watch/element";
-import { Effect } from "@kixelated/signals";
 import type { JSX } from "solid-js";
-import { createContext, createEffect, createSignal, onCleanup } from "solid-js";
+import { createContext, createEffect, createSignal } from "solid-js";
 
 type WatchUIContextProviderProps = {
 	hangWatch: () => HangWatch | undefined;
@@ -40,7 +38,7 @@ export default function WatchUIContextProvider(props: WatchUIContextProviderProp
 		const hangWatchEl = props.hangWatch();
 
 		if (hangWatchEl) {
-			hangWatchEl.paused = !hangWatchEl.paused;
+			hangWatchEl.paused.set(!hangWatchEl.paused.get());
 		}
 	};
 
@@ -48,7 +46,7 @@ export default function WatchUIContextProvider(props: WatchUIContextProviderProp
 		const hangWatchEl = props.hangWatch();
 
 		if (hangWatchEl) {
-			hangWatchEl.volume = volume / 100;
+			hangWatchEl.volume.set(volume / 100);
 		}
 	};
 
@@ -56,7 +54,7 @@ export default function WatchUIContextProvider(props: WatchUIContextProviderProp
 		const hangWatchEl = props.hangWatch();
 
 		if (hangWatchEl) {
-			hangWatchEl.muted = !hangWatchEl.muted;
+			hangWatchEl.muted.update((muted) => !muted);
 		}
 	};
 
@@ -64,7 +62,7 @@ export default function WatchUIContextProvider(props: WatchUIContextProviderProp
 		const hangWatchEl = props.hangWatch();
 
 		if (hangWatchEl) {
-			hangWatchEl.signals.latency.set(latency as Time.Milli);
+			hangWatchEl.latency.set(latency as Time.Milli);
 		}
 	};
 
@@ -83,42 +81,13 @@ export default function WatchUIContextProvider(props: WatchUIContextProviderProp
 	};
 
 	createEffect(() => {
-		const hangWatchEl = props.hangWatch();
-		if (!hangWatchEl) return;
+		const watch = props.hangWatch();
+		if (!watch) return;
 
-		const onInstanceAvailable = (event: InstanceAvailableEvent) => {
-			const watchInstance = event.detail.instance;
-
-			if (watchInstance) {
-				onWatchInstanceAvailable(hangWatchEl, watchInstance);
-			}
-		};
-
-		const hangWatchInstance = hangWatchEl?.active?.peek?.();
-
-		if (hangWatchInstance) {
-			onWatchInstanceAvailable(hangWatchEl, hangWatchInstance);
-		} else {
-			hangWatchEl.addEventListener("watch-instance-available", onInstanceAvailable);
-			onCleanup(() => {
-				hangWatchEl.removeEventListener("watch-instance-available", onInstanceAvailable);
-			});
-		}
-	});
-
-	return <WatchUIContext.Provider value={value}>{props.children}</WatchUIContext.Provider>;
-
-	function onWatchInstanceAvailable(watchEl: HangWatch, watchInstance: HangWatchInstance) {
-		const localEffect = new Effect();
-
-		onCleanup(() => {
-			localEffect.close();
-		});
-
-		localEffect.effect(function trackWatchStatus(effect) {
-			const url = effect.get(watchInstance.connection.url);
-			const connection = effect.get(watchInstance.connection.status);
-			const broadcast = effect.get(watchInstance.broadcast.status);
+		watch.signals.effect((effect) => {
+			const url = effect.get(watch.connection.url);
+			const connection = effect.get(watch.connection.status);
+			const broadcast = effect.get(watch.broadcast.status);
 
 			if (!url) {
 				setWatchStatus("no-url");
@@ -137,32 +106,34 @@ export default function WatchUIContextProvider(props: WatchUIContextProviderProp
 			}
 		});
 
-		localEffect.effect(function trackPlaying(effect) {
-			const paused = effect.get(watchInstance.video.paused);
+		watch.signals.effect((effect) => {
+			const paused = effect.get(watch.video.paused);
 			setIsPlaying(!paused);
 		});
 
-		localEffect.effect(function trackVolume(effect) {
-			const volume = effect.get(watchInstance.audio.volume);
+		watch.signals.effect((effect) => {
+			const volume = effect.get(watch.audio.volume);
 			setCurrentVolume(volume * 100);
 		});
 
-		localEffect.effect(function trackMuted(effect) {
-			const muted = effect.get(watchInstance.audio.muted);
+		watch.signals.effect((effect) => {
+			const muted = effect.get(watch.audio.muted);
 			setIsMuted(muted);
 		});
 
-		localEffect.effect(function trackBuffering(effect) {
-			const syncStatus = effect.get(watchInstance.video.source.syncStatus);
-			const bufferStatus = effect.get(watchInstance.video.source.bufferStatus);
+		watch.signals.effect((effect) => {
+			const syncStatus = effect.get(watch.video.source.syncStatus);
+			const bufferStatus = effect.get(watch.video.source.bufferStatus);
 			const shouldShow = syncStatus.state === "wait" || bufferStatus.state === "empty";
 
 			setBuffering(shouldShow);
 		});
 
-		localEffect.effect(function trackLatency(effect) {
-			const latency = effect.get(watchEl?.signals.latency);
+		watch.signals.effect((effect) => {
+			const latency = effect.get(watch.latency);
 			setLatency(latency);
 		});
-	}
+	});
+
+	return <WatchUIContext.Provider value={value}>{props.children}</WatchUIContext.Provider>;
 }

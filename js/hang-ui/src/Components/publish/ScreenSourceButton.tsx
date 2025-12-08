@@ -7,9 +7,9 @@ export default function ScreenSourceButton() {
 		const hangPublishEl = context?.hangPublish();
 		if (!hangPublishEl) return;
 
-		hangPublishEl.source = "screen";
-		hangPublishEl.audio = false;
-		hangPublishEl.video = true;
+		hangPublishEl.source.set("screen");
+		hangPublishEl.invisible.set(false);
+		hangPublishEl.muted.set(false);
 	};
 
 	return (
