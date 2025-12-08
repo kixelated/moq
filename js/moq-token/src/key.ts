@@ -127,7 +127,11 @@ export function load(jwk: string): Key {
 }
 
 export function loadPublic(jwk: string): PublicKey {
-	return loadKey(jwk) as PublicKey;
+	const key = loadKey(jwk);
+	if (key.kty === "oct") {
+		throw new Error("Cannot load oct (symmetric) key as a public key; use load() instead.");
+	}
+	return toPublicKey(key as Key);
 }
 
 function loadKey(jwk: string): Key | PublicKey {
