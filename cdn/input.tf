@@ -30,15 +30,15 @@ variable "ssh_keys" {
 locals {
   relays = {
     usc = {
-      region = "us-central"     # Dallas, TX
-      type   = "g6-standard-2"  # 4GB RAM, 2 vCPU, $24/mo, 4TB out
+      region = "us-central"    # Dallas, TX
+      type   = "g6-standard-2" # 4GB RAM, 2 vCPU, $24/mo, 4TB out
     }
     euc = {
-      region = "eu-central"   # Frankfurt, Germany
+      region = "eu-central" # Frankfurt, Germany
       type   = "g6-standard-2"
     }
     sea = {
-      region = "ap-south"     # Singapore
+      region = "ap-south" # Singapore
       type   = "g6-standard-2"
     }
   }

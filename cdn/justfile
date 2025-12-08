@@ -120,3 +120,11 @@ logs-pub:
 	#!/usr/bin/env bash
 	HOST=$(just host-pub)
 	ssh root@$HOST "journalctl -u hang-bbb -f"
+
+# Check tofu formatting
+check:
+	tofu fmt -check -recursive
+
+# Fix tofu formatting
+fix:
+	tofu fmt -recursive

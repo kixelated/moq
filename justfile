@@ -98,6 +98,7 @@ clock action url="http://localhost:4443/anon" *args:
 check:
 	cd rs && just check
 	cd js && just check
+	@if command -v tofu &> /dev/null; then cd cdn && just check; fi
 
 # Run the unit tests
 test:
@@ -108,6 +109,7 @@ test:
 fix:
 	cd rs && just fix
 	cd js && just fix
+	@if command -v tofu &> /dev/null; then cd cdn && just fix; fi
 
 # Upgrade any tooling
 upgrade:

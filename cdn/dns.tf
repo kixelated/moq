@@ -3,7 +3,7 @@ resource "google_dns_managed_zone" "relay" {
   name     = "relay-cdn"
   dns_name = "${var.domain}."
   dnssec_config {
-	state = "on"
+    state = "on"
   }
 }
 
@@ -31,7 +31,7 @@ resource "google_dns_record_set" "relay_global" {
 
       content {
         location = geo.value
-        rrdatas = linode_instance.relay[geo.key].ipv4
+        rrdatas  = linode_instance.relay[geo.key].ipv4
       }
     }
   }
