@@ -12,15 +12,15 @@ However, we do use GCP for GeoDNS because most providers don't support it or too
 3. Run `tofu apply`.
 4. Create a `secrets/` directory with JWT/JWK credentials:
   - ```bash
-	mkdir -p secrets
+    mkdir -p secrets
 
-	# generate the root key private key
-	cargo run --bin moq-token -- --key secrets/root.jwk generate > secrets/root.jwk
+    # generate the root key private key
+    cargo run --bin moq-token -- --key secrets/root.jwk generate > secrets/root.jwk
 
-	# to allow relay servers to connect to each other
-	cargo run --bin moq-token -- --key secrets/root.jwk sign --publish "" --subscribe "" --cluster > secrets/cluster.jwt
+    # to allow relay servers to connect to each other
+    cargo run --bin moq-token -- --key secrets/root.jwk sign --publish "" --subscribe "" --cluster > secrets/cluster.jwt
 
-	# to allow publishing to `demo/`
+    # to allow publishing to `demo/`
     cargo run --bin moq-token -- --key secrets/root.jwk sign --root "demo" --publish "" > secrets/demo-pub.jwt
     ```
 

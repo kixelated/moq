@@ -4,7 +4,6 @@ After=network-online.target
 
 [Timer]
 # Run daily at 3am
-OnCalendar=daily
 OnCalendar=03:00
 # Run on boot if we missed a scheduled run
 Persistent=true

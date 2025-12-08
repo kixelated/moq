@@ -9,10 +9,10 @@ echo "Starting bootstrap for moq-relay on Debian..."
 # Set hostname
 hostnamectl set-hostname "$HOSTNAME"
 
-# Install rsync
-echo "Installing rsync..."
+# Install base packages
+echo "Installing base packages..."
 apt-get update
-apt-get install -y rsync
+apt-get install -y rsync curl
 
 # Create directories
 mkdir -p /var/lib/moq

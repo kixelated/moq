@@ -1,7 +1,10 @@
 # DNS zone for relay servers
 resource "google_dns_managed_zone" "relay" {
-  name     = "relay-dns"
+  name     = "relay-cdn"
   dns_name = "${var.domain}."
+  dnssec_config {
+	state = "on"
+  }
 }
 
 # Individual DNS records for each relay node (for direct access)
@@ -20,7 +23,7 @@ resource "google_dns_record_set" "relay_global" {
   name         = google_dns_managed_zone.relay.dns_name
   managed_zone = google_dns_managed_zone.relay.name
   type         = "A"
-  ttl          = 60
+  ttl          = 300
 
   routing_policy {
     dynamic "geo" {
