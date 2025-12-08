@@ -71,6 +71,37 @@ impl Fmp4 {
 		}
 	}
 
+	/// Create a new fMP4 importer that shares an existing catalog.
+	///
+	/// This allows multiple importers (e.g., for different HLS renditions) to
+	/// contribute to the same catalog track.
+	pub fn with_catalog(broadcast: hang::BroadcastProducer, catalog: CatalogProducer) -> Self {
+		Self {
+			buffer: Bytes::new(),
+			broadcast,
+			catalog,
+			tracks: HashMap::default(),
+			last_keyframe: HashMap::default(),
+			moov: None,
+			moof: None,
+			moof_size: 0,
+		}
+	}
+
+	/// Get the catalog producer for sharing with other importers.
+	pub fn catalog(&self) -> CatalogProducer {
+		self.catalog.clone()
+	}
+
+	/// Parse fMP4/CMAF bytes (init segment or media segment).
+	///
+	/// This is a convenience wrapper around `decode()` for use with byte slices.
+	pub fn parse(&mut self, bytes: &[u8]) -> anyhow::Result<()> {
+		use std::io::Cursor;
+		let mut cursor = Cursor::new(Bytes::copy_from_slice(bytes));
+		self.decode(&mut cursor)
+	}
+
 	pub fn decode<T: Buf>(&mut self, buf: &mut T) -> anyhow::Result<()> {
 		if !buf.has_remaining() {
 			return Ok(());

@@ -3,17 +3,19 @@ use clap::ValueEnum;
 use hang::BroadcastProducer;
 use tokio::io::AsyncRead;
 
-#[derive(ValueEnum, Clone)]
-pub enum ImportType {
+#[derive(ValueEnum, Clone, PartialEq)]
+pub enum InputFormat {
 	AnnexB,
 	Cmaf,
+	Hls,
 }
 
-impl ImportType {
+impl InputFormat {
 	fn as_str(&self) -> &'static str {
 		match self {
-			ImportType::AnnexB => "annex-b",
-			ImportType::Cmaf => "cmaf",
+			InputFormat::AnnexB => "annex-b",
+			InputFormat::Cmaf => "cmaf",
+			InputFormat::Hls => "hls",
 		}
 	}
 }
@@ -23,7 +25,7 @@ pub struct Import {
 }
 
 impl Import {
-	pub fn new(broadcast: BroadcastProducer, format: ImportType) -> Self {
+	pub fn new(broadcast: BroadcastProducer, format: InputFormat) -> Self {
 		let inner = hang::import::Generic::new(broadcast, format.as_str()).expect("supported format");
 		Self { inner }
 	}

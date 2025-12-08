@@ -10,13 +10,14 @@ use tokio::io::AsyncRead;
 use tower_http::cors::{Any, CorsLayer};
 use tower_http::services::ServeDir;
 
-use crate::import::{Import, ImportType};
+use crate::import::{Import, InputFormat};
 
 pub async fn server<T: AsyncRead + Unpin>(
 	config: moq_native::ServerConfig,
 	name: String,
 	public: Option<PathBuf>,
-	format: ImportType,
+	format: InputFormat,
+
 	input: &mut T,
 ) -> anyhow::Result<()> {
 	let mut listen = config.bind.unwrap_or("[::]:443".parse().unwrap());

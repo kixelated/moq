@@ -35,8 +35,8 @@ pub enum Command {
 		dir: Option<PathBuf>,
 
 		/// The format of the input media.
-		#[arg(long, value_enum, default_value_t = ImportType::Cmaf)]
-		format: ImportType,
+		#[arg(long, value_enum, default_value_t = InputFormat::Cmaf)]
+		format: InputFormat,
 	},
 	Publish {
 		/// The MoQ client configuration.
@@ -61,8 +61,12 @@ pub enum Command {
 		name: String,
 
 		/// The format of the input media.
-		#[arg(long, value_enum, default_value_t = ImportType::Cmaf)]
-		format: ImportType,
+		#[arg(long, value_enum, default_value_t = InputFormat::Cmaf)]
+		format: InputFormat,
+
+		/// URL of an HLS playlist to ingest (for --format hls).
+		#[arg(long)]
+		hls_url: Option<Url>,
 	},
 }
 
@@ -83,6 +87,7 @@ async fn main() -> anyhow::Result<()> {
 			url,
 			name,
 			format,
-		} => client(config, url, name, format, &mut tokio::io::stdin()).await,
+			hls_url,
+		} => client(config, url, name, format, hls_url, &mut tokio::io::stdin()).await,
 	}
 }

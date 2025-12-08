@@ -65,6 +65,10 @@ pub enum Error {
 	/// The timestamp of each keyframe must be monotonically increasing.
 	#[error("timestamp went backwards")]
 	TimestampBackwards,
+
+	/// An error during HLS ingest.
+	#[error("hls error: {0}")]
+	Hls(String),
 }
 
 /// A Result type alias for hang operations.

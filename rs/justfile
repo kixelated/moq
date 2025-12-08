@@ -107,6 +107,9 @@ pub name url="http://localhost:4443/anon" *args:
 		-f mp4 -movflags cmaf+separate_moof+delay_moov+skip_trailer+frag_every_frame \
 		- | cargo run --bin hang -- publish --url "{{url}}" --name "{{name}}" {{args}}
 
+# Ingest a live HLS media playlist and publish it via hang (full ladder).
+ingest-hls url name="demo" relay="http://localhost:4443/anon":
+	cargo run --bin hang -- publish --url "{{relay}}" --name "{{name}}" --format hls --hls-url "{{url}}"
 
 # Publish a video using H.264 Annex B format to the localhost relay server
 pub-h264 name url="http://localhost:4443/anon" *args:

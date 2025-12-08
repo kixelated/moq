@@ -28,6 +28,9 @@ serde_with = { version = "3", features = ["hex"] }
 thiserror = "2"
 tokio = { workspace = true, features = ["macros"] }
 tracing = "0.1"
+url = "2"
+m3u8-rs = "5"
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "gzip"] }
 
 [dependencies.derive_more]
 version = "2"
@@ -36,4 +39,3 @@ features = ["from", "display", "debug"]
 [dev-dependencies]
 anyhow = "1"
 moq-native = { workspace = true }
-url = "2"
