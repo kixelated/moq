@@ -1,7 +1,7 @@
 # Publisher instance
 resource "linode_instance" "publisher" {
   label  = "publisher-moq"
-  region = "us-east"
+  region = "us-central" # Dallas, TX
   type   = "g6-nanode-1"
 
   # Use Debian 12 as base, will be converted to NixOS via bootstrap
