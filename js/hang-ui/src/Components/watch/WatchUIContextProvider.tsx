@@ -1,5 +1,6 @@
 import type { Time } from "@moq/hang";
 import type HangWatch from "@moq/hang/watch/element";
+import type * as Catalog from "@moq/hang/catalog";
 import type { JSX } from "solid-js";
 import { createContext, createEffect, createSignal } from "solid-js";
 
@@ -9,6 +10,12 @@ type WatchUIContextProviderProps = {
 };
 
 type WatchStatus = "no-url" | "disconnected" | "connecting" | "offline" | "loading" | "live" | "connected";
+
+export type Rendition = {
+	name: string;
+	width?: number;
+	height?: number;
+};
 
 type WatchUIContextValues = {
 	hangWatch: () => HangWatch | undefined;
@@ -22,6 +29,9 @@ type WatchUIContextValues = {
 	buffering: () => boolean;
 	latency: () => number;
 	setLatencyValue: (value: number) => void;
+	availableRenditions: () => Rendition[];
+	activeRendition: () => string | undefined;
+	setActiveRendition: (name: string | undefined) => void;
 };
 
 export const WatchUIContext = createContext<WatchUIContextValues>();
@@ -33,6 +43,8 @@ export default function WatchUIContextProvider(props: WatchUIContextProviderProp
 	const [currentVolume, setCurrentVolume] = createSignal<number>(0);
 	const [buffering, setBuffering] = createSignal<boolean>(false);
 	const [latency, setLatency] = createSignal<number>(0);
+	const [availableRenditions, setAvailableRenditions] = createSignal<Rendition[]>([]);
+	const [activeRendition, setActiveRendition] = createSignal<string | undefined>(undefined);
 
 	const togglePlayback = () => {
 		const hangWatchEl = props.hangWatch();
@@ -66,6 +78,14 @@ export default function WatchUIContextProvider(props: WatchUIContextProviderProp
 		}
 	};
 
+	const setActiveRenditionValue = (name: string | undefined) => {
+		const hangWatchEl = props.hangWatch();
+
+		if (hangWatchEl) {
+			hangWatchEl.video.source.setActiveRendition(name);
+		}
+	};
+
 	const value: WatchUIContextValues = {
 		hangWatch: props.hangWatch,
 		watchStatus,
@@ -78,6 +98,9 @@ export default function WatchUIContextProvider(props: WatchUIContextProviderProp
 		buffering,
 		latency,
 		setLatencyValue,
+		availableRenditions,
+		activeRendition,
+		setActiveRendition: setActiveRenditionValue,
 	};
 
 	createEffect(() => {
@@ -132,6 +155,25 @@ export default function WatchUIContextProvider(props: WatchUIContextProviderProp
 		watch.signals.effect((effect) => {
 			const latency = effect.get(watch.latency);
 			setLatency(latency);
+		});
+
+		watch.signals.effect((effect) => {
+			const rootCatalog = effect.get(watch.broadcast.catalog);
+			const videoCatalog = rootCatalog?.video;
+			const renditions = videoCatalog?.renditions ?? {};
+
+			const renditionsList: Rendition[] = Object.entries(renditions).map(([name, config]) => ({
+				name,
+				width: (config as Catalog.VideoConfig).codedWidth,
+				height: (config as Catalog.VideoConfig).codedHeight,
+			}));
+
+			setAvailableRenditions(renditionsList);
+		});
+
+		watch.signals.effect((effect) => {
+			const selected = effect.get(watch.video.source.active);
+			setActiveRendition(selected);
 		});
 	});
 
