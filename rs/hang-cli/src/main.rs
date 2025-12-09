@@ -35,8 +35,8 @@ pub enum Command {
 		dir: Option<PathBuf>,
 
 		/// The format of the input media.
-		#[arg(long, value_enum, default_value_t = InputFormat::Cmaf)]
-		format: InputFormat,
+		#[arg(long, value_enum, default_value_t = ImportType::Cmaf)]
+		format: ImportType,
 	},
 	Publish {
 		/// The MoQ client configuration.
@@ -61,8 +61,8 @@ pub enum Command {
 		name: String,
 
 		/// The format of the input media.
-		#[arg(long, value_enum, default_value_t = InputFormat::Cmaf)]
-		format: InputFormat,
+		#[arg(long, value_enum, default_value_t = ImportType::Cmaf)]
+		format: ImportType,
 
 		/// URL of an HLS playlist to ingest (for --format hls).
 		#[arg(long)]

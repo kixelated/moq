@@ -6,18 +6,18 @@ use tokio::io::AsyncRead;
 use url::Url;
 
 #[derive(ValueEnum, Clone, PartialEq)]
-pub enum InputFormat {
+pub enum ImportType {
 	AnnexB,
 	Cmaf,
 	Hls,
 }
 
-impl InputFormat {
+impl ImportType {
 	fn as_str(&self) -> &'static str {
 		match self {
-			InputFormat::AnnexB => "annex-b",
-			InputFormat::Cmaf => "cmaf",
-			InputFormat::Hls => "hls",
+			ImportType::AnnexB => "annex-b",
+			ImportType::Cmaf => "cmaf",
+			ImportType::Hls => "hls",
 		}
 	}
 }
@@ -27,7 +27,7 @@ pub struct Media {
 }
 
 impl Media {
-	pub fn new(broadcast: BroadcastProducer, format: InputFormat) -> Self {
+	pub fn new(broadcast: BroadcastProducer, format: ImportType) -> Self {
 		let inner = hang::import::media::Media::new(broadcast, format.as_str()).expect("supported format");
 		Self { inner }
 	}

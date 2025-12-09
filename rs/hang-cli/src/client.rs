@@ -1,17 +1,17 @@
 use anyhow::Context;
 
 use crate::import::{Manifest, Media};
-use crate::InputFormat;
+use crate::ImportType;
 
 use hang::moq_lite;
 use tokio::io::AsyncRead;
 use url::Url;
 
-pub async fn client<T: AsyncRead + Unpin + Send + 'static>(
+pub async fn client<T: AsyncRead + Unpin>(
 	config: moq_native::ClientConfig,
 	url: Url,
 	name: String,
-	format: InputFormat,
+	format: ImportType,
 	hls_url: Option<Url>,
 	input: &mut T,
 ) -> anyhow::Result<()> {
@@ -27,9 +27,8 @@ pub async fn client<T: AsyncRead + Unpin + Send + 'static>(
 
 	let _ = sd_notify::notify(true, &[sd_notify::NotifyState::Ready]);
 
-	if format == InputFormat::Hls {
-		let hls_url = hls_url
-			.ok_or_else(|| anyhow::anyhow!("--hls-url is required when --format hls is specified"))?;
+	if format == ImportType::Hls {
+		let hls_url = hls_url.ok_or_else(|| anyhow::anyhow!("--hls-url is required when --format hls is specified"))?;
 
 		let mut manifest = Manifest::new(broadcast.producer.into(), &name, hls_url)?;
 		manifest.init().await.context("failed to initialize manifest import")?;
@@ -45,7 +44,10 @@ pub async fn client<T: AsyncRead + Unpin + Send + 'static>(
 		}
 	} else {
 		let mut media = Media::new(broadcast.producer.into(), format);
-		media.init_from(input).await.context("failed to initialize from media stream")?;
+		media
+			.init_from(input)
+			.await
+			.context("failed to initialize from media stream")?;
 
 		tokio::select! {
 			res = media.read_from(input) => res,

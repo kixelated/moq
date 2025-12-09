@@ -10,13 +10,13 @@ use tokio::io::AsyncRead;
 use tower_http::cors::{Any, CorsLayer};
 use tower_http::services::ServeDir;
 
-use crate::import::{Media, InputFormat};
+use crate::import::{ImportType, Media};
 
 pub async fn server<T: AsyncRead + Unpin>(
 	config: moq_native::ServerConfig,
 	name: String,
 	public: Option<PathBuf>,
-	format: InputFormat,
+	format: ImportType,
 
 	input: &mut T,
 ) -> anyhow::Result<()> {
