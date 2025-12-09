@@ -346,10 +346,10 @@ test("verify - private to public key", async () => {
 	const publicKey = toPublicKey(key);
 
 	assert.equal(publicKey.alg, key.alg);
-	
+
 	assert.ok(key.key_ops.indexOf("sign") >= 0);
 	assert.ok(key.key_ops.indexOf("verify") >= 0);
-	assert.ok(publicKey.key_ops.indexOf("sign") == -1);
+	assert.ok(publicKey.key_ops.indexOf("sign") === -1);
 	assert.ok(publicKey.key_ops.indexOf("verify") >= 0);
 });
 

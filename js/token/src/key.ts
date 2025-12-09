@@ -106,17 +106,17 @@ export function toPublicKey(key: Key): PublicKey {
 
 		case "RSA": {
 			const { d, p, q, dp, dq, qi, key_ops, ...publicKey } = key;
-			return {...publicKey, key_ops: key_ops.filter((op) => op !== "sign" && op !== "decrypt") };
+			return { ...publicKey, key_ops: key_ops.filter((op) => op !== "sign" && op !== "decrypt") };
 		}
 
 		case "EC": {
 			const { d, key_ops, ...publicKey } = key;
-			return {...publicKey, key_ops: key_ops.filter((op) => op !== "sign" && op !== "decrypt") };
+			return { ...publicKey, key_ops: key_ops.filter((op) => op !== "sign" && op !== "decrypt") };
 		}
 
 		case "OKP": {
 			const { d, key_ops, ...publicKey } = key;
-			return {...publicKey, key_ops: key_ops.filter((op) => op !== "sign" && op !== "decrypt") };
+			return { ...publicKey, key_ops: key_ops.filter((op) => op !== "sign" && op !== "decrypt") };
 		}
 	}
 }
