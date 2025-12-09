@@ -9,10 +9,6 @@
       url = "github:oxalica/rust-overlay";
       inputs.nixpkgs.follows = "nixpkgs";
     };
-    cdn = {
-      url = "./cdn";
-      inputs.nixpkgs.follows = "nixpkgs";
-    };
   };
 
   outputs =
@@ -22,7 +18,6 @@
       flake-utils,
       crane,
       rust-overlay,
-      cdn,
       ...
     }:
     {

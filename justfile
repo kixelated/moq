@@ -270,7 +270,7 @@ fix:
 	if command -v tofu &> /dev/null; then (cd cdn && just fix); fi
 
 # Upgrade any tooling
-upgrade:
+update:
 	bun update
 	bun outdated
 

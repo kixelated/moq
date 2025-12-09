@@ -18,7 +18,7 @@ crate-type = ["cdylib", "staticlib"]
 
 [dependencies]
 anyhow = { version = "1", features = ["backtrace"] }
-bytes = "1.10"
+bytes = "1.11"
 hang = { workspace = true }
 moq-lite = { workspace = true, features = ["serde"] }
 moq-native = { workspace = true }
