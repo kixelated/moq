@@ -22,18 +22,18 @@ impl ImportType {
 	}
 }
 
-pub struct Media {
-	inner: hang::import::media::Media,
+pub struct ImportMedia {
+	inner: hang::import::media::ImportMedia,
 }
 
-impl Media {
+impl ImportMedia {
 	pub fn new(broadcast: BroadcastProducer, format: ImportType) -> Self {
-		let inner = hang::import::media::Media::new(broadcast, format.as_str()).expect("supported format");
+		let inner = hang::import::media::ImportMedia::new(broadcast, format.as_str()).expect("supported format");
 		Self { inner }
 	}
 }
 
-impl Media {
+impl ImportMedia {
 	pub async fn init_from<T: AsyncRead + Unpin>(&mut self, input: &mut T) -> anyhow::Result<()> {
 		self.inner
 			.initialize_from(input)
@@ -46,18 +46,18 @@ impl Media {
 	}
 }
 
-pub struct Manifest {
-	inner: hang::import::manifest::Manifest,
+pub struct ImportManifest {
+	inner: hang::import::manifest::ImportManifest,
 }
 
-impl Manifest {
-	pub fn new(broadcast: BroadcastProducer, _name: &str, url: Url) -> anyhow::Result<Self> {
+impl ImportManifest {
+	pub fn new(broadcast: BroadcastProducer, url: Url) -> anyhow::Result<Self> {
 		let http_client = Client::builder()
 			.user_agent("hang-hls-ingest/0.1")
 			.build()
 			.context("failed to build HTTP client")?;
 
-		let inner = hang::import::manifest::Manifest::new(broadcast, "hls", url, http_client)
+		let inner = hang::import::manifest::ImportManifest::new(broadcast, "hls", url, http_client)
 			.ok_or_else(|| anyhow::anyhow!("failed to create manifest importer"))?;
 
 		Ok(Self { inner })

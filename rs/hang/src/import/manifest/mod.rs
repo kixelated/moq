@@ -10,11 +10,11 @@ pub enum Protocol {
 }
 
 /// A generic interface for importing a manifest (playlist) into a hang broadcast.
-pub struct Manifest {
+pub struct ImportManifest {
 	protocol: Protocol,
 }
 
-impl Manifest {
+impl ImportManifest {
 	pub fn new(broadcast: BroadcastProducer, format: &str, url: Url, client: Client) -> Option<Self> {
 		let protocol = match format {
 			"hls" => {

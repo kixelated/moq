@@ -1,6 +1,6 @@
 use anyhow::Context;
 
-use crate::import::{Manifest, Media};
+use crate::import::{ImportManifest, ImportMedia};
 use crate::ImportType;
 
 use hang::moq_lite;
@@ -30,7 +30,7 @@ pub async fn client<T: AsyncRead + Unpin>(
 	if format == ImportType::Hls {
 		let hls_url = hls_url.ok_or_else(|| anyhow::anyhow!("--hls-url is required when --format hls is specified"))?;
 
-		let mut manifest = Manifest::new(broadcast.producer.into(), &name, hls_url)?;
+		let mut manifest = ImportManifest::new(broadcast.producer.into(), hls_url)?;
 		manifest.init().await.context("failed to initialize manifest import")?;
 
 		tokio::select! {
@@ -43,7 +43,7 @@ pub async fn client<T: AsyncRead + Unpin>(
 			},
 		}
 	} else {
-		let mut media = Media::new(broadcast.producer.into(), format);
+		let mut media = ImportMedia::new(broadcast.producer.into(), format);
 		media
 			.init_from(input)
 			.await

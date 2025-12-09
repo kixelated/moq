@@ -21,7 +21,7 @@ enum Decoder {
 /// A generic interface for importing media into a hang broadcast.
 ///
 /// If you know the format in advance, use the specific decoder instead.
-pub struct Media {
+pub struct ImportMedia {
 	decoder: Decoder,
 
 	// Used for decoders that don't have timestamps in the stream.
@@ -31,7 +31,7 @@ pub struct Media {
 	buffer: BytesMut,
 }
 
-impl Media {
+impl ImportMedia {
 	/// Create a new decoder with the given format, or `None` if the format is not supported.
 	pub fn new(broadcast: hang::BroadcastProducer, format: &str) -> Option<Self> {
 		let decoder = match format {

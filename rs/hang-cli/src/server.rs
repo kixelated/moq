@@ -10,7 +10,7 @@ use tokio::io::AsyncRead;
 use tower_http::cors::{Any, CorsLayer};
 use tower_http::services::ServeDir;
 
-use crate::import::{ImportType, Media};
+use crate::import::{ImportMedia, ImportType};
 
 pub async fn server<T: AsyncRead + Unpin>(
 	config: moq_native::ServerConfig,
@@ -34,7 +34,7 @@ pub async fn server<T: AsyncRead + Unpin>(
 	let fingerprint = server.fingerprints().first().context("missing certificate")?.clone();
 
 	let broadcast = moq_lite::Broadcast::produce();
-	let mut media = Media::new(broadcast.producer.into(), format);
+	let mut media = ImportMedia::new(broadcast.producer.into(), format);
 
 	media.init_from(input).await?;
 
