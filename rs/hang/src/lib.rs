@@ -19,7 +19,6 @@ mod error;
 pub mod catalog;
 pub mod feedback;
 pub mod import;
-pub mod ingest;
 pub mod model;
 
 // export the moq-lite version in use
