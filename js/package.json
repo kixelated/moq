@@ -4,9 +4,9 @@
 	"private": true,
 	"type": "module",
 	"workspaces": [
-		"moq",
-		"moq-clock",
-		"moq-token",
+		"lite",
+		"clock",
+		"token",
 		"hang",
 		"hang-ui",
 		"hang-demo",
