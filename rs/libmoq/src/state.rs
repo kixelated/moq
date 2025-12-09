@@ -154,7 +154,8 @@ impl State {
 
 	pub fn create_track(&mut self, broadcast: usize, format: &str, mut init: &[u8]) -> Result<usize, Error> {
 		let broadcast = self.broadcasts.get_mut(broadcast).ok_or(Error::NotFound)?;
-		let mut track = hang::import::Generic::new(broadcast.clone(), format).ok_or(Error::UnknownFormat)?;
+		let mut track = hang::import::Generic::new(broadcast.clone(), format)
+			.ok_or_else(|| Error::UnknownFormat(format.to_string()))?;
 
 		track
 			.initialize(&mut init)
