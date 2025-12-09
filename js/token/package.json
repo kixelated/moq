@@ -1,0 +1,31 @@
+{
+	"name": "@moq/token",
+	"type": "module",
+	"version": "0.1.0",
+	"description": "Media over QUIC - Token Generation and Validation",
+	"license": "(MIT OR Apache-2.0)",
+	"repository": "github:moq-dev/moq",
+	"exports": {
+		".": "./src/index.ts"
+	},
+	"files": [
+		"./src"
+	],
+	"scripts": {
+		"build": "tsc -b",
+		"check": "tsc --noEmit && biome check",
+		"test": "bun test",
+		"fix": "biome check --fix",
+		"release": "bun ../scripts/release.ts"
+	},
+	"dependencies": {
+		"@hexagon/base64": "^2.0.4",
+		"jose": "^6.1.0",
+		"zod": "^4.1.5"
+	},
+	"devDependencies": {
+		"@types/node": "^24.3.1",
+		"typescript": "^5.9.2",
+		"@biomejs/biome": "^2.2.2"
+	}
+}

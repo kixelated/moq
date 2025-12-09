@@ -1,4 +1,4 @@
-import { Effect, type Getter, Signal } from "@kixelated/signals";
+import { Effect, type Getter, Signal } from "@moq/signals";
 import type * as Catalog from "../../catalog";
 import { Message, type MessageProps } from "./message";
 import { Typing, type TypingProps } from "./typing";

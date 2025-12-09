@@ -1,7 +1,8 @@
 import "./highlight";
+import "@moq/hang-ui/publish/element";
 
-import HangMeet from "@kixelated/hang/meet/element";
-import HangPublish from "@kixelated/hang/publish/element";
-import HangSupport from "@kixelated/hang/support/element";
+import HangMeet from "@moq/hang/meet/element";
+import HangPublish from "@moq/hang/publish/element";
+import HangSupport from "@moq/hang/support/element";
 
 export { HangMeet, HangSupport, HangPublish };

@@ -1,30 +1,17 @@
-import type HangPublish from "@kixelated/hang/publish/element";
+import type HangPublish from "@moq/hang/publish/element";
 import { customElement } from "solid-element";
-import { createSignal, onCleanup, onMount } from "solid-js";
+import { createSignal, onMount } from "solid-js";
 import PublishControls from "./PublishControls";
 import PublishControlsContextProvider from "./PublishUIContextProvider";
 import styles from "./styles.css?inline";
 
 customElement("hang-publish-ui", {}, function PublishControlsWebComponent(_, { element }) {
-	const [hangPublishEl, setHangPublishEl] = createSignal<HangPublish>();
+	const [hangPublishEl, setHangPublishEl] = createSignal<HangPublish | undefined>();
 
-	const onInstanceAvailable = (event: CustomEvent) => {
-		const hangPublishEl = event.target as HangPublish;
-		setHangPublishEl(hangPublishEl);
-	};
-
-	onMount(() => {
+	onMount(async () => {
 		const publishEl = element.querySelector("hang-publish");
-
-		if (publishEl) {
-			setHangPublishEl(publishEl);
-		} else {
-			element.addEventListener("publish-instance-available", onInstanceAvailable);
-		}
-	});
-
-	onCleanup(() => {
-		element.removeEventListener("publish-instance-available", onInstanceAvailable);
+		await customElements.whenDefined("hang-publish");
+		setHangPublishEl(publishEl);
 	});
 
 	return (

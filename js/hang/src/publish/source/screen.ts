@@ -1,4 +1,4 @@
-import { Effect, Signal } from "@kixelated/signals";
+import { Effect, Signal } from "@moq/signals";
 import type * as Audio from "../audio";
 import * as Video from "../video";
 

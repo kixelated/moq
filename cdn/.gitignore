@@ -1,0 +1,23 @@
+# Terraform/OpenTofu
+.terraform/
+.tofu/
+.terraform.lock.hcl
+.tofu.lock.hcl
+terraform.tfstate
+terraform.tfstate.backup
+tofu.tfstate
+tofu.tfstate.backup
+*.tfvars
+!*.tfvars.example
+
+# Nix
+result
+result-*
+
+# Credentials
+secrets/*
+*.jwk
+*.jwt
+*.key
+*.crt
+*.pem

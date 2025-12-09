@@ -1,0 +1,12 @@
+[Unit]
+Description=Certbot Certificate Renewal
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+# Renew certificates if they're close to expiration
+ExecStart=/var/lib/moq/cert/bin/certbot renew
+
+StandardOutput=journal
+StandardError=journal

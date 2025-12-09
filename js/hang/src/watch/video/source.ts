@@ -1,5 +1,5 @@
-import type * as Moq from "@kixelated/moq";
-import { Effect, Signal } from "@kixelated/signals";
+import type * as Moq from "@moq/lite";
+import { Effect, Signal } from "@moq/signals";
 import type * as Catalog from "../../catalog";
 import * as Frame from "../../frame";
 import { PRIORITY } from "../../publish/priority";
@@ -200,7 +200,20 @@ export class Source {
 		effect.cleanup(() => writer.close());
 
 		const reader = queue.readable.getReader();
-		effect.cleanup(() => reader.cancel());
+		effect.cleanup(async () => {
+			// Drain any remaining frames in the queue to prevent memory leaks
+			try {
+				let result = await reader.read();
+				while (!result.done) {
+					result.value?.close();
+					result = await reader.read();
+				}
+			} catch (error) {
+				console.error("Error during frame draining:", error);
+			} finally {
+				await reader.cancel();
+			}
+		});
 
 		const decoder = new VideoDecoder({
 			output: async (frame: VideoFrame) => {

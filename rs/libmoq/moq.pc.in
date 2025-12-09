@@ -1,0 +1,10 @@
+prefix=@PREFIX@
+exec_prefix=${prefix}
+libdir=${exec_prefix}/lib
+includedir=${prefix}/include
+
+Name: moq
+Description: Media over QUIC C Interface
+Version: @VERSION@
+Libs: -L${libdir} -lmoq
+Cflags: -I${includedir}
