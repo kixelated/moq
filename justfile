@@ -107,8 +107,8 @@ check:
 	# Run the (slower) Rust checks.
 	cd rs && just check
 
-	# Only run the tofu checks if tofu is installed.
-	@if command -v tofu &> /dev/null; then cd cdn && just check; fi
+	# Only run the tofu checks if tofu is installed and cdn dir exists.
+	if command -v tofu &> /dev/null && [ -d cdn ]; then cd cdn && just check; fi
 
 
 # Run the unit tests
@@ -134,7 +134,7 @@ fix:
 	bun run --filter='*' fix
 
 	cd rs && just fix
-	@if command -v tofu &> /dev/null; then cd cdn && just fix; fi
+	if command -v tofu &> /dev/null; then cd cdn && just fix; fi
 
 # Upgrade any tooling
 upgrade:

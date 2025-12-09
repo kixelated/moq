@@ -24,11 +24,16 @@
 				"useNodejsImportProtocol": "off"
 			},
 			"suspicious": {
-				// Until Tailwind support lands (very soon)
-				"noUnknownAtRules": "off",
 				// Some runtimes need ts-ignore
 				"noTsIgnore": "off"
 			}
+		}
+	},
+	"css": {
+		"parser": {
+			"cssModules": false,
+			"allowWrongLineComments": false,
+			"tailwindDirectives": true
 		}
 	},
 	"javascript": {
