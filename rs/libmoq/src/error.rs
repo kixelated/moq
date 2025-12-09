@@ -30,8 +30,8 @@ pub enum Error {
 	#[error("not found")]
 	NotFound,
 
-	#[error("unknown format")]
-	UnknownFormat,
+	#[error("unknown format: {0}")]
+	UnknownFormat(String),
 
 	#[error("init failed: {0}")]
 	InitFailed(Arc<anyhow::Error>),
@@ -73,7 +73,7 @@ impl ffi::ReturnCode for Error {
 			Error::InvalidPointer => -6,
 			Error::InvalidId => -7,
 			Error::NotFound => -8,
-			Error::UnknownFormat => -9,
+			Error::UnknownFormat(_) => -9,
 			Error::InitFailed(_) => -10,
 			Error::DecodeFailed(_) => -11,
 			Error::ShortDecode => -12,
