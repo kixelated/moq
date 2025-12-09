@@ -28,7 +28,7 @@ async fn run_session(origin: moq_lite::OriginConsumer) -> anyhow::Result<()> {
 
 	// For local development, use: http://localhost:4443/anon
 	// The "anon" path is usually configured to bypass authentication; be careful!
-	let url = url::Url::parse("https://relay.moq.dev/anon/chat-example").unwrap();
+	let url = url::Url::parse("https://cdn.moq.dev/anon/chat-example").unwrap();
 
 	// Establish a WebTransport/QUIC connection.
 	let connection = client.connect(url).await?;

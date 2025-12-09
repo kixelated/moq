@@ -8,12 +8,6 @@ host node:
 	DOMAIN=$(tofu output -raw domain)
 	echo "{{node}}.$DOMAIN"
 
-# Get the publisher hostname
-host-pub:
-	#!/usr/bin/env bash
-	DOMAIN=$(tofu output -raw domain)
-	echo "pub.$DOMAIN"
-
 # Deploy moq-relay and moq-cert to all nodes
 [parallel]
 deploy-all: (deploy "usc") (deploy "euc") (deploy "sea")
@@ -27,7 +21,8 @@ nodes:
 # Deploy moq-relay and moq-cert to a specific node
 deploy node:
 	#!/usr/bin/env bash
-	HOST=$(just host $node)
+	set -euo pipefail
+	HOST=$(just host {{node}})
 	echo "Deploying to $HOST..."
 
 	echo "  Copying flake files to /var/lib/moq"
@@ -58,7 +53,7 @@ deploy node:
 # Check status of a node
 status node:
 	#!/usr/bin/env bash
-	HOST=$(just host $node)
+	HOST=$(just host {{node}})
 	echo "=== $HOST ==="
 	ssh root@$HOST "systemctl status moq-relay --no-pager"
 
@@ -66,17 +61,18 @@ status-all: (status "usc") (status "euc") (status "sea")
 
 ssh node:
 	#!/usr/bin/env bash
-	ssh root@$(just host $node)
+	ssh root@$(just host {{node}})
 
 # View logs from a specific node
 logs node:
 	#!/usr/bin/env bash
-	ssh root@$(just host $node) "journalctl -u moq-relay -f"
+	ssh root@$(just host {{node}}) "journalctl -u moq-relay -f"
 
 # Deploy publisher
 deploy-pub:
 	#!/usr/bin/env bash
-	HOST=$(tofu output -raw publisher_host)
+	set -euo pipefail
+	HOST=$(just host pub)
 	echo "Deploying to $HOST..."
 
 	echo "  Copying flake files to /var/lib/moq"
@@ -105,20 +101,20 @@ deploy-pub:
 # Check status of publisher
 status-pub:
 	#!/usr/bin/env bash
-	HOST=$(just host-pub)
+	HOST=$(just host pub)
 	echo "=== $HOST ==="
 	ssh root@$HOST "systemctl status hang-bbb --no-pager"
 
 # SSH into publisher
 ssh-pub:
 	#!/usr/bin/env bash
-	HOST=$(just host-pub)
+	HOST=$(just host pub)
 	ssh root@$HOST
 
 # View logs from publisher
 logs-pub:
 	#!/usr/bin/env bash
-	HOST=$(just host-pub)
+	HOST=$(just host pub)
 	ssh root@$HOST "journalctl -u hang-bbb -f"
 
 # Check tofu formatting

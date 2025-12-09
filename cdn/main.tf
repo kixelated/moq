@@ -9,16 +9,6 @@ terraform {
       source  = "hashicorp/google"
       version = "~> 5.0"
     }
-
-    acme = {
-      source  = "vancluever/acme"
-      version = "~> 2.0"
-    }
-
-    tls = {
-      source  = "hashicorp/tls"
-      version = "~> 4.1"
-    }
   }
 
   backend "local" {
@@ -49,8 +39,4 @@ resource "google_project_service" "all" {
   service                    = each.key
   disable_dependent_services = false
   disable_on_destroy         = false
-}
-
-provider "acme" {
-  server_url = "https://acme-v02.api.letsencrypt.org/directory"
 }

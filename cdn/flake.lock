@@ -33,20 +33,38 @@
         "type": "github"
       }
     },
+    "flake-utils_2": {
+      "inputs": {
+        "systems": "systems_2"
+      },
+      "locked": {
+        "lastModified": 1731533236,
+        "narHash": "sha256-l0KFg5HjrsfsO/JpG+r7fRrqm12kzFHyUHqHCVpMMbI=",
+        "owner": "numtide",
+        "repo": "flake-utils",
+        "rev": "11707dc2f618dd54ca8739b309ec4fc024de578b",
+        "type": "github"
+      },
+      "original": {
+        "owner": "numtide",
+        "repo": "flake-utils",
+        "type": "github"
+      }
+    },
     "moq": {
       "inputs": {
         "crane": "crane",
-        "flake-utils": "flake-utils",
+        "flake-utils": "flake-utils_2",
         "nixpkgs": "nixpkgs",
         "rust-overlay": "rust-overlay"
       },
       "locked": {
         "dir": "rs",
-        "lastModified": 1765169171,
-        "narHash": "sha256-dLPkKO0sfcIeYETgcTkwkvuf2aoU8Om68sX+vdocG14=",
+        "lastModified": 1765236058,
+        "narHash": "sha256-v+dXxh4ZsWrtoCUUoTG3nzzXnZ+V5Bqugu5fqaev+30=",
         "owner": "kixelated",
         "repo": "moq",
-        "rev": "c10a48cf80ed1bb737cf8d2e6d97da205f5b944e",
+        "rev": "07be135ae654c9bf806b450941bf42e3e05704e1",
         "type": "github"
       },
       "original": {
@@ -90,6 +108,7 @@
     },
     "root": {
       "inputs": {
+        "flake-utils": "flake-utils",
         "moq": "moq",
         "nixpkgs": "nixpkgs_2"
       }
@@ -116,6 +135,21 @@
       }
     },
     "systems": {
+      "locked": {
+        "lastModified": 1681028828,
+        "narHash": "sha256-Vy1rq5AaRuLzOxct8nz4T6wlgyUR7zLU309k9mBC768=",
+        "owner": "nix-systems",
+        "repo": "default",
+        "rev": "da67096a3b9bf56a91d16901293e51ba5b49a27e",
+        "type": "github"
+      },
+      "original": {
+        "owner": "nix-systems",
+        "repo": "default",
+        "type": "github"
+      }
+    },
+    "systems_2": {
       "locked": {
         "lastModified": 1681028828,
         "narHash": "sha256-Vy1rq5AaRuLzOxct8nz4T6wlgyUR7zLU309k9mBC768=",

@@ -25,16 +25,28 @@ However, we do use GCP for GeoDNS because most providers don't support it or too
     ```
 
 ## Deploy
+
+1. `nix flake update` to update the `moq-relay` and `hang-cli` binaries.
+  - **NOTE**: This pulls from `main` on github, not a local path or the latest release.
+2. `just deploy-all` to deploy to all nodes in parallel.
+  - This will take a while as the builds *currently* occur on the remote nodes.
+  - Somebody should set up remote builders or cross-compilation.
+
+## Monitor
 Use `just` to see all of the available commands.
 
-1. `just nodes` to see the available nodes.
-2. `just deploy-all` to deploy to all nodes in parallel.
-3. `just ssh <node>` to SSH into a specific node.
-4. `just logs <node>` to view the logs of a specific node.
-5. etc
+1. `just ssh <node>` to SSH into a specific node.
+2. `just logs <node>` to view the logs of a specific node.
+3. etc
 
 ## Costs
 Change the number of nodes in [input.tf](input.tf).
 
-- ~$75/month for 3 semi-decent nodes with `g6-standard-2`.
-- ~$15/month for 3 cheap nodes with `g6-nanode-1`.
+- $25/month for `g6-standard-2` nodes.
+- $5/month for `g6-nanode-1` nodes.
+
+The default configuration is 3 `g6-standard-2` relay nodes and 1 `g6-nanode-1` publisher node. So $80/month.
+
+**NOTE**: `moq-relay` does not scale particularly well right now.
+- The current design is a mesh network, so more nodes means more unnecessary backbone traffic.
+- Quinn currently uses a single UDP receive thread, so scaling to multiple cores won't help.
