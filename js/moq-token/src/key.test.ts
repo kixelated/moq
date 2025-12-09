@@ -340,6 +340,19 @@ test("different algorithms - HS512", async () => {
 	assert.strictEqual(verifiedClaims.put, testClaims.put);
 });
 
+test("verify - private to public key", async () => {
+	const { privateEncoded } = await generateAsymmetricKeyPair("RS256");
+	const key = load(privateEncoded);
+	const publicKey = toPublicKey(key);
+
+	assert.equal(publicKey.alg, key.alg);
+	
+	assert.ok(key.key_ops.indexOf("sign") >= 0);
+	assert.ok(key.key_ops.indexOf("verify") >= 0);
+	assert.ok(publicKey.key_ops.indexOf("sign") == -1);
+	assert.ok(publicKey.key_ops.indexOf("verify") >= 0);
+});
+
 test("RS256 algorithm - static sign and verify", async () => {
 	// Key generated via rs/moq-token
 	const privateKey =

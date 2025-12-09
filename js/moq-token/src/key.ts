@@ -61,6 +61,9 @@ const RsaKeySchema = BaseKeySchema.extend({
 	dq: Base64FieldSchema.optional(),
 	qi: Base64FieldSchema.optional(),
 }).superRefine((data, ctx) => {
+	// The RFC requires only d, the others are only required as soon as one is present
+	// https://datatracker.ietf.org/doc/html/rfc7518#section-6.3.2
+	// But WebCrypto requires all parameters to be present for private keys
 	const privFields = ["d", "p", "q", "dp", "dq", "qi"] as const;
 
 	const present = privFields.filter((f) => data[f] !== undefined);
@@ -102,18 +105,18 @@ export function toPublicKey(key: Key): PublicKey {
 			throw new Error("Cannot derive public key from oct (symmetric) key");
 
 		case "RSA": {
-			const { d, p, q, dp, dq, qi, ...publicKey } = key;
-			return publicKey;
+			const { d, p, q, dp, dq, qi, key_ops, ...publicKey } = key;
+			return {...publicKey, key_ops: key_ops.filter((op) => op !== "sign" && op !== "decrypt") };
 		}
 
 		case "EC": {
-			const { d, ...publicKey } = key;
-			return publicKey;
+			const { d, key_ops, ...publicKey } = key;
+			return {...publicKey, key_ops: key_ops.filter((op) => op !== "sign" && op !== "decrypt") };
 		}
 
 		case "OKP": {
-			const { d, ...publicKey } = key;
-			return publicKey;
+			const { d, key_ops, ...publicKey } = key;
+			return {...publicKey, key_ops: key_ops.filter((op) => op !== "sign" && op !== "decrypt") };
 		}
 	}
 }
