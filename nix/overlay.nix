@@ -9,33 +9,33 @@ let
 in
 {
   moq-relay = craneLib.buildPackage (
-    crateInfo ../moq-relay/Cargo.toml
+    crateInfo ../rs/moq-relay/Cargo.toml
     // {
-      src = craneLib.cleanCargoSource ../.;
+      src = craneLib.cleanCargoSource ../rs;
       cargoExtraArgs = "-p moq-relay";
     }
   );
 
   moq-clock = craneLib.buildPackage (
-    crateInfo ../moq-clock/Cargo.toml
+    crateInfo ../rs/moq-clock/Cargo.toml
     // {
-      src = craneLib.cleanCargoSource ../.;
+      src = craneLib.cleanCargoSource ../rs;
       cargoExtraArgs = "-p moq-clock";
     }
   );
 
   hang = craneLib.buildPackage (
-    crateInfo ../hang-cli/Cargo.toml
+    crateInfo ../rs/hang-cli/Cargo.toml
     // {
-      src = craneLib.cleanCargoSource ../.;
+      src = craneLib.cleanCargoSource ../rs;
       cargoExtraArgs = "-p hang-cli";
     }
   );
 
   moq-token = craneLib.buildPackage (
-    crateInfo ../moq-token-cli/Cargo.toml
+    crateInfo ../rs/moq-token-cli/Cargo.toml
     // {
-      src = craneLib.cleanCargoSource ../.;
+      src = craneLib.cleanCargoSource ../rs;
       cargoExtraArgs = "-p moq-token-cli";
     }
   );

@@ -1,5 +1,5 @@
 {
-  description = "Top-level flake delegating to rs and js";
+  description = "MoQ - Media over QUIC";
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixpkgs-unstable";
@@ -8,15 +8,6 @@
     rust-overlay = {
       url = "github:oxalica/rust-overlay";
       inputs.nixpkgs.follows = "nixpkgs";
-    };
-
-    js.url = "./js";
-    rs = {
-      url = "./rs";
-      inputs.nixpkgs.follows = "nixpkgs";
-      inputs.flake-utils.follows = "flake-utils";
-      inputs.crane.follows = "crane";
-      inputs.rust-overlay.follows = "rust-overlay";
     };
     cdn = {
       url = "./cdn";
@@ -30,33 +21,88 @@
       self,
       nixpkgs,
       flake-utils,
-      js,
-      rs,
+      crane,
+      rust-overlay,
       cdn,
       ...
     }:
     {
-      nixosModules = rs.nixosModules;
-      overlays = rs.overlays;
+      nixosModules = {
+        moq-relay = import ./nix/modules/moq-relay.nix;
+      };
+
+      overlays.default = import ./nix/overlay.nix { inherit crane; };
     }
-    // flake-utils.lib.eachDefaultSystem (system: {
-      devShells.default = nixpkgs.legacyPackages.${system}.mkShell {
-        inputsFrom = [
-          rs.devShells.${system}.default
-          js.devShells.${system}.default
-          cdn.devShells.${system}.default
+    // flake-utils.lib.eachDefaultSystem (
+      system:
+      let
+        pkgs = import nixpkgs {
+          inherit system;
+          overlays = [ (import rust-overlay) ];
+        };
+
+        rust-toolchain = pkgs.rust-bin.stable.latest.default.override {
+          extensions = [
+            "rust-src"
+            "rust-analyzer"
+          ];
+        };
+
+        # Rust dependencies
+        rustDeps = with pkgs; [
+          rust-toolchain
+          just
+          pkg-config
+          glib
+          libressl
+          ffmpeg
+          curl
+          cargo-sort
+          cargo-shear
+          cargo-edit
         ];
-        shellHook = "";
-      };
-      packages = {
-        inherit (rs.packages.${system})
-          moq-relay
-          moq-clock
-          moq-token
-          hang
-          ;
-        default = rs.packages.${system}.default;
-      };
-      formatter = nixpkgs.legacyPackages.${system}.nixfmt-tree;
-    });
+
+        # JavaScript dependencies
+        jsDeps = with pkgs; [
+          bun
+          deno
+        ];
+
+        # Apply our overlay to get the package definitions
+        overlayPkgs = pkgs.extend self.overlays.default;
+      in
+      {
+        packages = rec {
+          default = pkgs.symlinkJoin {
+            name = "moq-all";
+            paths = [
+              moq-relay
+              moq-clock
+              hang
+              moq-token
+            ];
+          };
+
+          # Inherit packages from the overlay
+          inherit (overlayPkgs)
+            moq-relay
+            moq-clock
+            hang
+            moq-token
+            ;
+        };
+
+        devShells.default = pkgs.mkShell {
+          inputsFrom = [ cdn.devShells.${system}.default ];
+
+          packages = rustDeps ++ jsDeps;
+
+          shellHook = ''
+            export LIBCLANG_PATH="${pkgs.libclang.lib}/lib"
+          '';
+        };
+
+        formatter = pkgs.nixfmt-tree;
+      }
+    );
 }
