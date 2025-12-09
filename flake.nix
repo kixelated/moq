@@ -12,7 +12,6 @@
     cdn = {
       url = "./cdn";
       inputs.nixpkgs.follows = "nixpkgs";
-      inputs.flake-utils.follows = "flake-utils";
     };
   };
 
@@ -68,6 +67,11 @@
           deno
         ];
 
+        # CDN/deployment dependencies
+        cdnDeps = with pkgs; [
+          opentofu
+        ];
+
         # Apply our overlay to get the package definitions
         overlayPkgs = pkgs.extend self.overlays.default;
       in
@@ -93,9 +97,7 @@
         };
 
         devShells.default = pkgs.mkShell {
-          inputsFrom = [ cdn.devShells.${system}.default ];
-
-          packages = rustDeps ++ jsDeps;
+          packages = rustDeps ++ jsDeps ++ cdnDeps;
 
           shellHook = ''
             export LIBCLANG_PATH="${pkgs.libclang.lib}/lib"

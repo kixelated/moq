@@ -232,6 +232,9 @@ check:
 	# Only run the tofu checks if tofu is installed.
 	if command -v tofu &> /dev/null; then (cd cdn && just check); fi
 
+	# Only run the nix checks if nix is installed.
+	if command -v nix &> /dev/null; then nix flake check; fi
+
 
 # Run the unit tests
 test:

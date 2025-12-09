@@ -3,7 +3,6 @@
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
-    flake-utils.url = "github:numtide/flake-utils";
     moq = {
       # Unfortunately, we can't use a relative path here because it executes on the remote.
       # TODO cross-compile locally and upload the binary to the remote.
@@ -14,7 +13,6 @@
   outputs =
     {
       nixpkgs,
-      flake-utils,
       moq,
       ...
     }:
@@ -33,13 +31,5 @@
           ffmpeg = pkgs.ffmpeg;
           hang-cli = moq.packages.${system}.hang;
         };
-    }
-    // flake-utils.lib.eachDefaultSystem (system: {
-      # Dev shell available on all systems
-      devShells.default = nixpkgs.legacyPackages.${system}.mkShell {
-        packages = with nixpkgs.legacyPackages.${system}; [
-          opentofu
-        ];
-      };
-    });
+    };
 }
