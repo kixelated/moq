@@ -7,7 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [0.7.0](https://github.com/kixelated/moq/compare/libmoq-v0.6.1...libmoq-v0.7.0) - 2025-11-26
+## [0.7.0](https://github.com/moq-dev/moq/compare/libmoq-v0.6.1...libmoq-v0.7.0) - 2025-11-26
 
 ### Other
 

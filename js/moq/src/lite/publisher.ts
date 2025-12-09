@@ -1,4 +1,4 @@
-import { type Dispose, Signal } from "@kixelated/signals";
+import { type Dispose, Signal } from "@moq/signals";
 import type { Broadcast } from "../broadcast.ts";
 import type { Group } from "../group.ts";
 import * as Path from "../path.ts";

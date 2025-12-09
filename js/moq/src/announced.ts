@@ -1,4 +1,4 @@
-import { Signal } from "@kixelated/signals";
+import { Signal } from "@moq/signals";
 import * as Path from "./path.js";
 
 /**

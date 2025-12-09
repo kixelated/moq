@@ -1,5 +1,5 @@
-import type * as Moq from "@kixelated/moq";
-import { Effect, Signal } from "@kixelated/signals";
+import type * as Moq from "@moq/lite";
+import { Effect, Signal } from "@moq/signals";
 import * as Time from "./time";
 
 export interface Source {

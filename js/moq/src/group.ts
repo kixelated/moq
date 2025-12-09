@@ -1,4 +1,4 @@
-import { Signal } from "@kixelated/signals";
+import { Signal } from "@moq/signals";
 
 export class GroupState {
 	frames = new Signal<Uint8Array[]>([]);

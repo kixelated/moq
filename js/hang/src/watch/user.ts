@@ -1,4 +1,4 @@
-import { Effect, Getter, Signal } from "@kixelated/signals";
+import { Effect, Getter, Signal } from "@moq/signals";
 import * as Catalog from "../catalog";
 
 export interface Props {

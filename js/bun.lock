@@ -8,13 +8,13 @@
       },
     },
     "hang": {
-      "name": "@kixelated/hang",
-      "version": "0.7.0",
+      "name": "@moq/hang",
+      "version": "0.1.0",
       "dependencies": {
         "@kixelated/libavjs-webcodecs-polyfill": "^0.5.5",
-        "@kixelated/moq": "workspace:^",
-        "@kixelated/signals": "workspace:^",
         "@libav.js/variant-opus-af": "^6.8.8",
+        "@moq/lite": "workspace:^",
+        "@moq/signals": "workspace:^",
         "async-mutex": "^0.5.0",
         "comlink": "^4.4.2",
         "zod": "^4.1.5",
@@ -29,11 +29,11 @@
       },
     },
     "hang-demo": {
-      "name": "@kixelated/hang-demo",
+      "name": "@moq/hang-demo",
       "version": "0.1.0",
       "dependencies": {
-        "@kixelated/hang": "workspace:^",
-        "@kixelated/hang-ui": "workspace:^",
+        "@moq/hang": "workspace:^",
+        "@moq/hang-ui": "workspace:^",
       },
       "devDependencies": {
         "@biomejs/biome": "^2.2.2",
@@ -49,11 +49,10 @@
       },
     },
     "hang-ui": {
-      "name": "@kixelated/hang-ui",
+      "name": "@moq/hang-ui",
       "version": "0.1.0",
       "devDependencies": {
         "@biomejs/biome": "^2.2.2",
-        "@kixelated/hang": "workspace:^0.7.0",
         "@rollup/plugin-node-resolve": "^16.0.3",
         "rimraf": "^6.0.1",
         "rollup": "^4.53.3",
@@ -62,13 +61,16 @@
         "solid-js": "^1.9.10",
         "unplugin-solid": "^1.0.0",
       },
+      "peerDependencies": {
+        "@moq/hang": "workspace:^0.1.0",
+      },
     },
     "moq": {
-      "name": "@kixelated/moq",
-      "version": "0.9.4",
+      "name": "@moq/lite",
+      "version": "0.1.0",
       "dependencies": {
-        "@kixelated/signals": "workspace:*",
         "@kixelated/web-transport-ws": "^0.1.2",
+        "@moq/signals": "workspace:*",
         "async-mutex": "^0.5.0",
       },
       "devDependencies": {
@@ -87,13 +89,13 @@
       },
     },
     "moq-clock": {
-      "name": "@kixelated/moq-clock",
+      "name": "@moq/clock",
       "version": "0.1.0",
       "bin": {
         "moq-clock": "./src/main.ts",
       },
       "dependencies": {
-        "@kixelated/moq": "workspace:*",
+        "@moq/lite": "workspace:*",
       },
       "devDependencies": {
         "@biomejs/biome": "^2.2.2",
@@ -102,7 +104,7 @@
       },
     },
     "moq-token": {
-      "name": "@kixelated/moq-token",
+      "name": "@moq/token",
       "version": "0.1.0",
       "dependencies": {
         "@hexagon/base64": "^2.0.4",
@@ -116,8 +118,8 @@
       },
     },
     "signals": {
-      "name": "@kixelated/signals",
-      "version": "0.8.1",
+      "name": "@moq/signals",
+      "version": "0.1.0",
       "dependencies": {
         "dequal": "^2.0.3",
       },
@@ -272,27 +274,27 @@
 
     "@jridgewell/trace-mapping": ["@jridgewell/trace-mapping@0.3.31", "", { "dependencies": { "@jridgewell/resolve-uri": "^3.1.0", "@jridgewell/sourcemap-codec": "^1.4.14" } }, "sha512-zzNR+SdQSDJzc8joaeP8QQoCQr8NuYx2dIIytl1QeBEZHJ9uW6hebsrYgbz8hJwUQao3TWCMtmfV8Nu1twOLAw=="],
 
-    "@kixelated/hang": ["@kixelated/hang@workspace:hang"],
-
-    "@kixelated/hang-demo": ["@kixelated/hang-demo@workspace:hang-demo"],
-
-    "@kixelated/hang-ui": ["@kixelated/hang-ui@workspace:hang-ui"],
-
     "@kixelated/libavjs-webcodecs-polyfill": ["@kixelated/libavjs-webcodecs-polyfill@0.5.5", "", { "dependencies": { "@libav.js/types": "^6.7.7", "@ungap/global-this": "^0.4.4" } }, "sha512-Q1zgnTMMQ2F7IE9ylx3C1XzVbg5vYN18jiDINO5U3kNPBOHdYuUlJsMhtBoqr1M6ocLtoiqdHmLs7tHFgrw5KA=="],
-
-    "@kixelated/moq": ["@kixelated/moq@workspace:moq"],
-
-    "@kixelated/moq-clock": ["@kixelated/moq-clock@workspace:moq-clock"],
-
-    "@kixelated/moq-token": ["@kixelated/moq-token@workspace:moq-token"],
-
-    "@kixelated/signals": ["@kixelated/signals@workspace:signals"],
 
     "@kixelated/web-transport-ws": ["@kixelated/web-transport-ws@0.1.2", "", {}, "sha512-rRUQuKxMgZ9LCqsdrrIJuYR59RRcUZWWBDAWHHPKHT506xQ4vkscoVCm55SM5hoEqNCRke8o7+75oVTTiFxM+Q=="],
 
     "@libav.js/types": ["@libav.js/types@6.8.8", "", {}, "sha512-Lbik/0Q3x2R8cI7mOtRgt+nUWLqGXh7UinMndmpdXSDY4YEjYyVUDsq6fxkuriL78+LCYx8frZIN1r+oDsvYCQ=="],
 
     "@libav.js/variant-opus-af": ["@libav.js/variant-opus-af@6.8.8", "", {}, "sha512-8KBQyA8n5goN7lyctOaPxpcx7dapOgqKh8dWW/NAcl87AgM/WoUGSex3fFc46oCtTHYrUKEm1OmZUrtkt3Q56A=="],
+
+    "@moq/clock": ["@moq/clock@workspace:moq-clock"],
+
+    "@moq/hang": ["@moq/hang@workspace:hang"],
+
+    "@moq/hang-demo": ["@moq/hang-demo@workspace:hang-demo"],
+
+    "@moq/hang-ui": ["@moq/hang-ui@workspace:hang-ui"],
+
+    "@moq/lite": ["@moq/lite@workspace:moq"],
+
+    "@moq/signals": ["@moq/signals@workspace:signals"],
+
+    "@moq/token": ["@moq/token@workspace:moq-token"],
 
     "@nodelib/fs.scandir": ["@nodelib/fs.scandir@2.1.5", "", { "dependencies": { "@nodelib/fs.stat": "2.0.5", "run-parallel": "^1.1.9" } }, "sha512-vq24Bq3ym5HEQm2NKCr3yXDwjc7vTsEThRDnkp2DK9p1uqLR+DHurm/NOTo0KG7HYHU7eppKZj3MyqYuMBf62g=="],
 

@@ -1,4 +1,4 @@
-import { Effect, Signal } from "@kixelated/signals";
+import { Effect, Signal } from "@moq/signals";
 import { type ConnectProps, connect, type WebSocketOptions } from "./connect.ts";
 import type { Established } from "./established.ts";
 

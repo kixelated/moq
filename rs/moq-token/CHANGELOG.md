@@ -7,53 +7,53 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [0.5.4](https://github.com/kixelated/moq/compare/moq-token-v0.5.3...moq-token-v0.5.4) - 2025-10-18
+## [0.5.4](https://github.com/moq-dev/moq/compare/moq-token-v0.5.3...moq-token-v0.5.4) - 2025-10-18
 
 ### Other
 
-- Fix a potential race with append_group ([#600](https://github.com/kixelated/moq/pull/600))
+- Fix a potential race with append_group ([#600](https://github.com/moq-dev/moq/pull/600))
 
-## [0.5.3](https://github.com/kixelated/moq/compare/moq-token-v0.5.2...moq-token-v0.5.3) - 2025-08-12
-
-### Other
-
-- Support an array of authorized paths ([#536](https://github.com/kixelated/moq/pull/536))
-
-## [0.5.2](https://github.com/kixelated/moq/compare/moq-token-v0.5.1...moq-token-v0.5.2) - 2025-07-31
+## [0.5.3](https://github.com/moq-dev/moq/compare/moq-token-v0.5.2...moq-token-v0.5.3) - 2025-08-12
 
 ### Other
 
-- Fix some token nonsense. ([#497](https://github.com/kixelated/moq/pull/497))
-- Don't require node.js for moq-token ([#496](https://github.com/kixelated/moq/pull/496))
+- Support an array of authorized paths ([#536](https://github.com/moq-dev/moq/pull/536))
 
-## [0.5.1](https://github.com/kixelated/moq/compare/moq-token-v0.5.0...moq-token-v0.5.1) - 2025-07-22
-
-### Other
-
-- Improve authentication, adding tests and documentation ([#476](https://github.com/kixelated/moq/pull/476))
-
-## [0.5.0](https://github.com/kixelated/moq/compare/moq-token-v0.4.0...moq-token-v0.5.0) - 2025-07-19
+## [0.5.2](https://github.com/moq-dev/moq/compare/moq-token-v0.5.1...moq-token-v0.5.2) - 2025-07-31
 
 ### Other
 
-- Revamp connection URLs, broadcast paths, and origins ([#472](https://github.com/kixelated/moq/pull/472))
-- Add a JS moq-token package. ([#468](https://github.com/kixelated/moq/pull/468))
+- Fix some token nonsense. ([#497](https://github.com/moq-dev/moq/pull/497))
+- Don't require node.js for moq-token ([#496](https://github.com/moq-dev/moq/pull/496))
 
-## [0.4.0](https://github.com/kixelated/moq/compare/moq-token-v0.3.0...moq-token-v0.4.0) - 2025-07-16
-
-### Other
-
-- Use the usual name for tokens, CLAIMS. ([#455](https://github.com/kixelated/moq/pull/455))
-
-## [0.3.0](https://github.com/kixelated/moq/compare/moq-token-v0.2.0...moq-token-v0.3.0) - 2025-06-29
+## [0.5.1](https://github.com/moq-dev/moq/compare/moq-token-v0.5.0...moq-token-v0.5.1) - 2025-07-22
 
 ### Other
 
-- Revamp auth one last time... for now. ([#453](https://github.com/kixelated/moq/pull/453))
-- Revampt some JWT stuff. ([#451](https://github.com/kixelated/moq/pull/451))
+- Improve authentication, adding tests and documentation ([#476](https://github.com/moq-dev/moq/pull/476))
 
-## [0.2.0](https://github.com/kixelated/moq/compare/moq-token-v0.1.0...moq-token-v0.2.0) - 2025-06-25
+## [0.5.0](https://github.com/moq-dev/moq/compare/moq-token-v0.4.0...moq-token-v0.5.0) - 2025-07-19
 
 ### Other
 
-- Fix clustering, probably. ([#441](https://github.com/kixelated/moq/pull/441))
+- Revamp connection URLs, broadcast paths, and origins ([#472](https://github.com/moq-dev/moq/pull/472))
+- Add a JS moq-token package. ([#468](https://github.com/moq-dev/moq/pull/468))
+
+## [0.4.0](https://github.com/moq-dev/moq/compare/moq-token-v0.3.0...moq-token-v0.4.0) - 2025-07-16
+
+### Other
+
+- Use the usual name for tokens, CLAIMS. ([#455](https://github.com/moq-dev/moq/pull/455))
+
+## [0.3.0](https://github.com/moq-dev/moq/compare/moq-token-v0.2.0...moq-token-v0.3.0) - 2025-06-29
+
+### Other
+
+- Revamp auth one last time... for now. ([#453](https://github.com/moq-dev/moq/pull/453))
+- Revampt some JWT stuff. ([#451](https://github.com/moq-dev/moq/pull/451))
+
+## [0.2.0](https://github.com/moq-dev/moq/compare/moq-token-v0.1.0...moq-token-v0.2.0) - 2025-06-25
+
+### Other
+
+- Fix clustering, probably. ([#441](https://github.com/moq-dev/moq/pull/441))

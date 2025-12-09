@@ -1,4 +1,4 @@
-import { Effect, Signal } from "@kixelated/signals";
+import { Effect, Signal } from "@moq/signals";
 import * as Catalog from "../catalog";
 
 export type Props = {

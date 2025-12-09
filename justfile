@@ -71,14 +71,14 @@ leaf:
 pub name url='http://localhost:4443/anon' *args:
 	cd rs && just pub {{name}} {{url}} {{args}}
 
-# Publish/subscribe using gstreamer - see https://github.com/kixelated/hang-gst
+# Publish/subscribe using gstreamer - see https://github.com/moq-dev/gstreamer
 pub-gst name url='http://localhost:4443/anon':
-	@echo "GStreamer plugin has moved to: https://github.com/kixelated/hang-gst"
+	@echo "GStreamer plugin has moved to: https://github.com/moq-dev/gstreamer"
 	@echo "Install and use hang-gst directly for GStreamer functionality"
 
-# Subscribe to a video using gstreamer - see https://github.com/kixelated/hang-gst
+# Subscribe to a video using gstreamer - see https://github.com/moq-dev/gstreamer
 sub name url='http://localhost:4443/anon':
-	@echo "GStreamer plugin has moved to: https://github.com/kixelated/hang-gst"
+	@echo "GStreamer plugin has moved to: https://github.com/moq-dev/gstreamer"
 	@echo "Install and use hang-gst directly for GStreamer functionality"
 
 # Publish a video using ffmpeg directly from hang to the localhost
