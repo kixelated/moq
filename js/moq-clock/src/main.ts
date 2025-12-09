@@ -3,7 +3,7 @@
 // @ts-ignore Deno import.
 import { parseArgs } from "jsr:@std/cli/parse-args";
 
-import * as Moq from "@kixelated/moq";
+import * as Moq from "@moq/lite";
 
 interface Config {
 	url: string;

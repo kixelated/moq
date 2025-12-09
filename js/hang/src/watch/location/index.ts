@@ -1,5 +1,5 @@
-import type * as Moq from "@kixelated/moq";
-import { Effect, type Signal } from "@kixelated/signals";
+import type * as Moq from "@moq/lite";
+import { Effect, type Signal } from "@moq/signals";
 import type * as Catalog from "../../catalog";
 import { Peers, type PeersProps } from "./peers";
 import { Window, type WindowProps } from "./window";

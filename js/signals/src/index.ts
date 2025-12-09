@@ -8,7 +8,7 @@ type Subscriber<T> = (value: T) => void;
 const DEV = typeof import.meta.env !== "undefined" && import.meta.env?.MODE !== "production";
 
 // Symbol to identify Signal instances across different package versions
-const SIGNAL_BRAND = Symbol.for("@kixelated/signals");
+const SIGNAL_BRAND = Symbol.for("@moq/signals");
 
 export interface Getter<T> {
 	// Get the current value.

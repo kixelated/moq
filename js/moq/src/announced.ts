@@ -1,5 +1,5 @@
-import { Signal } from "@kixelated/signals";
-import * as Path from "./path.ts";
+import { Signal } from "@moq/signals";
+import * as Path from "./path.js";
 
 /**
  * The availability of a broadcast.

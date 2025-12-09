@@ -1,0 +1,99 @@
+name: libmoq
+
+on:
+  push:
+    tags:
+      - "libmoq-v*"
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build (${{ matrix.target }})
+    runs-on: ${{ matrix.os }}
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: x86_64-unknown-linux-gnu
+            os: ubuntu-latest
+          - target: aarch64-unknown-linux-gnu
+            os: ubuntu-latest
+          - target: x86_64-apple-darwin
+            os: macos-13
+          - target: aarch64-apple-darwin
+            os: macos-latest
+          - target: x86_64-pc-windows-msvc
+            os: windows-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Install cross-compilation tools (Linux ARM64)
+        if: matrix.target == 'aarch64-unknown-linux-gnu'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-aarch64-linux-gnu
+
+      - name: Parse version
+        id: parse
+        shell: bash
+        run: |
+          ref=${GITHUB_REF#refs/tags/}
+          if [[ "$ref" =~ ^libmoq-v([0-9.]+)$ ]]; then
+            echo "version=${BASH_REMATCH[1]}" >> $GITHUB_OUTPUT
+          else
+            echo "Tag format not recognized: $ref" >&2
+            exit 1
+          fi
+
+      - name: Build and package
+        shell: bash
+        run: |
+          ./rs/libmoq/build.sh \
+            --target ${{ matrix.target }} \
+            --version ${{ steps.parse.outputs.version }} \
+            --output dist
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: libmoq-${{ matrix.target }}
+          path: dist/*
+
+  release:
+    name: Release
+    needs: build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Parse version
+        id: parse
+        run: |
+          ref=${GITHUB_REF#refs/tags/}
+          if [[ "$ref" =~ ^libmoq-v([0-9.]+)$ ]]; then
+            echo "version=${BASH_REMATCH[1]}" >> $GITHUB_OUTPUT
+          else
+            echo "Tag format not recognized: $ref" >&2
+            exit 1
+          fi
+
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: true
+
+      - name: Create release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: libmoq v${{ steps.parse.outputs.version }}
+          generate_release_notes: true
+          files: artifacts/*

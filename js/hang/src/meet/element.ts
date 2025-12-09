@@ -1,6 +1,6 @@
-import * as Moq from "@kixelated/moq";
-import { Effect, Signal } from "@kixelated/signals";
-import * as DOM from "@kixelated/signals/dom";
+import * as Moq from "@moq/lite";
+import { Effect, Signal } from "@moq/signals";
+import * as DOM from "@moq/signals/dom";
 import { type Publish, Watch } from "..";
 import HangPublish from "../publish/element";
 import { Room } from "./room";

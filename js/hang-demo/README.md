@@ -1,5 +1,5 @@
 <p align="center">
-	<img height="128px" src="https://github.com/kixelated/moq/blob/main/.github/logo.svg" alt="Media over QUIC">
+	<img height="128px" src="https://github.com/moq-dev/moq/blob/main/.github/logo.svg" alt="Media over QUIC">
 </p>
 
 Media over QUIC (MoQ) is a live (media) delivery protocol utilizing QUIC.

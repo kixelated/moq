@@ -1,10 +1,10 @@
 {
-	"name": "@kixelated/moq",
+	"name": "@moq/lite",
 	"type": "module",
-	"version": "0.9.4",
+	"version": "0.1.0",
 	"description": "Media over QUIC library",
 	"license": "(MIT OR Apache-2.0)",
-	"repository": "github:kixelated/moq",
+	"repository": "github:moq-dev/moq",
 	"exports": {
 		".": "./src/index.ts",
 		"./zod": "./src/zod.ts"
@@ -17,7 +17,7 @@
 	},
 	"dependencies": {
 		"async-mutex": "^0.5.0",
-		"@kixelated/signals": "workspace:*",
+		"@moq/signals": "workspace:*",
 		"@kixelated/web-transport-ws": "^0.1.2"
 	},
 	"peerDependencies": {

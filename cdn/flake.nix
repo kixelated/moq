@@ -6,7 +6,7 @@
     moq = {
       # Unfortunately, we can't use a relative path here because it executes on the remote.
       # TODO cross-compile locally and upload the binary to the remote.
-      url = "github:kixelated/moq";
+      url = "github:moq-dev/moq";
     };
   };
 

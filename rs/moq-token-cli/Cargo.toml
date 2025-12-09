@@ -2,7 +2,7 @@
 name = "moq-token-cli"
 description = "Media over QUIC - Token Generation and Validation"
 authors = ["Luke Curley"]
-repository = "https://github.com/kixelated/moq"
+repository = "https://github.com/moq-dev/moq"
 license = "MIT OR Apache-2.0"
 
 version = "0.5.5"

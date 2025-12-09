@@ -1,5 +1,5 @@
-import type * as Moq from "@kixelated/moq";
-import { Effect, type Getter, Signal } from "@kixelated/signals";
+import type * as Moq from "@moq/lite";
+import { Effect, type Getter, Signal } from "@moq/signals";
 import type * as Catalog from "../../catalog";
 
 export interface TypingProps {

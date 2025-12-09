@@ -45,8 +45,8 @@ Key architectural rule: The CDN/relay does not know anything about media. Anythi
   hang-cli/       # CLI tool for media operations (binary is named `hang`)
 
 /js/               # TypeScript/JavaScript packages
-  moq/             # Core protocol for browsers (published as @kixelated/moq)
-  hang/            # Media layer with Web Components (published as @kixelated/hang)
+  moq/             # Core protocol for browsers (published as @moq/lite)
+  hang/            # Media layer with Web Components (published as @moq/hang)
   hang-demo/       # Demo applications
 ```
 

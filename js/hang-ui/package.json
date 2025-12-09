@@ -1,10 +1,10 @@
 {
-	"name": "@kixelated/hang-ui",
+	"name": "@moq/hang-ui",
 	"type": "module",
 	"version": "0.1.0",
 	"description": "Media over QUIC library UI components",
 	"license": "(MIT OR Apache-2.0)",
-	"repository": "github:kixelated/moq",
+	"repository": "github:moq-dev/moq",
 	"exports": {
 		"./publish/element": "./src/Components/publish/element.tsx",
 		"./watch/element": "./src/Components/watch/element.tsx"
@@ -20,7 +20,7 @@
 		"release": "bun ../scripts/release.ts"
 	},
 	"peerDependencies": {
-		"@kixelated/hang": "workspace:^0.7.0"
+		"@moq/hang": "workspace:^0.1.0"
 	},
 	"devDependencies": {
 		"@rollup/plugin-node-resolve": "^16.0.3",
