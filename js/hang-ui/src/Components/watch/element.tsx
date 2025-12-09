@@ -1,4 +1,4 @@
-import type HangWatch from "@kixelated/hang/watch/element";
+import type HangWatch from "@moq/hang/watch/element";
 import { customElement } from "solid-element";
 import { createSignal, onMount } from "solid-js";
 import BufferingIndicator from "./BufferingIndicator";

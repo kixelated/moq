@@ -2,7 +2,7 @@
 name = "hang-c"
 description = "Media over QUIC, C Interface"
 authors = ["Luke Curley <kixelated@gmail.com>", "Brian Medley <bpm@bmedley.org>"]
-repository = "https://github.com/kixelated/moq"
+repository = "https://github.com/moq-dev/moq"
 license = "MIT OR Apache-2.0"
 
 version = "0.7.0"

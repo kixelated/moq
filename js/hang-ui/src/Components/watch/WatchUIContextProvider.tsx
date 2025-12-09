@@ -1,5 +1,5 @@
-import type { Time } from "@kixelated/hang";
-import type HangWatch from "@kixelated/hang/watch/element";
+import type { Time } from "@moq/hang";
+import type HangWatch from "@moq/hang/watch/element";
 import type { JSX } from "solid-js";
 import { createContext, createEffect, createSignal } from "solid-js";
 

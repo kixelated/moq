@@ -1,10 +1,10 @@
 <p align="center">
-	<img height="128px" src="https://github.com/kixelated/moq/blob/main/.github/logo.svg" alt="Media over QUIC">
+	<img height="128px" src="https://github.com/moq-dev/moq/blob/main/.github/logo.svg" alt="Media over QUIC">
 </p>
 
-# @kixelated/moq
+# @moq/lite
 
-[![npm version](https://img.shields.io/npm/v/@kixelated/moq)](https://www.npmjs.com/package/@kixelated/moq)
+[![npm version](https://img.shields.io/npm/v/@moq/lite)](https://www.npmjs.com/package/@moq/lite)
 [![TypeScript](https://img.shields.io/badge/TypeScript-ready-blue.svg)](https://www.typescriptlang.org/)
 
 A TypeScript implementation of [Media over QUIC](https://moq.dev/) (MoQ) providing real-time data delivery in web browsers.
@@ -16,18 +16,18 @@ Check out [../hang] for a higher-level media library that uses this package.
 ## Quick Start
 
 ```bash
-npm add @kixelated/moq
+npm add @moq/lite
 # or
-pnpm add @kixelated/moq
-bun add @kixelated/moq
-yarn add @kixelated/moq
+pnpm add @moq/lite
+bun add @moq/lite
+yarn add @moq/lite
 # etc
 ```
 
 ### Basic Connection
 
 ```typescript
-import * as Moq from "@kixelated/moq";
+import * as Moq from "@moq/lite";
 
 // Connect to a MoQ relay server
 const connection = await Moq.connect("https://cdn.moq.dev/anon");
@@ -37,7 +37,7 @@ console.log("Connected to MoQ relay!");
 ### Publishing Data
 
 ```typescript
-import * as Moq from "@kixelated/moq";
+import * as Moq from "@moq/lite";
 
 const connection = await Moq.connect("https://cdn.moq.dev/anon");
 
@@ -60,7 +60,7 @@ console.log("Published data to my-broadcast");
 ### Subscribing to Data
 
 ```typescript
-import * as Moq from "@kixelated/moq";
+import * as Moq from "@moq/lite";
 
 const connection = await Moq.connect("https://cdn.moq.dev/anon");
 
@@ -87,7 +87,7 @@ for (;;) {
 ### Stream Discovery
 
 ```typescript
-import * as Moq from "@kixelated/moq";
+import * as Moq from "@moq/lite";
 
 const connection = await Moq.connect("https://cdn.moq.dev/anon");
 

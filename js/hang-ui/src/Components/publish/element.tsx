@@ -1,4 +1,4 @@
-import type HangPublish from "@kixelated/hang/publish/element";
+import type HangPublish from "@moq/hang/publish/element";
 import { customElement } from "solid-element";
 import { createSignal, onMount } from "solid-js";
 import PublishControls from "./PublishControls";

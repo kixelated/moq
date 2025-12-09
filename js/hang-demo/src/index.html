@@ -95,12 +95,12 @@ watch.audio.muted.set(true);
 	</p>
 
 	<p>
-		All of the properties are reactive using a hand-rolled signals library: `@kixelated/signals`.
+		All of the properties are reactive using a hand-rolled signals library: `@moq/signals`.
 		You could use it... or you can use the provided `react` and `solid` helpers:
 
 	<pre><code class="language-typescript">
-import { Watch } from "@kixelated/hang";
-import solid from "@kixelated/signals/solid";
+import { Watch } from "@moq/hang";
+import solid from "@moq/signals/solid";
 
 function Volume(hang: Watch) {
 	// Switch to `react` if you're using React, duh.
@@ -152,8 +152,8 @@ just pub bbb
 		Yeah it's pretty gross.
 	</p>
 	<p>
-		If you want to do things more efficiently, you can use the GStreamer plugin from the separate
-		<a href="https://github.com/kixelated/hang-gst">hang-gst repository</a>.
+		If you want to do things more efficiently, you can use the
+		<a href="https://github.com/moq-dev/gstreamer">Gstreamer plugin</a>.
 		It's pretty crude and doesn't handle all pipeline events; contributions welcome!
 	</p>
 </body>

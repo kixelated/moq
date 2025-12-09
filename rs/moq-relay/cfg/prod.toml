@@ -1,5 +1,5 @@
 # An example of a production configuration.
-# Here's a real one: https://github.com/kixelated/moq.dev/blob/b4da7dd8f09879cefb593d5e35f99f064caa3943/infra/relay.yml.tpl#L56
+# Here's a real one: https://github.com/moq-dev/moq.dev/blob/b4da7dd8f09879cefb593d5e35f99f064caa3943/infra/relay.yml.tpl#L56
 
 [server]
 # Listen for QUIC connections on UDP:443

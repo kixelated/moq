@@ -1,5 +1,5 @@
-import * as Moq from "@kixelated/moq";
-import { Effect, type Getter, Signal } from "@kixelated/signals";
+import * as Moq from "@moq/lite";
+import { Effect, type Getter, Signal } from "@moq/signals";
 import * as Catalog from "../../catalog";
 import { u53 } from "../../catalog";
 import * as Frame from "../../frame";

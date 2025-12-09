@@ -1,4 +1,4 @@
-import { Signal } from "@kixelated/signals";
+import { Signal } from "@moq/signals";
 import { Track } from "./track.ts";
 
 export interface TrackRequest {

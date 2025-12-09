@@ -1,4 +1,4 @@
-import { Effect, Signal } from "@kixelated/signals";
+import { Effect, Signal } from "@moq/signals";
 import type { StreamTrack as AudioStreamTrack } from "../audio/types";
 import type { StreamTrack as VideoStreamTrack } from "../video/types";
 

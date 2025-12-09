@@ -1,5 +1,5 @@
-import * as Moq from "@kixelated/moq";
-import { Effect, Signal } from "@kixelated/signals";
+import * as Moq from "@moq/lite";
+import { Effect, Signal } from "@moq/signals";
 import type * as Time from "../time";
 import * as Audio from "./audio";
 import { Broadcast } from "./broadcast";
