@@ -1,4 +1,4 @@
-import * as Moq from "@kixelated/moq";
+import type * as Moq from "@kixelated/moq";
 import { Effect, type Getter, Signal } from "@kixelated/signals";
 import * as Catalog from "../catalog";
 import { PRIORITY } from "../publish/priority";

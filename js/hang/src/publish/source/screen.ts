@@ -1,6 +1,6 @@
 import { Effect, Signal } from "@kixelated/signals";
 import type * as Audio from "../audio";
-import * as Video from "../video";
+import type * as Video from "../video";
 
 export interface ScreenProps {
 	enabled?: boolean | Signal<boolean>;

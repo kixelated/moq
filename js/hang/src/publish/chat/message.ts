@@ -1,6 +1,6 @@
-import * as Moq from "@kixelated/moq";
+import type * as Moq from "@kixelated/moq";
 import { Effect, Signal } from "@kixelated/signals";
-import * as Catalog from "../../catalog";
+import type * as Catalog from "../../catalog";
 import { PRIORITY } from "../priority";
 
 export type MessageProps = {

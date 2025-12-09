@@ -1,5 +1,5 @@
-import { Effect, Getter, Signal } from "@kixelated/signals";
-import * as Catalog from "../catalog";
+import { Effect, type Getter, Signal } from "@kixelated/signals";
+import type * as Catalog from "../catalog";
 
 export interface Props {
 	enabled?: boolean | Signal<boolean>;

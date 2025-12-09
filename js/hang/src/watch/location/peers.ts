@@ -1,6 +1,6 @@
-import * as Moq from "@kixelated/moq";
+import type * as Moq from "@kixelated/moq";
 import * as Zod from "@kixelated/moq/zod";
-import { Effect, Getter, Signal } from "@kixelated/signals";
+import { Effect, type Getter, Signal } from "@kixelated/signals";
 import * as Catalog from "../../catalog";
 
 export interface PeersProps {

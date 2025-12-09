@@ -13,23 +13,22 @@ default:
 
 # Install any dependencies.
 install:
-	cd rs && just install
-	cd js && just install
+	bun install
 
 # Alias for dev.
 all: dev
 
 # Run the relay, web server, and publish bbb.
 dev:
-	# We use bun for concurrently, so make sure it's installed.
-	cd js && just install
+	# Install any JS dependencies.
+	bun install
 
 	# Build the rust packages so `cargo run` has a head start.
 	cd rs && just build
 
 	# Then run the relay with a slight head start.
 	# It doesn't matter if the web beats BBB because we support automatic reloading.
-	js/node_modules/.bin/concurrently --kill-others --names srv,bbb,web --prefix-colors auto \
+	bun run concurrently --kill-others --names srv,bbb,web --prefix-colors auto \
 		"just relay" \
 		"sleep 1 && just pub bbb http://localhost:4443/anon" \
 		"sleep 2 && just web http://localhost:4443/anon"
@@ -40,9 +39,6 @@ relay:
 
 # Run a cluster of relay servers
 cluster:
-	# We use bun for concurrently, so make sure it's installed.
-	cd js && just install
-
 	# Generate auth tokens if needed
 	@cd rs && just auth-token
 
@@ -52,7 +48,7 @@ cluster:
 	# Then run a BOATLOAD of services to make sure they all work correctly.
 	# Publish the funny bunny to the root node.
 	# Publish the robot fanfic to the leaf node.
-	js/node_modules/.bin/concurrently --kill-others --names root,leaf,bbb,tos,web --prefix-colors auto \
+	node_modules/.bin/concurrently --kill-others --names root,leaf,bbb,tos,web --prefix-colors auto \
 		"just root" \
 		"sleep 1 && just leaf" \
 		"sleep 2 && just pub bbb http://localhost:4444/demo?jwt=$(cat rs/dev/demo-cli.jwt)" \
@@ -87,7 +83,7 @@ serve name:
 
 # Run the web server
 web url='http://localhost:4443/anon':
-	cd js && just dev {{url}}
+	VITE_RELAY_URL="{{url}}" bun run --filter='*' dev
 
 # Publish the clock broadcast
 # `action` is either `publish` or `subscribe`
@@ -96,27 +92,59 @@ clock action url="http://localhost:4443/anon" *args:
 
 # Run the CI checks
 check:
+	#!/usr/bin/env bash
+	set -euo pipefail
+
+	# Run the Javascript checks.
+	bun install --frozen-lockfile
+	if tty -s; then
+		bun run --filter='*' --elide-lines=0 check
+	else
+		bun run --filter='*' check
+	fi
+	bun biome check
+
+	# Run the (slower) Rust checks.
 	cd rs && just check
-	cd js && just check
+
+	# Only run the tofu checks if tofu is installed.
 	@if command -v tofu &> /dev/null; then cd cdn && just check; fi
+
 
 # Run the unit tests
 test:
+	#!/usr/bin/env bash
+	set -euo pipefail
+
+	# Run the Javascript tests.
+	bun install --frozen-lockfile
+	if tty -s; then
+		bun run --filter='*' --elide-lines=0 test
+	else
+		bun run --filter='*' test
+	fi
+
 	cd rs && just test
-	cd js && just test
 
 # Automatically fix some issues.
 fix:
+	# Fix the Javascript dependencies.
+	bun install
+	bun biome check --write
+	bun run --filter='*' fix
+
 	cd rs && just fix
-	cd js && just fix
 	@if command -v tofu &> /dev/null; then cd cdn && just fix; fi
 
 # Upgrade any tooling
 upgrade:
+	bun update
+	bun outdated
+
 	cd rs && just upgrade
-	cd js && just upgrade
 
 # Build the packages
 build:
+	bun run --filter='*' build
+
 	cd rs && just build
-	cd js && just build

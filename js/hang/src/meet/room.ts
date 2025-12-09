@@ -1,4 +1,4 @@
-import { Path } from "@kixelated/moq";
+import type { Path } from "@kixelated/moq";
 import { Effect, Signal } from "@kixelated/signals";
 import { type Moq, type Publish, Watch } from "..";
 
