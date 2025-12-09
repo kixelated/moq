@@ -280,6 +280,9 @@ upgrade:
 	# Requires: cargo install cargo-upgrades cargo-edit
 	cargo upgrade --incompatible
 
+	# Update the Nix flake.
+	nix flake update
+
 # Build the packages
 build:
 	bun run --filter='*' build
