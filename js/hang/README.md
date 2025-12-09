@@ -119,7 +119,7 @@ Subscribes to a hang broadcast and renders it.
 
 <!-- NOTE: You'll also need to publish a broadcast with the same name. See below. -->
 <hang-watch
-    url="https://relay.moq.dev/anon"
+    url="https://cdn.moq.dev/anon"
 	path="room123/me"
     controls>
 	<!-- canvas for rendering, otherwise video element will be disabled -->
@@ -146,7 +146,7 @@ Publishes a microphone/camera or screen as a hang broadcast.
 </script>
 
 <hang-publish
-    url="https://relay.moq.dev/anon" path="room123/me" audio video controls>
+    url="https://cdn.moq.dev/anon" path="room123/me" audio video controls>
     <!-- Optional: video element for preview -->
     <video autoplay muted></video>
 </hang-publish>
@@ -163,7 +163,7 @@ Very crude and best as an example; use the JS API instead.
 </script>
 
 <hang-meet
-    url="https://relay.moq.dev/anon"
+    url="https://cdn.moq.dev/anon"
 	path="room123"
     audio video
     controls>
@@ -196,7 +196,7 @@ You're on your own when it comes to documentation... for now.
 import * as Hang from "@kixelated/hang";
 
 // Create a new connection, available via `.established`
-const connection = new Hang.Connection("https://relay.moq.dev/anon");
+const connection = new Hang.Connection("https://cdn.moq.dev/anon");
 
 // Publishing media, with (optional) initial settings
 const publish = new Hang.Publish.Broadcast(connection, {

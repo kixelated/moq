@@ -30,7 +30,7 @@ yarn add @kixelated/moq
 import * as Moq from "@kixelated/moq";
 
 // Connect to a MoQ relay server
-const connection = await Moq.connect("https://relay.moq.dev/anon");
+const connection = await Moq.connect("https://cdn.moq.dev/anon");
 console.log("Connected to MoQ relay!");
 ```
 
@@ -39,7 +39,7 @@ console.log("Connected to MoQ relay!");
 ```typescript
 import * as Moq from "@kixelated/moq";
 
-const connection = await Moq.connect("https://relay.moq.dev/anon");
+const connection = await Moq.connect("https://cdn.moq.dev/anon");
 
 // Create a broadcast, not associated with any connection/name yet.
 const broadcast = new Moq.BroadcastProducer();
@@ -62,7 +62,7 @@ console.log("Published data to my-broadcast");
 ```typescript
 import * as Moq from "@kixelated/moq";
 
-const connection = await Moq.connect("https://relay.moq.dev/anon");
+const connection = await Moq.connect("https://cdn.moq.dev/anon");
 
 // Subscribe to a broadcast
 const broadcast = connection.consume("my-broadcast");
@@ -89,7 +89,7 @@ for (;;) {
 ```typescript
 import * as Moq from "@kixelated/moq";
 
-const connection = await Moq.connect("https://relay.moq.dev/anon");
+const connection = await Moq.connect("https://cdn.moq.dev/anon");
 
 // Discover broadcasts announced by the server
 let announcement = await connection.announced();
