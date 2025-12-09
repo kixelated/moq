@@ -76,14 +76,14 @@ pub name url='http://localhost:4443/anon' *args:
 ingest-hls url name='demo' relay='http://localhost:4443/anon':
 	cd rs && just ingest-hls {{url}} {{name}} {{relay}}
 
-# Publish/subscribe using gstreamer - see https://github.com/kixelated/hang-gst
+# Publish/subscribe using gstreamer - see https://github.com/moq-dev/gstreamer
 pub-gst name url='http://localhost:4443/anon':
-	@echo "GStreamer plugin has moved to: https://github.com/kixelated/hang-gst"
+	@echo "GStreamer plugin has moved to: https://github.com/moq-dev/gstreamer"
 	@echo "Install and use hang-gst directly for GStreamer functionality"
 
-# Subscribe to a video using gstreamer - see https://github.com/kixelated/hang-gst
+# Subscribe to a video using gstreamer - see https://github.com/moq-dev/gstreamer
 sub name url='http://localhost:4443/anon':
-	@echo "GStreamer plugin has moved to: https://github.com/kixelated/hang-gst"
+	@echo "GStreamer plugin has moved to: https://github.com/moq-dev/gstreamer"
 	@echo "Install and use hang-gst directly for GStreamer functionality"
 
 # Publish a video using ffmpeg directly from hang to the localhost
@@ -103,6 +103,7 @@ clock action url="http://localhost:4443/anon" *args:
 check:
 	cd rs && just check
 	cd js && just check
+	@if command -v tofu &> /dev/null; then cd cdn && just check; fi
 
 # Run the unit tests
 test:
@@ -113,6 +114,7 @@ test:
 fix:
 	cd rs && just fix
 	cd js && just fix
+	@if command -v tofu &> /dev/null; then cd cdn && just fix; fi
 
 # Upgrade any tooling
 upgrade:

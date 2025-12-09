@@ -1,15 +1,15 @@
 <p align="center">
-	<img height="128px" src="https://github.com/kixelated/moq/blob/main/.github/logo.svg" alt="Media over QUIC">
+	<img height="128px" src="https://github.com/moq-dev/moq/blob/main/.github/logo.svg" alt="Media over QUIC">
 </p>
 
-# @kixelated/hang
+# @moq/hang
 
-[![npm version](https://img.shields.io/npm/v/@kixelated/hang)](https://www.npmjs.com/package/@kixelated/hang)
+[![npm version](https://img.shields.io/npm/v/@moq/hang)](https://www.npmjs.com/package/@moq/hang)
 [![TypeScript](https://img.shields.io/badge/TypeScript-ready-blue.svg)](https://www.typescriptlang.org/)
 
 A TypeScript library for real-time media streaming using [Media over QUIC](https://moq.dev/) (MoQ), supported by modern web browsers.
 
-**`@kixelated/hang`** provides high-level media components for live audio and video streaming, built on top of [`@kixelated/moq`](../moq).
+**`@moq/hang`** provides high-level media components for live audio and video streaming, built on top of [`@moq/lite`](../moq).
 It uses new web APIs like WebCodecs, WebTransport, and Web Components.
 
 > **Note:** This project is a [fork](https://moq.dev/blog/transfork) of the [IETF MoQ specification](https://datatracker.ietf.org/group/moq/documents/), optimized for practical deployment with a narrower focus and exponentially simpler implementation.
@@ -24,11 +24,11 @@ It uses new web APIs like WebCodecs, WebTransport, and Web Components.
 ## Installation
 
 ```bash
-npm add @kixelated/hang
+npm add @moq/hang
 # or
-pnpm add @kixelated/hang
-yarn add @kixelated/hang
-bun add @kixelated/hang
+pnpm add @moq/hang
+yarn add @moq/hang
+bun add @moq/hang
 ```
 
 ## Web Components (Easiest)
@@ -44,15 +44,15 @@ There's also a Javascript API for more advanced use cases; see below.
 <head>
     <script type="module">
         // Import the web components
-        import "@kixelated/hang/publish/element";
-        import "@kixelated/hang/watch/element";
+        import "@moq/hang/publish/element";
+        import "@moq/hang/watch/element";
     </script>
 </head>
 <body>
     <!-- Publish camera/microphone -->
     <hang-publish
         url="https://relay.example.com/"
-		name="me"
+		path="me"
         audio
         video
         controls>
@@ -63,7 +63,7 @@ There's also a Javascript API for more advanced use cases; see below.
     <!-- Watch live stream the live stream we're publishing -->
     <hang-watch
         url="https://relay.example.com/"
-		name="me"
+		path="me"
         controls>
         <!-- Optional: canvas for rendering video, otherwise only audio will play -->
         <canvas style="width: 100%; border-radius: 8px;"></canvas>
@@ -114,13 +114,13 @@ Subscribes to a hang broadcast and renders it.
 
 ```html
 <script type="module">
-    import "@kixelated/hang/watch/element";
+    import "@moq/hang/watch/element";
 </script>
 
 <!-- NOTE: You'll also need to publish a broadcast with the same name. See below. -->
 <hang-watch
-    url="https://relay.moq.dev/anon"
-	name="room123/me"
+    url="https://cdn.moq.dev/anon"
+	path="room123/me"
     controls>
 	<!-- canvas for rendering, otherwise video element will be disabled -->
     <canvas></canvas>
@@ -142,11 +142,11 @@ Publishes a microphone/camera or screen as a hang broadcast.
 
 ```html
 <script type="module">
-    import "@kixelated/hang/publish/element";
+    import "@moq/hang/publish/element";
 </script>
 
 <hang-publish
-    url="https://relay.moq.dev/anon" name="room123/me" audio video controls>
+    url="https://cdn.moq.dev/anon" path="room123/me" audio video controls>
     <!-- Optional: video element for preview -->
     <video autoplay muted></video>
 </hang-publish>
@@ -159,12 +159,12 @@ Very crude and best as an example; use the JS API instead.
 
 ```html
 <script type="module">
-    import "@kixelated/hang/meet/element";
+    import "@moq/hang/meet/element";
 </script>
 
 <hang-meet
-    url="https://relay.moq.dev/anon"
-	name="room123"
+    url="https://cdn.moq.dev/anon"
+	path="room123"
     audio video
     controls>
 </hang-meet>
@@ -179,7 +179,7 @@ A simple element that displays browser support.
 
 ```html
 <script type="module">
-    import "@kixelated/hang/support/element";
+    import "@moq/hang/support/element";
 </script>
 
 <!-- Show only when a publishing feature is not supported -->
@@ -193,10 +193,10 @@ A simple element that displays browser support.
 You're on your own when it comes to documentation... for now.
 
 ```typescript
-import * as Hang from "@kixelated/hang";
+import * as Hang from "@moq/hang";
 
 // Create a new connection, available via `.established`
-const connection = new Hang.Connection("https://relay.moq.dev/anon");
+const connection = new Hang.Connection("https://cdn.moq.dev/anon");
 
 // Publishing media, with (optional) initial settings
 const publish = new Hang.Publish.Broadcast(connection, {
@@ -227,7 +227,7 @@ We're currently only testing the most recent versions of Chrome and sometimes Fi
 The Reactive API contains helpers to convert into React and SolidJS signals:
 
 ```ts
-import react from "@kixelated/signals/react";
+import react from "@moq/signals/react";
 // same for solid
 
 const publish = document.querySelector("hang-publish") as HangPublish;

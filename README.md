@@ -1,11 +1,11 @@
 <p align="center">
-	<img height="128px" src="https://github.com/kixelated/moq/blob/main/.github/logo.svg" alt="Media over QUIC">
+	<img height="128px" src="https://github.com/moq-dev/moq/blob/main/.github/logo.svg" alt="Media over QUIC">
 </p>
 
 ![License](https://img.shields.io/badge/license-MIT%2FApache--2.0-blue)
 [![Discord](https://img.shields.io/discord/1124083992740761730)](https://discord.gg/FCYF3p99mr)
 [![Crates.io](https://img.shields.io/crates/v/moq-lite)](https://crates.io/crates/moq-lite)
-[![npm](https://img.shields.io/npm/v/@kixelated/moq)](https://www.npmjs.com/package/@kixelated/moq)
+[![npm](https://img.shields.io/npm/v/@moq/lite)](https://www.npmjs.com/package/@moq/lite)
 
 # Media over QUIC
 
@@ -111,22 +111,23 @@ This repository provides both [Rust](/rs) and [TypeScript](/js) libraries with s
 ### Rust
 | Crate                       | Description                                                                                                                           | Docs                                                                           |
 |-----------------------------|---------------------------------------------------------------------------------------------------------------------------------------|--------------------------------------------------------------------------------|
-| [moq-lite](rs/moq)          | The core pub/sub transport protocol. Has built-in concurrency and deduplication.                                                      | [![docs.rs](https://docs.rs/moq-lite/badge.svg)](https://docs.rs/moq-lite)     |
+| [moq-lite](rs/moq-lite)          | The core pub/sub transport protocol. Has built-in concurrency and deduplication.                                                      | [![docs.rs](https://docs.rs/moq-lite/badge.svg)](https://docs.rs/moq-lite)     |
 | [moq-relay](rs/moq-relay)   | A clusterable relay server. This relay performs fan-out connecting multiple clients and servers together.                             |                                                                                |
 | [moq-token](rs/moq-token)   | An authentication scheme supported by `moq-relay`. Can be used as a library or as [a CLI](rs/moq-token-cli) to authenticate sessions. |                                                                                |
 | [moq-native](rs/moq-native) | Opinionated helpers to configure a Quinn QUIC endpoint. It's harder than it should be.                                                | [![docs.rs](https://docs.rs/moq-native/badge.svg)](https://docs.rs/moq-native) |
+| [libmoq](rs/libmoq)         | C bindings for `moq-lite`.                                                                                                            | [![docs.rs](https://docs.rs/libmoq/badge.svg)](https://docs.rs/libmoq)         |
 | [hang](rs/hang)             | Media-specific encoding/streaming layered on top of `moq-lite`. Can be used as a library or [a CLI](rs/hang-cli).                     | [![docs.rs](https://docs.rs/hang/badge.svg)](https://docs.rs/hang)             |
-| [hang-gst](https://github.com/kixelated/hang-gst) | A GStreamer plugin for publishing or consuming hang broadcasts. A separate repo to avoid requiring gstreamer as a build dependency.            |                                                                                |
+| [hang-gst](https://github.com/moq-dev/gstreamer) | A GStreamer plugin for publishing or consuming hang broadcasts. A separate repo to avoid requiring gstreamer as a build dependency.            |                                                                                |
 
 
 ### TypeScript
 
 | Package                                  | Description                                                                                                        | NPM                                                                                                   |
 |------------------------------------------|--------------------------------------------------------------------------------------------------------------------|-------------------------------------------------------------------------------------------------------|
-| **[@kixelated/moq](js/moq)**             | The core pub/sub transport protocol. Intended for browsers, but can be run server side using [Deno](https://deno.com/).                                   | [![npm](https://img.shields.io/npm/v/@kixelated/moq)](https://www.npmjs.com/package/@kixelated/moq)   |
-| **[@kixelated/hang](js/hang)**           | Media-specific encoding/streaming layered on top of `moq-lite`. Provides both a Javascript API and Web Components. | [![npm](https://img.shields.io/npm/v/@kixelated/hang)](https://www.npmjs.com/package/@kixelated/hang) |
-| **[@kixelated/hang-demo](js/hang-demo)** | Examples using `@kixelated/hang`.                                                                                  |                                                                                                       |
-| **[@kixelated/hang-ui](js/hang-ui)**.    | UI Components that interact with the Hang Web Components using SolidJS.                                                 | [![npm](https://img.shields.io/npm/v/@kixelated/hang-ui)](https://www.npmjs.com/package/@kixelated/hang-ui) |
+| **[@moq/lite](js/moq)**             | The core pub/sub transport protocol. Intended for browsers, but can be run server side using [Deno](https://deno.com/).                                   | [![npm](https://img.shields.io/npm/v/@moq/lite)](https://www.npmjs.com/package/@moq/lite)   |
+| **[@moq/hang](js/hang)**           | Media-specific encoding/streaming layered on top of `moq-lite`. Provides both a Javascript API and Web Components. | [![npm](https://img.shields.io/npm/v/@moq/hang)](https://www.npmjs.com/package/@moq/hang) |
+| **[@moq/hang-demo](js/hang-demo)** | Examples using `@moq/hang`.                                                                                  |                                                                                                       |
+| **[@moq/hang-ui](js/hang-ui)**.    | UI Components that interact with the Hang Web Components using SolidJS.                                                 | [![npm](https://img.shields.io/npm/v/@moq/hang-ui)](https://www.npmjs.com/package/@moq/hang-ui) |
 
 
 ## Documentation
@@ -137,9 +138,9 @@ Additional documentation and implementation details:
 
 ## Protocol
 Read the specifications:
-- [moq-lite](https://kixelated.github.io/moq-drafts/draft-lcurley-moq-lite.html)
-- [hang](https://kixelated.github.io/moq-drafts/draft-lcurley-moq-hang.html)
-- [use-cases](https://kixelated.github.io/moq-drafts/draft-lcurley-moq-use-cases.html)
+- [moq-lite](https://moq-dev.github.io/drafts/draft-lcurley-moq-lite.html)
+- [hang](https://moq-dev.github.io/drafts/draft-lcurley-moq-hang.html)
+- [use-cases](https://moq-dev.github.io/drafts/draft-lcurley-moq-use-cases.html)
 
 ## Development
 ```sh
@@ -161,7 +162,7 @@ just pub tos  # Terminal 2: Publish a demo video using ffmpeg
 just web      # Terminal 3: Start web server
 ```
 
-There are more commands: check out the [Justfile](Justfile), [rs/Justfile](rs/Justfile), and [js/Justfile](js/Justfile).
+There are more commands: check out the [justfile](justfile), [rs/justfile](rs/justfile), and [js/justfile](js/justfile).
 
 
 ## License

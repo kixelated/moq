@@ -1,0 +1,27 @@
+{
+	"name": "@moq/clock",
+	"type": "module",
+	"version": "0.1.0",
+	"description": "MoQ clock example with publish/subscribe functionality",
+	"license": "(MIT OR Apache-2.0)",
+	"repository": "github:moq-dev/moq",
+	"files": [
+		"./src",
+		"README.md"
+	],
+	"bin": {
+		"moq-clock": "./src/main.ts"
+	},
+	"scripts": {
+		"check": "deno check && biome check",
+		"fix": "biome check --fix"
+	},
+	"dependencies": {
+		"@moq/lite": "workspace:*"
+	},
+	"devDependencies": {
+		"@types/deno": "^2.3.0",
+		"typescript": "^5.9.2",
+		"@biomejs/biome": "^2.2.2"
+	}
+}

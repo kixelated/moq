@@ -1,25 +1,25 @@
-import { Signal, Effect } from "@kixelated/signals";
-import type { StreamTrack as VideoStreamTrack } from "../video/types";
+import { Effect, Signal } from "@moq/signals";
 import type { StreamTrack as AudioStreamTrack } from "../audio/types";
+import type { StreamTrack as VideoStreamTrack } from "../video/types";
 
 export interface FileSourceConfig {
-	enabled: Signal<boolean>;
+	enabled?: boolean | Signal<boolean>;
+	file?: globalThis.File | Signal<globalThis.File | undefined>;
 }
 
 export class File {
-	#file = new Signal<globalThis.File | undefined>(undefined);
+	file = new Signal<globalThis.File | undefined>(undefined);
 	signals = new Effect();
 
-	source = new Signal<{ video?: VideoStreamTrack; audio?: AudioStreamTrack }>(
-		{}
-	);
+	source = new Signal<{ video?: VideoStreamTrack; audio?: AudioStreamTrack }>({});
 	enabled: Signal<boolean>;
 
 	constructor(config: FileSourceConfig) {
-		this.enabled = config.enabled;
+		this.enabled = Signal.from(config.enabled ?? false);
+		this.file = Signal.from(config.file);
 
 		this.signals.effect((effect) => {
-			const file = effect.get(this.#file);
+			const file = effect.get(this.file);
 			const enabled = effect.get(this.enabled);
 
 			if (!file || !enabled) {
@@ -30,10 +30,6 @@ export class File {
 				console.error("Failed to decode file:", err);
 			});
 		});
-	}
-
-	setFile(file: globalThis.File | undefined) {
-		this.#file.set(file);
 	}
 
 	async #decode(file: globalThis.File, effect: Effect) {
@@ -116,7 +112,7 @@ export class File {
 				video: videoTrack as VideoStreamTrack,
 				audio: audioTrack as AudioStreamTrack,
 			},
-			{}
+			{},
 		);
 	}
 

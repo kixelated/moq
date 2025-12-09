@@ -1,8 +1,6 @@
-import type HangPublish from "@kixelated/hang/publish/element";
-import type { HangPublishInstance, InstanceAvailableEvent } from "@kixelated/hang/publish/element";
-import { Effect } from "@kixelated/signals";
+import type HangPublish from "@moq/hang/publish/element";
 import type { JSX } from "solid-js";
-import { createContext, createEffect, createSignal, onCleanup } from "solid-js";
+import { createContext, createEffect, createSignal } from "solid-js";
 
 type PublishStatus = "no-url" | "disconnected" | "connecting" | "live" | "audio-only" | "video-only" | "select-source";
 
@@ -46,10 +44,9 @@ export default function PublishUIContextProvider(props: PublishUIContextProvider
 		const hangPublishEl = props.hangPublish();
 		if (!hangPublishEl) return;
 
-		hangPublishEl.file = file;
-		hangPublishEl.source = "file";
-		hangPublishEl.video = true;
-		hangPublishEl.audio = true;
+		hangPublishEl.source.set(file);
+		hangPublishEl.invisible.set(false);
+		hangPublishEl.muted.set(false);
 	};
 
 	const value: PublishUIContextValue = {
@@ -68,41 +65,12 @@ export default function PublishUIContextProvider(props: PublishUIContextProvider
 	};
 
 	createEffect(() => {
-		const hangPublishEl = props.hangPublish();
-		if (!hangPublishEl) return;
+		const publish = props.hangPublish();
+		if (!publish) return;
 
-		const onInstanceAvailable = (event: InstanceAvailableEvent) => {
-			const publishInstance = event.detail.instance;
-
-			if (publishInstance) {
-				onPublishInstanceAvailable(hangPublishEl, publishInstance);
-			}
-		};
-
-		const hangPublishInstance = hangPublishEl?.active?.peek?.();
-
-		if (hangPublishInstance) {
-			onPublishInstanceAvailable(hangPublishEl, hangPublishInstance);
-		} else {
-			hangPublishEl.addEventListener("publish-instance-available", onInstanceAvailable);
-			onCleanup(() => {
-				hangPublishEl.removeEventListener("publish-instance-available", onInstanceAvailable);
-			});
-		}
-	});
-
-	return <PublishUIContext.Provider value={value}>{props.children}</PublishUIContext.Provider>;
-
-	function onPublishInstanceAvailable(el: HangPublish, publishInstance: HangPublishInstance) {
-		const localEffect = new Effect();
-
-		onCleanup(() => {
-			localEffect.close();
-		});
-
-		localEffect.effect(function trackCameraDevices(effect) {
+		publish.signals.effect((effect) => {
 			const clearCameraDevices = () => setCameraMediaDevices([]);
-			const video = effect.get(publishInstance.video);
+			const video = effect.get(publish.video);
 
 			if (!video || !("device" in video)) {
 				clearCameraDevices();
@@ -118,16 +86,16 @@ export default function PublishUIContextProvider(props: PublishUIContextProvider
 			setCameraMediaDevices(devices);
 		});
 
-		localEffect.effect(function trackMicrophoneDevices(effect) {
+		publish.signals.effect((effect) => {
 			const clearMicrophoneDevices = () => setMicrophoneMediaDevices([]);
-			const audio = effect.get(publishInstance.audio);
+			const audio = effect.get(publish.audio);
 
 			if (!audio || !("device" in audio)) {
 				clearMicrophoneDevices();
 				return;
 			}
 
-			const enabled = effect.get(publishInstance.broadcast.audio.enabled);
+			const enabled = effect.get(publish.broadcast.audio.enabled);
 			if (!enabled) {
 				clearMicrophoneDevices();
 				return;
@@ -142,19 +110,19 @@ export default function PublishUIContextProvider(props: PublishUIContextProvider
 			setMicrophoneMediaDevices(devices);
 		});
 
-		localEffect.effect(function trackNothingSourceActive(effect) {
-			const selectedSource = effect.get(el.signals.source);
+		publish.signals.effect((effect) => {
+			const selectedSource = effect.get(publish.source);
 			setNothingActive(selectedSource === undefined);
 		});
 
-		localEffect.effect(function trackMicrophoneSourceActive(effect) {
-			const audioActive = effect.get(el.signals.audio);
+		publish.signals.effect((effect) => {
+			const audioActive = !effect.get(publish.muted);
 			setMicrophoneActive(audioActive);
 		});
 
-		localEffect.effect(function trackVideoSourcesActive(effect) {
-			const videoSource = effect.get(el.signals.source);
-			const videoActive = effect.get(el.signals.video);
+		publish.signals.effect((effect) => {
+			const videoSource = effect.get(publish.source);
+			const videoActive = effect.get(publish.video);
 
 			if (videoActive && videoSource === "camera") {
 				setCameraActive(true);
@@ -168,8 +136,8 @@ export default function PublishUIContextProvider(props: PublishUIContextProvider
 			}
 		});
 
-		localEffect.effect(function trackSelectedCameraSource(effect) {
-			const video = effect.get(publishInstance.video);
+		publish.signals.effect((effect) => {
+			const video = effect.get(publish.video);
 
 			if (!video || !("device" in video)) return;
 
@@ -177,8 +145,8 @@ export default function PublishUIContextProvider(props: PublishUIContextProvider
 			setSelectedCameraSource(requested);
 		});
 
-		localEffect.effect(function trackSelectedMicrophoneSource(effect) {
-			const audio = effect.get(publishInstance.audio);
+		publish.signals.effect((effect) => {
+			const audio = effect.get(publish.audio);
 
 			if (!audio || !("device" in audio)) return;
 
@@ -186,11 +154,11 @@ export default function PublishUIContextProvider(props: PublishUIContextProvider
 			setSelectedMicrophoneSource(requested);
 		});
 
-		localEffect.effect(function trackPublishStatus(effect) {
-			const url = effect.get(publishInstance.connection.url);
-			const status = effect.get(publishInstance.connection.status);
-			const audio = effect.get(publishInstance.broadcast.audio.source);
-			const video = effect.get(publishInstance.broadcast.video.source);
+		publish.signals.effect((effect) => {
+			const url = effect.get(publish.connection.url);
+			const status = effect.get(publish.connection.status);
+			const audio = effect.get(publish.broadcast.audio.source);
+			const video = effect.get(publish.broadcast.video.source);
 
 			if (!url) {
 				setPublishStatus("no-url");
@@ -209,9 +177,11 @@ export default function PublishUIContextProvider(props: PublishUIContextProvider
 			}
 		});
 
-		localEffect.effect(function trackFileActive(effect) {
-			const selectedSource = effect.get(el.signals.source);
-			setFileActive(selectedSource === "file");
+		publish.signals.effect((effect) => {
+			const selectedSource = effect.get(publish.source);
+			setFileActive(selectedSource instanceof File);
 		});
-	}
+	});
+
+	return <PublishUIContext.Provider value={value}>{props.children}</PublishUIContext.Provider>;
 }

@@ -24,7 +24,7 @@ If you don't care about security, anonymous access is supported.
 The relay can be configured with a single public prefix, usually "anon".
 This is obviously not recommended in production especially because broadcast paths are not unique and can be hijacked.
 
-**Example URL**: `https://relay.moq.dev/anon`
+**Example URL**: `https://cdn.moq.dev/anon`
 
 **Example Configuration:**
 ```toml
@@ -55,7 +55,7 @@ key = "root.jwk" # Require a token for all paths
 ### Authenticated Tokens
 An token can be passed via the `?jwt=` query parameter in the connection URL:
 
-**Example URL**: `https://relay.moq.dev/demo?jwt=<base64-jwt-token>`
+**Example URL**: `https://cdn.moq.dev/demo?jwt=<base64-jwt-token>`
 
 **WARNING**: These tokens are only as secure as the delivery.
 Make sure that any secrets are securely transmitted (ex. via HTTPS) and stored (ex. secrets manager).
@@ -77,8 +77,8 @@ It can also be used to prevent publishing (read-only) or subscribing (write-only
 ```
 
 This token allows:
-- ✅ Connect to `https://relay.moq.dev/room/123`
-- ❌ Connect to: `https://relay.moq.dev/secret` (wrong root)
+- ✅ Connect to `https://cdn.moq.dev/room/123`
+- ❌ Connect to: `https://cdn.moq.dev/secret` (wrong root)
 - ✅ Publish to `alice/camera`
 - ❌ Publish to: `bob/camera` (only alice)
 - ✅ Subscribe to `bob/screen`
@@ -92,19 +92,19 @@ Leading and trailing slashes are ignored within a token.
 
 All subscriptions and announcements are relative to the connection URL.
 These would all resolves to the same broadcast:
-- `CONNECT https://relay.moq.dev/room/123` could `SUBSCRIBE alice`.
-- `CONNECT https://relay.moq.dev/room` could `SUBSCRIBE 123/alice`.
-- `CONNECT https://relay.moq.dev` could `SUBSCRIBE room/123/alice`.
+- `CONNECT https://cdn.moq.dev/room/123` could `SUBSCRIBE alice`.
+- `CONNECT https://cdn.moq.dev/room` could `SUBSCRIBE 123/alice`.
+- `CONNECT https://cdn.moq.dev` could `SUBSCRIBE room/123/alice`.
 
 
 The connection URL must contain the root path within the token.
 It's possible use a more specific path, potentially losing permissions in the process.
 
 Our example token from above:
-- 🔴 Connect to `http://relay.moq.dev/room` (must contain room/123)
-- 🟢 Connect to `http://relay.moq.dev/room/123`
-- 🟡 Connect to `http://relay.moq.dev/room/123/alice` (can't subscribe to `bob`)
-- 🟡 Connect to `http://relay.moq.dev/room/123/bob` (can't publish to `alice`)
+- 🔴 Connect to `http://cdn.moq.dev/room` (must contain room/123)
+- 🟢 Connect to `http://cdn.moq.dev/room/123`
+- 🟡 Connect to `http://cdn.moq.dev/room/123/alice` (can't subscribe to `bob`)
+- 🟡 Connect to `http://cdn.moq.dev/room/123/bob` (can't publish to `alice`)
 
 
 ### Generating Tokens

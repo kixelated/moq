@@ -18,6 +18,11 @@
       inputs.crane.follows = "crane";
       inputs.rust-overlay.follows = "rust-overlay";
     };
+    cdn = {
+      url = "./cdn";
+      inputs.nixpkgs.follows = "nixpkgs";
+      inputs.flake-utils.follows = "flake-utils";
+    };
   };
 
   outputs =
@@ -27,6 +32,7 @@
       flake-utils,
       js,
       rs,
+      cdn,
       ...
     }:
     {
@@ -38,6 +44,7 @@
         inputsFrom = [
           rs.devShells.${system}.default
           js.devShells.${system}.default
+          cdn.devShells.${system}.default
         ];
         shellHook = "";
       };

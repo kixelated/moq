@@ -1,0 +1,37 @@
+[Unit]
+Description=MoQ Publisher - Big Buck Bunny
+After=network-online.target hang-bbb-prepare.service
+Wants=network-online.target
+Requires=hang-bbb-prepare.service
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/var/lib/moq
+Environment="RUST_LOG=debug"
+
+# Stream fragmented video in a loop and pipe to hang publish
+ExecStart=/bin/bash -c '\
+  /var/lib/moq/result-bin/bin/ffmpeg \
+    -stream_loop -1 \
+    -hide_banner \
+    -v quiet \
+    -re \
+    -i /var/lib/moq/fragmented.mp4 \
+    -c copy \
+    -f mp4 \
+    -movflags cmaf+separate_moof+delay_moov+skip_trailer+frag_every_frame \
+    - | \
+  /var/lib/moq/result-hang/bin/hang publish \
+    --url "https://cdn.moq.dev/demo?jwt=$(cat /var/lib/moq/demo-pub.jwt)" \
+    --name bbb'
+
+# Restart with exponential backoff
+Restart=always
+RestartSec=10s
+
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

@@ -93,7 +93,7 @@ impl AnnexB {
 					None => continue,
 				};
 
-				let payload = match au.to_annexb_bytes() {
+				let payload = match au.to_annexb_webcodec_bytes() {
 					Cow::Borrowed(b) => Bytes::copy_from_slice(b),
 					Cow::Owned(b) => Bytes::from(b), // avoids a copy
 				};

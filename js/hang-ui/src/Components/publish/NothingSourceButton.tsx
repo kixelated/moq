@@ -7,9 +7,9 @@ export default function NothingSourceButton() {
 		const hangPublishEl = context?.hangPublish();
 		if (!hangPublishEl) return;
 
-		hangPublishEl.source = undefined;
-		hangPublishEl.video = false;
-		hangPublishEl.audio = false;
+		hangPublishEl.source.set(undefined);
+		hangPublishEl.muted.set(true);
+		hangPublishEl.invisible.set(true);
 	};
 
 	return (

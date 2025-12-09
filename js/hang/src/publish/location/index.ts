@@ -1,4 +1,4 @@
-import { Effect, Signal } from "@kixelated/signals";
+import { Effect, Signal } from "@moq/signals";
 import { Catalog } from "../..";
 import { Peers, PeersProps } from "./peers";
 import { Window, WindowProps } from "./window";

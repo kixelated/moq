@@ -1,19 +1,19 @@
 {
-	"name": "@kixelated/hang-demo",
+	"name": "@moq/hang-demo",
 	"private": true,
 	"type": "module",
 	"version": "0.1.0",
 	"description": "Media over QUIC - Demo",
 	"license": "(MIT OR Apache-2.0)",
-	"repository": "github:kixelated/moq",
+	"repository": "github:moq-dev/moq",
 	"scripts": {
 		"dev": "vite --open",
 		"check": "tsc --noEmit && biome check",
 		"fix": "biome check --fix"
 	},
 	"dependencies": {
-		"@kixelated/hang": "workspace:^",
-		"@kixelated/hang-ui": "workspace:^"
+		"@moq/hang": "workspace:^",
+		"@moq/hang-ui": "workspace:^"
 	},
 	"devDependencies": {
 		"@biomejs/biome": "^2.2.2",
