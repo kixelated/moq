@@ -105,10 +105,10 @@ check:
 	bun biome check
 
 	# Run the (slower) Rust checks.
-	cd rs && just check
+	(cd rs && just check)
 
-	# Only run the tofu checks if tofu is installed and cdn dir exists.
-	if command -v tofu &> /dev/null && [ -d cdn ]; then cd cdn && just check; fi
+	# Only run the tofu checks if tofu is installed.
+	if command -v tofu &> /dev/null; then (cd cdn && just check); fi
 
 
 # Run the unit tests
@@ -124,27 +124,26 @@ test:
 		bun run --filter='*' test
 	fi
 
-	cd rs && just test
+	(cd rs && just test)
 
 # Automatically fix some issues.
 fix:
 	# Fix the Javascript dependencies.
 	bun install
 	bun biome check --write
-	bun run --filter='*' fix
 
-	cd rs && just fix
-	if command -v tofu &> /dev/null; then cd cdn && just fix; fi
+	(cd rs && just fix)
+	if command -v tofu &> /dev/null; then (cd cdn && just fix); fi
 
 # Upgrade any tooling
 upgrade:
 	bun update
 	bun outdated
 
-	cd rs && just upgrade
+	(cd rs && just upgrade)
 
 # Build the packages
 build:
 	bun run --filter='*' build
 
-	cd rs && just build
+	(cd rs && just build)
