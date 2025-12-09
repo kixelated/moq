@@ -32,14 +32,11 @@ fn main() {
 }
 
 fn target_dir() -> PathBuf {
-	// OUT_DIR is like: target/debug/build/libmoq-xxx/out
-	// We want: target/
-	let out_dir = PathBuf::from(env::var("OUT_DIR").unwrap());
-	out_dir
-		.parent() // build/libmoq-xxx
-		.and_then(|p| p.parent()) // build
-		.and_then(|p| p.parent()) // debug
-		.and_then(|p| p.parent()) // target
-		.map(|p| p.to_path_buf())
-		.unwrap_or(out_dir)
+	// Always use the workspace target directory (rs/target/)
+	// regardless of whether --target is used or not.
+	// CARGO_MANIFEST_DIR is rs/libmoq/, so go up one level to rs/
+	PathBuf::from(env::var("CARGO_MANIFEST_DIR").unwrap())
+		.parent()
+		.expect("Failed to get parent of CARGO_MANIFEST_DIR")
+		.join("target")
 }
