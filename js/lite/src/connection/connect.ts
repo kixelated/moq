@@ -1,4 +1,4 @@
-import WebTransportWs from "@kixelated/web-transport-ws";
+import WebTransportWs from "@moq/web-transport-ws";
 import * as Ietf from "../ietf/index.ts";
 import * as Lite from "../lite/index.ts";
 import { Stream } from "../stream.ts";
