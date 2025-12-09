@@ -3,8 +3,8 @@ exec_prefix=${prefix}
 libdir=${exec_prefix}/lib
 includedir=${prefix}/include
 
-Name: hang
+Name: moq
 Description: Media over QUIC C Interface
 Version: @VERSION@
-Libs: -L${libdir} -lhang
+Libs: -L${libdir} -lmoq
 Cflags: -I${includedir}

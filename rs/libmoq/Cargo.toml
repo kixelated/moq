@@ -1,18 +1,18 @@
 [package]
-name = "hang-c"
-description = "Media over QUIC, C Interface"
+name = "libmoq"
+description = "Media over QUIC, C Library"
 authors = ["Luke Curley <kixelated@gmail.com>", "Brian Medley <bpm@bmedley.org>"]
 repository = "https://github.com/moq-dev/moq"
 license = "MIT OR Apache-2.0"
 
-version = "0.7.0"
+version = "0.1.0"
 edition = "2021"
 
 keywords = ["quic", "http3", "webtransport", "media", "live"]
 categories = ["multimedia", "network-programming", "web-programming"]
 
 [lib]
-name = "hang"
+name = "moq"
 crate-type = ["cdylib", "staticlib"]
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
@@ -22,7 +22,10 @@ bytes = "1.10"
 hang = { workspace = true }
 moq-lite = { workspace = true, features = ["serde"] }
 moq-native = { workspace = true }
+slab = "0.4"
+thiserror = "2"
 tokio = { workspace = true, features = ["macros"] }
+tracing = "0.1"
 url = "2"
 
 [build-dependencies]
