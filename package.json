@@ -4,9 +4,9 @@
 	"private": true,
 	"type": "module",
 	"workspaces": [
-		"js/moq",
-		"js/moq-clock",
-		"js/moq-token",
+		"js/lite",
+		"js/clock",
+		"js/token",
 		"js/hang",
 		"js/hang-ui",
 		"js/hang-demo",

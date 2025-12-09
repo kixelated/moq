@@ -16,6 +16,15 @@
       ]
     },
     "members": {
+      "js/clock": {
+        "packageJson": {
+          "dependencies": [
+            "npm:@biomejs/biome@^2.2.2",
+            "npm:@types/deno@^2.3.0",
+            "npm:typescript@^5.9.2"
+          ]
+        }
+      },
       "js/hang": {
         "packageJson": {
           "dependencies": [
@@ -61,7 +70,7 @@
           ]
         }
       },
-      "js/moq": {
+      "js/lite": {
         "packageJson": {
           "dependencies": [
             "npm:@kixelated/web-transport-ws@~0.1.2",
@@ -77,25 +86,6 @@
           ]
         }
       },
-      "js/moq-clock": {
-        "packageJson": {
-          "dependencies": [
-            "npm:@types/deno@^2.3.0",
-            "npm:typescript@^5.9.2"
-          ]
-        }
-      },
-      "js/moq-token": {
-        "packageJson": {
-          "dependencies": [
-            "npm:@hexagon/base64@^2.0.4",
-            "npm:@types/node@^24.3.1",
-            "npm:jose@^6.1.0",
-            "npm:typescript@^5.9.2",
-            "npm:zod@^4.1.5"
-          ]
-        }
-      },
       "js/signals": {
         "packageJson": {
           "dependencies": [
@@ -104,6 +94,18 @@
             "npm:rimraf@^6.0.1",
             "npm:solid-js@^1.9.7",
             "npm:typescript@^5.9.2"
+          ]
+        }
+      },
+      "js/token": {
+        "packageJson": {
+          "dependencies": [
+            "npm:@biomejs/biome@^2.2.2",
+            "npm:@hexagon/base64@^2.0.4",
+            "npm:@types/node@^24.3.1",
+            "npm:jose@^6.1.0",
+            "npm:typescript@^5.9.2",
+            "npm:zod@^4.1.5"
           ]
         }
       }

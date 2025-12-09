@@ -19,6 +19,8 @@ jobs:
     name: Plz
 
     runs-on: ubuntu-latest
+    if: ${{ github.repository_owner == 'moq-dev' }}
+
     steps:
       # Generating a GitHub token, so that PRs and tags created by
       # the release-plz-action can trigger actions workflows.
