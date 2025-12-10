@@ -1,12 +1,11 @@
-import { createEffect, For, useContext } from "solid-js";
+import { createEffect, For, useContext, type JSX } from "solid-js";
 import { WatchUIContext } from "./WatchUIContextProvider";
 
 export default function QualitySelector() {
 	const context = useContext(WatchUIContext);
 
-	const handleQualityChange = (event: Event) => {
-		const target = event.currentTarget as HTMLSelectElement;
-		const selectedValue = target.value || undefined;
+	const handleQualityChange: JSX.EventHandler<HTMLSelectElement, Event> = (event) => {
+		const selectedValue = event.currentTarget.value || undefined; 
 		context?.setActiveRendition(selectedValue);
 	};
 
