@@ -5,10 +5,16 @@ import { BaseHandler } from "./base";
 class TestHandler extends BaseHandler {
 	public setupCalled = false;
 	public setupContext: HandlerContext | undefined;
+	public cleanupCalled = false;
 
 	setup(context: HandlerContext): void {
 		this.setupCalled = true;
 		this.setupContext = context;
+	}
+
+	cleanup(): void {
+		this.cleanupCalled = true;
+		super.cleanup();
 	}
 }
 
@@ -38,7 +44,9 @@ describe("BaseHandler", () => {
 
 	it("should cleanup subscriptions", () => {
 		handler.setup(context);
+		expect(handler.cleanupCalled).toBe(false);
 		handler.cleanup();
+		expect(handler.cleanupCalled).toBe(true);
 		expect(handler.setupCalled).toBe(true);
 	});
 

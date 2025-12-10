@@ -84,7 +84,7 @@
 
         .stats__item {
             @include flex(row, flex-start, flex-start);
-            height: -webkit-fill-available;
+            height: auto;
             column-gap: spacing.$sm;
             flex-basis: calc(50% - spacing.$md);
             flex-grow: 1;
