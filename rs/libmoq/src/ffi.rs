@@ -99,7 +99,7 @@ impl ReturnCode for Id {
 }
 
 pub fn parse_id(id: i32) -> Result<Id, Error> {
-	Id::try_from(id).map_err(|_| Error::InvalidId)
+	Id::try_from(id)
 }
 
 pub fn parse_url(url: *const c_char) -> Result<Url, Error> {
