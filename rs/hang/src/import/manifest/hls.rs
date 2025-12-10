@@ -5,6 +5,7 @@
 //! independent of any particular HTTP client; callers provide an implementation
 //! of [`Fetcher`] to perform the actual network I/O.
 
+use std::collections::hash_map::Entry;
 use std::collections::HashMap;
 use std::time::Duration;
 
@@ -514,7 +515,6 @@ fn select_variants(master: &MasterPlaylist) -> Vec<&VariantStream> {
 		let key = variant.resolution;
 		let bandwidth = variant.average_bandwidth.unwrap_or(variant.bandwidth);
 
-		use std::collections::hash_map::Entry;
 		match by_resolution.entry(key) {
 			Entry::Vacant(entry) => {
 				entry.insert(variant);

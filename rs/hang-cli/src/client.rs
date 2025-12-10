@@ -33,15 +33,7 @@ pub async fn client<T: AsyncRead + Unpin>(
 		let mut manifest = ImportManifest::new(broadcast.producer.into(), hls_url)?;
 		manifest.init().await.context("failed to initialize manifest import")?;
 
-		tokio::select! {
-			res = manifest.service() => res,
-			res = session.closed() => res.map_err(Into::into),
-			_ = tokio::signal::ctrl_c() => {
-				session.close(moq_lite::Error::Cancel);
-				tokio::time::sleep(std::time::Duration::from_millis(100)).await;
-				Ok(())
-			},
-		}
+		run_loop(manifest.service(), session).await
 	} else {
 		let mut media = ImportMedia::new(broadcast.producer.into(), format);
 		media
@@ -49,14 +41,21 @@ pub async fn client<T: AsyncRead + Unpin>(
 			.await
 			.context("failed to initialize from media stream")?;
 
-		tokio::select! {
-			res = media.read_from(input) => res,
-			res = session.closed() => res.map_err(Into::into),
-			_ = tokio::signal::ctrl_c() => {
-				session.close(moq_lite::Error::Cancel);
-				tokio::time::sleep(std::time::Duration::from_millis(100)).await;
-				Ok(())
-			},
-		}
+		run_loop(media.read_from(input), session).await
+	}
+}
+
+async fn run_loop(
+	task: impl std::future::Future<Output = anyhow::Result<()>>,
+	session: moq_lite::Session<moq_native::web_transport_quinn::Session>,
+) -> anyhow::Result<()> {
+	tokio::select! {
+		res = task => res,
+		res = session.closed() => res.map_err(Into::into),
+		_ = tokio::signal::ctrl_c() => {
+			session.close(moq_lite::Error::Cancel);
+			tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+			Ok(())
+		},
 	}
 }

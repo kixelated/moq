@@ -53,7 +53,7 @@ pub struct ImportManifest {
 impl ImportManifest {
 	pub fn new(broadcast: BroadcastProducer, url: Url) -> anyhow::Result<Self> {
 		let http_client = Client::builder()
-			.user_agent("hang-hls-ingest/0.1")
+			.user_agent(concat!(env!("CARGO_PKG_NAME"), "/", env!("CARGO_PKG_VERSION")))
 			.build()
 			.context("failed to build HTTP client")?;
 
