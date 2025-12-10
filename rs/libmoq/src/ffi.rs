@@ -2,7 +2,7 @@ use std::ffi::{c_char, c_void, CStr};
 
 use url::Url;
 
-use crate::Error;
+use crate::{Error, Id};
 
 pub struct Callback {
 	user_data: *mut c_void,
@@ -68,6 +68,15 @@ impl ReturnCode for Result<usize, Error> {
 	}
 }
 
+impl ReturnCode for Result<Id, Error> {
+	fn code(&self) -> i32 {
+		match self {
+			Ok(id) => i32::try_from(*id).unwrap_or_else(|_| Error::InvalidCode.code()),
+			Err(e) => e.code(),
+		}
+	}
+}
+
 impl ReturnCode for Result<(), Error> {
 	fn code(&self) -> i32 {
 		match self {
@@ -81,6 +90,16 @@ impl ReturnCode for usize {
 	fn code(&self) -> i32 {
 		i32::try_from(*self).unwrap_or_else(|_| Error::InvalidCode.code())
 	}
+}
+
+impl ReturnCode for Id {
+	fn code(&self) -> i32 {
+		i32::try_from(*self).unwrap_or_else(|_| Error::InvalidCode.code())
+	}
+}
+
+pub fn parse_id(id: i32) -> Result<Id, Error> {
+	Id::try_from(id)
 }
 
 pub fn parse_url(url: *const c_char) -> Result<Url, Error> {
@@ -119,8 +138,4 @@ pub unsafe fn parse_slice<'a>(data: *const u8, size: usize) -> Result<&'a [u8], 
 
 	let data = unsafe { std::slice::from_raw_parts(data, size) };
 	Ok(data)
-}
-
-pub fn parse_id(id: i32) -> Result<usize, Error> {
-	usize::try_from(id).map_err(|_| Error::InvalidId)
 }
