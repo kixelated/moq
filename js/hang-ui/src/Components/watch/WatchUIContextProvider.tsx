@@ -1,6 +1,6 @@
 import type { Time } from "@moq/hang";
-import type HangWatch from "@moq/hang/watch/element";
 import type * as Catalog from "@moq/hang/catalog";
+import type HangWatch from "@moq/hang/watch/element";
 import type { JSX } from "solid-js";
 import { createContext, createEffect, createSignal } from "solid-js";
 

@@ -1,11 +1,11 @@
-import { createEffect, For, useContext, type JSX } from "solid-js";
+import { For, type JSX, useContext } from "solid-js";
 import { WatchUIContext } from "./WatchUIContextProvider";
 
 export default function QualitySelector() {
 	const context = useContext(WatchUIContext);
 
 	const handleQualityChange: JSX.EventHandler<HTMLSelectElement, Event> = (event) => {
-		const selectedValue = event.currentTarget.value || undefined; 
+		const selectedValue = event.currentTarget.value || undefined;
 		context?.setActiveRendition(selectedValue);
 	};
 
@@ -25,9 +25,7 @@ export default function QualitySelector() {
 					{(rendition) => (
 						<option value={rendition.name}>
 							{rendition.name}
-							{rendition.width && rendition.height
-								? ` (${rendition.width}x${rendition.height})`
-								: ""}
+							{rendition.width && rendition.height ? ` (${rendition.width}x${rendition.height})` : ""}
 						</option>
 					)}
 				</For>
