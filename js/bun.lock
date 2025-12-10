@@ -80,9 +80,6 @@
         "vitest": "^3.2.4",
       },
       "peerDependencies": {
-        "@kixelated/hang": "workspace:^0.7.0",
-      },
-      "peerDependencies": {
         "@moq/hang": "workspace:^0.1.0",
       },
     },

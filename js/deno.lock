@@ -78,7 +78,7 @@
         "packageJson": {
           "dependencies": [
             "npm:@biomejs/biome@^2.2.2",
-            "npm:@kixelated/web-transport-ws@~0.1.2",
+            "npm:@moq/web-transport-ws@~0.1.2",
             "npm:@types/deno@^2.3.0",
             "npm:@types/node@^24.3.1",
             "npm:@types/web@^0.0.241",

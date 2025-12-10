@@ -1,6 +1,6 @@
 // This has to be in the root otherwise the VSCode plugin will not work out of the box.
 {
-	"$schema": "https://biomejs.dev/schemas/2.2.0/schema.json",
+	"$schema": "https://biomejs.dev/schemas/2.3.8/schema.json",
 	"vcs": {
 		"enabled": true,
 		"clientKind": "git",
@@ -12,7 +12,13 @@
 		"lineWidth": 120,
 		"indentStyle": "tab",
 		"indentWidth": 4,
-		"lineEnding": "lf"
+		"lineEnding": "lf",
+		"formatWithErrors": true
+	},
+	"css": {
+		"parser": {
+			"tailwindDirectives": true
+		}
 	},
 	"linter": {
 		"rules": {
@@ -24,7 +30,7 @@
 				"useNodejsImportProtocol": "off"
 			},
 			"suspicious": {
-				// Until Tailwind support lands (very soon)
+				// Tailwind directives like @apply, @plugin, @custom-variant
 				"noUnknownAtRules": "off",
 				// Some runtimes need ts-ignore
 				"noTsIgnore": "off"
