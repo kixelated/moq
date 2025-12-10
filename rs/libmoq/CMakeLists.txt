@@ -25,9 +25,10 @@ if(BUILD_RUST_LIB)
         set(CARGO_BUILD_FLAG "--release")
     endif()
 
-    set(RUST_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../target/${CARGO_BUILD_TYPE}")
+    set(RUST_TARGET_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../target")
+    set(RUST_DIR "${RUST_TARGET_DIR}/${CARGO_BUILD_TYPE}")
     set(RUST_LIB "${RUST_DIR}/${LIB_PREFIX}moq${LIB_SUFFIX}")
-    set(RUST_HEADER "${RUST_DIR}/moq.h")
+    set(RUST_HEADER "${RUST_TARGET_DIR}/include/moq.h")
 
     add_custom_target(rust_build ALL
         COMMAND cargo build ${CARGO_BUILD_FLAG}
@@ -38,18 +39,20 @@ if(BUILD_RUST_LIB)
     )
 else()
     set(RUST_DIR "${CMAKE_CURRENT_SOURCE_DIR}" CACHE PATH "Directory containing pre-built library and header")
+    set(RUST_TARGET_DIR "${RUST_DIR}")
     set(RUST_LIB "${RUST_DIR}/${LIB_PREFIX}moq${LIB_SUFFIX}")
-    set(RUST_HEADER "${RUST_DIR}/moq.h")
+    set(RUST_HEADER "${RUST_DIR}/include/moq.h")
 endif()
 
-# Ensure the directory exists (cargo build creates it)
+# Ensure the directories exist (cargo build creates them)
 file(MAKE_DIRECTORY ${RUST_DIR})
+file(MAKE_DIRECTORY ${RUST_TARGET_DIR}/include)
 
 # Create imported library target
 add_library(moq SHARED IMPORTED GLOBAL)
 set_target_properties(moq PROPERTIES
     IMPORTED_LOCATION ${RUST_LIB}
-    INTERFACE_INCLUDE_DIRECTORIES ${RUST_DIR}
+    INTERFACE_INCLUDE_DIRECTORIES ${RUST_TARGET_DIR}/include
 )
 
 if(WIN32)

@@ -1,8 +1,10 @@
 mod error;
 mod ffi;
+mod id;
 mod state;
 
 pub use error::*;
+pub use id::*;
 use state::*;
 
 use std::ffi::c_void;
@@ -15,6 +17,8 @@ use tracing::Level;
 ///
 /// This should be called before any other functions.
 /// The log_level is a string: "error", "warn", "info", "debug", "trace"
+///
+/// Returns a zero on success, or a negative code on failure.
 ///
 /// # Safety
 /// - The caller must ensure that level is a valid null-terminated C string.
@@ -38,7 +42,7 @@ pub unsafe extern "C" fn moq_log_level(level: *const c_char) -> i32 {
 /// This may be called multiple times to connect to different servers.
 /// Broadcast may be published before or after the connection is established.
 ///
-/// Returns a handle to the session.
+/// Returns a non-zero handle to the session on success, or a negative code on (immediate) failure.
 /// You should call [moq_session_close], even on error, to free up resources.
 ///
 /// The callback is called on success (status 0) and later when closed (status non-zero).
@@ -62,7 +66,8 @@ pub unsafe extern "C" fn moq_session_connect(
 
 /// Close a connection to a MoQ server.
 ///
-/// Uses the id returned from [moq_session_connect].
+/// Returns a zero on success, or a negative code on failure.
+///
 /// The [moq_session_connect] callback will be called with [Error::Closed].
 #[no_mangle]
 pub extern "C" fn moq_session_close(id: i32) -> i32 {
@@ -74,7 +79,7 @@ pub extern "C" fn moq_session_close(id: i32) -> i32 {
 
 /// Create a new broadcast; a collection of tracks.
 ///
-/// Returns a handle to the broadcast for [moq_broadcast_close].
+/// Returns a non-zero handle to the broadcast on success.
 #[no_mangle]
 pub extern "C" fn moq_broadcast_create() -> i32 {
 	ffi::return_code(move || State::lock().create_broadcast())
@@ -82,7 +87,7 @@ pub extern "C" fn moq_broadcast_create() -> i32 {
 
 /// Remove a broadcast and all its tracks.
 ///
-/// Uses the id returned from [moq_broadcast_create].
+/// Returns a zero on success, or a negative code on failure.
 #[no_mangle]
 pub extern "C" fn moq_broadcast_close(id: i32) -> i32 {
 	ffi::return_code(move || {
@@ -93,7 +98,8 @@ pub extern "C" fn moq_broadcast_close(id: i32) -> i32 {
 
 /// Publish the broadcast to the indicated session with the given path.
 ///
-/// This allows publishing the same broadcast multiple times to different connections.
+/// Returns a zero on success, or a negative code on failure.
+/// The same broadcast may be published to multiple connections.
 ///
 /// # Safety
 /// - The caller must ensure that path is a valid null-terminated C string, or null.
@@ -110,10 +116,10 @@ pub unsafe extern "C" fn moq_broadcast_publish(id: i32, session: i32, path: *con
 
 /// Create a new track for a broadcast.
 ///
-/// The contents of `extra` depends on the `format`.
+/// The encoding of `extra` depends on the `format`.
 /// See [hang::import::Generic] for the available formats.
 ///
-/// Returns a handle to the track for [moq_track_close] and [moq_track_write].
+/// Returns a non-zero handle to the track on success, or a negative code on failure.
 ///
 /// # Safety
 /// - The caller must ensure that format is a valid null-terminated C string.
@@ -134,8 +140,6 @@ pub unsafe extern "C" fn moq_track_create(
 }
 
 /// Remove a track from a broadcast.
-///
-/// Uses the id returned from [moq_track_create].
 #[no_mangle]
 pub extern "C" fn moq_track_close(id: i32) -> i32 {
 	ffi::return_code(move || {
@@ -146,10 +150,10 @@ pub extern "C" fn moq_track_close(id: i32) -> i32 {
 
 /// Write data to a track.
 ///
-/// The data encoding depends on the configured `format`.
+/// The encoding of `data` depends on the track `format`.
 /// The timestamp is in microseconds.
 ///
-/// Uses the id returned from [moq_track_create].
+/// Returns a zero on success, or a negative code on failure.
 ///
 /// # Safety
 /// - The caller must ensure that data is a valid pointer, or null.
