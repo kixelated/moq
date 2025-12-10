@@ -27,7 +27,7 @@
 				// Until Tailwind support lands (very soon)
 				"noUnknownAtRules": "off",
 				// Some runtimes need ts-ignore
-				 "noTsIgnore": "off"
+				"noTsIgnore": "off"
 			}
 		}
 	},
