@@ -34,12 +34,8 @@
             "npm:async-mutex@0.5",
             "npm:comlink@^4.4.2",
             "npm:fast-glob@^3.3.3",
-            "npm:happy-dom@^20.0.11",
             "npm:rimraf@^6.0.1",
-            "npm:sass-embedded@^1.93.3",
-            "npm:solid-js@^1.9.10",
             "npm:typescript@^5.9.2",
-            "npm:vite-plugin-solid@^2.11.10",
             "npm:vitest@^3.2.4",
             "npm:zod@^4.1.5"
           ]
@@ -66,12 +62,15 @@
           "dependencies": [
             "npm:@biomejs/biome@^2.2.2",
             "npm:@rollup/plugin-node-resolve@^16.0.3",
+            "npm:happy-dom@^13.3.5",
             "npm:rimraf@^6.0.1",
             "npm:rollup-plugin-esbuild@^6.2.1",
             "npm:rollup@^4.53.3",
+            "npm:sass@^1.70.0",
             "npm:solid-element@^1.9.1",
             "npm:solid-js@^1.9.10",
-            "npm:unplugin-solid@1"
+            "npm:unplugin-solid@1",
+            "npm:vitest@^3.2.4"
           ]
         }
       },

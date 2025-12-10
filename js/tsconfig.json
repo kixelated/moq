@@ -1,8 +1,6 @@
 {
 	"compilerOptions": {
 		"lib": ["esnext", "dom", "dom.iterable"],
-		"jsx": "preserve",
-        "jsxImportSource": "solid-js",
 		"target": "esnext",
 		"module": "esnext",
 		"moduleResolution": "bundler",

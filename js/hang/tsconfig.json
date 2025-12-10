@@ -2,18 +2,7 @@
 	"extends": "../tsconfig.json",
 	"compilerOptions": {
 		"outDir": "dist",
-		"rootDir": "./src",
-		"jsx": "preserve",
-		"jsxImportSource": "solid-js",
-		"strict": true,
-		"esModuleInterop": true,
-		"skipLibCheck": true,
-		"forceConsistentCasingInFileNames": true
+		"rootDir": "./src"
 	},
-	"include": [
-		"src/**/*.ts",
-		"src/**/*.tsx",
-		"src/**/*.js",
-		"src/**/*.jsx"
-	]
+	"include": ["src"]
 }
