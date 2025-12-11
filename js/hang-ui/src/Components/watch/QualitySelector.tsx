@@ -1,12 +1,12 @@
-import { For, type JSX, useContext } from "solid-js";
-import { WatchUIContext } from "./WatchUIContextProvider";
+import { For, type JSX } from "solid-js";
+import useWatchUIContext from "./useWatchUIContext";
 
 export default function QualitySelector() {
-	const context = useContext(WatchUIContext);
+	const context = useWatchUIContext();
 
 	const handleQualityChange: JSX.EventHandler<HTMLSelectElement, Event> = (event) => {
 		const selectedValue = event.currentTarget.value || undefined;
-		context?.setActiveRendition(selectedValue);
+		context.setActiveRendition(selectedValue);
 	};
 
 	return (
@@ -18,10 +18,10 @@ export default function QualitySelector() {
 				id="quality-select"
 				onChange={handleQualityChange}
 				class="qualitySelect"
-				value={context?.activeRendition() ?? ""}
+				value={context.activeRendition() ?? ""}
 			>
 				<option value="">Auto</option>
-				<For each={context?.availableRenditions() ?? []}>
+				<For each={context.availableRenditions() ?? []}>
 					{(rendition) => (
 						<option value={rendition.name}>
 							{rendition.name}
