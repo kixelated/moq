@@ -21,15 +21,19 @@ export class BufferHandler extends BaseHandler {
 		}
 
 		// Subscribe to signal changes using Effect
-		this.signals.effect(() => {
-			if (video.source.syncStatus) {
-				video.source.syncStatus.subscribe?.(() => this.updateDisplayData());
+		this.signals.effect((effect) => {
+			const { source } = video;
+
+			if (source.syncStatus?.subscribe) {
+				effect.cleanup(source.syncStatus.subscribe(() => this.updateDisplayData()));
 			}
-			if (video.source.bufferStatus) {
-				video.source.bufferStatus.subscribe?.(() => this.updateDisplayData());
+
+			if (source.bufferStatus?.subscribe) {
+				effect.cleanup(source.bufferStatus.subscribe(() => this.updateDisplayData()));
 			}
-			if (video.source.latency) {
-				video.source.latency.subscribe?.(() => this.updateDisplayData());
+
+			if (source.latency?.subscribe) {
+				effect.cleanup(source.latency.subscribe(() => this.updateDisplayData()));
 			}
 		});
 

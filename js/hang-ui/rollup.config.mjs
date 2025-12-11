@@ -1,3 +1,4 @@
+import { dirname } from "node:path";
 import { readFileSync } from "node:fs";
 import nodeResolve from "@rollup/plugin-node-resolve";
 import esbuild from "rollup-plugin-esbuild";
@@ -17,7 +18,7 @@ function inlineCss() {
 				const realId = id.replace(/\?inline$/, "");
 				const scssContent = readFileSync(realId, "utf8");
 				const result = compileString(scssContent, {
-					loadPaths: [realId.substring(0, realId.lastIndexOf("/"))],
+					loadPaths: [dirname(realId)],
 				});
 				const css = result.css;
 				return `export default ${JSON.stringify(css)};`;
