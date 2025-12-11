@@ -17,7 +17,6 @@ use reqwest::Client;
 use tracing::{debug, info, warn};
 use url::Url;
 
-use crate::catalog::CatalogProducer;
 use crate::import::media::Fmp4;
 use crate::{BroadcastProducer, Error, Result};
 
@@ -35,7 +34,7 @@ impl HlsConfig {
 }
 
 /// Result of a single ingest step.
-pub struct StepOutcome {
+struct StepOutcome {
 	/// Number of media segments written during this step.
 	pub wrote_segments: usize,
 	/// Target segment duration (in seconds) from the playlist, if known.
@@ -49,10 +48,6 @@ pub struct StepOutcome {
 pub struct Hls {
 	/// Broadcast that all CMAF importers write into.
 	broadcast: BroadcastProducer,
-
-	/// Shared catalog handle used when multiple CMAF importers contribute to
-	/// the same `catalog.json` track.
-	shared_catalog: Option<CatalogProducer>,
 
 	/// fMP4 importers for each discovered video rendition.
 	/// Each importer feeds a separate MoQ track but shares the same catalog.
@@ -104,7 +99,6 @@ impl Hls {
 	pub fn new(broadcast: BroadcastProducer, cfg: HlsConfig, client: Client) -> Self {
 		Self {
 			broadcast,
-			shared_catalog: None,
 			video_importers: Vec::new(),
 			audio_importer: None,
 			client,
@@ -157,19 +151,19 @@ impl Hls {
 		for (index, mut track) in video_tracks.into_iter().enumerate() {
 			let url = track.playlist.clone();
 			let playlist = self.fetch_media_playlist(&url).await?;
-			let count = self.consume_segments(TrackKind::Video(index), &mut track, &playlist).await?;
+			let count = self
+				.consume_segments(TrackKind::Video(index), &mut track, &playlist)
+				.await?;
 			buffered += count;
 			self.video.push(track);
 		}
 
 		// Prime the shared audio track, if any.
-		if let Some(url) = self.audio.as_ref().map(|track| track.playlist.clone()) {
-			let playlist = self.fetch_media_playlist(&url).await?;
-			if let Some(mut track) = self.audio.take() {
-				let count = self.consume_segments(TrackKind::Audio, &mut track, &playlist).await?;
-				buffered += count;
-				self.audio = Some(track);
-			}
+		if let Some(mut track) = self.audio.take() {
+			let playlist = self.fetch_media_playlist(&track.playlist).await?;
+			let count = self.consume_segments(TrackKind::Audio, &mut track, &playlist).await?;
+			buffered += count;
+			self.audio = Some(track);
 		}
 
 		Ok(buffered)
@@ -195,22 +189,22 @@ impl Hls {
 			if target_duration.is_none() {
 				target_duration = Some(playlist.target_duration);
 			}
-			let count = self.consume_segments(TrackKind::Video(index), &mut track, &playlist).await?;
+			let count = self
+				.consume_segments(TrackKind::Video(index), &mut track, &playlist)
+				.await?;
 			wrote += count;
 			self.video.push(track);
 		}
 
 		// Ingest from the shared audio track, if present.
-		if let Some(url) = self.audio.as_ref().map(|track| track.playlist.clone()) {
-			let playlist = self.fetch_media_playlist(&url).await?;
+		if let Some(mut track) = self.audio.take() {
+			let playlist = self.fetch_media_playlist(&track.playlist).await?;
 			if target_duration.is_none() {
 				target_duration = Some(playlist.target_duration);
 			}
-			if let Some(mut track) = self.audio.take() {
-				let count = self.consume_segments(TrackKind::Audio, &mut track, &playlist).await?;
-				wrote += count;
-				self.audio = Some(track);
-			}
+			let count = self.consume_segments(TrackKind::Audio, &mut track, &playlist).await?;
+			wrote += count;
+			self.audio = Some(track);
 		}
 
 		Ok(StepOutcome {
@@ -247,42 +241,42 @@ impl Hls {
 		let body = self.fetch_bytes(&self.cfg.playlist).await?;
 		if let Ok((_, master)) = m3u8_rs::parse_master_playlist(&body) {
 			let variants = select_variants(&master);
-			if !variants.is_empty() {
-				// Create a video track state for every usable variant.
-				for variant in &variants {
-					let video_url = resolve_uri(&self.cfg.playlist, &variant.uri)?;
-					self.video.push(TrackState::new(MediaType::Video, video_url));
-				}
-
-				// Choose an audio rendition based on the first variant with an audio group.
-				if let Some(variant) = variants.iter().find(|v| v.audio.is_some()) {
-					if let Some(group_id) = variant.audio.as_deref() {
-						if let Some(audio_tag) = select_audio(&master, group_id) {
-							if let Some(uri) = &audio_tag.uri {
-								let audio_url = resolve_uri(&self.cfg.playlist, uri)?;
-								self.audio = Some(TrackState::new(MediaType::Audio, audio_url));
-							} else {
-								warn!(%group_id, "audio rendition missing URI");
-							}
-						} else {
-							warn!(%group_id, "audio group not found in master playlist");
-						}
-					}
-				}
-
-				let audio_url = self.audio.as_ref().map(|a| a.playlist.to_string());
-				info!(
-					video_variants = variants.len(),
-					audio = audio_url.as_deref().unwrap_or("none"),
-					"selected master playlist renditions"
-				);
-
-				return Ok(());
+			if variants.is_empty() {
+				return Err(Error::Hls("no usable variants found in master playlist".into()));
 			}
+			// Create a video track state for every usable variant.
+			for variant in &variants {
+				let video_url = resolve_uri(&self.cfg.playlist, &variant.uri)?;
+				self.video.push(TrackState::new(MediaType::Video, video_url));
+			}
+
+			// Choose an audio rendition based on the first variant with an audio group.
+			if let Some(group_id) = variants.iter().find_map(|v| v.audio.as_deref()) {
+				if let Some(audio_tag) = select_audio(&master, group_id) {
+					if let Some(uri) = &audio_tag.uri {
+						let audio_url = resolve_uri(&self.cfg.playlist, uri)?;
+						self.audio = Some(TrackState::new(MediaType::Audio, audio_url));
+					} else {
+						warn!(%group_id, "audio rendition missing URI");
+					}
+				} else {
+					warn!(%group_id, "audio group not found in master playlist");
+				}
+			}
+
+			let audio_url = self.audio.as_ref().map(|a| a.playlist.to_string());
+			info!(
+				video_variants = variants.len(),
+				audio = audio_url.as_deref().unwrap_or("none"),
+				"selected master playlist renditions"
+			);
+
+			return Ok(());
 		}
 
 		// Fallback: treat the provided URL as a single media playlist.
-		self.video.push(TrackState::new(MediaType::Video, self.cfg.playlist.clone()));
+		self.video
+			.push(TrackState::new(MediaType::Video, self.cfg.playlist.clone()));
 		Ok(())
 	}
 
@@ -385,16 +379,9 @@ impl Hls {
 		Ok(bytes)
 	}
 
-	/// Create a new fMP4 importer, reusing the shared catalog if one exists.
-	fn create_importer(&mut self) -> Fmp4 {
-		match &self.shared_catalog {
-			None => {
-				let importer = Fmp4::new(self.broadcast.clone());
-				self.shared_catalog = Some(importer.catalog());
-				importer
-			}
-			Some(catalog) => Fmp4::with_catalog(self.broadcast.clone(), catalog.clone()),
-		}
+	/// Create a new fMP4 importer using the broadcast's catalog.
+	fn create_importer(&self) -> Fmp4 {
+		Fmp4::with_catalog(self.broadcast.clone(), self.broadcast.catalog.clone())
 	}
 
 	/// Create or retrieve the fMP4 importer for a specific video rendition.
