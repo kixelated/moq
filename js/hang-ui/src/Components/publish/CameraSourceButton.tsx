@@ -5,23 +5,17 @@ import { PublishUIContext } from "./PublishUIContextProvider";
 export default function CameraSourceButton() {
 	const context = useContext(PublishUIContext);
 	const onClick = () => {
-		const hangPublishEl = context?.hangPublish();
-		if (!hangPublishEl) return;
-
-		if (hangPublishEl.source.peek() === "camera") {
+		if (context?.hangPublish.source.peek() === "camera") {
 			// Camera already selected, toggle video.
-			hangPublishEl.invisible.update((invisible) => !invisible);
+			context?.hangPublish.invisible.update((invisible) => !invisible);
 		} else {
-			hangPublishEl.source.set("camera");
-			hangPublishEl.invisible.set(false);
+			context?.hangPublish.source.set("camera");
+			context?.hangPublish.invisible.set(false);
 		}
 	};
 
 	const onSourceSelected = (sourceId: MediaDeviceInfo["deviceId"]) => {
-		const hangPublishEl = context?.hangPublish();
-		if (!hangPublishEl) return;
-
-		const video = hangPublishEl.video.peek();
+		const video = context?.hangPublish.video.peek();
 		if (!video || !("device" in video)) return;
 
 		video.device.preferred.set(sourceId);

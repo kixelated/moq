@@ -5,23 +5,17 @@ import { PublishUIContext } from "./PublishUIContextProvider";
 export default function MicrophoneSourceButton() {
 	const context = useContext(PublishUIContext);
 	const onClick = () => {
-		const hangPublishEl = context?.hangPublish();
-		if (!hangPublishEl) return;
-
-		if (hangPublishEl.source.peek() === "camera") {
+		if (context?.hangPublish.source.peek() === "camera") {
 			// Camera already selected, toggle audio.
-			hangPublishEl.muted.update((muted) => !muted);
+			context?.hangPublish.muted.update((muted) => !muted);
 		} else {
-			hangPublishEl.source.set("camera");
-			hangPublishEl.muted.set(false);
+			context?.hangPublish.source.set("camera");
+			context?.hangPublish.muted.set(false);
 		}
 	};
 
 	const onSourceSelected = (sourceId: MediaDeviceInfo["deviceId"]) => {
-		const hangPublishEl = context?.hangPublish();
-		if (!hangPublishEl) return;
-
-		const audio = hangPublishEl.audio.peek();
+		const audio = context?.hangPublish.audio.peek();
 		if (!audio || !("device" in audio)) return;
 
 		audio.device.preferred.set(sourceId);

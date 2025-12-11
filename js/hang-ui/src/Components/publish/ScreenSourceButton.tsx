@@ -4,12 +4,9 @@ import { PublishUIContext } from "./PublishUIContextProvider";
 export default function ScreenSourceButton() {
 	const context = useContext(PublishUIContext);
 	const onClick = () => {
-		const hangPublishEl = context?.hangPublish();
-		if (!hangPublishEl) return;
-
-		hangPublishEl.source.set("screen");
-		hangPublishEl.invisible.set(false);
-		hangPublishEl.muted.set(false);
+		context?.hangPublish.source.set("screen");
+		context?.hangPublish.invisible.set(false);
+		context?.hangPublish.muted.set(false);
 	};
 
 	return (

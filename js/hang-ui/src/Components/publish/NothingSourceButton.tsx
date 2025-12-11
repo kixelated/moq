@@ -4,12 +4,9 @@ import { PublishUIContext } from "./PublishUIContextProvider";
 export default function NothingSourceButton() {
 	const context = useContext(PublishUIContext);
 	const onClick = () => {
-		const hangPublishEl = context?.hangPublish();
-		if (!hangPublishEl) return;
-
-		hangPublishEl.source.set(undefined);
-		hangPublishEl.muted.set(true);
-		hangPublishEl.invisible.set(true);
+		context?.hangPublish.source.set(undefined);
+		context?.hangPublish.muted.set(true);
+		context?.hangPublish.invisible.set(true);
 	};
 
 	return (
