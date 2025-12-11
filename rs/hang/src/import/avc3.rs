@@ -110,11 +110,11 @@ impl Avc3 {
 		Ok(())
 	}
 
-	/// Decode all data in the buffer, assuming the buffer is NAL-aligned.
+	/// Decode all data in the buffer, assuming the buffer contains (the rest of) a frame.
 	///
 	/// Unlike [Self::decode_stream], this is called when we know NAL boundaries.
-	/// This can avoid a frame of latency just waiting for the next NAL's start code.
-	/// This can also be used when EOF is detected to flush the final NAL.
+	/// This can avoid a frame of latency just waiting for the next frame's start code.
+	/// This can also be used when EOF is detected to flush the final frame.
 	///
 	/// NOTE: The next decode will fail if it doesn't begin with a start code.
 	pub fn decode_framed<T: Buf + AsRef<[u8]>>(&mut self, buf: &mut T, pts: hang::Timestamp) -> anyhow::Result<()> {
@@ -128,6 +128,9 @@ impl Avc3 {
 		// Assume the rest of the buffer is a single NAL.
 		let nal = buf.copy_to_bytes(buf.remaining());
 		self.decode_nal(nal, pts)?;
+
+		// Flush the frame if we read a slice.
+		self.maybe_start_frame(pts)?;
 
 		Ok(())
 	}
