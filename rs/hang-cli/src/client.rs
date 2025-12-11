@@ -21,8 +21,13 @@ pub async fn client<T: AsyncRead + Unpin>(
 	tracing::info!(%url, %name, "connecting");
 	let session = client.connect(url).await?;
 
+	// Create an origin producer to publish to the broadcast.
 	let origin = moq_lite::Origin::produce();
+
+	// Establish the connection, not providing a subscriber.
 	let session = moq_lite::Session::connect(session, origin.consumer, None).await?;
+
+	// Announce the broadcast as available once the catalog is ready.
 	origin.producer.publish_broadcast(&name, broadcast.consumer);
 
 	let _ = sd_notify::notify(true, &[sd_notify::NotifyState::Ready]);
