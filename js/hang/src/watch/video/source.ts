@@ -18,6 +18,9 @@ export type Target = {
 	// The desired size of the video in pixels.
 	pixels?: number;
 
+	// Optional manual override for the selected rendition name.
+	rendition?: string;
+
 	// TODO bitrate
 };
 
@@ -65,9 +68,6 @@ export class Source {
 	// Used as a tiebreaker when there are multiple tracks (HD vs SD).
 	target = new Signal<Target | undefined>(undefined);
 
-	// Optional manual override for the selected rendition name.
-	#manualSelection = new Signal<string | undefined>(undefined);
-
 	// Expose the current frame to render as a signal
 	frame = new Signal<VideoFrame | undefined>(undefined);
 
@@ -110,11 +110,6 @@ export class Source {
 		this.#signals.effect(this.#runBuffer.bind(this));
 	}
 
-	// Allow external callers to select a specific rendition by name.
-	setActiveRendition(name: string | undefined): void {
-		this.#manualSelection.set(name);
-	}
-
 	#runSupported(effect: Effect): void {
 		const renditions = effect.get(this.catalog)?.renditions ?? {};
 
@@ -146,8 +141,8 @@ export class Source {
 
 		const supported = effect.get(this.#supported);
 		const target = effect.get(this.target);
-		const manual = effect.get(this.#manualSelection);
 
+		const manual = target?.rendition;
 		const selected = manual && manual in supported ? manual : this.#selectRendition(supported, target);
 		if (!selected) return;
 
