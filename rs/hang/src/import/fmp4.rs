@@ -69,8 +69,12 @@ impl Fmp4 {
 
 	pub fn initialize<T: Buf + AsRef<[u8]>>(&mut self, buf: &mut T) -> anyhow::Result<()> {
 		let mut cursor = std::io::Cursor::new(buf);
+		let mut position = 0;
 
 		while let Some(atom) = mp4_atom::Any::decode_maybe(&mut cursor)? {
+			// Only advance the cursor if we managed to decode an atom.
+			position = cursor.position() as usize;
+
 			match atom {
 				Any::Ftyp(_) | Any::Styp(_) => {
 					// Skip
@@ -84,20 +88,19 @@ impl Fmp4 {
 			}
 		}
 
-		// Advance the buffer by the amount of data that was processed.
-		let size = cursor.position() as usize;
-		cursor.into_inner().advance(size);
+		cursor.into_inner().advance(position);
 
 		Ok(())
 	}
 
 	pub fn decode<T: Buf + AsRef<[u8]>>(&mut self, buf: &mut T) -> anyhow::Result<()> {
 		let mut cursor = std::io::Cursor::new(buf);
-		let mut remain = cursor.remaining();
+		let mut position = 0;
 
 		while let Some(atom) = mp4_atom::Any::decode_maybe(&mut cursor)? {
 			// Process the parsed atom.
-			let size = remain - cursor.remaining();
+			let size = cursor.position() as usize - position;
+			position = cursor.position() as usize;
 
 			match atom {
 				Any::Moof(moof) => {
@@ -119,13 +122,10 @@ impl Fmp4 {
 					tracing::warn!(?atom, "skipping")
 				}
 			}
-
-			remain = cursor.remaining();
 		}
 
 		// Advance the buffer by the amount of data that was processed.
-		let size = cursor.position() as usize;
-		cursor.into_inner().advance(size);
+		cursor.into_inner().advance(position);
 
 		Ok(())
 	}

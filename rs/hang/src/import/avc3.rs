@@ -3,7 +3,7 @@ use anyhow::Context;
 use bytes::{Buf, Bytes};
 use moq_lite as moq;
 
-// 4 byte start code.
+// Prepend each NAL with a 4 byte start code.
 // Yes, it's one byte longer than the 3 byte start code, but it's easier to convert to MP4.
 const START_CODE: Bytes = Bytes::from_static(&[0, 0, 0, 1]);
 
@@ -13,29 +13,22 @@ pub struct Avc3 {
 	broadcast: hang::BroadcastProducer,
 
 	// The track being produced.
-	track: hang::TrackProducer,
+	track: Option<hang::TrackProducer>,
 
 	// Whether the track has been initialized.
-	initialized: bool,
+	// If it changes, then we'll reinitialize with a new track.
+	config: Option<hang::catalog::VideoConfig>,
 
 	// The current frame being built.
 	current: Frame,
 }
 
 impl Avc3 {
-	pub fn new(mut broadcast: hang::BroadcastProducer) -> Self {
-		let track = moq::Track {
-			name: broadcast.track_name("video"),
-			priority: 2,
-		};
-
-		let track = track.produce();
-		broadcast.insert_track(track.consumer);
-
+	pub fn new(broadcast: hang::BroadcastProducer) -> Self {
 		Self {
 			broadcast,
-			track: track.producer.into(),
-			initialized: false,
+			track: None,
+			config: None,
 			current: Default::default(),
 		}
 	}
@@ -47,11 +40,6 @@ impl Avc3 {
 			| ((sps.constraint_set3_flag as u8) << 4)
 			| ((sps.constraint_set4_flag as u8) << 3)
 			| ((sps.constraint_set5_flag as u8) << 2);
-
-		let track = moq::Track {
-			name: self.broadcast.track_name("video"),
-			priority: 2,
-		};
 
 		let config = hang::catalog::VideoConfig {
 			coded_width: Some(sps.width),
@@ -72,13 +60,35 @@ impl Avc3 {
 			optimize_for_latency: None,
 		};
 
+		if let Some(old) = &self.config {
+			if old == &config {
+				return Ok(());
+			}
+		}
+
+		if let Some(track) = &self.track.take() {
+			tracing::debug!(name = ?track.info.name, "reinitializing track");
+			self.broadcast.catalog.lock().remove_video(&track.info.name);
+		}
+
+		let track = moq::Track {
+			name: self.broadcast.track_name("video"),
+			priority: 2,
+		};
+
 		tracing::debug!(name = ?track.name, ?config, "starting track");
 
-		let mut catalog = self.broadcast.catalog.lock();
-		let video = catalog.insert_video(track.name.clone(), config);
-		video.priority = 2;
+		{
+			let mut catalog = self.broadcast.catalog.lock();
+			let video = catalog.insert_video(track.name.clone(), config.clone());
+			video.priority = 2;
+		}
 
-		self.initialized = true;
+		let track = track.produce();
+		self.broadcast.insert_track(track.consumer);
+
+		self.config = Some(config);
+		self.track = Some(track.producer.into());
 
 		Ok(())
 	}
@@ -98,7 +108,9 @@ impl Avc3 {
 
 			match nal_type {
 				NalType::Sps => {
-					// TODO need to unescape the NAL
+					// We need to unescape the NAL to get the raw SPS.
+					// TODO: It would be nice to avoid allocating a new vector here, but it's an over-optimization.
+					let nal = h264_parser::nal::ebsp_to_rbsp(&nal[1..]);
 					let sps = h264_parser::Sps::parse(&nal)?;
 					self.init(&sps)?;
 				}
@@ -133,8 +145,16 @@ impl Avc3 {
 			let nal_type = NalType::try_from(nal_unit_type).context("unknown NAL unit type")?;
 
 			match nal_type {
+				NalType::Sps => {
+					self.maybe_flush(pts)?;
+
+					// Try to reinitialize the track if the SPS has changed.
+					let nal = h264_parser::nal::ebsp_to_rbsp(&nal[1..]);
+					let sps = h264_parser::Sps::parse(&nal)?;
+					self.init(&sps)?;
+				}
 				// TODO parse the SPS again and reinitialize the track if needed
-				NalType::Aud | NalType::Sps | NalType::Pps | NalType::Sei => {
+				NalType::Aud | NalType::Pps | NalType::Sei => {
 					self.maybe_flush(pts)?;
 				}
 				NalType::IdrSlice => {
@@ -154,6 +174,7 @@ impl Avc3 {
 
 			// Rather than keeping the original size of the start code, we replace it with a 4 byte start code.
 			// It's just marginally easier and potentially more efficient down the line (JS player with MSE).
+			// NOTE: This is ref-counted and static, so it's extremely cheap to clone.
 			self.current.chunks.push(START_CODE.clone());
 			self.current.chunks.push(nal);
 		}
@@ -167,23 +188,24 @@ impl Avc3 {
 			return Ok(());
 		}
 
-		self.track
-			.write_chunks(self.current.contains_idr, pts, self.current.chunks.iter().cloned())?;
+		let track = self.track.as_mut().context("not initialized")?;
+
+		track.write_chunks(self.current.contains_idr, pts, self.current.chunks.iter().cloned())?;
 		self.current.clear();
 
 		Ok(())
 	}
 
 	pub fn is_initialized(&self) -> bool {
-		self.initialized
+		self.track.is_some()
 	}
 }
 
 impl Drop for Avc3 {
 	fn drop(&mut self) {
-		if self.initialized {
-			tracing::debug!(name = ?self.track.info.name, "ending track");
-			self.broadcast.catalog.lock().remove_video(&self.track.info.name);
+		if let Some(track) = &self.track {
+			tracing::debug!(name = ?track.info.name, "ending track");
+			self.broadcast.catalog.lock().remove_video(&track.info.name);
 		}
 	}
 }
