@@ -4,14 +4,14 @@ import type { JSX } from "solid-js";
 import { createContext, createEffect, createSignal } from "solid-js";
 
 type WatchUIContextProviderProps = {
-	hangWatch: () => HangWatch | undefined;
+	hangWatch: HangWatch;
 	children: JSX.Element;
 };
 
 type WatchStatus = "no-url" | "disconnected" | "connecting" | "offline" | "loading" | "live" | "connected";
 
 type WatchUIContextValues = {
-	hangWatch: () => HangWatch | undefined;
+	hangWatch: HangWatch;
 	watchStatus: () => WatchStatus;
 	isPlaying: () => boolean;
 	isMuted: () => boolean;
@@ -35,35 +35,19 @@ export default function WatchUIContextProvider(props: WatchUIContextProviderProp
 	const [latency, setLatency] = createSignal<number>(0);
 
 	const togglePlayback = () => {
-		const hangWatchEl = props.hangWatch();
-
-		if (hangWatchEl) {
-			hangWatchEl.paused.set(!hangWatchEl.paused.get());
-		}
+		props.hangWatch.paused.set(!props.hangWatch.paused.get());
 	};
 
 	const setVolume = (volume: number) => {
-		const hangWatchEl = props.hangWatch();
-
-		if (hangWatchEl) {
-			hangWatchEl.volume.set(volume / 100);
-		}
+		props.hangWatch.volume.set(volume / 100);
 	};
 
 	const toggleMuted = () => {
-		const hangWatchEl = props.hangWatch();
-
-		if (hangWatchEl) {
-			hangWatchEl.muted.update((muted) => !muted);
-		}
+		props.hangWatch.muted.update((muted) => !muted);
 	};
 
 	const setLatencyValue = (latency: number) => {
-		const hangWatchEl = props.hangWatch();
-
-		if (hangWatchEl) {
-			hangWatchEl.latency.set(latency as Time.Milli);
-		}
+		props.hangWatch.latency.set(latency as Time.Milli);
 	};
 
 	const value: WatchUIContextValues = {
@@ -81,8 +65,7 @@ export default function WatchUIContextProvider(props: WatchUIContextProviderProp
 	};
 
 	createEffect(() => {
-		const watch = props.hangWatch();
-		if (!watch) return;
+		const watch = props.hangWatch;
 
 		watch.signals.effect((effect) => {
 			const url = effect.get(watch.connection.url);

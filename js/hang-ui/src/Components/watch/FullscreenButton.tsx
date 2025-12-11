@@ -7,7 +7,7 @@ export default function FullscreenButton() {
 		if (document.fullscreenElement) {
 			document.exitFullscreen();
 		} else {
-			context?.hangWatch()?.requestFullscreen();
+			context?.hangWatch.requestFullscreen();
 		}
 	};
 
