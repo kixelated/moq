@@ -73,8 +73,8 @@ pub name url='http://localhost:4443/anon' *args:
 
 # Ingest a live HLS media playlist and publish it via hang (full ladder).
 # Thin wrapper around the Rust justfile recipe.
-ingest-hls url name='demo' relay='http://localhost:4443/anon':
-	cd rs && just ingest-hls {{url}} {{name}} {{relay}}
+pub-hls url name='demo' relay='http://localhost:4443/anon':
+	cd rs && just pub-hls {{url}} {{name}} {{relay}}
 
 # Publish/subscribe using gstreamer - see https://github.com/moq-dev/gstreamer
 pub-gst name url='http://localhost:4443/anon':
