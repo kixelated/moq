@@ -30,6 +30,7 @@ pub async fn client<T: AsyncRead + Unpin>(
 	// Announce the broadcast as available once the catalog is ready.
 	origin.producer.publish_broadcast(&name, broadcast.consumer);
 
+	// Notify systemd that we're ready.
 	let _ = sd_notify::notify(true, &[sd_notify::NotifyState::Ready]);
 
 	if format == ImportType::Hls {
