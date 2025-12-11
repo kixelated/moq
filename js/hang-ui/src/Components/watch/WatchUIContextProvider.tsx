@@ -63,14 +63,10 @@ export default function WatchUIContextProvider(props: WatchUIContextProviderProp
 	};
 
 	const setActiveRenditionValue = (name: string | undefined) => {
-		const hangWatchEl = props.hangWatch();
-
-		if (hangWatchEl) {
-			hangWatchEl.video.source.target.update((prev) => ({
-				...prev,
-				rendition: name,
-			}));
-		}
+		props.hangWatch.video.source.target.update((prev) => ({
+			...prev,
+			rendition: name,
+		}));
 	};
 
 	const value: WatchUIContextValues = {

@@ -1,4 +1,4 @@
-import { createSignal, useContext } from "solid-js";
+import { createSignal } from "solid-js";
 import usePublishUIContext from "./usePublishUIContext";
 
 export default function FileSourceButton() {
