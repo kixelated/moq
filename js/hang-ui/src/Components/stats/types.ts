@@ -42,13 +42,20 @@ export interface Signal<T> {
 }
 
 /**
+ * Audio stream statistics
+ */
+export type AudioStats = {
+	bytesReceived: number;
+};
+
+/**
  * Audio stream source with reactive properties
  */
 export interface AudioSource {
 	source: {
 		active?: Signal<string>;
 		config?: Signal<AudioConfig>;
-		bitrate?: Signal<number>;
+		stats?: Signal<AudioStats>;
 	};
 }
 
@@ -63,6 +70,15 @@ export interface AudioConfig {
 }
 
 /**
+ * Video stream statistics
+ */
+export type VideoStats = {
+	frameCount: number;
+	timestamp: number;
+	bytesReceived: number;
+};
+
+/**
  * Video stream source with reactive properties
  */
 export interface VideoSource {
@@ -72,6 +88,7 @@ export interface VideoSource {
 		syncStatus?: Signal<SyncStatus>;
 		bufferStatus?: Signal<BufferStatus>;
 		latency?: Signal<number>;
+		stats?: Signal<VideoStats>;
 	};
 }
 

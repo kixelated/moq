@@ -20,6 +20,10 @@ export type SourceProps = {
 	latency?: Time.Milli | Signal<Time.Milli>;
 };
 
+export interface AudioStats {
+	bytesReceived: number;
+}
+
 // Unfortunately, we need to use a Vite-exclusive import for now.
 import RenderWorklet from "./render-worklet?worker&url";
 
@@ -40,8 +44,8 @@ export class Source {
 	#sampleRate = new Signal<number | undefined>(undefined);
 	readonly sampleRate: Getter<number | undefined> = this.#sampleRate;
 
-	#bitrate = new Signal<number | undefined>(undefined);
-	readonly bitrate: Getter<number | undefined> = this.#bitrate;
+	#stats = new Signal<AudioStats | undefined>(undefined);
+	readonly stats: Getter<AudioStats | undefined> = this.#stats;
 
 	catalog = new Signal<Catalog.Audio | undefined>(undefined);
 	config = new Signal<Catalog.AudioConfig | undefined>(undefined);
@@ -169,9 +173,6 @@ export class Source {
 		effect.cleanup(() => consumer.close());
 
 		let totalBytes = 0;
-		let lastTimestamp = 0;
-		let lastCalculation = 0;
-		const bitrateSmoothingTime = 250;
 
 		effect.spawn(async () => {
 			const loaded = await libav.polyfill();
@@ -194,18 +195,7 @@ export class Source {
 				if (!frame) break;
 
 				totalBytes += frame.data.byteLength;
-				const now = performance.now();
-
-				if (now - lastCalculation >= bitrateSmoothingTime) {
-					const elapsedMs = now - lastTimestamp;
-					if (elapsedMs > 0 && lastTimestamp !== 0) {
-						const bitrate = (totalBytes * 8 * 1000) / elapsedMs;
-						this.#bitrate.set(bitrate);
-					}
-					totalBytes = 0;
-					lastTimestamp = now;
-					lastCalculation = now;
-				}
+				this.#stats.set({ bytesReceived: totalBytes });
 
 				const chunk = new EncodedAudioChunk({
 					type: frame.keyframe ? "key" : "delta",

@@ -1,16 +1,24 @@
-import type { HandlerContext, VideoResolution } from "../types";
+import type { HandlerContext, VideoResolution, VideoStats } from "../types";
 import { BaseHandler } from "./base";
 
 /**
- * Handler for video stream metrics (resolution, frame rate)
+ * Handler for video stream metrics (resolution, frame rate, bitrate)
  */
 export class VideoHandler extends BaseHandler {
+	/** Polling interval in milliseconds */
+	private static readonly POLLING_INTERVAL_MS = 250;
 	/** Display context for updating metrics */
 	private context: HandlerContext | undefined;
 	/** Polling interval ID */
 	private updateInterval: number | undefined;
 	/** Bound callback for display updates */
 	private updateDisplay = () => this.updateDisplayData();
+	/** Previous frame count for FPS calculation */
+	private previousFrameCount = 0;
+	/** Previous timestamp for FPS calculation */
+	private previousTimestamp = 0;
+	/** Previous bytes received for bitrate calculation */
+	private previousBytesReceived = 0;
 
 	/**
 	 * Initialize video handler with polling interval
@@ -24,7 +32,7 @@ export class VideoHandler extends BaseHandler {
 			return;
 		}
 
-		this.updateInterval = window.setInterval(this.updateDisplay, 250);
+		this.updateInterval = window.setInterval(this.updateDisplay, VideoHandler.POLLING_INTERVAL_MS);
 		this.updateDisplayData();
 	}
 
@@ -37,11 +45,50 @@ export class VideoHandler extends BaseHandler {
 		}
 
 		const display = this.peekSignal<VideoResolution>(this.props.video?.source.display);
-		const fps = this.peekSignal<number>(this.props.video?.source.fps);
+		const stats = this.peekSignal<VideoStats>(this.props.video?.source.stats);
+
+		// Calculate FPS from frame count delta and timestamp delta
+		let fps: number | undefined;
+		if (stats && this.previousTimestamp > 0) {
+			const frameCountDelta = stats.frameCount - this.previousFrameCount;
+			const timestampDeltaUs = stats.timestamp - this.previousTimestamp;
+
+			if (timestampDeltaUs > 0 && frameCountDelta > 0) {
+				const elapsedSeconds = timestampDeltaUs / 1_000_000;
+				fps = frameCountDelta / elapsedSeconds;
+			}
+		}
+
+		let bitrate: string | undefined;
+		if (stats && this.previousBytesReceived > 0) {
+			const bytesDelta = stats.bytesReceived - this.previousBytesReceived;
+			// Only calculate bitrate if there's actual data change
+			if (bytesDelta > 0) {
+				const bitsPerSecond = bytesDelta * 8 * (1000 / VideoHandler.POLLING_INTERVAL_MS);
+
+				if (bitsPerSecond >= 1_000_000) {
+					bitrate = `${(bitsPerSecond / 1_000_000).toFixed(1)}Mbps`;
+				} else if (bitsPerSecond >= 1_000) {
+					bitrate = `${(bitsPerSecond / 1_000).toFixed(0)}kbps`;
+				} else {
+					bitrate = `${bitsPerSecond.toFixed(0)}bps`;
+				}
+			}
+		}
+
+		// Always update previous values for next calculation, even on first call
+		if (stats) {
+			this.previousFrameCount = stats.frameCount;
+			this.previousTimestamp = stats.timestamp;
+			this.previousBytesReceived = stats.bytesReceived;
+		}
+
+		const { width, height } = display ?? {};
 
 		const parts = [
-			display?.width && display?.height ? `${display.width}x${display.height}` : null,
-			typeof fps === "number" ? `@${fps.toFixed(1)} fps` : "N/A",
+			width && height ? `${width}x${height}` : "N/A",
+			fps ? `@${fps.toFixed(1)} fps` : "N/A",
+			bitrate ?? "N/A",
 		].filter((part): part is string => part !== null);
 
 		this.context.setDisplayData(parts.join("\n"));

@@ -1,5 +1,5 @@
 import type * as Moq from "@moq/lite";
-import { Effect, Signal } from "@moq/signals";
+import { Effect, Getter, Signal } from "@moq/signals";
 import type * as Catalog from "../../catalog";
 import * as Frame from "../../frame";
 import { PRIORITY } from "../../publish/priority";
@@ -36,6 +36,12 @@ type SyncStatus = {
 	bufferDuration?: number;
 };
 
+export interface VideoStats {
+	frameCount: number;
+	timestamp: number;
+	bytesReceived: number;
+}
+
 // Only count it as buffering if we had to sleep for 200ms or more before rendering the next frame.
 // Unfortunately, this has to be quite high because of b-frames.
 // TODO Maybe we need to detect b-frames and make this dynamic?
@@ -71,10 +77,6 @@ export class Source {
 	// Expose the current frame to render as a signal
 	frame = new Signal<VideoFrame | undefined>(undefined);
 
-	// Real-time FPS calculation
-	#fps = new Signal<number | undefined>(undefined);
-	readonly fps = this.#fps as Signal<number | undefined>;
-
 	// The target latency in milliseconds.
 	latency: Signal<Time.Milli>;
 
@@ -89,6 +91,9 @@ export class Source {
 
 	bufferStatus = new Signal<BufferStatus>({ state: "empty" });
 	syncStatus = new Signal<SyncStatus>({ state: "ready" });
+
+	#stats = new Signal<VideoStats | undefined>(undefined);
+	readonly stats: Getter<VideoStats | undefined> = this.#stats;
 
 	#signals = new Effect();
 
@@ -223,10 +228,6 @@ export class Source {
 			}
 		});
 
-		let lastFrameTimestamp: number | null = null;
-		let recentFpsValues: number[] = [];
-		const fpsSmoothing = 5;
-
 		const decoder = new VideoDecoder({
 			output: async (frame: VideoFrame) => {
 				// Insert into a queue so we can perform ordered sleeps.
@@ -250,24 +251,13 @@ export class Source {
 				const { value: frame } = await reader.read();
 				if (!frame) break;
 
-				const now = performance.now() * 1000;
-				if (lastFrameTimestamp !== null) {
-					const deltaUs = now - lastFrameTimestamp;
-					if (deltaUs > 0) {
-						const instantFps = 1_000_000 / deltaUs;
-						recentFpsValues.push(instantFps);
-
-						if (recentFpsValues.length > fpsSmoothing) {
-							recentFpsValues.shift();
-						}
-
-						if (recentFpsValues.length > 0) {
-							const avgFps = recentFpsValues.reduce((a, b) => a + b, 0) / recentFpsValues.length;
-							this.#fps.set(avgFps);
-						}
-					}
-				}
-				lastFrameTimestamp = now;
+				// Track frame count and timestamp for FPS calculation in the UI
+				const currentStats = this.#stats.peek();
+				this.#stats.set({
+					frameCount: (currentStats?.frameCount ?? 0) + 1,
+					timestamp: frame.timestamp,
+					bytesReceived: currentStats?.bytesReceived ?? 0,
+				});
 
 				// Sleep until it's time to decode the next frame.
 				const ref = performance.now() - frame.timestamp / 1000;
@@ -329,6 +319,14 @@ export class Source {
 					type: next.keyframe ? "key" : "delta",
 					data: next.data,
 					timestamp: next.timestamp,
+				});
+
+				// Track bytes received for bitrate calculation in the UI
+				const currentStats = this.#stats.peek();
+				this.#stats.set({
+					frameCount: currentStats?.frameCount ?? 0,
+					timestamp: currentStats?.timestamp ?? 0,
+					bytesReceived: (currentStats?.bytesReceived ?? 0) + next.data.byteLength,
 				});
 
 				decoder.decode(chunk);

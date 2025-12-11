@@ -37,6 +37,8 @@ interface NetworkInformation {
  * Handler for network metrics (connection type, bandwidth, latency)
  */
 export class NetworkHandler extends BaseHandler {
+	/** Polling interval in milliseconds */
+	private static readonly POLLING_INTERVAL_MS = 100;
 	/** Display context for updating metrics */
 	private context: HandlerContext | undefined;
 	/** Network information from navigator.connection */
@@ -64,7 +66,7 @@ export class NetworkHandler extends BaseHandler {
 		window.addEventListener("online", this.onlineStatusChanged);
 		window.addEventListener("offline", this.onlineStatusChanged);
 
-		this.updateInterval = window.setInterval(this.updateDisplay, 100);
+		this.updateInterval = window.setInterval(this.updateDisplay, NetworkHandler.POLLING_INTERVAL_MS);
 		this.updateDisplayData();
 	}
 

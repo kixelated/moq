@@ -1,16 +1,20 @@
-import type { HandlerContext } from "../types";
+import type { AudioStats, HandlerContext } from "../types";
 import { BaseHandler } from "./base";
 
 /**
  * Handler for audio stream metrics (channels, bitrate, codec)
  */
 export class AudioHandler extends BaseHandler {
+	/** Polling interval in milliseconds */
+	private static readonly POLLING_INTERVAL_MS = 250;
 	/** Display context for updating metrics */
 	private context: HandlerContext | undefined;
 	/** Polling interval ID */
 	private updateInterval: number | undefined;
 	/** Bound callback for display updates */
 	private updateDisplay = () => this.updateDisplayData();
+	/** Previous bytes received for bitrate calculation */
+	private previousBytesReceived = 0;
 
 	/**
 	 * Initialize audio handler with polling interval
@@ -24,7 +28,7 @@ export class AudioHandler extends BaseHandler {
 			return;
 		}
 
-		this.updateInterval = window.setInterval(this.updateDisplay, 250);
+		this.updateInterval = window.setInterval(this.updateDisplay, AudioHandler.POLLING_INTERVAL_MS);
 
 		this.updateDisplayData();
 	}
@@ -46,11 +50,33 @@ export class AudioHandler extends BaseHandler {
 			codec?: string;
 		}>(this.props.audio.source.config);
 
-		const bitrate = this.peekSignal<number>(this.props.audio.source.bitrate);
+		const stats = this.peekSignal<AudioStats>(this.props.audio.source.stats);
 
 		if (!active || !config) {
 			this.context.setDisplayData("N/A");
 			return;
+		}
+
+		let bitrate: string | undefined;
+		if (stats && this.previousBytesReceived > 0) {
+			const bytesDelta = stats.bytesReceived - this.previousBytesReceived;
+			// Only calculate bitrate if there's actual data change
+			if (bytesDelta > 0) {
+				const bitsPerSecond = bytesDelta * 8 * (1000 / AudioHandler.POLLING_INTERVAL_MS);
+
+				if (bitsPerSecond >= 1_000_000) {
+					bitrate = `${(bitsPerSecond / 1_000_000).toFixed(1)}Mbps`;
+				} else if (bitsPerSecond >= 1_000) {
+					bitrate = `${(bitsPerSecond / 1_000).toFixed(0)}kbps`;
+				} else {
+					bitrate = `${bitsPerSecond.toFixed(0)}bps`;
+				}
+			}
+		}
+
+		// Always update previous values for next calculation, even on first call
+		if (stats) {
+			this.previousBytesReceived = stats.bytesReceived;
 		}
 
 		const parts: string[] = [];
@@ -64,13 +90,7 @@ export class AudioHandler extends BaseHandler {
 			parts.push(`${config.numberOfChannels}ch`);
 		}
 
-		const displayBitrate =
-			bitrate ?? config.bitrate ?? (config.numberOfChannels ? config.numberOfChannels * 32_000 : undefined);
-
-		if (displayBitrate) {
-			const kbps = (displayBitrate / 1000).toFixed(0);
-			parts.push(`${kbps}kbps`);
-		}
+		parts.push(bitrate ?? "N/A");
 
 		if (config.codec) {
 			parts.push(config.codec);

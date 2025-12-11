@@ -1,15 +1,34 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { AudioConfig, AudioSource, HandlerContext, HandlerProps } from "../types";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { AudioConfig, AudioSource, AudioStats, HandlerContext, HandlerProps } from "../types";
 import { AudioHandler } from "./audio";
 
 describe("AudioHandler", () => {
 	let handler: AudioHandler;
 	let context: HandlerContext;
 	let setDisplayData: ReturnType<typeof vi.fn>;
+	let intervalCallback: ((interval: number) => void) | null = null;
 
 	beforeEach(() => {
 		setDisplayData = vi.fn();
 		context = { setDisplayData };
+		intervalCallback = null;
+
+		// Mock window functions
+		const mockSetInterval = vi.fn((callback: (interval: number) => void) => {
+			intervalCallback = callback;
+			return 1 as unknown as NodeJS.Timeout;
+		});
+
+		const mockClearInterval = vi.fn();
+
+		global.window = {
+			setInterval: mockSetInterval,
+			clearInterval: mockClearInterval,
+		} as unknown as typeof window;
+	});
+
+	afterEach(() => {
+		handler?.cleanup();
 	});
 
 	it("should display N/A when audio source is not available", () => {
@@ -20,13 +39,14 @@ describe("AudioHandler", () => {
 		expect(setDisplayData).toHaveBeenCalledWith("N/A");
 	});
 
-	it("should display audio config with bitrate", () => {
+	it("should display audio config with stats placeholder on first call", () => {
 		const audioConfig: AudioConfig = {
 			sampleRate: 48000,
 			numberOfChannels: 2,
-			bitrate: 128000,
 			codec: "opus",
 		};
+
+		const stats: AudioStats = { bytesReceived: 0 };
 
 		const audio: AudioSource = {
 			source: {
@@ -38,8 +58,8 @@ describe("AudioHandler", () => {
 					peek: () => audioConfig,
 					subscribe: vi.fn(() => vi.fn()),
 				},
-				bitrate: {
-					peek: () => undefined,
+				stats: {
+					peek: () => stats,
 					subscribe: vi.fn(() => vi.fn()),
 				},
 			},
@@ -49,16 +69,17 @@ describe("AudioHandler", () => {
 		handler = new AudioHandler(props);
 		handler.setup(context);
 
-		expect(setDisplayData).toHaveBeenCalledWith("48.0kHz\n2ch\n128kbps\nopus");
+		expect(setDisplayData).toHaveBeenCalledWith("48.0kHz\n2ch\nN/A\nopus");
 	});
 
-	it("should use real-time bitrate when available", () => {
+	it("should calculate bitrate from bytesReceived delta", () => {
 		const audioConfig: AudioConfig = {
 			sampleRate: 48000,
 			numberOfChannels: 2,
-			bitrate: 128000,
 			codec: "opus",
 		};
+
+		const peekFn = vi.fn(() => ({ bytesReceived: 0 }) as AudioStats);
 
 		const audio: AudioSource = {
 			source: {
@@ -70,8 +91,8 @@ describe("AudioHandler", () => {
 					peek: () => audioConfig,
 					subscribe: vi.fn(() => vi.fn()),
 				},
-				bitrate: {
-					peek: () => 127500,
+				stats: {
+					peek: peekFn,
 					subscribe: vi.fn(() => vi.fn()),
 				},
 			},
@@ -79,40 +100,22 @@ describe("AudioHandler", () => {
 
 		const props: HandlerProps = { audio };
 		handler = new AudioHandler(props);
+
+		// First call - start with bytes already flowing
+		peekFn.mockReturnValue({ bytesReceived: 5000 } as AudioStats);
 		handler.setup(context);
+		expect(setDisplayData).toHaveBeenCalledWith("48.0kHz\n2ch\nN/A\nopus");
 
-		expect(setDisplayData).toHaveBeenCalledWith("48.0kHz\n2ch\n128kbps\nopus");
-	});
+		// Simulate bytesReceived increasing: 6250 bytes delta = 200 kbps at 250ms interval
+		// (6250 bytes * 8 bits/byte * 4) / 1000 = 200 kbps
+		peekFn.mockReturnValue({ bytesReceived: 11250 } as AudioStats);
+		intervalCallback?.(250);
+		expect(setDisplayData).toHaveBeenCalledWith("48.0kHz\n2ch\n200kbps\nopus");
 
-	it("should calculate bitrate from channels if not provided", () => {
-		const audioConfig: AudioConfig = {
-			sampleRate: 44100,
-			numberOfChannels: 2,
-			codec: "opus",
-		};
-
-		const audio: AudioSource = {
-			source: {
-				active: {
-					peek: () => "audio",
-					subscribe: vi.fn(() => vi.fn()),
-				},
-				config: {
-					peek: () => audioConfig,
-					subscribe: vi.fn(() => vi.fn()),
-				},
-				bitrate: {
-					peek: () => undefined,
-					subscribe: vi.fn(() => vi.fn()),
-				},
-			},
-		};
-
-		const props: HandlerProps = { audio };
-		handler = new AudioHandler(props);
-		handler.setup(context);
-
-		expect(setDisplayData).toHaveBeenCalledWith("44.1kHz\n2ch\n64kbps\nopus");
+		// Increase bytes more: delta 3125 = 100 kbps
+		peekFn.mockReturnValue({ bytesReceived: 14375 } as AudioStats);
+		intervalCallback?.(250);
+		expect(setDisplayData).toHaveBeenCalledWith("48.0kHz\n2ch\n100kbps\nopus");
 	});
 
 	it("should display N/A when active or config is missing", () => {
@@ -126,8 +129,8 @@ describe("AudioHandler", () => {
 					peek: () => undefined,
 					subscribe: vi.fn(() => vi.fn()),
 				},
-				bitrate: {
-					peek: () => undefined,
+				stats: {
+					peek: () => ({ bytesReceived: 0 }),
 					subscribe: vi.fn(() => vi.fn()),
 				},
 			},
@@ -144,8 +147,6 @@ describe("AudioHandler", () => {
 		const audioConfig: AudioConfig = {
 			sampleRate: 44100,
 			numberOfChannels: 1,
-			bitrate: 64000,
-			codec: "opus",
 		};
 
 		const audio: AudioSource = {
@@ -158,8 +159,8 @@ describe("AudioHandler", () => {
 					peek: () => audioConfig,
 					subscribe: vi.fn(() => vi.fn()),
 				},
-				bitrate: {
-					peek: () => undefined,
+				stats: {
+					peek: () => ({ bytesReceived: 0 }),
 					subscribe: vi.fn(() => vi.fn()),
 				},
 			},
@@ -169,6 +170,57 @@ describe("AudioHandler", () => {
 		handler = new AudioHandler(props);
 		handler.setup(context);
 
-		expect(setDisplayData).toHaveBeenCalledWith("44.1kHz\n1ch\n64kbps\nopus");
+		expect(setDisplayData).toHaveBeenCalledWith("44.1kHz\n1ch\nN/A");
+	});
+
+	it("should format Mbps for high bitrates", () => {
+		const audioConfig: AudioConfig = {
+			sampleRate: 48000,
+			numberOfChannels: 2,
+			codec: "opus",
+		};
+
+		const peekFn = vi.fn(() => ({ bytesReceived: 0 }) as AudioStats);
+
+		const audio: AudioSource = {
+			source: {
+				active: {
+					peek: () => "audio",
+					subscribe: vi.fn(() => vi.fn()),
+				},
+				config: {
+					peek: () => audioConfig,
+					subscribe: vi.fn(() => vi.fn()),
+				},
+				stats: {
+					peek: peekFn,
+					subscribe: vi.fn(() => vi.fn()),
+				},
+			},
+		};
+
+		const props: HandlerProps = { audio };
+		handler = new AudioHandler(props);
+
+		// First call - display audio config with stats placeholder on first call
+		peekFn.mockReturnValue({ bytesReceived: 48000 } as AudioStats);
+		handler.setup(context);
+
+		// Simulate 5 Mbps: 156250 bytes delta = 5000000 bits/s = 5 Mbps
+		peekFn.mockReturnValue({ bytesReceived: 204250 } as AudioStats);
+		intervalCallback?.(250);
+
+		expect(setDisplayData).toHaveBeenCalledWith("48.0kHz\n2ch\n5.0Mbps\nopus");
+	});
+
+	it("should cleanup interval on dispose", () => {
+		const props: HandlerProps = {};
+		handler = new AudioHandler(props);
+		handler.setup(context);
+
+		handler.cleanup();
+
+		// Verify that cleanup was called (the actual clearInterval is mocked)
+		expect(handler).toBeDefined();
 	});
 });

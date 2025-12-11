@@ -1,4 +1,4 @@
-import { type Context, createEffect, createSignal, Show, useContext } from "solid-js";
+import { type Context, Show, useContext } from "solid-js";
 import { StatsWrapper } from "./components/StatsWrapper";
 import { StatsContext } from "./context";
 import styles from "./style/index.scss?inline";
@@ -15,28 +15,21 @@ interface StatsProps<T = unknown> {
  */
 export const Stats = <T = unknown>(props: StatsProps<T>) => {
 	const contextValue = useContext(props.context);
-	const [statsReady, setStatsReady] = createSignal(false);
-
-	// Wait for element to be available before rendering
-	createEffect(() => {
-		const element = props.getElement(contextValue);
-		if (element?.audio && element?.video) {
-			setStatsReady(true);
-		}
-	});
 
 	return (
 		<div class="stats">
 			<style>{styles}</style>
-			<Show when={statsReady()}>
-				<StatsContext.Provider
-					value={{
-						audio: props.getElement(contextValue)?.audio,
-						video: props.getElement(contextValue)?.video,
-					}}
-				>
-					<StatsWrapper />
-				</StatsContext.Provider>
+			<Show when={props.getElement(contextValue)}>
+				{(element) => (
+					<StatsContext.Provider
+						value={{
+							audio: element().audio,
+							video: element().video,
+						}}
+					>
+						<StatsWrapper />
+					</StatsContext.Provider>
+				)}
 			</Show>
 		</div>
 	);
