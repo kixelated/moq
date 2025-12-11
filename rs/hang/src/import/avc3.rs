@@ -262,7 +262,7 @@ fn after_start_code(b: &[u8]) -> anyhow::Result<Option<usize>> {
 }
 
 // Return the number of bytes until the next start code, and the size of that start code.
-fn find_start_code(b: &[u8]) -> Option<(usize, usize)> {
+fn find_start_code(mut b: &[u8]) -> Option<(usize, usize)> {
 	// Okay this is over-engineered because this was my interview question.
 	// We need to find either a 3 byte or 4 byte start code.
 	// 3-byte: 0 0 1
@@ -278,42 +278,46 @@ fn find_start_code(b: &[u8]) -> Option<(usize, usize)> {
 	//
 	// TODO Is this the type of thing that SIMD could further improve?
 	// If somebody can figure that out, I'll buy you a beer.
+	let size = b.len();
 
-	let mut index = 0;
-
-	while index + 2 < b.len() {
+	while b.len() >= 3 {
 		// ? ? ?
-		match b[index + 2] {
+		match b[2] {
 			// ? ? 0
-			0 if index + 3 < b.len() => match b[index + 1] {
-				// ? 0 0 0
-				0 => index += 1,
-				// ? 0 0 1
-				1 => match b[index] {
-					// 0 0 0 1
-					0 => return Some((index, 4)),
-					// x 0 0 1
-					_ => return Some((index + 1, 3)),
+			0 if b.len() >= 4 => match b[3] {
+				// ? ? 0 1
+				1 => match b[1] {
+					// ? 0 0 1
+					0 => match b[0] {
+						// 0 0 0 1
+						0 => return Some((size - b.len(), 4)),
+						// ? 0 0 1
+						_ => return Some((size - b.len() + 1, 3)),
+					},
+					// ? x 0 1
+					_ => b = &b[4..],
 				},
-				// ? 0 0 x
-				_ => index += 4,
+				// ? ? 0 0 - skip only 1 byte to check for potential 0 0 0 1
+				0 => b = &b[1..],
+				// ? ? 0 x
+				_ => b = &b[4..],
 			},
 			// ? ? 0 FIN
 			0 => return None,
 			// ? ? 1
-			1 => match b[index + 1] {
+			1 => match b[1] {
 				// ? 0 1
-				0 => match b[index] {
+				0 => match b[0] {
 					// 0 0 1
-					0 => return Some((index, 3)),
+					0 => return Some((size - b.len(), 3)),
 					// ? 0 1
-					_ => index += 3,
+					_ => b = &b[3..],
 				},
 				// ? x 1
-				_ => index += 3,
+				_ => b = &b[3..],
 			},
 			// ? ? x
-			_ => index += 3,
+			_ => b = &b[3..],
 		}
 	}
 
@@ -332,5 +336,240 @@ impl Frame {
 		self.chunks.clear();
 		self.contains_idr = false;
 		self.contains_slice = false;
+	}
+}
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+
+	// Tests for after_start_code - validates and measures start code at buffer beginning
+
+	#[test]
+	fn test_after_start_code_3_byte() {
+		let buf = &[0, 0, 1, 0x67];
+		assert_eq!(after_start_code(buf).unwrap(), Some(3));
+	}
+
+	#[test]
+	fn test_after_start_code_4_byte() {
+		let buf = &[0, 0, 0, 1, 0x67];
+		assert_eq!(after_start_code(buf).unwrap(), Some(4));
+	}
+
+	#[test]
+	fn test_after_start_code_too_short() {
+		let buf = &[0, 0];
+		assert_eq!(after_start_code(buf).unwrap(), None);
+	}
+
+	#[test]
+	fn test_after_start_code_incomplete_4_byte() {
+		let buf = &[0, 0, 0];
+		assert_eq!(after_start_code(buf).unwrap(), None);
+	}
+
+	#[test]
+	fn test_after_start_code_invalid_first_byte() {
+		let buf = &[1, 0, 1];
+		assert!(after_start_code(buf).is_err());
+	}
+
+	#[test]
+	fn test_after_start_code_invalid_second_byte() {
+		let buf = &[0, 1, 1];
+		assert!(after_start_code(buf).is_err());
+	}
+
+	#[test]
+	fn test_after_start_code_invalid_third_byte() {
+		let buf = &[0, 0, 2];
+		assert!(after_start_code(buf).is_err());
+	}
+
+	#[test]
+	fn test_after_start_code_invalid_4_byte_pattern() {
+		let buf = &[0, 0, 0, 2];
+		assert!(after_start_code(buf).is_err());
+	}
+
+	// Tests for find_start_code - finds next start code in NAL data
+
+	#[test]
+	fn test_find_start_code_3_byte() {
+		let buf = &[0x67, 0x42, 0x00, 0x1f, 0, 0, 1];
+		assert_eq!(find_start_code(buf), Some((4, 3)));
+	}
+
+	#[test]
+	fn test_find_start_code_4_byte() {
+		// Should detect 4-byte start code at beginning
+		let buf = &[0, 0, 0, 1, 0x67];
+		assert_eq!(find_start_code(buf), Some((0, 4)));
+	}
+
+	#[test]
+	fn test_find_start_code_4_byte_after_data() {
+		// Should detect 4-byte start code after NAL data
+		let buf = &[0x67, 0x42, 0xff, 0x1f, 0, 0, 0, 1];
+		assert_eq!(find_start_code(buf), Some((4, 4)));
+	}
+
+	#[test]
+	fn test_find_start_code_at_start_3_byte() {
+		let buf = &[0, 0, 1, 0x67];
+		assert_eq!(find_start_code(buf), Some((0, 3)));
+	}
+
+	#[test]
+	fn test_find_start_code_none() {
+		let buf = &[0x67, 0x42, 0x00, 0x1f, 0xff];
+		assert_eq!(find_start_code(buf), None);
+	}
+
+	#[test]
+	fn test_find_start_code_trailing_zeros() {
+		let buf = &[0x67, 0x42, 0x00, 0x1f, 0, 0];
+		assert_eq!(find_start_code(buf), None);
+	}
+
+	#[test]
+	fn test_find_start_code_edge_case_3_byte() {
+		let buf = &[0xff, 0, 0, 1];
+		assert_eq!(find_start_code(buf), Some((1, 3)));
+	}
+
+	#[test]
+	fn test_find_start_code_false_positive_avoidance() {
+		// Pattern like: x 0 0 y (where y != 1) - should skip ahead
+		let buf = &[0xff, 0, 0, 0xff, 0, 0, 1];
+		assert_eq!(find_start_code(buf), Some((4, 3)));
+	}
+
+	#[test]
+	fn test_find_start_code_4_byte_after_nonzero() {
+		// Critical edge case: x 0 0 0 1 should find 4-byte start code at position 1
+		// This tests that we only skip 1 byte when seeing ? ? 0 0
+		let buf = &[0xff, 0, 0, 0, 1];
+		assert_eq!(find_start_code(buf), Some((1, 4)));
+	}
+
+	#[test]
+	fn test_find_start_code_consecutive_zeros() {
+		// Multiple consecutive zeros before the 1
+		let buf = &[0xff, 0, 0, 0, 0, 0, 1];
+		// Should skip past leading zeros and find the start code
+		let result = find_start_code(buf);
+		assert!(result.is_some());
+		let (pos, size) = result.unwrap();
+		// The exact position depends on the algorithm, but it should find a valid start code
+		assert!(size == 3 || size == 4);
+		assert!(pos < buf.len());
+	}
+
+	// Tests for NalIterator - iterates over NAL units in Annex B format
+
+	#[test]
+	fn test_nal_iterator_simple_3_byte() {
+		let data = vec![0, 0, 1, 0x67, 0x42, 0, 0, 1];
+		let mut iter = NalIterator::new(Bytes::from(data));
+
+		let nal = iter.next().unwrap().unwrap();
+		assert_eq!(nal.as_ref(), &[0x67, 0x42]);
+		assert!(iter.next().is_none());
+	}
+
+	#[test]
+	fn test_nal_iterator_simple_4_byte() {
+		let data = vec![0, 0, 0, 1, 0x67, 0x42, 0, 0, 0, 1];
+		let mut iter = NalIterator::new(Bytes::from(data));
+
+		let nal = iter.next().unwrap().unwrap();
+		assert_eq!(nal.as_ref(), &[0x67, 0x42]);
+		assert!(iter.next().is_none());
+	}
+
+	#[test]
+	fn test_nal_iterator_multiple_nals() {
+		let data = vec![0, 0, 0, 1, 0x67, 0x42, 0, 0, 0, 1, 0x68, 0xce, 0, 0, 0, 1];
+		let mut iter = NalIterator::new(Bytes::from(data));
+
+		let nal1 = iter.next().unwrap().unwrap();
+		assert_eq!(nal1.as_ref(), &[0x67, 0x42]);
+
+		let nal2 = iter.next().unwrap().unwrap();
+		assert_eq!(nal2.as_ref(), &[0x68, 0xce]);
+
+		assert!(iter.next().is_none());
+	}
+
+	#[test]
+	fn test_nal_iterator_realistic_h264() {
+		// A realistic H.264 stream with SPS, PPS, and IDR
+		let data = vec![
+			// SPS NAL
+			0, 0, 0, 1, 0x67, 0x42, 0x00, 0x1f, // PPS NAL
+			0, 0, 0, 1, 0x68, 0xce, 0x3c, 0x80, // IDR slice
+			0, 0, 0, 1, 0x65, 0x88, 0x84, 0x00,
+			// Trailing start code (needed to detect the end of the last NAL)
+			0, 0, 0, 1,
+		];
+		let mut iter = NalIterator::new(Bytes::from(data));
+
+		let sps = iter.next().unwrap().unwrap();
+		assert_eq!(sps[0] & 0x1f, 7); // SPS type
+		assert_eq!(sps.as_ref(), &[0x67, 0x42, 0x00, 0x1f]);
+
+		let pps = iter.next().unwrap().unwrap();
+		assert_eq!(pps[0] & 0x1f, 8); // PPS type
+		assert_eq!(pps.as_ref(), &[0x68, 0xce, 0x3c, 0x80]);
+
+		let idr = iter.next().unwrap().unwrap();
+		assert_eq!(idr[0] & 0x1f, 5); // IDR type
+		assert_eq!(idr.as_ref(), &[0x65, 0x88, 0x84, 0x00]);
+
+		assert!(iter.next().is_none());
+	}
+
+	#[test]
+	fn test_nal_iterator_invalid_start() {
+		let data = vec![1, 0, 1, 0x67];
+		let mut iter = NalIterator::new(Bytes::from(data));
+
+		assert!(iter.next().unwrap().is_err());
+	}
+
+	#[test]
+	fn test_nal_iterator_empty_nal() {
+		// Two consecutive start codes create an empty NAL
+		let data = vec![0, 0, 1, 0, 0, 1, 0x67, 0, 0, 1];
+		let mut iter = NalIterator::new(Bytes::from(data));
+
+		let nal1 = iter.next().unwrap().unwrap();
+		assert_eq!(nal1.len(), 0);
+
+		let nal2 = iter.next().unwrap().unwrap();
+		assert_eq!(nal2.as_ref(), &[0x67]);
+
+		assert!(iter.next().is_none());
+	}
+
+	#[test]
+	fn test_nal_iterator_nal_with_embedded_zeros() {
+		// NAL data that contains zeros (but not a start code pattern)
+		let data = vec![
+			0, 0, 1, 0x67, 0x00, 0x00, 0x00, 0xff, // NAL with embedded zeros
+			0, 0, 1, 0x68, // Next NAL
+			0, 0, 1,
+		];
+		let mut iter = NalIterator::new(Bytes::from(data));
+
+		let nal1 = iter.next().unwrap().unwrap();
+		assert_eq!(nal1.as_ref(), &[0x67, 0x00, 0x00, 0x00, 0xff]);
+
+		let nal2 = iter.next().unwrap().unwrap();
+		assert_eq!(nal2.as_ref(), &[0x68]);
+
+		assert!(iter.next().is_none());
 	}
 }
