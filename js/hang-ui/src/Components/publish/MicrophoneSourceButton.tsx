@@ -1,21 +1,21 @@
-import { Show, useContext } from "solid-js";
+import { Show } from "solid-js";
 import MediaSourceSourceSelector from "./MediaSourceSelector";
-import { PublishUIContext } from "./PublishUIContextProvider";
+import usePublishUIContext from "./usePublishUIContext";
 
 export default function MicrophoneSourceButton() {
-	const context = useContext(PublishUIContext);
+	const context = usePublishUIContext();
 	const onClick = () => {
-		if (context?.hangPublish.source.peek() === "camera") {
+		if (context.hangPublish.source.peek() === "camera") {
 			// Camera already selected, toggle audio.
-			context?.hangPublish.muted.update((muted) => !muted);
+			context.hangPublish.muted.update((muted) => !muted);
 		} else {
-			context?.hangPublish.source.set("camera");
-			context?.hangPublish.muted.set(false);
+			context.hangPublish.source.set("camera");
+			context.hangPublish.muted.set(false);
 		}
 	};
 
 	const onSourceSelected = (sourceId: MediaDeviceInfo["deviceId"]) => {
-		const audio = context?.hangPublish.audio.peek();
+		const audio = context.hangPublish.audio.peek();
 		if (!audio || !("device" in audio)) return;
 
 		audio.device.preferred.set(sourceId);
@@ -26,15 +26,15 @@ export default function MicrophoneSourceButton() {
 			<button
 				type="button"
 				title="Microphone"
-				class={`publishButton publishSourceButton ${context?.microphoneActive() ? "active" : ""}`}
+				class={`publishButton publishSourceButton ${context.microphoneActive() ? "active" : ""}`}
 				onClick={onClick}
 			>
 				🎤
 			</button>
-			<Show when={context?.microphoneActive() && context?.microphoneDevices().length}>
+			<Show when={context.microphoneActive() && context.microphoneDevices().length}>
 				<MediaSourceSourceSelector
-					sources={context?.microphoneDevices()}
-					selectedSource={context?.selectedMicrophoneSource?.()}
+					sources={context.microphoneDevices()}
+					selectedSource={context.selectedMicrophoneSource?.()}
 					onSelected={onSourceSelected}
 				/>
 			</Show>
