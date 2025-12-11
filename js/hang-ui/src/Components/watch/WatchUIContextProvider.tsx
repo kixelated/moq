@@ -82,7 +82,10 @@ export default function WatchUIContextProvider(props: WatchUIContextProviderProp
 		const hangWatchEl = props.hangWatch();
 
 		if (hangWatchEl) {
-			hangWatchEl.video.source.target.set({ rendition: name });
+			hangWatchEl.video.source.target.update((prev) => ({
+				...prev,
+				rendition: name,
+			}));
 		}
 	};
 
