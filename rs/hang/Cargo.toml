@@ -20,13 +20,14 @@ h264-parser = "0.4.0"
 hex = "0.4"
 lazy_static = "1"
 moq-lite = { workspace = true, features = ["serde"] }
-mp4-atom = { version = "0.9.1", features = ["tokio", "bytes", "serde"] }
+mp4-atom = { version = "0.9.2", features = ["tokio", "bytes", "serde"] }
 regex = "1"
 serde = { workspace = true }
 serde_json = "1"
 serde_with = { version = "3", features = ["hex"] }
 thiserror = "2"
 tokio = { workspace = true, features = ["macros"] }
+num_enum = "0.7"
 tracing = "0.1"
 
 [dependencies.derive_more]

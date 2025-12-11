@@ -3,11 +3,12 @@ use tokio::io::AsyncReadExt;
 
 use crate::{self as hang, import::Aac};
 
-use super::{AnnexB, Fmp4};
+use super::{Avc3, Fmp4};
 
 #[derive(derive_more::From)]
 enum Decoder {
-	AnnexB(AnnexB),
+	/// aka H264 with inline SPS/PPS
+	Avc3(Avc3),
 	Fmp4(Fmp4),
 	Aac(Aac),
 }
@@ -29,7 +30,17 @@ impl Generic {
 	/// Create a new decoder with the given format, or `None` if the format is not supported.
 	pub fn new(broadcast: hang::BroadcastProducer, format: &str) -> Option<Self> {
 		let decoder = match format {
-			"h264" | "annex-b" => AnnexB::new(broadcast).into(),
+			// NOTE: We don't support HEVC
+			"avc3" => Avc3::new(broadcast).into(),
+			"h264" => {
+				// NOTE: avc1 is unsupported, because the SPS/PPS are out-of-band.
+				tracing::warn!("'h264' format is deprecated, use 'avc3' instead");
+				Avc3::new(broadcast).into()
+			}
+			"annex-b" => {
+				tracing::warn!("'annex-b' format is deprecated, use 'avc3' instead");
+				Avc3::new(broadcast).into()
+			}
 			"fmp4" | "cmaf" => Fmp4::new(broadcast).into(),
 			"aac" => Aac::new(broadcast).into(),
 			_ => return None,
@@ -47,17 +58,10 @@ impl Generic {
 	/// Depending on the format, this may use a different encoding than `decode`.
 	///
 	/// The buffer MAY be partially consumed, in which case the caller needs to populate the buffer with more data.
-	pub fn initialize<T: Buf>(&mut self, buffer: &mut T) -> anyhow::Result<()> {
-		let mut pts = || -> anyhow::Result<hang::Timestamp> {
-			self.zero = self.zero.or_else(|| Some(tokio::time::Instant::now()));
-			Ok(hang::Timestamp::from_micros(
-				self.zero.unwrap().elapsed().as_micros() as u64
-			)?)
-		};
-
+	pub fn initialize<T: Buf + AsRef<[u8]>>(&mut self, buffer: &mut T) -> anyhow::Result<()> {
 		match &mut self.decoder {
-			Decoder::AnnexB(decoder) => decoder.decode(buffer, pts()?)?,
-			Decoder::Fmp4(decoder) => decoder.decode(buffer)?,
+			Decoder::Avc3(decoder) => decoder.initialize(buffer)?,
+			Decoder::Fmp4(decoder) => decoder.initialize(buffer)?,
 			Decoder::Aac(decoder) => decoder.initialize(buffer)?,
 		}
 
@@ -69,7 +73,7 @@ impl Generic {
 	/// NOTE: Some formats do not need the timestamp and can ignore it.
 	///
 	/// If a timestamp is not provided but the format requires it, wall clock time will be used instead.
-	pub fn decode<T: Buf>(&mut self, buf: &mut T, pts: Option<hang::Timestamp>) -> anyhow::Result<()> {
+	pub fn decode<T: Buf + AsRef<[u8]>>(&mut self, buf: &mut T, pts: Option<hang::Timestamp>) -> anyhow::Result<()> {
 		anyhow::ensure!(self.buffer.is_empty(), "TODO support partial decoding");
 
 		// Make a function to compute the PTS timestamp only if needed by a decoder.
@@ -83,7 +87,7 @@ impl Generic {
 		};
 
 		match &mut self.decoder {
-			Decoder::AnnexB(decoder) => decoder.decode(buf, pts()?),
+			Decoder::Avc3(decoder) => decoder.decode(buf, pts()?),
 			Decoder::Fmp4(decoder) => decoder.decode(buf),
 			Decoder::Aac(decoder) => decoder.decode(buf, pts()?),
 		}
@@ -91,7 +95,7 @@ impl Generic {
 
 	pub fn is_initialized(&self) -> bool {
 		match &self.decoder {
-			Decoder::AnnexB(decoder) => decoder.is_initialized(),
+			Decoder::Avc3(decoder) => decoder.is_initialized(),
 			Decoder::Fmp4(decoder) => decoder.is_initialized(),
 			Decoder::Aac(decoder) => decoder.is_initialized(),
 		}
