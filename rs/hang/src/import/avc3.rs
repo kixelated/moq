@@ -7,6 +7,7 @@ use moq_lite as moq;
 // Yes, it's one byte longer than the 3 byte start code, but it's easier to convert to MP4.
 const START_CODE: Bytes = Bytes::from_static(&[0, 0, 0, 1]);
 
+/// A decoder for H.264 with inline SPS/PPS.
 pub struct Avc3 {
 	// The broadcast being produced.
 	// This `hang` variant includes a catalog.
@@ -93,102 +94,96 @@ impl Avc3 {
 		Ok(())
 	}
 
-	pub fn initialize<T: Buf + AsRef<[u8]>>(&mut self, buf: &mut T) -> anyhow::Result<()> {
-		let mut nals = NalIterator::new(buf);
+	/// Decode as much data as possible from the given buffer.
+	///
+	/// Unlike [Self::decode_framed], this method needs the start code for the next frame.
+	/// This means it works for streaming media (ex. stdin) but adds a frame of latency.
+	pub fn decode_stream<T: Buf + AsRef<[u8]>>(&mut self, buf: &mut T, pts: hang::Timestamp) -> anyhow::Result<()> {
+		// Iterate over the NAL units in the buffer based on start codes.
 
-		while let Some(nal) = nals.next() {
-			let nal = nal?;
+		let nals = NalIterator::new(buf);
 
-			let header = nal.get(0).context("NAL unit is too short")?;
-			let forbidden_zero_bit = (header >> 7) & 1;
-			anyhow::ensure!(forbidden_zero_bit == 0, "forbidden zero bit is not zero");
-
-			let nal_unit_type = header & 0b11111;
-			let nal_type = NalType::try_from(nal_unit_type).context("unknown NAL unit type")?;
-
-			match nal_type {
-				NalType::Sps => {
-					// We need to unescape the NAL to get the raw SPS.
-					// TODO: It would be nice to avoid allocating a new vector here, but it's an over-optimization.
-					let nal = h264_parser::nal::ebsp_to_rbsp(&nal[1..]);
-					let sps = h264_parser::Sps::parse(&nal)?;
-					self.init(&sps)?;
-				}
-				NalType::IdrSlice
-				| NalType::NonIdrSlice
-				| NalType::DataPartitionA
-				| NalType::DataPartitionB
-				| NalType::DataPartitionC => anyhow::bail!("expected SPS before any frames"),
-				_ => {}
-			}
-
-			// Rather than keeping the original size of the start code, we replace it with a 4 byte start code.
-			// It's just marginally easier and potentially more efficient down the line (JS player with MSE).
-			self.current.chunks.push(START_CODE.clone());
-			self.current.chunks.push(nal);
+		for nal in nals {
+			self.decode_nal(nal?, pts)?;
 		}
 
 		Ok(())
 	}
 
-	pub fn decode<T: Buf + AsRef<[u8]>>(&mut self, buf: &mut T, pts: hang::Timestamp) -> anyhow::Result<()> {
-		let mut nals = NalIterator::new(buf);
+	/// Decode all data in the buffer, assuming the buffer is NAL-aligned.
+	///
+	/// Unlike [Self::decode_stream], this is called when we know NAL boundaries.
+	/// This can avoid a frame of latency just waiting for the next NAL's start code.
+	/// This can also be used when EOF is detected to flush the final NAL.
+	///
+	/// NOTE: The next decode will fail if it doesn't begin with a start code.
+	pub fn decode_framed<T: Buf + AsRef<[u8]>>(&mut self, buf: &mut T, pts: hang::Timestamp) -> anyhow::Result<()> {
+		// Decode any NALs at the start of the buffer.
+		self.decode_stream(buf, pts)?;
 
-		while let Some(nal) = nals.next() {
-			let nal = nal?;
+		// Make sure there's a start code at the start of the buffer.
+		let start = after_start_code(buf.as_ref())?.context("missing start code")?;
+		buf.advance(start);
 
-			let header = nal.get(0).context("NAL unit is too short")?;
-			let forbidden_zero_bit = (header >> 7) & 1;
-			anyhow::ensure!(forbidden_zero_bit == 0, "forbidden zero bit is not zero");
-
-			let nal_unit_type = header & 0b11111;
-			let nal_type = NalType::try_from(nal_unit_type).context("unknown NAL unit type")?;
-
-			match nal_type {
-				NalType::Sps => {
-					self.maybe_flush(pts)?;
-
-					// Try to reinitialize the track if the SPS has changed.
-					let nal = h264_parser::nal::ebsp_to_rbsp(&nal[1..]);
-					let sps = h264_parser::Sps::parse(&nal)?;
-					self.init(&sps)?;
-				}
-				// TODO parse the SPS again and reinitialize the track if needed
-				NalType::Aud | NalType::Pps | NalType::Sei => {
-					self.maybe_flush(pts)?;
-				}
-				NalType::IdrSlice => {
-					self.current.contains_idr = true;
-					self.current.contains_slice = true;
-				}
-				NalType::NonIdrSlice | NalType::DataPartitionA | NalType::DataPartitionB | NalType::DataPartitionC => {
-					// first_mb_in_slice flag, means this is the first frame of a slice.
-					if nal.get(1).context("NAL unit is too short")? & 0x80 != 0 {
-						self.maybe_flush(pts)?;
-					}
-
-					self.current.contains_slice = true;
-				}
-				_ => {}
-			}
-
-			// Rather than keeping the original size of the start code, we replace it with a 4 byte start code.
-			// It's just marginally easier and potentially more efficient down the line (JS player with MSE).
-			// NOTE: This is ref-counted and static, so it's extremely cheap to clone.
-			self.current.chunks.push(START_CODE.clone());
-			self.current.chunks.push(nal);
-		}
+		// Assume the rest of the buffer is a single NAL.
+		let nal = buf.copy_to_bytes(buf.remaining());
+		self.decode_nal(nal, pts)?;
 
 		Ok(())
 	}
 
-	fn maybe_flush(&mut self, pts: hang::Timestamp) -> anyhow::Result<()> {
+	fn decode_nal(&mut self, nal: Bytes, pts: hang::Timestamp) -> anyhow::Result<()> {
+		let header = nal.first().context("NAL unit is too short")?;
+		let forbidden_zero_bit = (header >> 7) & 1;
+		anyhow::ensure!(forbidden_zero_bit == 0, "forbidden zero bit is not zero");
+
+		let nal_unit_type = header & 0b11111;
+		let nal_type = NalType::try_from(nal_unit_type).context("unknown NAL unit type")?;
+
+		match nal_type {
+			NalType::Sps => {
+				self.maybe_start_frame(pts)?;
+
+				// Try to reinitialize the track if the SPS has changed.
+				let nal = h264_parser::nal::ebsp_to_rbsp(&nal[1..]);
+				let sps = h264_parser::Sps::parse(&nal)?;
+				self.init(&sps)?;
+			}
+			// TODO parse the SPS again and reinitialize the track if needed
+			NalType::Aud | NalType::Pps | NalType::Sei => {
+				self.maybe_start_frame(pts)?;
+			}
+			NalType::IdrSlice => {
+				self.current.contains_idr = true;
+				self.current.contains_slice = true;
+			}
+			NalType::NonIdrSlice | NalType::DataPartitionA | NalType::DataPartitionB | NalType::DataPartitionC => {
+				// first_mb_in_slice flag, means this is the first frame of a slice.
+				if nal.get(1).context("NAL unit is too short")? & 0x80 != 0 {
+					self.maybe_start_frame(pts)?;
+				}
+
+				self.current.contains_slice = true;
+			}
+			_ => {}
+		}
+
+		// Rather than keeping the original size of the start code, we replace it with a 4 byte start code.
+		// It's just marginally easier and potentially more efficient down the line (JS player with MSE).
+		// NOTE: This is ref-counted and static, so it's extremely cheap to clone.
+		self.current.chunks.push(START_CODE.clone());
+		self.current.chunks.push(nal);
+
+		Ok(())
+	}
+
+	fn maybe_start_frame(&mut self, pts: hang::Timestamp) -> anyhow::Result<()> {
 		// If we haven't seen any slices, we shouldn't flush yet.
 		if !self.current.contains_slice {
 			return Ok(());
 		}
 
-		let track = self.track.as_mut().context("not initialized")?;
+		let track = self.track.as_mut().context("expected SPS before any frames")?;
 
 		track.write_chunks(self.current.contains_idr, pts, self.current.chunks.iter().cloned())?;
 		self.current.clear();
@@ -249,7 +244,7 @@ impl<T: Buf + AsRef<[u8]>> Iterator for NalIterator<T> {
 	fn next(&mut self) -> Option<Self::Item> {
 		let start = match self.start {
 			Some(start) => start,
-			None => match after_start_code(&self.buf.as_ref()).transpose()? {
+			None => match after_start_code(self.buf.as_ref()).transpose()? {
 				Ok(start) => start,
 				Err(err) => return Some(Err(err)),
 			},

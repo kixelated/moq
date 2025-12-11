@@ -67,32 +67,6 @@ impl Fmp4 {
 		}
 	}
 
-	pub fn initialize<T: Buf + AsRef<[u8]>>(&mut self, buf: &mut T) -> anyhow::Result<()> {
-		let mut cursor = std::io::Cursor::new(buf);
-		let mut position = 0;
-
-		while let Some(atom) = mp4_atom::Any::decode_maybe(&mut cursor)? {
-			// Only advance the cursor if we managed to decode an atom.
-			position = cursor.position() as usize;
-
-			match atom {
-				Any::Ftyp(_) | Any::Styp(_) => {
-					// Skip
-				}
-				Any::Moov(moov) => {
-					// Create the broadcast.
-					self.init(moov)?;
-					break;
-				}
-				_ => anyhow::bail!("expected moov header: {:?}", atom),
-			}
-		}
-
-		cursor.into_inner().advance(position);
-
-		Ok(())
-	}
-
 	pub fn decode<T: Buf + AsRef<[u8]>>(&mut self, buf: &mut T) -> anyhow::Result<()> {
 		let mut cursor = std::io::Cursor::new(buf);
 		let mut position = 0;
@@ -103,6 +77,13 @@ impl Fmp4 {
 			position = cursor.position() as usize;
 
 			match atom {
+				Any::Ftyp(_) | Any::Styp(_) => {
+					// Skip
+				}
+				Any::Moov(moov) => {
+					// Create the broadcast.
+					self.init(moov)?;
+				}
 				Any::Moof(moof) => {
 					if self.moof.is_some() {
 						// Two moof boxes in a row.
