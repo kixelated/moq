@@ -65,6 +65,18 @@ pub enum Error {
 	/// The timestamp of each keyframe must be monotonically increasing.
 	#[error("timestamp went backwards")]
 	TimestampBackwards,
+
+	/// An error during HLS ingest.
+	#[error("hls error: {0}")]
+	Hls(String),
+
+	/// An error from the HTTP client.
+	#[error("http error: {0}")]
+	Http(Arc<reqwest::Error>),
+
+	/// Failed to parse a URL.
+	#[error("url parse error: {0}")]
+	Url(#[from] url::ParseError),
 }
 
 /// A Result type alias for hang operations.
@@ -77,5 +89,11 @@ pub type Result<T> = std::result::Result<T, Error>;
 impl From<serde_json::Error> for Error {
 	fn from(err: serde_json::Error) -> Self {
 		Error::Json(Arc::new(err))
+	}
+}
+
+impl From<reqwest::Error> for Error {
+	fn from(err: reqwest::Error) -> Self {
+		Error::Http(Arc::new(err))
 	}
 }

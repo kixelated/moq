@@ -1,9 +1,15 @@
 use bytes::{Buf, BytesMut};
 use tokio::io::AsyncReadExt;
 
-use crate::{self as hang, import::Aac};
+use crate::{self as hang};
 
-use super::{AnnexB, Fmp4};
+mod aac;
+mod annexb;
+mod fmp4;
+
+pub use aac::*;
+pub use annexb::*;
+pub use fmp4::*;
 
 #[derive(derive_more::From)]
 enum Decoder {
@@ -15,7 +21,7 @@ enum Decoder {
 /// A generic interface for importing media into a hang broadcast.
 ///
 /// If you know the format in advance, use the specific decoder instead.
-pub struct Generic {
+pub struct ImportMedia {
 	decoder: Decoder,
 
 	// Used for decoders that don't have timestamps in the stream.
@@ -25,7 +31,7 @@ pub struct Generic {
 	buffer: BytesMut,
 }
 
-impl Generic {
+impl ImportMedia {
 	/// Create a new decoder with the given format, or `None` if the format is not supported.
 	pub fn new(broadcast: hang::BroadcastProducer, format: &str) -> Option<Self> {
 		let decoder = match format {

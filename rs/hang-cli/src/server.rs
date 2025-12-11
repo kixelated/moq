@@ -10,13 +10,14 @@ use tokio::io::AsyncRead;
 use tower_http::cors::{Any, CorsLayer};
 use tower_http::services::ServeDir;
 
-use crate::import::{Import, ImportType};
+use crate::import::{ImportMedia, ImportType};
 
 pub async fn server<T: AsyncRead + Unpin>(
 	config: moq_native::ServerConfig,
 	name: String,
 	public: Option<PathBuf>,
 	format: ImportType,
+
 	input: &mut T,
 ) -> anyhow::Result<()> {
 	let mut listen = config.bind.unwrap_or("[::]:443".parse().unwrap());
@@ -33,16 +34,16 @@ pub async fn server<T: AsyncRead + Unpin>(
 	let fingerprint = server.fingerprints().first().context("missing certificate")?.clone();
 
 	let broadcast = moq_lite::Broadcast::produce();
-	let mut import = Import::new(broadcast.producer.into(), format);
+	let mut media = ImportMedia::new(broadcast.producer.into(), format);
 
-	import.init_from(input).await?;
+	media.init_from(input).await?;
 
 	// Notify systemd that we're ready.
 	let _ = sd_notify::notify(true, &[sd_notify::NotifyState::Ready]);
 
 	tokio::select! {
 		res = accept(server, name, broadcast.consumer) => res,
-		res = import.read_from(input) => res,
+		res = media.read_from(input) => res,
 		res = web(listen, fingerprint, public) => res,
 	}
 }

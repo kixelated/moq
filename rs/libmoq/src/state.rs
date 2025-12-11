@@ -24,7 +24,7 @@ pub struct State {
 	broadcasts: NonZeroSlab<hang::BroadcastProducer>,
 
 	// All tracks, indexed by an ID.
-	tracks: NonZeroSlab<hang::import::Generic>,
+	tracks: NonZeroSlab<hang::import::ImportMedia>,
 }
 
 pub struct StateGuard {
@@ -153,7 +153,7 @@ impl State {
 
 	pub fn create_track(&mut self, broadcast: Id, format: &str, mut init: &[u8]) -> Result<Id, Error> {
 		let broadcast = self.broadcasts.get_mut(broadcast).ok_or(Error::NotFound)?;
-		let mut track = hang::import::Generic::new(broadcast.clone(), format)
+		let mut track = hang::import::ImportMedia::new(broadcast.clone(), format)
 			.ok_or_else(|| Error::UnknownFormat(format.to_string()))?;
 
 		track
