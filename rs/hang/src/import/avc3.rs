@@ -117,7 +117,7 @@ impl Avc3 {
 	/// This can also be used when EOF is detected to flush the final frame.
 	///
 	/// NOTE: The next decode will fail if it doesn't begin with a start code.
-	pub fn decode_framed<T: Buf + AsRef<[u8]>>(&mut self, buf: &mut T, pts: hang::Timestamp) -> anyhow::Result<()> {
+	pub fn decode_frame<T: Buf + AsRef<[u8]>>(&mut self, buf: &mut T, pts: hang::Timestamp) -> anyhow::Result<()> {
 		// Decode any NALs at the start of the buffer.
 		self.decode_stream(buf, pts)?;
 
@@ -141,10 +141,10 @@ impl Avc3 {
 		anyhow::ensure!(forbidden_zero_bit == 0, "forbidden zero bit is not zero");
 
 		let nal_unit_type = header & 0b11111;
-		let nal_type = NalType::try_from(nal_unit_type).context("unknown NAL unit type")?;
+		let nal_type = NalType::try_from(nal_unit_type).ok();
 
 		match nal_type {
-			NalType::Sps => {
+			Some(NalType::Sps) => {
 				self.maybe_start_frame(pts)?;
 
 				// Try to reinitialize the track if the SPS has changed.
@@ -153,14 +153,17 @@ impl Avc3 {
 				self.init(&sps)?;
 			}
 			// TODO parse the SPS again and reinitialize the track if needed
-			NalType::Aud | NalType::Pps | NalType::Sei => {
+			Some(NalType::Aud) | Some(NalType::Pps) | Some(NalType::Sei) => {
 				self.maybe_start_frame(pts)?;
 			}
-			NalType::IdrSlice => {
+			Some(NalType::IdrSlice) => {
 				self.current.contains_idr = true;
 				self.current.contains_slice = true;
 			}
-			NalType::NonIdrSlice | NalType::DataPartitionA | NalType::DataPartitionB | NalType::DataPartitionC => {
+			Some(NalType::NonIdrSlice)
+			| Some(NalType::DataPartitionA)
+			| Some(NalType::DataPartitionB)
+			| Some(NalType::DataPartitionC) => {
 				// first_mb_in_slice flag, means this is the first frame of a slice.
 				if nal.get(1).context("NAL unit is too short")? & 0x80 != 0 {
 					self.maybe_start_frame(pts)?;

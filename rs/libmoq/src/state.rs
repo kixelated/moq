@@ -23,7 +23,7 @@ pub struct State {
 	broadcasts: NonZeroSlab<hang::BroadcastProducer>,
 
 	// All tracks, indexed by an ID.
-	tracks: NonZeroSlab<hang::import::DecoderFramed>,
+	tracks: NonZeroSlab<hang::import::Decoder>,
 }
 
 pub struct StateGuard {
@@ -152,7 +152,7 @@ impl State {
 
 	pub fn create_track(&mut self, broadcast: Id, format: &str, mut init: &[u8]) -> Result<Id, Error> {
 		let broadcast = self.broadcasts.get_mut(broadcast).ok_or(Error::NotFound)?;
-		let mut decoder = hang::import::DecoderFramed::new(broadcast.clone(), format)
+		let mut decoder = hang::import::Decoder::new(broadcast.clone(), format)
 			.ok_or_else(|| Error::UnknownFormat(format.to_string()))?;
 
 		decoder
@@ -169,7 +169,7 @@ impl State {
 
 		let pts = hang::Timestamp::from_micros(pts)?;
 		track
-			.decode(&mut data, Some(pts))
+			.decode_frame(&mut data, Some(pts))
 			.map_err(|err| Error::DecodeFailed(Arc::new(err)))?;
 		assert!(data.is_empty(), "buffer was not fully consumed");
 
