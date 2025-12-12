@@ -22,6 +22,9 @@ pub struct Avc3 {
 
 	// The current frame being built.
 	current: Frame,
+
+	// Used to compute wall clock timestamps if needed.
+	zero: Option<tokio::time::Instant>,
 }
 
 impl Avc3 {
@@ -31,6 +34,7 @@ impl Avc3 {
 			track: None,
 			config: None,
 			current: Default::default(),
+			zero: None,
 		}
 	}
 
@@ -94,17 +98,33 @@ impl Avc3 {
 		Ok(())
 	}
 
+	/// Initialize the decoder with SPS/PPS and other non-slice NALs.
+	pub fn initialize<T: Buf + AsRef<[u8]>>(&mut self, buf: &mut T) -> anyhow::Result<()> {
+		let nals = NalIterator::new(buf);
+
+		for nal in nals {
+			self.decode_nal(nal?, None)?;
+		}
+
+		Ok(())
+	}
+
 	/// Decode as much data as possible from the given buffer.
 	///
 	/// Unlike [Self::decode_framed], this method needs the start code for the next frame.
 	/// This means it works for streaming media (ex. stdin) but adds a frame of latency.
-	pub fn decode_stream<T: Buf + AsRef<[u8]>>(&mut self, buf: &mut T, pts: hang::Timestamp) -> anyhow::Result<()> {
-		// Iterate over the NAL units in the buffer based on start codes.
+	pub fn decode_stream<T: Buf + AsRef<[u8]>>(
+		&mut self,
+		buf: &mut T,
+		pts: Option<hang::Timestamp>,
+	) -> anyhow::Result<()> {
+		let pts = self.pts(pts)?;
 
+		// Iterate over the NAL units in the buffer based on start codes.
 		let nals = NalIterator::new(buf);
 
 		for nal in nals {
-			self.decode_nal(nal?, pts)?;
+			self.decode_nal(nal?, Some(pts))?;
 		}
 
 		Ok(())
@@ -117,9 +137,15 @@ impl Avc3 {
 	/// This can also be used when EOF is detected to flush the final frame.
 	///
 	/// NOTE: The next decode will fail if it doesn't begin with a start code.
-	pub fn decode_frame<T: Buf + AsRef<[u8]>>(&mut self, buf: &mut T, pts: hang::Timestamp) -> anyhow::Result<()> {
+	pub fn decode_frame<T: Buf + AsRef<[u8]>>(
+		&mut self,
+		buf: &mut T,
+		pts: Option<hang::Timestamp>,
+	) -> anyhow::Result<()> {
+		let pts = self.pts(pts)?;
+
 		// Decode any NALs at the start of the buffer.
-		self.decode_stream(buf, pts)?;
+		self.decode_stream(buf, Some(pts))?;
 
 		// Make sure there's a start code at the start of the buffer.
 		let start = after_start_code(buf.as_ref())?.context("missing start code")?;
@@ -127,15 +153,15 @@ impl Avc3 {
 
 		// Assume the rest of the buffer is a single NAL.
 		let nal = buf.copy_to_bytes(buf.remaining());
-		self.decode_nal(nal, pts)?;
+		self.decode_nal(nal, Some(pts))?;
 
 		// Flush the frame if we read a slice.
-		self.maybe_start_frame(pts)?;
+		self.maybe_start_frame(Some(pts))?;
 
 		Ok(())
 	}
 
-	fn decode_nal(&mut self, nal: Bytes, pts: hang::Timestamp) -> anyhow::Result<()> {
+	fn decode_nal(&mut self, nal: Bytes, pts: Option<hang::Timestamp>) -> anyhow::Result<()> {
 		let header = nal.first().context("NAL unit is too short")?;
 		let forbidden_zero_bit = (header >> 7) & 1;
 		anyhow::ensure!(forbidden_zero_bit == 0, "forbidden zero bit is not zero");
@@ -183,13 +209,14 @@ impl Avc3 {
 		Ok(())
 	}
 
-	fn maybe_start_frame(&mut self, pts: hang::Timestamp) -> anyhow::Result<()> {
+	fn maybe_start_frame(&mut self, pts: Option<hang::Timestamp>) -> anyhow::Result<()> {
 		// If we haven't seen any slices, we shouldn't flush yet.
 		if !self.current.contains_slice {
 			return Ok(());
 		}
 
 		let track = self.track.as_mut().context("expected SPS before any frames")?;
+		let pts = pts.context("missing timestamp")?;
 
 		track.write_chunks(self.current.contains_idr, pts, self.current.chunks.iter().cloned())?;
 		self.current.clear();
@@ -199,6 +226,15 @@ impl Avc3 {
 
 	pub fn is_initialized(&self) -> bool {
 		self.track.is_some()
+	}
+
+	fn pts(&mut self, hint: Option<hang::Timestamp>) -> anyhow::Result<hang::Timestamp> {
+		if let Some(pts) = hint {
+			return Ok(pts);
+		}
+
+		let zero = self.zero.get_or_insert_with(tokio::time::Instant::now);
+		Ok(hang::Timestamp::from_micros(zero.elapsed().as_micros() as u64)?)
 	}
 }
 

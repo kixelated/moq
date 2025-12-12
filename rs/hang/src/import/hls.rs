@@ -132,7 +132,7 @@ impl Hls {
 	}
 
 	/// Run the ingest loop until cancelled.
-	pub async fn service(&mut self) -> anyhow::Result<()> {
+	pub async fn run(&mut self) -> anyhow::Result<()> {
 		loop {
 			let outcome = self.step().await?;
 			let delay = self.refresh_delay(outcome.target_duration, outcome.wrote_segments);
@@ -159,8 +159,7 @@ impl Hls {
 		// the ingest and the tracks without running into borrow checker issues.
 		let video_tracks = std::mem::take(&mut self.video);
 		for (index, mut track) in video_tracks.into_iter().enumerate() {
-			let url = track.playlist.clone();
-			let playlist = self.fetch_media_playlist(url).await?;
+			let playlist = self.fetch_media_playlist(track.playlist.clone()).await?;
 			let count = self
 				.consume_segments(TrackKind::Video(index), &mut track, &playlist)
 				.await?;
@@ -236,9 +235,11 @@ impl Hls {
 
 	async fn fetch_media_playlist(&self, url: Url) -> anyhow::Result<MediaPlaylist> {
 		let body = self.fetch_bytes(url).await?;
-		let playlist = m3u8_rs::parse_media_playlist(&body)
-			.context("failed to parse media playlist")?
-			.1;
+
+		// Nom errors take ownership of the input, so we need to stringify any error messages.
+		let playlist = m3u8_rs::parse_media_playlist_res(&body)
+			.map_err(|e| anyhow::anyhow!("failed to parse media playlist: {}", e))?;
+
 		Ok(playlist)
 	}
 

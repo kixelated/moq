@@ -1,4 +1,5 @@
 use std::ops::{Deref, DerefMut};
+use std::str::FromStr;
 use std::sync::{Arc, LazyLock, Mutex, MutexGuard};
 
 use tokio::sync::oneshot;
@@ -152,16 +153,17 @@ impl State {
 
 	pub fn create_track(&mut self, broadcast: Id, format: &str, mut init: &[u8]) -> Result<Id, Error> {
 		let broadcast = self.broadcasts.get_mut(broadcast).ok_or(Error::NotFound)?;
-		let mut decoder = hang::import::Decoder::new(broadcast.clone(), format)
-			.ok_or_else(|| Error::UnknownFormat(format.to_string()))?;
+		// TODO add support for stream decoders too.
+		let format =
+			hang::import::DecoderFormat::from_str(format).map_err(|err| Error::UnknownFormat(err.to_string()))?;
+		let mut decoder = hang::import::Decoder::new(broadcast.clone(), format);
 
 		decoder
 			.initialize(&mut init)
 			.map_err(|err| Error::InitFailed(Arc::new(err)))?;
 		assert!(init.is_empty(), "buffer was not fully consumed");
 
-		let id = self.tracks.insert(decoder);
-		Ok(id)
+		Ok(self.tracks.insert(decoder))
 	}
 
 	pub fn write_track(&mut self, track: Id, mut data: &[u8], pts: u64) -> Result<(), Error> {
