@@ -1,0 +1,31 @@
+{
+	"name": "@moq/hang-live",
+	"type": "module",
+	"version": "0.1.0",
+	"description": "Live broadcasting room system for Media over QUIC",
+	"license": "(MIT OR Apache-2.0)",
+	"repository": "github:moq-dev/moq",
+	"exports": {
+		".": "./src/index.ts"
+	},
+	"scripts": {
+		"build": "rimraf dist && tsc -b && bun ../scripts/package.ts",
+		"check": "tsc --noEmit",
+		"test": "vitest"
+	},
+	"dependencies": {
+		"@moq/hang": "workspace:^",
+		"@moq/lite": "workspace:^",
+		"@moq/signals": "workspace:^",
+		"comlink": "^4.4.2",
+		"dompurify": "^3.2.6"
+	},
+	"devDependencies": {
+		"@typescript/lib-dom": "npm:@types/web@^0.0.241",
+		"rimraf": "^6.0.1",
+		"typescript": "^5.9.2",
+		"vitest": "^3.2.4",
+		"vite": "^6.3.5",
+		"vite-plugin-glsl": "^1.5.4"
+	}
+}

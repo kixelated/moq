@@ -8,6 +8,7 @@
 		"clock",
 		"token",
 		"hang",
+		"hang-live",
 		"hang-ui",
 		"hang-demo",
 		"signals"
