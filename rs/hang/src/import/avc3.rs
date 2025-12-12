@@ -20,6 +20,10 @@ pub struct Avc3 {
 	// If it changes, then we'll reinitialize with a new track.
 	config: Option<hang::catalog::VideoConfig>,
 
+	// Stored SPS and PPS data for generating AVCC description
+	sps: Option<Bytes>,
+	pps: Option<Bytes>,
+
 	// The current frame being built.
 	current: Frame,
 }
@@ -30,8 +34,46 @@ impl Avc3 {
 			broadcast,
 			track: None,
 			config: None,
+			sps: None,
+			pps: None,
 			current: Default::default(),
 		}
+	}
+
+	fn generate_avcc(&self, sps: &h264_parser::Sps) -> anyhow::Result<Option<Bytes>> {
+		let sps_data = match &self.sps {
+			Some(sps) => sps,
+			None => return Ok(None),
+		};
+		let pps_data = match &self.pps {
+			Some(pps) => pps,
+			None => return Ok(None),
+		};
+
+		let mut avcc = Vec::new();
+
+		// AVCC format:
+		// version (1) | profile | compatibility | level | NAL size - 1 (3) | num SPS | SPS size | SPS data | num PPS | PPS size | PPS data
+
+		avcc.push(1); // version
+		avcc.push(sps.profile_idc); // profile
+		avcc.push(sps.constraint_set0_flag as u8 | (sps.constraint_set1_flag as u8) << 1 | (sps.constraint_set2_flag as u8) << 2 | (sps.constraint_set3_flag as u8) << 3 | (sps.constraint_set4_flag as u8) << 4 | (sps.constraint_set5_flag as u8) << 5); // compatibility
+		avcc.push(sps.level_idc); // level
+		avcc.push(0xFF); // NAL size - 1 (6 bits reserved + 2 bits for 4-byte NALs = 3)
+
+		// SPS
+		avcc.push(1); // num SPS
+		let sps_size = (sps_data.len() as u16).to_be_bytes();
+		avcc.extend_from_slice(&sps_size);
+		avcc.extend_from_slice(sps_data);
+
+		// PPS
+		avcc.push(1); // num PPS
+		let pps_size = (pps_data.len() as u16).to_be_bytes();
+		avcc.extend_from_slice(&pps_size);
+		avcc.extend_from_slice(pps_data);
+
+		Ok(Some(Bytes::from(avcc)))
 	}
 
 	fn init(&mut self, sps: &h264_parser::Sps) -> anyhow::Result<()> {
@@ -41,6 +83,8 @@ impl Avc3 {
 			| ((sps.constraint_set3_flag as u8) << 4)
 			| ((sps.constraint_set4_flag as u8) << 3)
 			| ((sps.constraint_set5_flag as u8) << 2);
+
+		let description = self.generate_avcc(sps)?;
 
 		let config = hang::catalog::VideoConfig {
 			coded_width: Some(sps.width),
@@ -52,7 +96,7 @@ impl Avc3 {
 				inline: true,
 			}
 			.into(),
-			description: None,
+			description,
 			// TODO: populate these fields
 			framerate: None,
 			bitrate: None,
@@ -118,6 +162,50 @@ impl Avc3 {
 	///
 	/// NOTE: The next decode will fail if it doesn't begin with a start code.
 	pub fn decode_frame<T: Buf + AsRef<[u8]>>(&mut self, buf: &mut T, pts: hang::Timestamp) -> anyhow::Result<()> {
+		// For avc3 format, if we already have SPS/PPS and the buffer looks like a complete frame,
+		// pass it through directly to avoid re-parsing issues
+		if self.track.is_some() && self.sps.is_some() && self.pps.is_some() {
+			let data = buf.copy_to_bytes(buf.remaining());
+			if !data.is_empty() {
+				// Quick scan to determine if this contains an IDR slice (keyframe)
+				let mut is_keyframe = false;
+				let mut scan_buf = &data[..];
+				while scan_buf.len() >= 4 {
+					if let Ok(Some(start)) = after_start_code(scan_buf) {
+						scan_buf = &scan_buf[start..];
+						if !scan_buf.is_empty() {
+							let nal_type = scan_buf[0] & 0x1f;
+							if nal_type == 5 { // IDR slice
+								is_keyframe = true;
+								break;
+							}
+							// Skip this NAL
+							if let Some(next_start) = find_start_code(scan_buf) {
+								if next_start.0 < scan_buf.len() {
+									scan_buf = &scan_buf[next_start.0..];
+								} else {
+									break;
+								}
+							} else {
+								break;
+							}
+						}
+					} else {
+						break;
+					}
+				}
+
+				let frame = hang::Frame {
+					timestamp: pts,
+					keyframe: is_keyframe,
+					payload: Bytes::from(data),
+				};
+				self.track.as_mut().unwrap().write(frame)?;
+				return Ok(());
+			}
+		}
+
+		// Fallback to the original parsing logic
 		// Decode any NALs at the start of the buffer.
 		self.decode_stream(buf, pts)?;
 
@@ -147,13 +235,34 @@ impl Avc3 {
 			Some(NalType::Sps) => {
 				self.maybe_start_frame(pts)?;
 
+				// Store SPS data for AVCC generation
+				self.sps = Some(nal.clone());
+
 				// Try to reinitialize the track if the SPS has changed.
 				let nal = h264_parser::nal::ebsp_to_rbsp(&nal[1..]);
 				let sps = h264_parser::Sps::parse(&nal)?;
 				self.init(&sps)?;
 			}
+			Some(NalType::Pps) => {
+				self.maybe_start_frame(pts)?;
+
+				// Store PPS data for AVCC generation
+				let pps_changed = self.pps.as_ref() != Some(&nal);
+				self.pps = Some(nal.clone());
+
+				// If we have SPS and PPS changed, regenerate config
+				if pps_changed && self.sps.is_some() && self.track.is_none() {
+					// Try to parse SPS and reinitialize
+					if let Some(sps_data) = &self.sps {
+						let nal_rbsp = h264_parser::nal::ebsp_to_rbsp(&sps_data[1..]);
+						if let Ok(sps) = h264_parser::Sps::parse(&nal_rbsp) {
+							let _ = self.init(&sps);
+						}
+					}
+				}
+			}
 			// TODO parse the SPS again and reinitialize the track if needed
-			Some(NalType::Aud) | Some(NalType::Pps) | Some(NalType::Sei) => {
+			Some(NalType::Aud) | Some(NalType::Sei) => {
 				self.maybe_start_frame(pts)?;
 			}
 			Some(NalType::IdrSlice) => {
@@ -174,11 +283,9 @@ impl Avc3 {
 			_ => {}
 		}
 
-		// Rather than keeping the original size of the start code, we replace it with a 4 byte start code.
-		// It's just marginally easier and potentially more efficient down the line (JS player with MSE).
-		// NOTE: This is ref-counted and static, so it's extremely cheap to clone.
-		self.current.chunks.push(START_CODE.clone());
-		self.current.chunks.push(nal);
+		// Add the start code and NAL data to the frame buffer
+		self.current.data.extend_from_slice(&START_CODE);
+		self.current.data.extend_from_slice(&nal);
 
 		Ok(())
 	}
@@ -191,7 +298,12 @@ impl Avc3 {
 
 		let track = self.track.as_mut().context("expected SPS before any frames")?;
 
-		track.write_chunks(self.current.contains_idr, pts, self.current.chunks.iter().cloned())?;
+		let frame = hang::Frame {
+			timestamp: pts,
+			keyframe: self.current.contains_idr,
+			payload: Bytes::from(self.current.data.clone()),
+		};
+		track.write(frame)?;
 		self.current.clear();
 
 		Ok(())
@@ -349,14 +461,14 @@ fn find_start_code(mut b: &[u8]) -> Option<(usize, usize)> {
 
 #[derive(Default)]
 struct Frame {
-	chunks: Vec<Bytes>,
+	data: Vec<u8>,
 	contains_idr: bool,
 	contains_slice: bool,
 }
 
 impl Frame {
 	fn clear(&mut self) {
-		self.chunks.clear();
+		self.data.clear();
 		self.contains_idr = false;
 		self.contains_slice = false;
 	}
