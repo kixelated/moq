@@ -69,14 +69,16 @@ export class VideoHandler extends BaseHandler {
 			// Only calculate bitrate if there's actual data change
 			if (bytesDelta > 0) {
 				const elapsedMs = now - this.previousWhen;
-				const bitsPerSecond = bytesDelta * 8 * (1000 / elapsedMs);
+				if (elapsedMs > 0) {
+					const bitsPerSecond = bytesDelta * 8 * (1000 / elapsedMs);
 
-				if (bitsPerSecond >= 1_000_000) {
-					bitrate = `${(bitsPerSecond / 1_000_000).toFixed(1)}Mbps`;
-				} else if (bitsPerSecond >= 1_000) {
-					bitrate = `${(bitsPerSecond / 1_000).toFixed(0)}kbps`;
-				} else {
-					bitrate = `${bitsPerSecond.toFixed(0)}bps`;
+					if (bitsPerSecond >= 1_000_000) {
+						bitrate = `${(bitsPerSecond / 1_000_000).toFixed(1)}Mbps`;
+					} else if (bitsPerSecond >= 1_000) {
+						bitrate = `${(bitsPerSecond / 1_000).toFixed(0)}kbps`;
+					} else {
+						bitrate = `${bitsPerSecond.toFixed(0)}bps`;
+					}
 				}
 			}
 		}
@@ -93,9 +95,9 @@ export class VideoHandler extends BaseHandler {
 
 		const parts = [
 			width && height ? `${width}x${height}` : "N/A",
-			fps ? `@${fps.toFixed(1)} fps` : "N/A",
+			fps !== undefined ? `@${fps.toFixed(1)} fps` : "N/A",
 			bitrate ?? "N/A",
-		].filter((part): part is string => part !== null);
+		];
 
 		this.context.setDisplayData(parts.join("\n"));
 	}

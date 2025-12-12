@@ -172,10 +172,6 @@ export class Source {
 		});
 		effect.cleanup(() => consumer.close());
 
-		// Persist totalBytes across rendition changes
-		const currentStats = this.#stats.peek() ?? { bytesReceived: 0 };
-		let totalBytes = currentStats.bytesReceived;
-
 		effect.spawn(async () => {
 			const loaded = await libav.polyfill();
 			if (!loaded) return; // cancelled
@@ -196,8 +192,9 @@ export class Source {
 				const frame = await consumer.decode();
 				if (!frame) break;
 
-				totalBytes += frame.data.byteLength;
-				this.#stats.set({ bytesReceived: totalBytes });
+				this.#stats.update((stats) => ({
+					bytesReceived: (stats?.bytesReceived ?? 0) + frame.data.byteLength,
+				}));
 
 				const chunk = new EncodedAudioChunk({
 					type: frame.keyframe ? "key" : "delta",

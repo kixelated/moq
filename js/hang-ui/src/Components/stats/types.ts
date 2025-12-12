@@ -38,6 +38,7 @@ export interface BufferStatus {
  */
 export interface Signal<T> {
 	peek(): T | undefined;
+	changed?(callback: (value: T | undefined) => void): () => void;
 	subscribe?(callback: () => void): () => void;
 }
 

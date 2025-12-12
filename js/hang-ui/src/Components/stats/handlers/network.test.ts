@@ -8,6 +8,8 @@ interface MockConnection {
 	downlink?: number;
 	rtt?: number;
 	saveData?: boolean;
+	addEventListener?: (type: string, listener: () => void) => void;
+	removeEventListener?: (type: string, listener: () => void) => void;
 }
 
 const mockNavigator: { onLine: boolean; connection?: MockConnection } = {
@@ -187,19 +189,22 @@ describe("NetworkHandler", () => {
 	it("should update display on online event", () => {
 		const props: HandlerProps = {};
 		handler = new NetworkHandler(props);
-		mockNavigator.onLine = false;
-		mockNavigator.connection = undefined;
+		mockNavigator.onLine = true;
+		mockNavigator.connection = {
+			effectiveType: "4g" as const,
+			addEventListener: vi.fn(),
+			removeEventListener: vi.fn(),
+		};
 
 		handler.setup(context);
-		expect(setDisplayData).toHaveBeenLastCalledWith("offline");
+		expect(setDisplayData).toHaveBeenLastCalledWith("4G");
 
 		setDisplayData.mockClear();
-		mockNavigator.onLine = true;
-		mockNavigator.connection = { effectiveType: "4g" as const };
+		mockNavigator.onLine = false;
 
-		vi.advanceTimersByTime(100);
+		window.dispatchEvent(new Event("offline"));
 
-		expect(setDisplayData).toHaveBeenCalled();
+		expect(setDisplayData).toHaveBeenCalledWith("offline");
 	});
 
 	it("should update display on offline event", () => {

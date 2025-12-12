@@ -3,6 +3,7 @@ import { customElement } from "solid-element";
 import { createSignal, onMount } from "solid-js";
 import { Show } from "solid-js/web";
 import { Stats } from "../stats/Stats";
+import type { HandlerProps } from "../stats/types";
 import BufferingIndicator from "./BufferingIndicator";
 import styles from "./styles.css?inline";
 import WatchControls from "./WatchControls";
@@ -24,7 +25,7 @@ customElement("hang-watch-ui", {}, function WatchUIWebComponent(_, { element }) 
 					<style>{styles}</style>
 					<div class="watchVideoContainer">
 						<slot />
-						<Stats context={WatchUIContext} getElement={(ctx) => ctx?.hangWatch} />
+						<Stats context={WatchUIContext} getElement={(ctx) => ctx?.hangWatch as HandlerProps} />
 						<BufferingIndicator />
 					</div>
 					<WatchControls />

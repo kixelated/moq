@@ -251,13 +251,6 @@ export class Source {
 				const { value: frame } = await reader.read();
 				if (!frame) break;
 
-				// Track frame count and timestamp for FPS calculation in the UI
-				this.#stats.update((current) => ({
-					frameCount: (current?.frameCount ?? 0) + 1,
-					timestamp: frame.timestamp,
-					bytesReceived: current?.bytesReceived ?? 0,
-				}));
-
 				// Sleep until it's time to decode the next frame.
 				const ref = performance.now() - frame.timestamp / 1000;
 
@@ -320,10 +313,10 @@ export class Source {
 					timestamp: next.timestamp,
 				});
 
-				// Track bytes received for bitrate calculation in the UI
+				// Track both frame count and bytes received for stats in the UI
 				this.#stats.update((current) => ({
-					frameCount: current?.frameCount ?? 0,
-					timestamp: current?.timestamp ?? 0,
+					frameCount: (current?.frameCount ?? 0) + 1,
+					timestamp: next.timestamp,
 					bytesReceived: (current?.bytesReceived ?? 0) + next.data.byteLength,
 				}));
 

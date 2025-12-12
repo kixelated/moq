@@ -1,16 +1,62 @@
 import { render } from "solid-js/web";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { StatsContext } from "../../context";
 import type { HandlerProps } from "../../types";
 import { StatsPanel } from "../StatsPanel";
 
 const mockAudioVideo: HandlerProps = {
-	audio: { source: { active: { peek: () => "audio-data" } } },
-	video: { source: { display: { peek: () => ({ width: 1920, height: 1080 }) } } },
+	audio: {
+		source: {
+			active: {
+				peek: () => "audio-data",
+				changed: () => () => {},
+				subscribe: () => () => {},
+			},
+			config: {
+				peek: () => ({ sampleRate: 48000, numberOfChannels: 2, bitrate: 128000, codec: "opus" }),
+				changed: () => () => {},
+				subscribe: () => () => {},
+			},
+			stats: {
+				peek: () => ({ bytesReceived: 0 }),
+				changed: () => () => {},
+				subscribe: () => () => {},
+			},
+		},
+	},
+	video: {
+		source: {
+			display: {
+				peek: () => ({ width: 1920, height: 1080 }),
+				changed: () => () => {},
+				subscribe: () => () => {},
+			},
+			syncStatus: {
+				peek: () => ({ state: "ready" as const }),
+				changed: () => () => {},
+				subscribe: () => () => {},
+			},
+			bufferStatus: {
+				peek: () => ({ state: "filled" as const }),
+				changed: () => () => {},
+				subscribe: () => () => {},
+			},
+			latency: {
+				peek: () => 100,
+				changed: () => () => {},
+				subscribe: () => () => {},
+			},
+			stats: {
+				peek: () => ({ frameCount: 0, timestamp: 0, bytesReceived: 0 }),
+				changed: () => () => {},
+				subscribe: () => () => {},
+			},
+		},
+	},
 };
 
 describe("StatsPanel", () => {
 	let container: HTMLDivElement;
+	let dispose: (() => void) | undefined;
 
 	beforeEach(() => {
 		container = document.createElement("div");
@@ -18,32 +64,20 @@ describe("StatsPanel", () => {
 	});
 
 	afterEach(() => {
+		dispose?.();
+		dispose = undefined;
 		document.body.removeChild(container);
 	});
 
 	it("renders with correct base class", () => {
-		render(
-			() => (
-				<StatsContext.Provider value={mockAudioVideo}>
-					<StatsPanel />
-				</StatsContext.Provider>
-			),
-			container,
-		);
+		dispose = render(() => <StatsPanel audio={mockAudioVideo.audio} video={mockAudioVideo.video} />, container);
 
 		const panel = container.querySelector(".stats__panel");
 		expect(panel).toBeTruthy();
 	});
 
 	it("renders all metric items", () => {
-		render(
-			() => (
-				<StatsContext.Provider value={mockAudioVideo}>
-					<StatsPanel />
-				</StatsContext.Provider>
-			),
-			container,
-		);
+		dispose = render(() => <StatsPanel audio={mockAudioVideo.audio} video={mockAudioVideo.video} />, container);
 
 		const items = container.querySelectorAll(".stats__item");
 		expect(items.length).toBe(4);
@@ -51,14 +85,7 @@ describe("StatsPanel", () => {
 
 	it("renders items with correct icon types", () => {
 		const expectedIcons = ["network", "video", "audio", "buffer"];
-		render(
-			() => (
-				<StatsContext.Provider value={mockAudioVideo}>
-					<StatsPanel />
-				</StatsContext.Provider>
-			),
-			container,
-		);
+		dispose = render(() => <StatsPanel audio={mockAudioVideo.audio} video={mockAudioVideo.video} />, container);
 
 		const items = container.querySelectorAll(".stats__item");
 		items.forEach((item, index) => {
@@ -67,42 +94,21 @@ describe("StatsPanel", () => {
 	});
 
 	it("renders each item with icon wrapper", () => {
-		render(
-			() => (
-				<StatsContext.Provider value={mockAudioVideo}>
-					<StatsPanel />
-				</StatsContext.Provider>
-			),
-			container,
-		);
+		dispose = render(() => <StatsPanel audio={mockAudioVideo.audio} video={mockAudioVideo.video} />, container);
 
 		const wrappers = container.querySelectorAll(".stats__icon-wrapper");
 		expect(wrappers.length).toBe(4);
 	});
 
 	it("renders each item with detail section", () => {
-		render(
-			() => (
-				<StatsContext.Provider value={mockAudioVideo}>
-					<StatsPanel />
-				</StatsContext.Provider>
-			),
-			container,
-		);
+		dispose = render(() => <StatsPanel audio={mockAudioVideo.audio} video={mockAudioVideo.video} />, container);
 
 		const details = container.querySelectorAll(".stats__item-detail");
 		expect(details.length).toBe(4);
 	});
 
 	it("maintains correct DOM structure", () => {
-		render(
-			() => (
-				<StatsContext.Provider value={mockAudioVideo}>
-					<StatsPanel />
-				</StatsContext.Provider>
-			),
-			container,
-		);
+		dispose = render(() => <StatsPanel audio={mockAudioVideo.audio} video={mockAudioVideo.video} />, container);
 
 		const panel = container.querySelector(".stats__panel");
 		const items = panel?.querySelectorAll(".stats__item");

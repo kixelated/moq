@@ -1,4 +1,5 @@
-import type { HandlerContext } from "../types";
+import type { Getter } from "@moq/signals";
+import type { BufferStatus, HandlerContext, SyncStatus } from "../types";
 import { BaseHandler } from "./base";
 
 /**
@@ -20,48 +21,22 @@ export class BufferHandler extends BaseHandler {
 			return;
 		}
 
-		// Subscribe to signal changes using Effect
 		this.signals.effect((effect) => {
-			const { source } = video;
+			const syncStatus = effect.get(video.source.syncStatus as Getter<SyncStatus | undefined>);
+			const bufferStatus = effect.get(video.source.bufferStatus as Getter<BufferStatus | undefined>);
+			const latency = effect.get(video.source.latency as Getter<number | undefined>);
 
-			if (source.syncStatus?.subscribe) {
-				effect.cleanup(source.syncStatus.subscribe(() => this.updateDisplayData()));
-			}
+			const isLatencyValid = latency !== null && latency !== undefined && latency > 0;
+			const bufferPercentage =
+				syncStatus?.state === "wait" && syncStatus?.bufferDuration !== undefined && isLatencyValid
+					? Math.min(100, Math.round((syncStatus.bufferDuration / latency) * 100))
+					: bufferStatus?.state === "filled"
+						? 100
+						: 0;
 
-			if (source.bufferStatus?.subscribe) {
-				effect.cleanup(source.bufferStatus.subscribe(() => this.updateDisplayData()));
-			}
+			const parts = [`${bufferPercentage}%`, isLatencyValid ? `${latency}ms` : "N/A"];
 
-			if (source.latency?.subscribe) {
-				effect.cleanup(source.latency.subscribe(() => this.updateDisplayData()));
-			}
+			this.context?.setDisplayData(parts.join("\n"));
 		});
-
-		this.updateDisplayData();
-	}
-
-	/**
-	 * Calculate and display current buffer metrics
-	 */
-	private updateDisplayData(): void {
-		if (!this.context || !this.props.video) {
-			return;
-		}
-
-		const syncStatus = this.props.video.source.syncStatus.peek();
-		const bufferStatus = this.props.video.source.bufferStatus.peek();
-		const latency = this.props.video.source.latency.peek();
-
-		const isLatencyValid = latency !== null && latency !== undefined && latency > 0;
-		const bufferPercentage =
-			syncStatus?.state === "wait" && syncStatus?.bufferDuration !== undefined && isLatencyValid
-				? Math.min(100, Math.round((syncStatus.bufferDuration / latency) * 100))
-				: bufferStatus?.state === "filled"
-					? 100
-					: 0;
-
-		const parts = [`${bufferPercentage}%`, isLatencyValid ? `${latency}ms` : "N/A"];
-
-		this.context.setDisplayData(parts.join("\n"));
 	}
 }
