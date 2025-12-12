@@ -19,7 +19,6 @@
       "js/clock": {
         "packageJson": {
           "dependencies": [
-            "npm:@biomejs/biome@^2.2.2",
             "npm:@types/deno@^2.3.0",
             "npm:typescript@^5.9.2"
           ]
@@ -73,7 +72,7 @@
       "js/lite": {
         "packageJson": {
           "dependencies": [
-            "npm:@kixelated/web-transport-ws@~0.1.2",
+            "npm:@moq/web-transport-ws@~0.1.2",
             "npm:@types/deno@^2.3.0",
             "npm:@types/node@^24.3.1",
             "npm:@types/web@^0.0.241",
@@ -100,7 +99,6 @@
       "js/token": {
         "packageJson": {
           "dependencies": [
-            "npm:@biomejs/biome@^2.2.2",
             "npm:@hexagon/base64@^2.0.4",
             "npm:@types/node@^24.3.1",
             "npm:jose@^6.1.0",

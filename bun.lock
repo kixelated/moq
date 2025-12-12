@@ -1,5 +1,6 @@
 {
   "lockfileVersion": 1,
+  "configVersion": 0,
   "workspaces": {
     "": {
       "name": "moq",
@@ -82,8 +83,8 @@
       "name": "@moq/lite",
       "version": "0.1.0",
       "dependencies": {
-        "@kixelated/web-transport-ws": "^0.1.2",
         "@moq/signals": "workspace:*",
+        "@moq/web-transport-ws": "^0.1.2",
         "async-mutex": "^0.5.0",
       },
       "devDependencies": {
@@ -271,8 +272,6 @@
 
     "@kixelated/libavjs-webcodecs-polyfill": ["@kixelated/libavjs-webcodecs-polyfill@0.5.5", "", { "dependencies": { "@libav.js/types": "^6.7.7", "@ungap/global-this": "^0.4.4" } }, "sha512-Q1zgnTMMQ2F7IE9ylx3C1XzVbg5vYN18jiDINO5U3kNPBOHdYuUlJsMhtBoqr1M6ocLtoiqdHmLs7tHFgrw5KA=="],
 
-    "@kixelated/web-transport-ws": ["@kixelated/web-transport-ws@0.1.2", "", {}, "sha512-rRUQuKxMgZ9LCqsdrrIJuYR59RRcUZWWBDAWHHPKHT506xQ4vkscoVCm55SM5hoEqNCRke8o7+75oVTTiFxM+Q=="],
-
     "@libav.js/types": ["@libav.js/types@6.8.8", "", {}, "sha512-Lbik/0Q3x2R8cI7mOtRgt+nUWLqGXh7UinMndmpdXSDY4YEjYyVUDsq6fxkuriL78+LCYx8frZIN1r+oDsvYCQ=="],
 
     "@libav.js/variant-opus-af": ["@libav.js/variant-opus-af@6.8.8", "", {}, "sha512-8KBQyA8n5goN7lyctOaPxpcx7dapOgqKh8dWW/NAcl87AgM/WoUGSex3fFc46oCtTHYrUKEm1OmZUrtkt3Q56A=="],
@@ -290,6 +289,8 @@
     "@moq/signals": ["@moq/signals@workspace:js/signals"],
 
     "@moq/token": ["@moq/token@workspace:js/token"],
+
+    "@moq/web-transport-ws": ["@moq/web-transport-ws@0.1.2", "", {}, "sha512-mYha+AkLNPT3uOGnTA5YWjpxc9LO/yriFSoWzKkR0zN3UMZb9RXbsD8Gbhg1pJZod6QD4tevHoOWTBADYN7yAQ=="],
 
     "@nodelib/fs.scandir": ["@nodelib/fs.scandir@2.1.5", "", { "dependencies": { "@nodelib/fs.stat": "2.0.5", "run-parallel": "^1.1.9" } }, "sha512-vq24Bq3ym5HEQm2NKCr3yXDwjc7vTsEThRDnkp2DK9p1uqLR+DHurm/NOTo0KG7HYHU7eppKZj3MyqYuMBf62g=="],
 

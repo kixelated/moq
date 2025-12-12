@@ -1,12 +1,10 @@
 use std::ops::{Deref, DerefMut};
 use std::sync::{Arc, LazyLock, Mutex, MutexGuard};
 
-use bytes::Buf;
-use slab::Slab;
 use tokio::sync::oneshot;
 use url::Url;
 
-use crate::{ffi, Error};
+use crate::{ffi, Error, Id, NonZeroSlab};
 
 struct Session {
 	// The collection of published broadcasts.
@@ -19,13 +17,13 @@ struct Session {
 
 pub struct State {
 	// All sessions by ID.
-	sessions: Slab<Session>, // TODO clean these up on error.
+	sessions: NonZeroSlab<Session>, // TODO clean these up on error.
 
 	// All broadcasts, indexed by an ID.
-	broadcasts: Slab<hang::BroadcastProducer>,
+	broadcasts: NonZeroSlab<hang::BroadcastProducer>,
 
 	// All tracks, indexed by an ID.
-	tracks: Slab<hang::import::Generic>,
+	tracks: NonZeroSlab<hang::import::Decoder>,
 }
 
 pub struct StateGuard {
@@ -85,7 +83,7 @@ impl State {
 		}
 	}
 
-	pub fn session_connect(&mut self, url: Url, mut callback: ffi::Callback) -> Result<usize, Error> {
+	pub fn session_connect(&mut self, url: Url, mut callback: ffi::Callback) -> Result<Id, Error> {
 		let origin = moq_lite::Origin::produce();
 
 		// Used just to notify when the session is removed from the map.
@@ -127,14 +125,14 @@ impl State {
 		Ok(())
 	}
 
-	pub fn session_close(&mut self, id: usize) -> Result<(), Error> {
-		self.sessions.try_remove(id).ok_or(Error::NotFound)?;
+	pub fn session_close(&mut self, id: Id) -> Result<(), Error> {
+		self.sessions.remove(id).ok_or(Error::NotFound)?;
 		Ok(())
 	}
 
-	pub fn publish_broadcast<P: moq_lite::AsPath>(&mut self, id: usize, session: usize, path: P) -> Result<(), Error> {
+	pub fn publish_broadcast<P: moq_lite::AsPath>(&mut self, broadcast: Id, session: Id, path: P) -> Result<(), Error> {
 		let path = path.as_path();
-		let broadcast = self.broadcasts.get_mut(id).ok_or(Error::NotFound)?;
+		let broadcast = self.broadcasts.get_mut(broadcast).ok_or(Error::NotFound)?;
 		let session = self.sessions.get_mut(session).ok_or(Error::NotFound)?;
 
 		session.origin.publish_broadcast(path, broadcast.consume());
@@ -142,48 +140,44 @@ impl State {
 		Ok(())
 	}
 
-	pub fn create_broadcast(&mut self) -> usize {
+	pub fn create_broadcast(&mut self) -> Id {
 		let broadcast = moq_lite::Broadcast::produce();
 		self.broadcasts.insert(broadcast.producer.into())
 	}
 
-	pub fn remove_broadcast(&mut self, id: usize) -> Result<(), Error> {
-		self.broadcasts.try_remove(id).ok_or(Error::NotFound)?;
+	pub fn remove_broadcast(&mut self, broadcast: Id) -> Result<(), Error> {
+		self.broadcasts.remove(broadcast).ok_or(Error::NotFound)?;
 		Ok(())
 	}
 
-	pub fn create_track(&mut self, broadcast: usize, format: &str, mut init: &[u8]) -> Result<usize, Error> {
+	pub fn create_track(&mut self, broadcast: Id, format: &str, mut init: &[u8]) -> Result<Id, Error> {
 		let broadcast = self.broadcasts.get_mut(broadcast).ok_or(Error::NotFound)?;
-		let mut track = hang::import::Generic::new(broadcast.clone(), format).ok_or(Error::UnknownFormat)?;
+		let mut decoder = hang::import::Decoder::new(broadcast.clone(), format)
+			.ok_or_else(|| Error::UnknownFormat(format.to_string()))?;
 
-		track
+		decoder
 			.initialize(&mut init)
 			.map_err(|err| Error::InitFailed(Arc::new(err)))?;
-		if !init.is_empty() {
-			return Err(Error::ShortDecode);
-		}
+		assert!(init.is_empty(), "buffer was not fully consumed");
 
-		let id = self.tracks.insert(track);
+		let id = self.tracks.insert(decoder);
 		Ok(id)
 	}
 
-	pub fn write_track(&mut self, id: usize, mut data: &[u8], pts: u64) -> Result<(), Error> {
-		let track = self.tracks.get_mut(id).ok_or(Error::NotFound)?;
+	pub fn write_track(&mut self, track: Id, mut data: &[u8], pts: u64) -> Result<(), Error> {
+		let track = self.tracks.get_mut(track).ok_or(Error::NotFound)?;
 
 		let pts = hang::Timestamp::from_micros(pts)?;
 		track
-			.decode(&mut data, Some(pts))
+			.decode_frame(&mut data, Some(pts))
 			.map_err(|err| Error::DecodeFailed(Arc::new(err)))?;
-
-		if data.has_remaining() {
-			return Err(Error::ShortDecode);
-		}
+		assert!(data.is_empty(), "buffer was not fully consumed");
 
 		Ok(())
 	}
 
-	pub fn remove_track(&mut self, id: usize) -> Result<(), Error> {
-		self.tracks.try_remove(id).ok_or(Error::NotFound)?;
+	pub fn remove_track(&mut self, track: Id) -> Result<(), Error> {
+		self.tracks.remove(track).ok_or(Error::NotFound)?;
 		Ok(())
 	}
 }
