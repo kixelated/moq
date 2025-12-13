@@ -1,0 +1,196 @@
+:root {
+	/* Brand colors - green accent matching moq.dev */
+	--vp-c-brand-1: #16a34a;
+	--vp-c-brand-2: #15803d;
+	--vp-c-brand-3: #14532d;
+	--vp-c-brand-soft: rgba(22, 163, 74, 0.14);
+
+	/* Dark slate theme matching moq.dev */
+	--vp-c-bg: #0f172a;
+	--vp-c-bg-alt: #1e293b;
+	--vp-c-bg-elv: #1e293b;
+	--vp-c-bg-soft: #334155;
+
+	/* Text colors */
+	--vp-c-text-1: #e2e8f0;
+	--vp-c-text-2: #cbd5e1;
+	--vp-c-text-3: #94a3b8;
+
+	/* Border colors */
+	--vp-c-border: #334155;
+	--vp-c-divider: #334155;
+	--vp-c-gutter: #1e293b;
+
+	/* Sidebar */
+	--vp-sidebar-bg-color: #0f172a;
+
+	/* Code blocks */
+	--vp-code-bg: rgba(0, 0, 0, 0.5);
+	--vp-code-block-bg: rgba(0, 0, 0, 0.5);
+
+	/* Custom home colors */
+	--vp-home-hero-name-color: #22c55e;
+
+	/* Button colors */
+	--vp-button-brand-bg: #16a34a;
+	--vp-button-brand-hover-bg: #15803d;
+	--vp-button-brand-active-bg: #14532d;
+}
+
+.dark {
+	/* Override dark mode with same colors for consistency */
+	--vp-c-bg: #0f172a;
+	--vp-c-bg-alt: #1e293b;
+	--vp-c-bg-elv: #1e293b;
+	--vp-c-bg-soft: #334155;
+}
+
+/* Custom heading styles with green underline like moq.dev */
+.vp-doc h1,
+.vp-doc h2,
+.vp-doc h3 {
+	text-decoration: underline;
+	text-decoration-color: #22c55e;
+	text-underline-offset: 0.25em;
+	color: #ffffff;
+}
+
+.vp-doc h1 {
+	text-decoration-thickness: 8px;
+	margin-top: 3rem;
+	margin-bottom: 2rem;
+}
+
+.vp-doc h2 {
+	text-decoration-thickness: 4px;
+}
+
+.vp-doc h3 {
+	text-decoration-thickness: 2px;
+	font-size: 1.5rem;
+}
+
+/* Links with green underline like moq.dev */
+.vp-doc a {
+	color: #22c55e;
+	font-weight: 700;
+	text-decoration: underline;
+	text-decoration-color: #22c55e;
+	text-decoration-thickness: 2px;
+	text-underline-offset: 0.25em;
+}
+
+.vp-doc a:hover {
+	color: #16a34a;
+	text-decoration-color: #16a34a;
+}
+
+/* Strong/bold text in green */
+.vp-doc strong {
+	color: #22c55e;
+	font-weight: 700;
+}
+
+/* Code styling */
+.vp-doc :not(pre) > code {
+	color: #ffffff;
+	background-color: rgba(0, 0, 0, 0.5);
+}
+
+/* Lists */
+.vp-doc li {
+	margin: 0.25rem 0;
+}
+
+/* Images */
+.vp-doc img {
+	border-radius: 0.5rem;
+	margin: 0 auto;
+}
+
+/* Navbar background */
+.VPNav {
+	background-color: #0f172a;
+	border-bottom-color: #334155;
+}
+
+/* Sidebar styling */
+.VPSidebar {
+	background-color: #0f172a;
+}
+
+/* Home hero styling */
+.VPHero .name {
+	color: #22c55e;
+}
+
+/* Add icons to hero action buttons */
+.VPHero .action:has(a[href*="github.com"]) a::before {
+	content: "";
+	display: inline-block;
+	width: 1.25rem;
+	height: 1.25rem;
+	margin-right: 0.5rem;
+	vertical-align: middle;
+	background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23e2e8f0'%3E%3Cpath d='M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z'/%3E%3C/svg%3E");
+	background-size: contain;
+	background-repeat: no-repeat;
+}
+
+.VPHero .action:has(a[href*="discord"]) a::before {
+	content: "";
+	display: inline-block;
+	width: 1.25rem;
+	height: 1.25rem;
+	margin-right: 0.5rem;
+	vertical-align: middle;
+	background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23e2e8f0'%3E%3Cpath d='M20.317 4.37a19.791 19.791 0 0 0-4.885-1.515.074.074 0 0 0-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 0 0-5.487 0 12.64 12.64 0 0 0-.617-1.25.077.077 0 0 0-.079-.037A19.736 19.736 0 0 0 3.677 4.37a.07.07 0 0 0-.032.027C.533 9.046-.32 13.58.099 18.057a.082.082 0 0 0 .031.057 19.9 19.9 0 0 0 5.993 3.03.078.078 0 0 0 .084-.028c.462-.63.874-1.295 1.226-1.994a.076.076 0 0 0-.041-.106 13.107 13.107 0 0 1-1.872-.892.077.077 0 0 1-.008-.128 10.2 10.2 0 0 0 .372-.292.074.074 0 0 1 .077-.01c3.928 1.793 8.18 1.793 12.062 0a.074.074 0 0 1 .078.01c.12.098.246.198.373.292a.077.077 0 0 1-.006.127 12.299 12.299 0 0 1-1.873.892.077.077 0 0 0-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 0 0 .084.028 19.839 19.839 0 0 0 6.002-3.03.077.077 0 0 0 .032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 0 0-.031-.03zM8.02 15.33c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.956-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.956 2.418-2.157 2.418zm7.975 0c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.955-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.946 2.418-2.157 2.418z'/%3E%3C/svg%3E");
+	background-size: contain;
+	background-repeat: no-repeat;
+}
+
+/* Feature layout - emoji in top right corner */
+.VPFeature {
+	position: relative;
+	padding-top: 0rem;
+	background-color: transparent !important;
+	border: 2px solid #334155 !important;
+}
+
+.VPFeature .icon {
+	background-color: #0f172a !important;
+	position: absolute !important;
+	top: 1rem;
+	right: 1rem;
+	width: 2rem !important;
+	height: 2rem !important;
+	font-size: 1.5rem !important;
+	display: flex !important;
+	align-items: center !important;
+	justify-content: center !important;
+	margin: 0 !important;
+}
+
+.VPFeature .title {
+	font-size: 1.5rem !important;
+	margin-top: 0 !important;
+	padding-top: 0 !important;
+	text-decoration: underline;
+	text-decoration-color: #22c55e;
+	text-decoration-thickness: 2px;
+	text-underline-offset: 0.25em;
+}
+
+.VPFeature .details {
+	margin-top: 0.5rem;
+}
+
+.VPHero .tagline {
+	color: #cbd5e1;
+}
+
+/* Footer */
+.VPFooter {
+	background-color: #0f172a;
+	border-top-color: #334155;
+}

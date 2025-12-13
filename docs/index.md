@@ -4,17 +4,20 @@ layout: home
 hero:
   name: MoQ
   text: Media over QUIC
-  tagline: Real-time latency at massive scale
+  tagline: Real-time latency at massive scale, in the browser!
   image:
     src: /logo.svg
     alt: Media over QUIC
   actions:
     - theme: brand
-      text: Get Started
-      link: /getting-started/
+      text: Setup
+      link: /setup/
     - theme: alt
-      text: View on GitHub
+      text: GitHub
       link: https://github.com/moq-dev/moq
+    - theme: alt
+      text: Discord
+      link: https://discord.gg/FCYF3p99mr
 
 features:
   - icon: 🚀
@@ -26,7 +29,7 @@ features:
     details: Designed for fan-out with support for cross-region clustering. Built to handle millions of concurrent viewers.
 
   - icon: 🌐
-    title: Modern Browser Support
+    title: Modern Web
     details: Uses WebTransport, WebCodecs, and WebAudio APIs for native browser compatibility without plugins.
 
   - icon: 🎯
@@ -50,7 +53,7 @@ This project is a [fork](https://moq.dev/blog/transfork) of the [IETF MoQ specif
 
 ## Quick Start
 
-Get up and running in minutes with Nix:
+Get up and running in seconds with [Nix](https://nixos.org/download.html):
 
 ```bash
 # Runs a relay, demo media, and the web server
@@ -59,29 +62,9 @@ nix develop -c just dev
 
 Then visit [https://localhost:8080](https://localhost:8080) to see the demo.
 
-See the [Getting Started guide](/getting-started/) for detailed installation instructions.
+See the [Setup](/setup/) for alternative and more detailed installation instructions.
 
-## Architecture
-
-MoQ is designed as a layered protocol stack where the CDN knows nothing about your application, media codecs, or available tracks.
-
-```
-┌─────────────────┐
-│   Application   │   🏢 Your business logic
-│                 │    - authentication, non-media tracks, etc.
-├─────────────────┤
-│      hang       │   🎬 Media-specific encoding/streaming
-│                 │     - codecs, containers, catalog
-├─────────────────├
-│    moq-lite     │  🚌 Generic pub/sub transport
-│                 │     - broadcasts, tracks, groups, frames
-├─────────────────┤
-│  WebTransport   │  🌐 Browser-compatible QUIC
-│      QUIC       │     - HTTP/3 handshake, multiplexing, etc.
-└─────────────────┘
-```
-
-Learn more about the [architecture](/guide/architecture) and [protocol](/guide/protocol).
+Learn more about the [architecture and core concepts](/setup/concepts).
 
 ## Libraries
 
