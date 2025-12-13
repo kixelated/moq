@@ -45,6 +45,8 @@ impl TrackProducer {
 	/// The timestamp is usually monotonically increasing, but it depends on the encoding.
 	/// For example, H.264 B-frames will introduce jitter and reordering.
 	pub fn write(&mut self, frame: Frame) -> Result<(), Error> {
+		tracing::trace!(?frame, "write frame");
+
 		let mut header = BytesMut::new();
 		frame.timestamp.as_micros().encode(&mut header, lite::Version::Draft02);
 
@@ -71,54 +73,11 @@ impl TrackProducer {
 			None => return Err(Error::MissingKeyframe),
 		};
 
-		let size = header.len() + frame.payload.len();
+		let size = header.len() + frame.payload.remaining();
+
 		let mut chunked = group.create_frame(size.into());
 		chunked.write_chunk(header.freeze());
-		chunked.write_chunk(frame.payload);
-		chunked.close();
-
-		self.group.replace(group);
-
-		Ok(())
-	}
-
-	/// A more efficient way to write a frame with multiple chunks.
-	pub fn write_chunks(
-		&mut self,
-		keyframe: bool,
-		timestamp: Timestamp,
-		chunks: impl Iterator<Item = Bytes> + Clone,
-	) -> Result<(), Error> {
-		let mut header = BytesMut::new();
-		timestamp.as_micros().encode(&mut header, lite::Version::Draft02);
-
-		if keyframe {
-			if let Some(group) = self.group.take() {
-				group.close();
-			}
-
-			// Make sure this frame's timestamp doesn't go backwards relative to the last keyframe.
-			// We can't really enforce this for frames generally because b-frames suck.
-			if let Some(keyframe) = self.keyframe {
-				if timestamp < keyframe {
-					return Err(Error::TimestampBackwards);
-				}
-			}
-
-			self.keyframe = Some(timestamp);
-		}
-
-		let mut group = match self.group.take() {
-			Some(group) => group,
-			None if keyframe => self.inner.append_group(),
-			// The first frame must be a keyframe.
-			None => return Err(Error::MissingKeyframe),
-		};
-
-		let size = chunks.clone().map(|c| c.len()).sum::<usize>();
-		let mut chunked = group.create_frame((header.len() + size).into());
-		chunked.write_chunk(header.freeze());
-		for chunk in chunks {
+		for chunk in frame.payload {
 			chunked.write_chunk(chunk);
 		}
 		chunked.close();
@@ -219,6 +178,7 @@ impl TrackConsumer {
 					match res {
 						// Got the next frame.
 						Ok(Some(frame)) => {
+							tracing::trace!(?frame, "read frame");
 							self.max_timestamp = frame.timestamp;
 							return Ok(Some(frame));
 						}

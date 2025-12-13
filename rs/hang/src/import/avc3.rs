@@ -1,5 +1,6 @@
 use crate as hang;
 use anyhow::Context;
+use buf_list::BufList;
 use bytes::{Buf, Bytes};
 use moq_lite as moq;
 
@@ -174,11 +175,13 @@ impl Avc3 {
 			_ => {}
 		}
 
+		tracing::trace!(kind = ?nal_type, "parsed NAL");
+
 		// Rather than keeping the original size of the start code, we replace it with a 4 byte start code.
 		// It's just marginally easier and potentially more efficient down the line (JS player with MSE).
 		// NOTE: This is ref-counted and static, so it's extremely cheap to clone.
-		self.current.chunks.push(START_CODE.clone());
-		self.current.chunks.push(nal);
+		self.current.chunks.push_chunk(START_CODE.clone());
+		self.current.chunks.push_chunk(nal);
 
 		Ok(())
 	}
@@ -191,8 +194,17 @@ impl Avc3 {
 
 		let track = self.track.as_mut().context("expected SPS before any frames")?;
 
-		track.write_chunks(self.current.contains_idr, pts, self.current.chunks.iter().cloned())?;
-		self.current.clear();
+		let payload = std::mem::take(&mut self.current.chunks);
+		let frame = hang::Frame {
+			timestamp: pts,
+			keyframe: self.current.contains_idr,
+			payload,
+		};
+
+		track.write(frame)?;
+
+		self.current.contains_idr = false;
+		self.current.contains_slice = false;
 
 		Ok(())
 	}
@@ -349,17 +361,9 @@ fn find_start_code(mut b: &[u8]) -> Option<(usize, usize)> {
 
 #[derive(Default)]
 struct Frame {
-	chunks: Vec<Bytes>,
+	chunks: BufList,
 	contains_idr: bool,
 	contains_slice: bool,
-}
-
-impl Frame {
-	fn clear(&mut self) {
-		self.chunks.clear();
-		self.contains_idr = false;
-		self.contains_slice = false;
-	}
 }
 
 #[cfg(test)]
