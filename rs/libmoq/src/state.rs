@@ -150,13 +150,14 @@ impl State {
 		Ok(())
 	}
 
-	pub fn create_track(&mut self, broadcast: Id, format: &str, mut init: &[u8]) -> Result<Id, Error> {
+	pub fn create_track(&mut self, broadcast: Id, format: &str, init: &[u8]) -> Result<Id, Error> {
 		let broadcast = self.broadcasts.get_mut(broadcast).ok_or(Error::NotFound)?;
 		let mut decoder = hang::import::Decoder::new(broadcast.clone(), format)
 			.ok_or_else(|| Error::UnknownFormat(format.to_string()))?;
 
+		let mut temp = init;
 		decoder
-			.initialize(&mut init)
+			.initialize(&mut temp)
 			.map_err(|err| Error::InitFailed(Arc::new(err)))?;
 		assert!(init.is_empty(), "buffer was not fully consumed");
 

@@ -467,7 +467,7 @@ impl Fmp4 {
 					let frame = hang::Frame {
 						timestamp,
 						keyframe,
-						payload,
+						payload: payload.into(),
 					};
 					track.write(frame)?;
 

@@ -14,7 +14,8 @@ categories = ["multimedia", "network-programming", "web-programming"]
 
 [dependencies]
 anyhow = "1"
-bytes = "1.11"
+buf-list = "1"
+bytes = "1"
 futures = "0.3"
 h264-parser = "0.4.0"
 hex = "0.4"
