@@ -6,6 +6,12 @@ use crate::Error;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct Id(NonZero<u32>);
 
+impl std::fmt::Display for Id {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+		write!(f, "{}", self.0.get())
+	}
+}
+
 // We purposely don't return 0 for slab IDs.
 pub(crate) struct NonZeroSlab<T>(slab::Slab<T>);
 
