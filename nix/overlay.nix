@@ -11,7 +11,7 @@ in
   moq-relay = craneLib.buildPackage (
     crateInfo ../rs/moq-relay/Cargo.toml
     // {
-      src = craneLib.cleanCargoSource ../rs;
+      src = craneLib.cleanCargoSource ../.;
       cargoExtraArgs = "-p moq-relay";
     }
   );
@@ -19,7 +19,7 @@ in
   moq-clock = craneLib.buildPackage (
     crateInfo ../rs/moq-clock/Cargo.toml
     // {
-      src = craneLib.cleanCargoSource ../rs;
+      src = craneLib.cleanCargoSource ../.;
       cargoExtraArgs = "-p moq-clock";
     }
   );
@@ -27,7 +27,7 @@ in
   hang = craneLib.buildPackage (
     crateInfo ../rs/hang-cli/Cargo.toml
     // {
-      src = craneLib.cleanCargoSource ../rs;
+      src = craneLib.cleanCargoSource ../.;
       cargoExtraArgs = "-p hang-cli";
     }
   );
@@ -35,7 +35,7 @@ in
   moq-token = craneLib.buildPackage (
     crateInfo ../rs/moq-token-cli/Cargo.toml
     // {
-      src = craneLib.cleanCargoSource ../rs;
+      src = craneLib.cleanCargoSource ../.;
       cargoExtraArgs = "-p moq-token-cli";
     }
   );
