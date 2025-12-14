@@ -2,16 +2,16 @@
 layout: home
 
 hero:
-  name: MoQ
-  text: Media over QUIC
-  tagline: Real-time latency at massive scale, in the browser!
-  image:
-    src: /logo.svg
-    alt: Media over QUIC
   actions:
     - theme: brand
       text: Setup
       link: /setup/
+    - theme: alt
+      text: Demo
+      link: https://moq.dev/watch/
+    - theme: alt
+      text: Blog
+      link: https://moq.dev/blog/
     - theme: alt
       text: GitHub
       link: https://github.com/moq-dev/moq
@@ -22,73 +22,61 @@ hero:
 features:
   - icon: 🚀
     title: Real-time Latency
-    details: Using QUIC for prioritization and partial reliability, MoQ delivers WebRTC-like latency without the constraints.
+    details: MoQ supports the entire latency spectrum, down to the tens of milliseconds. All thanks to QUIC.
 
   - icon: 📈
     title: Massive Scale
-    details: Designed for fan-out with support for cross-region clustering. Built to handle millions of concurrent viewers.
+    details: Everything is designed to fan-out across a generic CDN. Able to handle millions of concurrent viewers across the globe.
 
   - icon: 🌐
     title: Modern Web
-    details: Uses WebTransport, WebCodecs, and WebAudio APIs for native browser compatibility without plugins.
+    details: Uses WebTransport, WebCodecs, and WebAudio APIs for native browser compatibility without hacks.
 
   - icon: 🎯
-    title: Multi-language
-    details: Both Rust (native) and TypeScript (web) libraries with similar APIs and language-specific optimizations.
+    title: Multi-platform
+    details: Implemented in Rust (native) and TypeScript (web). Comes with integrations for ffmpeg, OBS, Gstreamer, and more to come.
 
   - icon: 🔧
     title: Generic Protocol
-    details: Not just for media - use for any live data. Includes text chat as both an example and a core feature.
+    details: Not just for media; MoQ is able to deliver any live or custom data. Your application is in control.
 
-  - icon: 🏗️
-    title: Layered Architecture
-    details: Clean separation between transport (moq-lite) and media (hang) layers. CDN stays media-agnostic.
+  - icon: 💪
+    title: Efficient
+    details: Save resources by only encoding or transmitting data when needed. Built on top of production-grade QUIC libraries.
 ---
 
 ## What is MoQ?
 
 [Media over QUIC](https://moq.dev) (MoQ) is a next-generation live media protocol that provides **real-time latency** at **massive scale**. Built using modern web technologies, MoQ delivers WebRTC-like latency without the constraints of WebRTC. The core networking is delegated to a QUIC library but the rest is in application-space, giving you full control over your media pipeline.
 
-This project is a [fork](https://moq.dev/blog/transfork) of the [IETF MoQ specification](https://datatracker.ietf.org/group/moq/documents/), focusing on simplicity and deployability.
+**NOTE**: This project uses [moq-lite](https://datatracker.ietf.org/doc/draft-lcurley-moq-lite/) and [hang](https://datatracker.ietf.org/doc/draft-lcurley-moq-hang/) instead of the *official* [IETF drafts](https://datatracker.ietf.org/group/moq/documents/).
+The focus is on simplicity and deployability, avoiding the bloat and politics experimental protocols designed by committee.
+We support compatibility with a subset of the latest IETF drafts, but it's *not recommended* given the ongoing standardization churn.
 
 ## Quick Start
 
-Get up and running in seconds with [Nix](https://nixos.org/download.html):
+Get up and running in seconds with [Nix](https://nixos.org/download.html), or use an [alternative method](/setup).
 
 ```bash
-# Runs a relay, demo media, and the web server
+# Runs a relay, media publisher, and the web server
 nix develop -c just dev
 ```
 
-Then visit [https://localhost:8080](https://localhost:8080) to see the demo.
+## Rust
+The Rust libraries are intended for native platforms, such as desktop applications or servers.
 
-See the [Setup](/setup/) for alternative and more detailed installation instructions.
+- **[moq-lite](/rust/moq-lite)** - The core pub/sub transport protocol; media agnostic.
+- **[moq-relay](/rust/moq-relay)** - A clusterable relay server that can form a CDN.
+- **[hang](/rust/hang)** - The media library: provides codecs, containers, etc.
+- **[hang-cli](/rust/hang-cli)** - A CLI tool for publishing media from a variety of sources.
 
-Learn more about the [architecture and core concepts](/setup/concepts).
+[Full Rust Documentation →](/rust/)
 
-## Libraries
+## TypeScript
+The TypeScript libraries are intended for web browsers, but also work on [Deno](https://deno.com/) with its experimental WebTransport support.
 
-This repository provides both Rust and TypeScript libraries:
+- **[@moq/lite](/typescript/lite)** - The core pub/sub transport protocol; media agnostic.
+- **[@moq/hang](/typescript/hang)** - The media library; provides codecs, containers, etc.
+- **[@moq/hang-ui](https://www.npmjs.com/package/@moq/hang-ui)** - Optional UI controls layered on top of `@moq/hang`.
 
-### Rust Libraries
-
-- **[moq-lite](/rust/moq-lite)** - Core pub/sub transport protocol
-- **[hang](/rust/hang)** - Media-specific encoding/streaming
-- **[moq-relay](/rust/moq-relay)** - Clusterable relay server
-- **[moq-token](https://docs.rs/moq-token)** - Authentication library
-
-[View all Rust libraries →](/rust/)
-
-### TypeScript Libraries
-
-- **[@moq/lite](/typescript/lite)** - Core protocol for browsers
-- **[@moq/hang](/typescript/hang)** - Media library with Web Components
-- **[@moq/hang-ui](https://www.npmjs.com/package/@moq/hang-ui)** - UI components using SolidJS
-
-[View all TypeScript libraries →](/typescript/)
-
-## Community
-
-- [GitHub](https://github.com/moq-dev/moq) - Source code and issues
-- [Discord](https://discord.gg/FCYF3p99mr) - Community discussions
-- [moq.dev](https://moq.dev) - Project website and blog
+[Full TypeScript Documentation →](/typescript/)

@@ -31,9 +31,8 @@ export default defineConfig({
 					text: "Setup",
 					items: [
 						{ text: "Quick Start", link: "/setup/" },
-						{ text: "Installation", link: "/setup/installation" },
-						{ text: "Demo", link: "/setup/demo" },
-						{ text: "Concepts", link: "/setup/concepts" },
+						{ text: "Development", link: "/setup/development" },
+						{ text: "Production", link: "/setup/production" },
 					],
 				},
 			],

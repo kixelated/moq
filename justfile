@@ -8,18 +8,6 @@ set quiet
 default:
   just --list
 
-# Serve documentation locally
-docs:
-	cd docs && bun install && bun run dev
-
-# Build documentation
-docs-build:
-	cd docs && bun install && bun run build
-
-# Deploy documentation to Cloudflare Pages
-docs-deploy:
-	cd docs && bun run deploy
-
 # Install any dependencies.
 install:
 	bun install

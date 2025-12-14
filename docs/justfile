@@ -1,0 +1,13 @@
+# Serve documentation locally
+dev:
+	bun install
+	bun run dev
+
+# Build documentation
+build:
+	bun install
+	bun run build
+
+# Deploy documentation to Cloudflare Pages
+deploy: build
+	bun run deploy

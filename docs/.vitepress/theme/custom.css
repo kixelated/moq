@@ -194,3 +194,26 @@
 	background-color: #0f172a;
 	border-top-color: #334155;
 }
+
+/* Hero logo - display logo above action buttons */
+.VPHero .container {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+}
+
+.VPHero .container::before {
+	content: "";
+	display: block;
+	width: 100%;
+	max-width: 800px;
+	height: 120px;
+	background-image: url("/logo.svg");
+	background-size: contain;
+	background-repeat: no-repeat;
+	background-position: center;
+}
+
+.VPHero .actions {
+	justify-content: center;
+}

@@ -1,78 +1,82 @@
 ---
 title: Quick Start
-description: Get started with MoQ in minutes
+description: Get started with MoQ in seconds
 ---
 
 # Quick Start
 
-Get up and running with MoQ in just a few minutes. This guide will walk you through setting up the demo application.
+We've got a few demos to show off some basic MoQ goodness.
+Everything runs on localhost [in development](/setup/development), but [in production](/setup/production) you'll want to split the components across multiple hosts.
 
-## Prerequisites
+## Option 1: Using Nix (Recommended)
 
-Choose one of the following installation methods:
+The recommended approach is to use [Nix](https://nixos.org/download.html).
 
-### Option 1: Using Nix (Recommended)
+Give it a try!
+All dependencies are automatically downloaded, pinned to specific versions, and identical on CI and production.
 
-The simplest way to get started is with [Nix](https://nixos.org/download.html):
-
+Install the following:
 - [Nix](https://nixos.org/download.html)
-- [Nix Flakes enabled](https://nixos.wiki/wiki/Flakes)
+- [Nix Flakes](https://nixos.wiki/wiki/Flakes)
+
+Then run the demo:
+```bash
+# Runs the demo
+nix develop -c just dev
+```
+
+Want to make it easier? Install [nix-direnv](https://github.com/nix-community/nix-direnv), then you can simply run:
+
+```bash
+# Once only: automatically uses nix-shell inside the repository.
+direnv allow
+
+# Runs the demo
+just dev
+```
+
 
 ### Option 2: Manual Installation
 
-If you prefer not to use Nix, install these dependencies:
+If you prefer not to use Nix (or are a Windows fiend), then you can manually install the dependencies:
 
 - [Just](https://github.com/casey/just)
 - [Rust](https://www.rust-lang.org/tools/install)
 - [Bun](https://bun.sh/)
 - [FFmpeg](https://ffmpeg.org/download.html)
+- ...more?
 
-See the [Installation guide](/getting-started/installation) for detailed setup instructions.
-
-## Running the Demo
-
-### With Nix
-
+Then run:
 ```bash
-# Enter the development environment and run the demo
-nix develop -c just dev
-```
-
-If you've installed [nix-direnv](https://github.com/nix-community/nix-direnv), you can simply run:
-
-```bash
-just dev
-```
-
-### Without Nix
-
-```bash
-# Install additional dependencies
+# Install additional dependencies, usually linters
 just install
 
-# Run the demo (relay, media server, and web server)
+# Run the demo
 just dev
 ```
 
-## Access the Demo
+When in doubt, check the [Nix Flake](https://github.com/moq-dev/moq/blob/main/flake.nix) for the full list of dependencies.
 
-Once the demo is running, visit [https://localhost:8080](https://localhost:8080) in your browser.
+## What's Happening?
+
+The `just dev` command starts three components:
+
+1. `moq-relay`: A server that routes live data between publishers and subscribers.
+2. `hang-cli`: A tool that publishes video content, in this case the classic "Big Buck Bunny".
+3. `hang-demo`: A web page with various demos, including a video player.
+
+Once everything compiles, it should open [https://localhost:5173](localhost:5173) in your browser.
+See the [development setup](/setup/development) guide for more cool things you can do.
 
 ::: warning
 The demo uses an insecure HTTP fetch for local development only. In production, you'll need a proper domain and TLS certificate via [LetsEncrypt](https://letsencrypt.org/docs/) or similar.
 :::
 
-## What's Running?
+## What's Next?
+If you want to run this stuff in production, you should have separate hosts for the three components.
 
-The `just dev` command starts three components:
+1. `moq-relay` can be run on any host(s) with a public IP address and an open UDP port.
+2. `hang-cli` can be run by any publisher client.
+3. `hang-demo` can be hosted on any web server or cloud provider.
 
-1. **Relay Server** - Routes live data between publishers and subscribers
-2. **Demo Media** - Publishes sample video content
-3. **Web Server** - Serves the demo application
-
-## Next Steps
-
-- Learn about [Core Concepts](/getting-started/concepts) - broadcasts, tracks, groups, and frames
-- Explore the [Demo](/getting-started/demo) in detail
-- Understand the [Architecture](/guide/architecture)
-- Try the [Rust](/rust/) or [TypeScript](/typescript/) libraries
+Check out the full guide for [deploying to production](/setup/production).

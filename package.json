@@ -4,6 +4,7 @@
 	"private": true,
 	"type": "module",
 	"workspaces": [
+		"docs",
 		"js/lite",
 		"js/clock",
 		"js/token",
