@@ -89,7 +89,7 @@ export class Renderer {
 			});
 		}
 
-		// Use current frame for rendering if not paused, 
+		// Use current frame for rendering if not paused,
 		// otherwise use cached frame
 		const frameToRender = paused ? effect.get(this.#lastFrame)?.clone() : currentFrame?.clone();
 
